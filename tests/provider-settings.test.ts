@@ -61,4 +61,13 @@ describe('provider settings helpers', () => {
 		expect(providerKeyFromEnv('google')).toBeUndefined();
 		expect(providerKeyFromEnv('anthropic')).toBeUndefined();
 	});
+
+	it('falls back to GEMINI_API_KEY for the google provider', () => {
+		process.env.GEMINI_API_KEY = 'ai-env-gemini';
+		process.env.GOOGLE_API_KEY = 'ai-env-google';
+		expect(providerKeyFromEnv('google')).toBe('ai-env-gemini');
+		delete process.env.GEMINI_API_KEY;
+		expect(providerKeyFromEnv('google')).toBe('ai-env-google');
+		delete process.env.GOOGLE_API_KEY;
+	});
 });

@@ -100,7 +100,7 @@ Route handlers validate input and orchestrate services. Agents are not construct
 - At least one provider key for live responses:
   - `OPENAI_API_KEY`
   - `ANTHROPIC_API_KEY`
-  - `GOOGLE_API_KEY`
+  - `GOOGLE_API_KEY` or `GEMINI_API_KEY`
 - `PROVIDER_KEY_ENCRYPTION_SECRET` to encrypt user-saved provider keys at rest
 
 Bun is compatible with the source code. The repository currently uses npm and a package lockfile for reproducible setup.
@@ -231,7 +231,7 @@ PUT    /api/providers/:provider
 DELETE /api/providers/:provider
 ```
 
-Users can save their own API keys per provider (currently `openai`, `anthropic`, and `google`). Keys are encrypted at rest with AES-256-GCM using a key derived from `PROVIDER_KEY_ENCRYPTION_SECRET`, and never returned to the browser; the API responds with a masked form such as `•••• 4f2a`. When no user key is saved, the server environment variable (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) is used as fallback. An optional `baseUrl` can be saved to route provider requests to a custom endpoint.
+Users can save their own API keys per provider (currently `openai`, `anthropic`, and `google`). Keys are encrypted at rest with AES-256-GCM using a key derived from `PROVIDER_KEY_ENCRYPTION_SECRET`, and never returned to the browser; the API responds with a masked form such as `•••• 4f2a`. When no user key is saved, the server environment variable is used as fallback (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GOOGLE_API_KEY` or `GEMINI_API_KEY` for Google). An optional `baseUrl` can be saved to route provider requests to a custom endpoint.
 
 ```bash
 curl -X PUT http://localhost:5173/api/providers/openai \

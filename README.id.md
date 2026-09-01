@@ -92,7 +92,7 @@ Route handler bertugas melakukan validasi dan orkestrasi service. Agent tidak di
 - Minimal satu provider key untuk live response:
   - `OPENAI_API_KEY`
   - `ANTHROPIC_API_KEY`
-  - `GOOGLE_API_KEY`
+  - `GOOGLE_API_KEY` atau `GEMINI_API_KEY`
 - `PROVIDER_KEY_ENCRYPTION_SECRET` untuk mengenkripsi provider key milik pengguna
 
 Bun kompatibel dengan source code. Repository saat ini menggunakan npm dan lockfile agar setup reproducible.
@@ -194,7 +194,7 @@ PUT    /api/providers/:provider
 DELETE /api/providers/:provider
 ```
 
-Pengguna dapat menyimpan API key sendiri per provider (saat ini `openai`, `anthropic`, dan `google`). Key dienkripsi saat disimpan dengan AES-256-GCM menggunakan key turunan dari `PROVIDER_KEY_ENCRYPTION_SECRET`, dan tidak pernah dikirim kembali ke browser; API merespons dalam bentuk tersamarkan seperti `•••• 4f2a`. Jika tidak ada key tersimpan, environment variable server (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) dipakai sebagai fallback. `baseUrl` opsional dapat disimpan untuk mengarahkan request provider ke endpoint khusus.
+Pengguna dapat menyimpan API key sendiri per provider (saat ini `openai`, `anthropic`, dan `google`). Key dienkripsi saat disimpan dengan AES-256-GCM menggunakan key turunan dari `PROVIDER_KEY_ENCRYPTION_SECRET`, dan tidak pernah dikirim kembali ke browser; API merespons dalam bentuk tersamarkan seperti `•••• 4f2a`. Jika tidak ada key tersimpan, environment variable server dipakai sebagai fallback (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, dan `GOOGLE_API_KEY` atau `GEMINI_API_KEY` untuk Google). `baseUrl` opsional dapat disimpan untuk mengarahkan request provider ke endpoint khusus.
 
 ```bash
 curl -X PUT http://localhost:5173/api/providers/openai \

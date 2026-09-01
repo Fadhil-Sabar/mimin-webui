@@ -39,29 +39,32 @@ export interface AppModel {
 export async function listModels(userId?: string): Promise<AppModel[]> {
 	const registry = getModels();
 	const all = registry.getModels();
-	const result: AppModel[] = [];
-	for (const model of all) {
-		const configured = isProviderConfigured(model.provider);
-		let userConfigured = false;
-		if (userId && isProviderId(model.provider)) {
-			const credential = await getProviderCredential(userId, model.provider);
-			userConfigured = credential.fromUser;
+	// Resolve each provider's effective configuration once per request.
+	const configuredByProvider = new Map<string, boolean>();
+	const userConfiguredByProvider = new Map<string, boolean>();
+	const providers = new Set(all.map((model) => model.provider));
+	for (const provider of providers) {
+		configuredByProvider.set(provider, isProviderConfigured(provider));
+		if (userId && isProviderId(provider)) {
+			const credential = await getProviderCredential(userId, provider);
+			userConfiguredByProvider.set(provider, credential.fromUser);
+		} else {
+			userConfiguredByProvider.set(provider, false);
 		}
-		result.push({
-			id: model.id,
-			provider: model.provider,
-			name: model.name,
-			contextWindow: model.contextWindow,
-			capabilities: {
-				vision: model.input?.includes('image') ?? false,
-				tools: true,
-				reasoning: Boolean(model.reasoning)
-			},
-			configured,
-			userConfigured
-		});
 	}
-	return result;
+	return all.map((model) => ({
+		id: model.id,
+		provider: model.provider,
+		name: model.name,
+		contextWindow: model.contextWindow,
+		capabilities: {
+			vision: model.input?.includes('image') ?? false,
+			tools: true,
+			reasoning: Boolean(model.reasoning)
+		},
+		configured: configuredByProvider.get(model.provider) ?? false,
+		userConfigured: userConfiguredByProvider.get(model.provider) ?? false
+	}));
 }
 
 export function resolveModel(provider: string, id: string) {

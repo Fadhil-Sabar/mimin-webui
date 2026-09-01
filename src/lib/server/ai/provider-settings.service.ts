@@ -32,6 +32,13 @@ export interface ProviderCredential {
 const PROVIDERS = ['openai', 'anthropic', 'google'] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 
+export const PROVIDER_ENV_KEYS: Record<ProviderId, string[]> = {
+	openai: ['OPENAI_API_KEY'],
+	anthropic: ['ANTHROPIC_API_KEY'],
+	google: ['GEMINI_API_KEY', 'GOOGLE_API_KEY']
+};
+
+/** The canonical env var name shown to users for each provider. */
 export const PROVIDER_ENV_KEY: Record<ProviderId, string> = {
 	openai: 'OPENAI_API_KEY',
 	anthropic: 'ANTHROPIC_API_KEY',
@@ -85,7 +92,11 @@ export async function decryptSecret(payload: string | null | undefined): Promise
 
 /** True when the provider has any usable key: user-stored or server env. */
 export function providerKeyFromEnv(provider: ProviderId): string | undefined {
-	return getEnv(PROVIDER_ENV_KEY[provider]);
+	for (const name of PROVIDER_ENV_KEYS[provider]) {
+		const value = getEnv(name);
+		if (value) return value;
+	}
+	return undefined;
 }
 
 export async function getProviderCredential(
