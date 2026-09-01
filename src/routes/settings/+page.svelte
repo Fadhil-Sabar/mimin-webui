@@ -18,12 +18,35 @@
 		provider: string;
 		name: string;
 		description: string;
-		envVar: string;
+		envVar: string | null;
 		apiKey: string | null;
 		baseUrl: string | null;
 		fromUser: boolean;
 		configured: boolean;
+		customConfig: CustomConfig | null;
 	};
+	type Protocol =
+		| 'openai-completions'
+		| 'openai-responses'
+		| 'anthropic-messages'
+		| 'google-generative-ai'
+		| 'mistral-conversations'
+		| 'pi-messages'
+		| 'azure-openai-responses';
+	type CustomConfig = {
+		name: string;
+		protocol: Protocol;
+		models: Array<{ id: string; name?: string }>;
+	};
+	const PROTOCOLS: Array<{ id: Protocol; name: string; description: string }> = [
+		{ id: 'openai-completions', name: 'OpenAI compatible', description: 'Chat Completions API' },
+		{ id: 'openai-responses', name: 'OpenAI Responses', description: 'Responses API' },
+		{ id: 'anthropic-messages', name: 'Anthropic compatible', description: 'Messages API' },
+		{ id: 'google-generative-ai', name: 'Google compatible', description: 'Generative AI API' },
+		{ id: 'mistral-conversations', name: 'Mistral compatible', description: 'Conversations API' },
+		{ id: 'pi-messages', name: 'Pi compatible', description: 'Pi Messages API' },
+		{ id: 'azure-openai-responses', name: 'Azure OpenAI', description: 'Azure Responses API' }
+	];
 
 	const PROVIDERS: Array<{ id: string; name: string; description: string; envVar: string }> = [
 		{
@@ -54,6 +77,10 @@
 	let editing = $state<string | null>(null);
 	let draftKey = $state('');
 	let draftBaseUrl = $state('');
+	let draftName = $state('');
+	let draftProtocol = $state<Protocol>('openai-completions');
+	let draftModels = $state('');
+	let creatingCustom = $state(false);
 
 	function notify(message: string) {
 		toast = message;
@@ -64,7 +91,7 @@
 		const response = await fetch('/api/providers');
 		if (!response.ok) throw new Error('Could not load providers');
 		const data = await response.json();
-		providers = PROVIDERS.map((info) => {
+		const builtIns = PROVIDERS.map((info) => {
 			const stored = (data.providers ?? []).find(
 				(p: { provider: string }) => p.provider === info.id
 			);
@@ -76,9 +103,28 @@
 				apiKey: stored?.apiKey ?? null,
 				baseUrl: stored?.baseUrl ?? null,
 				fromUser: Boolean(stored?.fromUser),
-				configured: Boolean(stored?.apiKey)
+				configured: Boolean(stored?.apiKey),
+				customConfig: null
 			};
 		});
+		const custom = (data.providers ?? [])
+			.filter((provider: { customConfig?: CustomConfig }) => provider.customConfig)
+			.map(
+				(provider: {
+					provider: string;
+					apiKey: string | null;
+					baseUrl: string | null;
+					fromUser: boolean;
+					customConfig: CustomConfig;
+				}) => ({
+					...provider,
+					name: provider.customConfig.name,
+					description: `${PROTOCOLS.find((item) => item.id === provider.customConfig.protocol)?.name ?? provider.customConfig.protocol} · ${provider.customConfig.models.length} model${provider.customConfig.models.length === 1 ? '' : 's'}`,
+					envVar: null,
+					configured: Boolean(provider.baseUrl)
+				})
+			);
+		providers = [...builtIns, ...custom];
 	}
 
 	onMount(async () => {
@@ -98,36 +144,74 @@
 	});
 
 	function openEditor(provider: string) {
+		creatingCustom = false;
 		editing = provider;
 		const current = providers.find((p) => p.provider === provider);
 		draftKey = '';
 		draftBaseUrl = current?.baseUrl ?? '';
+		draftName = current?.customConfig?.name ?? '';
+		draftProtocol = current?.customConfig?.protocol ?? 'openai-completions';
+		draftModels = current?.customConfig?.models.map((model) => model.id).join('\n') ?? '';
+	}
+
+	function openCustomEditor() {
+		creatingCustom = true;
+		editing = 'new';
+		draftKey = '';
+		draftBaseUrl = '';
+		draftName = '';
+		draftProtocol = 'openai-completions';
+		draftModels = '';
 	}
 
 	async function saveProvider() {
 		if (!editing) return;
 		const provider = editing;
 		const current = providers.find((p) => p.provider === provider);
+		const isCustom = creatingCustom || Boolean(current?.customConfig);
 		if (!draftKey.trim() && !draftBaseUrl.trim() && !current?.fromUser) {
 			notify('Enter an API key or a base URL');
 			return;
 		}
 		saving = true;
 		try {
-			const body: Record<string, string | null> = {};
+			const body: Record<string, unknown> = {};
 			// An empty key field keeps the saved key; use Remove to delete it.
 			if (draftKey.trim()) body.apiKey = draftKey.trim();
 			if (draftBaseUrl.trim()) body.baseUrl = draftBaseUrl.trim();
 			else if (current?.baseUrl) body.baseUrl = null;
-			const response = await fetch(`/api/providers/${provider}`, {
-				method: 'PUT',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(body)
-			});
+			if (isCustom) {
+				const modelIds = [
+					...new Set(
+						draftModels
+							.split(/[\n,]/)
+							.map((id) => id.trim())
+							.filter(Boolean)
+					)
+				];
+				if (!draftName.trim() || !draftBaseUrl.trim() || modelIds.length === 0) {
+					notify('Enter a name, base URL, and at least one model ID');
+					return;
+				}
+				body.customConfig = {
+					name: draftName.trim(),
+					protocol: draftProtocol,
+					models: modelIds.map((id) => ({ id }))
+				};
+			}
+			const response = await fetch(
+				creatingCustom ? '/api/providers' : `/api/providers/${provider}`,
+				{
+					method: creatingCustom ? 'POST' : 'PUT',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(body)
+				}
+			);
 			if (!response.ok)
 				throw new Error((await response.json()).error?.message ?? 'Could not save provider');
 			notify('Provider saved');
 			editing = null;
+			creatingCustom = false;
 			await loadProviders();
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not save provider');
@@ -137,7 +221,7 @@
 	}
 
 	async function removeProvider(provider: string) {
-		if (!window.confirm('Remove this provider key? This cannot be undone.')) return;
+		if (!window.confirm('Remove this provider connection? This cannot be undone.')) return;
 		try {
 			const response = await fetch(`/api/providers/${provider}`, { method: 'DELETE' });
 			if (!response.ok) throw new Error('Could not remove provider');
@@ -199,9 +283,13 @@
 				<div>
 					<h1>Models & connections</h1>
 					<p>
-						Connect the models Mimin can use. Your keys are encrypted and only power your conversations.
+						Connect the models Mimin can use. Your keys are encrypted and only power your
+						conversations.
 					</p>
 				</div>
+				<button class="button primary add-provider" onclick={openCustomEditor}
+					><Plus size={15} /> Add provider</button
+				>
 			</div>
 			{#if loading}
 				<div class="empty-state" role="status">Checking model connections...</div>
@@ -225,7 +313,7 @@
 									<p>{provider.description}</p>
 									<details class="provider-meta">
 										<summary>Connection details</summary>
-										<span class="mono">{provider.envVar}</span>
+										{#if provider.envVar}<span class="mono">{provider.envVar}</span>{/if}
 										{#if provider.fromUser}
 											<span class="mono dim">{provider.apiKey}</span>
 										{:else if provider.configured}
@@ -238,7 +326,7 @@
 								</div>
 							</div>
 							<div class="provider-actions">
-								{#if provider.fromUser}
+								{#if provider.fromUser || provider.customConfig}
 									<button
 										class="button danger"
 										onclick={() => removeProvider(provider.provider)}
@@ -253,7 +341,8 @@
 					{/each}
 				</div>
 				<p class="footnote">
-					Technical connection details stay here. Saved keys are encrypted and never returned to your browser.
+					Technical connection details stay here. Saved keys are encrypted and never returned to
+					your browser.
 				</p>
 			{/if}
 		</div>
@@ -280,7 +369,9 @@
 			<div class="modal-head">
 				<div>
 					<h2 id="provider-dialog-title">
-						{providers.find((p) => p.provider === editing)?.name ?? 'Provider'}
+						{creatingCustom
+							? 'Add custom provider'
+							: (providers.find((p) => p.provider === editing)?.name ?? 'Provider')}
 					</h2>
 				</div>
 				<button
@@ -291,12 +382,39 @@
 					onclick={() => (editing = null)}><X size={18} /></button
 				>
 			</div>
+			{#if creatingCustom || providers.find((p) => p.provider === editing)?.customConfig}
+				<label
+					>Provider name
+					<input bind:value={draftName} placeholder="My local models" autocomplete="off" />
+				</label>
+				<label
+					>API template
+					<select bind:value={draftProtocol}>
+						{#each PROTOCOLS as protocol}
+							<option value={protocol.id}>{protocol.name} — {protocol.description}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
 			<label
-				>API key
+				>API key {#if creatingCustom || providers.find((p) => p.provider === editing)?.customConfig}<span
+						class="optional">optional for keyless servers</span
+					>{/if}
 				<input type="password" bind:value={draftKey} placeholder="sk-..." autocomplete="off" />
 			</label>
+			{#if creatingCustom || providers.find((p) => p.provider === editing)?.customConfig}
+				<label
+					>Model IDs <span class="optional">one per line</span>
+					<textarea
+						bind:value={draftModels}
+						rows="4"
+						placeholder="llama-3.3-70b-instruct&#10;deepseek-r1"></textarea>
+				</label>
+			{/if}
 			<label
-				>Base URL <span class="optional">optional</span>
+				>Base URL {#if !creatingCustom && !providers.find((p) => p.provider === editing)?.customConfig}<span
+						class="optional">optional</span
+					>{/if}
 				<input
 					type="text"
 					bind:value={draftBaseUrl}
@@ -340,6 +458,25 @@
 	.page-heading p {
 		margin: 0;
 		color: var(--text-muted);
+	}
+	.add-provider {
+		flex: 0 0 auto;
+		margin-left: 20px;
+	}
+	.modal select {
+		display: block;
+		width: 100%;
+		min-height: 44px;
+		margin-top: 6px;
+		padding: 10px;
+		border: 1px solid var(--input-border);
+		border-radius: 6px;
+		outline: none;
+		background: var(--surface);
+		color: var(--text);
+	}
+	.modal select:focus {
+		border-color: var(--focus);
 	}
 	.empty-state {
 		text-align: center;
@@ -423,9 +560,18 @@
 		font-size: var(--text-xs);
 		list-style: none;
 	}
-	.provider-meta summary::-webkit-details-marker { display: none; }
-	.provider-meta summary::before { content: '+'; display: inline-block; width: 12px; color: var(--text-faint); }
-	.provider-meta[open] summary::before { content: '−'; }
+	.provider-meta summary::-webkit-details-marker {
+		display: none;
+	}
+	.provider-meta summary::before {
+		content: '+';
+		display: inline-block;
+		width: 12px;
+		color: var(--text-faint);
+	}
+	.provider-meta[open] summary::before {
+		content: '−';
+	}
 	.mono {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 		font-size: var(--text-xs);
@@ -497,6 +643,14 @@
 		margin-left: 4px;
 	}
 	@media (max-width: 700px) {
+		.page-heading {
+			align-items: flex-start;
+			flex-direction: column;
+			gap: 18px;
+		}
+		.add-provider {
+			margin-left: 0;
+		}
 		.provider-card {
 			flex-direction: column;
 			align-items: stretch;

@@ -1,0 +1,1 @@
+ALTER TABLE "provider_settings" ADD COLUMN "custom_config" jsonb;

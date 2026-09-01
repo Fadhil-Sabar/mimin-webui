@@ -25,12 +25,35 @@ export interface ProviderCredential {
 	provider: string;
 	apiKey: string | null;
 	baseUrl: string | null;
+	customConfig: CustomProviderConfig | null;
 	/** True when the effective key comes from a user setting, false when it falls back to the server env. */
 	fromUser: boolean;
 }
 
 const PROVIDERS = ['openai', 'anthropic', 'google'] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
+export const CUSTOM_PROVIDER_PROTOCOLS = [
+	'openai-completions',
+	'openai-responses',
+	'anthropic-messages',
+	'google-generative-ai',
+	'mistral-conversations',
+	'pi-messages',
+	'azure-openai-responses'
+] as const;
+export type CustomProviderProtocol = (typeof CUSTOM_PROVIDER_PROTOCOLS)[number];
+export type CustomProviderConfig = {
+	name: string;
+	protocol: CustomProviderProtocol;
+	models: Array<{
+		id: string;
+		name?: string;
+		contextWindow?: number;
+		maxTokens?: number;
+		reasoning?: boolean;
+		vision?: boolean;
+	}>;
+};
 
 export const PROVIDER_ENV_KEYS: Record<ProviderId, string[]> = {
 	openai: ['OPENAI_API_KEY'],
@@ -53,6 +76,10 @@ function getEnv(name: string): string | undefined {
 
 export function isProviderId(value: string): value is ProviderId {
 	return (PROVIDERS as readonly string[]).includes(value);
+}
+
+export function isValidProviderKey(value: string) {
+	return isProviderId(value) || /^custom_[0-9a-f-]{36}$/.test(value);
 }
 
 function encryptionKey(): string {
@@ -101,7 +128,7 @@ export function providerKeyFromEnv(provider: ProviderId): string | undefined {
 
 export async function getProviderCredential(
 	userId: string,
-	provider: ProviderId
+	provider: string
 ): Promise<ProviderCredential> {
 	const [row] = await getDb()
 		.select()
@@ -113,11 +140,12 @@ export async function getProviderCredential(
 			)
 		);
 	const apiKey = row ? await decryptSecret(row.apiKey) : null;
-	const envKey = providerKeyFromEnv(provider);
+	const envKey = isProviderId(provider) ? providerKeyFromEnv(provider) : undefined;
 	return {
 		provider,
 		apiKey: apiKey ?? envKey ?? null,
 		baseUrl: row?.baseUrl ?? null,
+		customConfig: (row?.customConfig as CustomProviderConfig | null | undefined) ?? null,
 		fromUser: Boolean(row && apiKey)
 	};
 }
@@ -128,8 +156,8 @@ export async function listProviderCredentials(userId: string): Promise<ProviderC
 		.from(schema.providerSettings)
 		.where(eq(schema.providerSettings.userId, userId));
 	const byProvider = new Map(rows.map((row) => [row.provider, row]));
-	return Promise.all(
-		PROVIDERS.map(async (provider) => {
+	return Promise.all([
+		...PROVIDERS.map(async (provider) => {
 			const row = byProvider.get(provider);
 			const apiKey = row ? await decryptSecret(row.apiKey) : null;
 			const envKey = providerKeyFromEnv(provider);
@@ -137,16 +165,29 @@ export async function listProviderCredentials(userId: string): Promise<ProviderC
 				provider,
 				apiKey: apiKey ?? envKey ?? null,
 				baseUrl: row?.baseUrl ?? null,
+				customConfig: null,
 				fromUser: Boolean(row && apiKey)
 			};
-		})
-	);
+		}),
+		...rows
+			.filter((row) => !isProviderId(row.provider) && row.customConfig)
+			.map(async (row) => {
+				const apiKey = await decryptSecret(row.apiKey);
+				return {
+					provider: row.provider,
+					apiKey,
+					baseUrl: row.baseUrl,
+					customConfig: row.customConfig as CustomProviderConfig,
+					fromUser: Boolean(apiKey)
+				};
+			})
+	]);
 }
 
 export async function saveProviderCredential(
 	userId: string,
-	provider: ProviderId,
-	input: { apiKey?: string | null; baseUrl?: string | null }
+	provider: string,
+	input: { apiKey?: string | null; baseUrl?: string | null; customConfig?: CustomProviderConfig }
 ): Promise<void> {
 	// Undefined preserves the stored value; null explicitly clears it. This way
 	// a base-URL-only edit does not wipe a saved key.
@@ -155,7 +196,8 @@ export async function saveProviderCredential(
 		.select({
 			id: schema.providerSettings.id,
 			apiKey: schema.providerSettings.apiKey,
-			baseUrl: schema.providerSettings.baseUrl
+			baseUrl: schema.providerSettings.baseUrl,
+			customConfig: schema.providerSettings.customConfig
 		})
 		.from(schema.providerSettings)
 		.where(
@@ -177,20 +219,20 @@ export async function saveProviderCredential(
 			: input.baseUrl
 				? input.baseUrl.trim() || null
 				: null;
+	const customConfig = input.customConfig ?? existing[0]?.customConfig ?? null;
 	if (existing[0]) {
 		await db
 			.update(schema.providerSettings)
-			.set({ apiKey, baseUrl, updatedAt: new Date() })
+			.set({ apiKey, baseUrl, customConfig, updatedAt: new Date() })
 			.where(eq(schema.providerSettings.id, existing[0].id));
 	} else {
-		await db.insert(schema.providerSettings).values({ userId, provider, apiKey, baseUrl });
+		await db
+			.insert(schema.providerSettings)
+			.values({ userId, provider, apiKey, baseUrl, customConfig });
 	}
 }
 
-export async function deleteProviderCredential(
-	userId: string,
-	provider: ProviderId
-): Promise<void> {
+export async function deleteProviderCredential(userId: string, provider: string): Promise<void> {
 	await getDb()
 		.delete(schema.providerSettings)
 		.where(

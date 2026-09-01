@@ -17,5 +17,37 @@ export const messageInput = z.object({
 });
 export const providerSettingsInput = z.object({
 	apiKey: z.string().trim().min(1).max(400).nullable().optional(),
-	baseUrl: z.string().trim().max(500).nullable().optional()
+	baseUrl: z
+		.url()
+		.max(500)
+		.refine((value) => value.startsWith('https://') || value.startsWith('http://'))
+		.nullable()
+		.optional(),
+	customConfig: z
+		.object({
+			name: z.string().trim().min(1).max(80),
+			protocol: z.enum([
+				'openai-completions',
+				'openai-responses',
+				'anthropic-messages',
+				'google-generative-ai',
+				'mistral-conversations',
+				'pi-messages',
+				'azure-openai-responses'
+			]),
+			models: z
+				.array(
+					z.object({
+						id: z.string().trim().min(1).max(200),
+						name: z.string().trim().min(1).max(200).optional(),
+						contextWindow: z.number().int().positive().max(10_000_000).optional(),
+						maxTokens: z.number().int().positive().max(1_000_000).optional(),
+						reasoning: z.boolean().optional(),
+						vision: z.boolean().optional()
+					})
+				)
+				.min(1)
+				.max(100)
+		})
+		.optional()
 });

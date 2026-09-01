@@ -191,11 +191,14 @@ Tool khusus project seperti `project_knowledge_search` hanya dikembalikan jika `
 
 ```text
 GET    /api/providers
+POST   /api/providers
 PUT    /api/providers/:provider
 DELETE /api/providers/:provider
 ```
 
 Pengguna dapat menyimpan API key sendiri per provider (saat ini `openai`, `anthropic`, dan `google`). Key dienkripsi saat disimpan dengan AES-256-GCM menggunakan key turunan dari `PROVIDER_KEY_ENCRYPTION_SECRET`, dan tidak pernah dikirim kembali ke browser; API merespons dalam bentuk tersamarkan seperti `•••• 4f2a`. Jika tidak ada key tersimpan, environment variable server dipakai sebagai fallback (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, dan `GOOGLE_API_KEY` atau `GEMINI_API_KEY` untuk Google). `baseUrl` opsional dapat disimpan untuk mengarahkan request provider ke endpoint khusus.
+
+`POST /api/providers` membuat provider kustom milik pengguna. UI pengaturan menyediakan template untuk semua protokol HTTP Pi yang cocok dengan koneksi API key/base URL: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Google Generative AI, Mistral Conversations, Pi Messages, dan Azure OpenAI Responses. ID model diisi secara eksplisit karena server kustom tidak memiliki endpoint discovery universal. API key bersifat opsional untuk server lokal tanpa autentikasi.
 
 ```bash
 curl -X PUT http://localhost:5173/api/providers/openai \
@@ -304,6 +307,7 @@ Provider yang diregistrasikan:
 - OpenAI
 - Anthropic
 - Google
+- Provider buatan pengguna dengan template protokol Pi yang didukung
 
 Provider key tidak pernah muncul di response model API atau browser code.
 

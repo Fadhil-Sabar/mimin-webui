@@ -144,6 +144,18 @@ export const providerSettings = pgTable(
 		provider: text('provider').notNull(),
 		apiKey: text('api_key'),
 		baseUrl: text('base_url'),
+		customConfig: jsonb('custom_config').$type<{
+			name: string;
+			protocol: string;
+			models: Array<{
+				id: string;
+				name?: string;
+				contextWindow?: number;
+				maxTokens?: number;
+				reasoning?: boolean;
+				vision?: boolean;
+			}>;
+		}>(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},

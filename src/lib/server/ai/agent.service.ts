@@ -3,7 +3,7 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { asc, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { modelRegistry, resolveModel, splitModelRef } from './model.service';
-import { getProviderCredential, isProviderId } from './provider-settings.service';
+import { getProviderCredential, type ProviderCredential } from './provider-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
 import { createWebSearchTool } from './tools/web-search.tool';
 
@@ -104,13 +104,13 @@ export async function runConversationTurn(
 	const selectedModel = splitModelRef(selectedModelRef);
 	if (!selectedModel) throw new Error('MODEL_NOT_AVAILABLE');
 	const { provider, id: modelId } = selectedModel;
-	const model = resolveModel(provider, modelId);
-	if (!model) throw new Error('MODEL_NOT_AVAILABLE');
-	let credential: { apiKey: string | null; baseUrl: string | null; fromUser: boolean } | undefined;
-	if (isProviderId(provider)) {
+	let credential: ProviderCredential | undefined;
+	if (userId || conversation.userId) {
 		credential = await getProviderCredential(userId ?? conversation.userId ?? '', provider);
-		if (!credential.apiKey) throw new Error('PROVIDER_NOT_CONFIGURED');
+		if (!credential.apiKey && !credential.customConfig) throw new Error('PROVIDER_NOT_CONFIGURED');
 	}
+	const model = resolveModel(provider, modelId, credential);
+	if (!model) throw new Error('MODEL_NOT_AVAILABLE');
 	// A user-saved base URL points the provider adapters at a custom endpoint.
 	const isCustomOpenAi =
 		provider === 'openai' &&

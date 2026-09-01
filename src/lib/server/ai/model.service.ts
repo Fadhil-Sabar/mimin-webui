@@ -4,10 +4,18 @@ import { googleProvider } from '@earendil-works/pi-ai/providers/google';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
+import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
+import { azureOpenAIResponsesApi } from '@earendil-works/pi-ai/api/azure-openai-responses.lazy';
+import { googleGenerativeAIApi } from '@earendil-works/pi-ai/api/google-generative-ai.lazy';
+import { mistralConversationsApi } from '@earendil-works/pi-ai/api/mistral-conversations.lazy';
+import { piMessagesApi } from '@earendil-works/pi-ai/api/pi-messages.lazy';
 import {
 	getProviderCredential,
 	isProviderId,
+	listProviderCredentials,
 	providerKeyFromEnv,
+	type CustomProviderProtocol,
+	type ProviderCredential,
 	type ProviderId
 } from './provider-settings.service';
 import {
@@ -69,7 +77,7 @@ export interface AppModel {
 }
 
 export type ModelDiscoveryError = {
-	provider: DiscoverableProvider;
+	provider: string;
 	message: string;
 };
 
@@ -80,6 +88,64 @@ export type ModelListResult = {
 
 function runtimeModelKey(provider: string, id: string) {
 	return `${provider}\u0000${id}`;
+}
+
+function customApi(protocol: CustomProviderProtocol) {
+	switch (protocol) {
+		case 'openai-completions':
+			return openAICompletionsApi();
+		case 'openai-responses':
+			return openAIResponsesApi();
+		case 'anthropic-messages':
+			return anthropicMessagesApi();
+		case 'google-generative-ai':
+			return googleGenerativeAIApi();
+		case 'mistral-conversations':
+			return mistralConversationsApi();
+		case 'pi-messages':
+			return piMessagesApi();
+		case 'azure-openai-responses':
+			return azureOpenAIResponsesApi();
+	}
+}
+
+/** Register a user-owned custom provider from its persisted protocol/model definition. */
+export function registerCustomProvider(credential: ProviderCredential) {
+	const config = credential.customConfig;
+	if (!config || !credential.baseUrl) return;
+	const baseUrl = credential.baseUrl.replace(/\/+$/, '');
+	const models: RuntimeModel[] = config.models.map((definition) => ({
+		id: definition.id,
+		name: definition.name?.trim() || modelDisplayName(definition.id),
+		provider: credential.provider,
+		api: config.protocol,
+		baseUrl,
+		reasoning: definition.reasoning ?? false,
+		input: definition.vision ? ['text', 'image'] : ['text'],
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: definition.contextWindow ?? 128_000,
+		maxTokens: definition.maxTokens ?? 8_192
+	}));
+	getRegistry().setProvider(
+		createProvider({
+			id: credential.provider,
+			name: config.name,
+			baseUrl,
+			auth: {
+				apiKey: {
+					name: `${config.name} API key`,
+					resolve: async ({ credential, signal }) => {
+						signal.throwIfAborted();
+						return credential?.key
+							? { auth: { apiKey: credential.key }, source: 'request credential' }
+							: { auth: {}, source: 'keyless endpoint' };
+					}
+				}
+			},
+			models,
+			api: customApi(config.protocol)
+		})
+	);
 }
 
 function templateModel(provider: DiscoverableProvider) {
@@ -182,6 +248,9 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 			return { provider, credential, loaded };
 		})
 	);
+	const customCredentials = userId
+		? (await listProviderCredentials(userId)).filter((credential) => credential.customConfig)
+		: [];
 
 	for (const { provider, credential, loaded } of loadedProviders) {
 		if (loaded.error) errors.push({ provider, message: loaded.error });
@@ -204,6 +273,26 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 		}
 	}
 
+	for (const credential of customCredentials) {
+		registerCustomProvider(credential);
+		for (const model of getRegistry().getModels(credential.provider)) {
+			models.push({
+				id: model.id,
+				provider: credential.provider,
+				name: model.name,
+				contextWindow: model.contextWindow,
+				capabilities: {
+					vision: model.input.includes('image'),
+					tools: true,
+					reasoning: model.reasoning
+				},
+				configured: Boolean(credential.baseUrl),
+				userConfigured: credential.fromUser,
+				source: 'catalog'
+			});
+		}
+	}
+
 	return { models, errors };
 }
 
@@ -215,7 +304,7 @@ export function splitModelRef(value: string) {
 
 export async function isModelAvailable(userId: string, value: string) {
 	const parsed = splitModelRef(value);
-	if (!parsed || !isProviderId(parsed.provider)) return false;
+	if (!parsed) return false;
 	const result = await listModels(userId);
 	return result.models.some(
 		(model) =>
@@ -225,7 +314,8 @@ export async function isModelAvailable(userId: string, value: string) {
 	);
 }
 
-export function resolveModel(provider: string, id: string) {
+export function resolveModel(provider: string, id: string, credential?: ProviderCredential) {
+	if (credential?.customConfig) registerCustomProvider(credential);
 	const existing = getRegistry().getModel(provider, id);
 	if (existing) return existing;
 	if (!isProviderId(provider) || !id.trim()) return undefined;
