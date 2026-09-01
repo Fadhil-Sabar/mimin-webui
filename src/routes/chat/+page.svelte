@@ -11,10 +11,12 @@
 		Paperclip,
 		Plus,
 		Search,
+		Settings,
 		Sparkles,
 		Square,
 		Wrench
 	} from '@lucide/svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
 	type Conversation = {
 		id: string;
@@ -214,6 +216,8 @@
 				><MessageSquare size={16} /> Chat <span class="nav-count">{conversations.length}</span></a
 			>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
+			<div class="nav-label projects-label">Preferences</div>
+			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Providers</a>
 			{#if conversations.length > 0}
 				<div class="nav-label projects-label">Recent chats</div>
 				{#each conversations as conversation (conversation.id)}
@@ -243,9 +247,12 @@
 					>{activeConversation?.title ?? 'New session'}</span
 				>
 			</div>
-			<button class="icon-button" onclick={() => notify('Search opened')}
-				><Search size={17} /></button
-			>
+			<div class="top-actions">
+				<button class="icon-button" onclick={() => notify('Search opened')}
+					><Search size={17} /></button
+				>
+				<ThemeToggle />
+			</div>
 		</header>
 		<div class="chat-wrap">
 			<div class="chat-title">
@@ -324,42 +331,42 @@
 	}
 	.chat-title {
 		padding-bottom: 24px;
-		border-bottom: 1px solid #e1e1dd;
+		border-bottom: 1px solid var(--border);
 	}
 	.chat-title h1 {
-		font-size: 25px;
+		font-size: var(--text-xl);
 		letter-spacing: -0.05em;
 		margin: 9px 0 5px;
 	}
 	.chat-title p {
-		color: #999;
-		font-size: 12px;
+		color: var(--text-dim);
+		font-size: var(--text-sm);
 		margin: 0;
 	}
 	.ready {
 		float: right;
-		color: #56805d;
-		border: 1px solid #c9ddcc;
+		color: var(--status-ok-text);
+		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 35%, transparent);
 		padding: 4px 7px;
 		border-radius: 5px;
-		font-size: 11px;
+		font-size: var(--text-xs);
 	}
 	.ready i {
 		display: inline-block;
 		width: 6px;
 		height: 6px;
-		background: #6e9a74;
+		background: var(--status-ok-dot);
 		border-radius: 50%;
 		margin-right: 4px;
 	}
 	.ready.working {
-		color: #8a6d3b;
-		border-color: #e3d5a8;
+		color: #b08a4a;
+		border-color: color-mix(in srgb, #b08a4a 40%, transparent);
 	}
 	.empty-state {
 		text-align: center;
-		color: #999;
-		font-size: 13px;
+		color: var(--text-dim);
+		font-size: var(--text-sm);
 		padding: 42px 0 10px;
 	}
 	.message {
@@ -367,22 +374,22 @@
 		grid-template-columns: 80px 1fr;
 		gap: 24px;
 		padding: 25px 0;
-		border-bottom: 1px solid #f0f0ed;
+		border-bottom: 1px solid var(--border);
 	}
 	.message-label {
 		display: flex;
 		align-items: center;
 		gap: 5px;
-		color: #999;
-		font-size: 11px;
+		color: var(--text-dim);
+		font-size: var(--text-xs);
 	}
 	.message-label small {
-		color: #bbb;
+		color: var(--text-faint);
 		margin-left: 4px;
 	}
 	.message p {
 		margin: 0;
-		color: #444;
+		color: var(--text-body);
 		white-space: pre-wrap;
 		font-family: ui-sans-serif, system-ui, sans-serif;
 	}
@@ -395,28 +402,28 @@
 		white-space: pre-wrap;
 	}
 	.inline-error {
-		background: #fdf3f2;
-		border: 1px solid #f0cfcb;
-		color: #8d2f26;
+		background: rgba(141, 47, 38, 0.09);
+		border: 1px solid rgba(141, 47, 38, 0.35);
+		color: #e08a80;
 		border-radius: 6px;
 		padding: 10px 12px;
 		margin: 18px 0 0;
-		font-size: 13px;
+		font-size: var(--text-sm);
 	}
 	.inline-error strong {
 		display: block;
-		font-size: 12px;
+		font-size: var(--text-sm);
 		margin-bottom: 2px;
 	}
 	.chat-composer {
 		position: sticky;
 		bottom: 18px;
-		background: white;
-		border: 1px solid #c8c8c3;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
 		border-radius: 9px;
 		padding: 12px;
 		margin-top: 28px;
-		box-shadow: 0 8px 24px #0001;
+		box-shadow: 0 8px 24px var(--shadow-faint);
 	}
 	.chat-composer textarea {
 		width: 100%;
@@ -424,28 +431,28 @@
 		border: 0;
 		outline: 0;
 		resize: none;
-		font: 15px/1.5 inherit;
+		font: var(--text-base)/1.5 inherit;
 	}
 	.composer-row {
 		display: flex;
 		gap: 7px;
-		border-top: 1px solid #eee;
+		border-top: 1px solid var(--border);
 		padding-top: 10px;
 	}
 	.control {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		border: 1px solid #e0e0dc;
+		border: 1px solid var(--border);
 		border-radius: 6px;
-		background: #fafaf8;
+		background: var(--surface-subtle);
 		padding: 7px 9px;
-		color: #666;
-		font-size: 12px;
+		color: var(--text-muted);
+		font-size: var(--text-sm);
 	}
 	.control:hover {
-		color: #111;
-		border-color: #aaa;
+		color: var(--text-strong);
+		border-color: var(--text-faint);
 	}
 	.send-button {
 		display: grid;
@@ -454,20 +461,20 @@
 		width: 32px;
 		border: 0;
 		border-radius: 6px;
-		color: white;
-		background: #181818;
+		color: var(--accent-fg);
+		background: var(--accent-bg);
 	}
 	.send-button.stop {
-		background: #8d2f26;
+		background: #a8433a;
 	}
 	.toast {
 		position: fixed;
 		bottom: 22px;
 		left: 50%;
 		transform: translateX(-50%);
-		background: #181818;
-		color: white;
-		font-size: 12px;
+		background: var(--accent-bg);
+		color: var(--accent-fg);
+		font-size: var(--text-sm);
 		padding: 8px 13px;
 		border-radius: 6px;
 		z-index: 50;

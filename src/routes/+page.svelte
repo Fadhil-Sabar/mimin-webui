@@ -11,6 +11,7 @@
 		Sparkles,
 		Wrench
 	} from '@lucide/svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	let prompt = $state('');
 	let toast = $state('');
 	let user = $state<{ name: string } | null>(null);
@@ -108,7 +109,10 @@
 	<main class="main-content">
 		<header class="topbar">
 			<div class="breadcrumb"><strong>Home</strong></div>
-			<span class="avatar avatar-top">F</span>
+			<div class="top-actions">
+				<ThemeToggle />
+				<span class="avatar avatar-top">F</span>
+			</div>
 		</header>
 		<div class="home-wrap">
 			<div class="eyebrow">AI WORKSPACE · READY</div>
@@ -150,22 +154,22 @@
 		padding: 15vh 32px 80px;
 	}
 	.home-wrap h1 {
-		font-size: 42px;
+		font-size: var(--text-3xl);
 		line-height: 1.08;
 		letter-spacing: -0.065em;
 		margin: 0 0 14px;
 	}
 	.intro {
 		max-width: 500px;
-		color: #777;
+		color: var(--text-muted);
 		margin: 0 0 43px;
 	}
 	.home-composer {
-		background: #fff;
-		border: 1px solid #cfcfca;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
 		border-radius: 11px;
 		padding: 15px;
-		box-shadow: 0 10px 30px #00000008;
+		box-shadow: 0 10px 30px var(--shadow-softer);
 	}
 	.home-composer textarea {
 		display: block;
@@ -174,31 +178,31 @@
 		border: 0;
 		outline: 0;
 		resize: none;
-		font: 16px/1.5 inherit;
+		font: var(--text-base)/1.5 inherit;
 	}
 	.composer-row {
 		display: flex;
 		gap: 7px;
-		border-top: 1px solid #eee;
+		border-top: 1px solid var(--border);
 		padding-top: 10px;
 	}
 	.control {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		border: 1px solid #e0e0dc;
+		border: 1px solid var(--border);
 		border-radius: 6px;
-		background: #fafaf8;
+		background: var(--surface-subtle);
 		padding: 7px 9px;
-		color: #666;
-		font-size: 12px;
+		color: var(--text-muted);
+		font-size: var(--text-sm);
 	}
 	.control:hover {
-		color: #111;
-		border-color: #aaa;
+		color: var(--text-strong);
+		border-color: var(--text-faint);
 	}
 	.control span {
-		color: #aaa;
+		color: var(--text-faint);
 	}
 	.send-button {
 		display: grid;
@@ -207,8 +211,8 @@
 		width: 32px;
 		border: 0;
 		border-radius: 6px;
-		color: white;
-		background: #181818;
+		color: var(--accent-fg);
+		background: var(--accent-bg);
 		text-decoration: none;
 	}
 	.example-row {
@@ -218,25 +222,25 @@
 		margin-top: 18px;
 	}
 	.example-row button {
-		border: 1px solid #e4e4e0;
+		border: 1px solid var(--border);
 		background: transparent;
-		color: #777;
+		color: var(--text-muted);
 		border-radius: 18px;
 		padding: 7px 11px;
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	.example-row button:hover {
-		color: #222;
-		background: #f1f1ee;
+		color: var(--text-body);
+		background: var(--surface-hover);
 	}
 	.toast {
 		position: fixed;
 		bottom: 22px;
 		left: 50%;
 		transform: translateX(-50%);
-		background: #181818;
-		color: white;
-		font-size: 12px;
+		background: var(--accent-bg);
+		color: var(--accent-fg);
+		font-size: var(--text-sm);
 		padding: 8px 13px;
 		border-radius: 6px;
 		z-index: 50;
@@ -246,7 +250,7 @@
 			padding: 10vh 18px;
 		}
 		.home-wrap h1 {
-			font-size: 34px;
+			font-size: var(--text-2xl);
 		}
 		.composer-row {
 			flex-wrap: wrap;
