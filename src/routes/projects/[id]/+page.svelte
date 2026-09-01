@@ -10,15 +10,18 @@
 		FolderKanban,
 		LogOut,
 		MessageSquare,
+		PanelLeft,
 		Plus,
 		Search,
 		Settings,
 		Sparkles,
 		Trash2,
-		Upload
+		Upload,
+		User
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { authClient } from '$lib/client/auth';
+	import { sidebar } from '$lib/client/sidebar.svelte';
 
 	type Project = {
 		id: string;
@@ -166,19 +169,22 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | {project?.name ?? 'Project'}</title></svelte:head>
-<div class="app-shell">
+<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed}>
 	<aside class="sidebar">
-		<div class="brand">
-			<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
-				class="brand-muted">/ workbench</span
-			>
+		<div class="sidebar-top-row">
+			<div class="brand">
+				<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
+					class="brand-muted">/ workbench</span
+				>
+			</div>
+			<button class="sidebar-toggle" onclick={() => sidebar.toggle()} title="Collapse sidebar" aria-label="Collapse sidebar"><PanelLeft size={16} /></button>
 		</div>
 		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
 		<div class="sidebar-scroll">
 			<div class="nav-label">Workspace</div>
 			<a class="nav-item" href={resolve('/chat')}><MessageSquare size={16} /> Chat</a>
 			<a class="nav-item active" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
-			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}><Settings size={16} /> Users</a>{/if}
+			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}><User size={16} /> Users</a>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			{#if project}
@@ -208,10 +214,15 @@
 
 	<main class="main-content">
 		<header class="topbar">
-			<div class="breadcrumb">
-				<a href={resolve('/projects')}>Projects</a><ChevronRight size={14} /><strong
-					>{project?.name ?? '...'}</strong
-				>
+			<div class="topbar-left">
+				{#if sidebar.collapsed}
+					<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Expand sidebar" aria-label="Expand sidebar"><PanelLeft size={16} /></button>
+				{/if}
+				<div class="breadcrumb">
+					<a href={resolve('/projects')}>Projects</a><ChevronRight size={14} /><strong
+						>{project?.name ?? '...'}</strong
+					>
+				</div>
 			</div>
 			<div class="top-actions">
 				<button

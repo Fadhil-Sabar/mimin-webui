@@ -1,5 +1,67 @@
 export type SseEvent = { type: string; [key: string]: unknown };
 
+/**
+ * Extract a readable message from errors returned by an SSE provider.
+ *
+ * Some providers return an HTTP status followed by a JSON error body, e.g.
+ * `403: {"message":"MODEL_NOT_IN_PLAN: ..."}`. Keep the provider's useful
+ * message while hiding the transport status and serialized implementation
+ * details from the chat UI.
+ */
+export function extractSseErrorMessage(value: unknown, fallback = 'Agent error'): string {
+	const seen = new Set<unknown>();
+
+	function extract(input: unknown, depth = 0): string | undefined {
+		if (depth > 5 || input == null) return undefined;
+		if (typeof input === 'object' || typeof input === 'function') {
+			if (seen.has(input)) return undefined;
+			seen.add(input);
+		}
+
+		if (input instanceof Error) return extract(input.message, depth + 1);
+		if (typeof input === 'object') {
+			const record = input as Record<string, unknown>;
+			return (
+				extract(record.message, depth + 1) ??
+				extract(record.error, depth + 1) ??
+				extract(record.code, depth + 1)
+			);
+		}
+		if (typeof input !== 'string') return undefined;
+
+		const text = input.trim();
+		if (!text) return undefined;
+
+		// First parse a complete JSON value, then try the JSON object appended to
+		// a status prefix such as `403: `.
+		const parsed = tryParseJson(text);
+		if (parsed !== undefined) {
+			const parsedMessage = extract(parsed, depth + 1);
+			if (parsedMessage) return parsedMessage;
+		}
+
+		const statusBody = text.match(/^\d{3}\s*:\s*(\{[\s\S]*\})$/)?.[1];
+		if (statusBody) {
+			const parsedBody = tryParseJson(statusBody);
+			const bodyMessage = extract(parsedBody, depth + 1);
+			if (bodyMessage) return bodyMessage;
+			return statusBody;
+		}
+
+		return text.replace(/^\d{3}\s*:\s*/, '').trim() || undefined;
+	}
+
+	return extract(value) ?? fallback;
+}
+
+function tryParseJson(value: string): unknown | undefined {
+	try {
+		return JSON.parse(value);
+	} catch {
+		return undefined;
+	}
+}
+
 export async function createConversation(
 	input: { projectId?: string | null; model?: string; enabledTools?: string[] } = {}
 ) {

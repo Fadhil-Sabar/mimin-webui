@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { registerCustomProvider, resolveModel } from '../src/lib/server/ai/model.service';
+import {
+	customModelInput,
+	mergeCustomModelMetadata,
+	registerCustomProvider,
+	resolveModel
+} from '../src/lib/server/ai/model.service';
 import {
 	isValidProviderKey,
 	type ProviderCredential
@@ -49,5 +54,42 @@ describe('custom providers', () => {
 		registerCustomProvider(credential);
 		const model = resolveModel(credential.provider, 'test-model');
 		expect(model).toBeDefined();
+		expect(model?.input).toEqual(['text', 'image']);
+	});
+
+	it('treats an explicit false vision flag as text-only', () => {
+		expect(customModelInput('openai-completions', false)).toEqual(['text']);
+	});
+
+	it('defaults an unknown vision flag to image input for image transports', () => {
+		expect(customModelInput('openai-completions', undefined)).toEqual(['text', 'image']);
+		expect(customModelInput('anthropic-messages', true)).toEqual(['text', 'image']);
+	});
+
+	it('preserves configured metadata when live discovery omits it', () => {
+		expect(
+			mergeCustomModelMetadata(
+				{
+					id: 'model-1',
+					name: 'Discovered name',
+					contextWindow: 64_000,
+					reasoning: false,
+					vision: undefined
+				},
+				{
+					id: 'model-1',
+					name: 'Configured name',
+					contextWindow: 128_000,
+					reasoning: true,
+					vision: true
+				}
+			)
+		).toEqual({
+			id: 'model-1',
+			name: 'Configured name',
+			contextWindow: 128_000,
+			reasoning: true,
+			vision: true
+		});
 	});
 });

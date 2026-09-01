@@ -635,7 +635,8 @@
 		color: #787872;
 		font-style: italic;
 	}
-	:global(.markdown-body .token.punctuation) {
+	:global(.markdown-body .token.punctuation),
+	:global(.markdown-body .token.delimiter) {
 		color: #64645e;
 	}
 	:global(.markdown-body .token.property),
@@ -688,7 +689,8 @@
 		color: #72727a;
 		font-style: italic;
 	}
-	:global(:root[data-theme='dark'] .markdown-body .token.punctuation) {
+	:global(:root[data-theme='dark'] .markdown-body .token.punctuation),
+	:global(:root[data-theme='dark'] .markdown-body .token.delimiter) {
 		color: #8f8f98;
 	}
 	:global(:root[data-theme='dark'] .markdown-body .token.property),

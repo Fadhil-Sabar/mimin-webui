@@ -4,6 +4,7 @@
 	import {
 		createConversation,
 		deleteConversation,
+		extractSseErrorMessage,
 		stopConversation,
 		streamMessage,
 		updateConversation
@@ -16,6 +17,7 @@
 		FolderKanban,
 		LogOut,
 		MessageSquare,
+		PanelLeft,
 		Paperclip,
 		Pencil,
 		Plus,
@@ -24,11 +26,13 @@
 		Sparkles,
 		Square,
 		Trash2,
+		User,
 		UserRound,
 		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { authClient } from '$lib/client/auth';
+	import { sidebar } from '$lib/client/sidebar.svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
@@ -243,12 +247,15 @@
 		}
 	}
 
-	async function loadConversation(id: string, replaceUrl = false) {
+	async function loadConversation(id: string, replaceUrl = false, preserveLiveState = false) {
 		if (id !== activeId) pendingAttachments = [];
 		activeId = id;
 		activeConversation = conversations.find((c) => c.id === id) ?? null;
-		liveResponse = '';
-		liveError = '';
+		if (!preserveLiveState) {
+			liveResponse = '';
+			liveThinking = '';
+			liveError = '';
+		}
 		updateChatUrl(id, replaceUrl);
 		try {
 			const response = await fetch(`/api/conversations/${id}`);
@@ -563,7 +570,7 @@
 					if (event.type === 'thinking.delta') liveThinking += String(event.delta ?? '');
 					if (event.type === 'message.delta') liveResponse += String(event.delta ?? '');
 					if (event.type === 'error') {
-						liveError = String((event.error as { message?: string })?.message ?? 'Agent error');
+						liveError = extractSseErrorMessage(event.error);
 					}
 				},
 				abortController.signal,
@@ -580,7 +587,7 @@
 			running = false;
 			abortController = undefined;
 			await loadConversations();
-			if (activeId) await loadConversation(activeId);
+			if (activeId) await loadConversation(activeId, false, true);
 		}
 	}
 
@@ -608,12 +615,15 @@
 
 <svelte:head><title>Mimin WebUI | Chat</title></svelte:head>
 <svelte:window onpopstate={handlePopState} onkeydown={handleWindowKeydown} />
-<div class="app-shell">
+<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed}>
 	<aside class="sidebar">
-		<div class="brand">
-			<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
-				class="brand-muted">/ workbench</span
-			>
+		<div class="sidebar-top-row">
+			<div class="brand">
+				<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
+					class="brand-muted">/ workbench</span
+				>
+			</div>
+			<button class="sidebar-toggle" onclick={() => sidebar.toggle()} title="Collapse sidebar" aria-label="Collapse sidebar"><PanelLeft size={16} /></button>
 		</div>
 		<button
 			class="new-chat"
@@ -630,7 +640,7 @@
 			>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
 			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}
-					><Settings size={16} /> Users</a
+					><User size={16} /> Users</a
 				>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
@@ -726,10 +736,15 @@
 	</aside>
 	<main class="main-content" bind:this={scrollEl} onscroll={handleScroll}>
 		<header class="topbar">
-			<div class="breadcrumb">
-				<strong>Chat</strong><ChevronDown size={14} /><span
-					>{activeConversation?.title ?? 'New session'}</span
-				>
+			<div class="topbar-left">
+				{#if sidebar.collapsed}
+					<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Expand sidebar" aria-label="Expand sidebar"><PanelLeft size={16} /></button>
+				{/if}
+				<div class="breadcrumb">
+					<strong>Chat</strong><ChevronDown size={14} /><span
+						>{activeConversation?.title ?? 'New session'}</span
+					>
+				</div>
 			</div>
 			<div class="top-actions">
 				<button

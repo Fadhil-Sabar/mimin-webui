@@ -45,6 +45,7 @@
 		"@earendil-works/pi-agent-core": "^0.84.4",
 		"@earendil-works/pi-ai": "^0.84.4",
 		"@lucide/svelte": "^1.38.0",
+		"@napi-rs/canvas": "^1.0.8",
 		"@types/marked": "^6.0.0",
 		"@types/prismjs": "^1.26.6",
 		"better-auth": "^1.7.2",

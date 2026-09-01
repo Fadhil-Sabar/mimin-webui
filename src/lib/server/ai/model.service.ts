@@ -14,6 +14,7 @@ import {
 	isProviderId,
 	listProviderCredentials,
 	providerKeyFromEnv,
+	type CustomProviderConfig,
 	type CustomProviderProtocol,
 	type ProviderCredential,
 	type ProviderId
@@ -110,23 +111,75 @@ function customApi(protocol: CustomProviderProtocol) {
 	}
 }
 
+// Every custom protocol currently supported by pi-ai can carry image content.
+// A missing `vision` flag therefore means "unknown", not "text-only". An
+// explicit false remains the opt-out for providers/models that cannot accept it.
+const IMAGE_TRANSPORT_PROTOCOLS: ReadonlySet<CustomProviderProtocol> = new Set([
+	'openai-completions',
+	'openai-responses',
+	'anthropic-messages',
+	'google-generative-ai',
+	'mistral-conversations',
+	'pi-messages',
+	'azure-openai-responses'
+]);
+
+export function customModelInput(
+	protocol: CustomProviderProtocol,
+	vision: boolean | undefined
+): ('text' | 'image')[] {
+	return vision === false || !IMAGE_TRANSPORT_PROTOCOLS.has(protocol)
+		? ['text']
+		: ['text', 'image'];
+}
+
+type CustomModelDefinition = CustomProviderConfig['models'][number];
+
+/** Merge live metadata without discarding an explicitly configured value. */
+export function mergeCustomModelMetadata(
+	discovered: DiscoveredModel,
+	configured?: CustomModelDefinition
+) {
+	return {
+		id: discovered.id,
+		name: configured?.name ?? discovered.name,
+		contextWindow: configured?.contextWindow ?? discovered.contextWindow,
+		maxTokens: configured?.maxTokens ?? discovered.maxTokens,
+		reasoning: configured?.reasoning ?? discovered.reasoning,
+		vision: configured?.vision ?? discovered.vision
+	};
+}
+
+function customRuntimeModel(
+	protocol: CustomProviderProtocol,
+	provider: string,
+	baseUrl: string,
+	discovered: DiscoveredModel,
+	configured?: CustomModelDefinition
+): RuntimeModel {
+	const metadata = mergeCustomModelMetadata(discovered, configured);
+	return {
+		id: metadata.id,
+		name: metadata.name?.trim() || modelDisplayName(metadata.id),
+		provider,
+		api: protocol,
+		baseUrl,
+		reasoning: metadata.reasoning ?? false,
+		input: customModelInput(protocol, metadata.vision),
+		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+		contextWindow: metadata.contextWindow ?? 128_000,
+		maxTokens: metadata.maxTokens ?? 8_192
+	};
+}
+
 /** Register a user-owned custom provider from its persisted protocol/model definition. */
 export function registerCustomProvider(credential: ProviderCredential) {
 	const config = credential.customConfig;
 	if (!config || !credential.baseUrl) return;
 	const baseUrl = credential.baseUrl.replace(/\/+$/, '');
-	const models: RuntimeModel[] = config.models.map((definition) => ({
-		id: definition.id,
-		name: definition.name?.trim() || modelDisplayName(definition.id),
-		provider: credential.provider,
-		api: config.protocol,
-		baseUrl,
-		reasoning: definition.reasoning ?? false,
-		input: definition.vision ? ['text', 'image'] : ['text'],
-		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-		contextWindow: definition.contextWindow ?? 128_000,
-		maxTokens: definition.maxTokens ?? 8_192
-	}));
+	const models: RuntimeModel[] = config.models.map((definition) =>
+		customRuntimeModel(config.protocol, credential.provider, baseUrl, definition, definition)
+	);
 	getRegistry().setProvider(
 		createProvider({
 			id: credential.provider,
@@ -279,7 +332,9 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 		const config = credential.customConfig;
 		if (!config || !credential.baseUrl) continue;
 
-		let providerModels: RuntimeModel[] = [...getRegistry().getModels(credential.provider)] as RuntimeModel[];
+		let providerModels: RuntimeModel[] = [
+			...getRegistry().getModels(credential.provider)
+		] as RuntimeModel[];
 		let source: ModelSource = 'catalog';
 
 		const cacheKey = credentialCacheKey(
@@ -301,18 +356,16 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 				);
 				if (discovered.length > 0) {
 					const baseUrl = credential.baseUrl.replace(/\/+$/, '');
-					providerModels = discovered.map((d) => ({
-						id: d.id,
-						name: d.name?.trim() || modelDisplayName(d.id),
-						provider: credential.provider,
-						api: config.protocol,
-						baseUrl,
-						reasoning: d.reasoning ?? false,
-						input: d.vision ? ['text', 'image'] : ['text'],
-						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-						contextWindow: d.contextWindow ?? 128_000,
-						maxTokens: d.maxTokens ?? 8_192
-					}));
+					const configuredById = new Map(config.models.map((model) => [model.id, model]));
+					providerModels = discovered.map((d) =>
+						customRuntimeModel(
+							config.protocol,
+							credential.provider,
+							baseUrl,
+							d,
+							configuredById.get(d.id)
+						)
+					);
 					liveModelCache.set(cacheKey, {
 						models: providerModels,
 						expiresAt: Date.now() + LIVE_MODEL_CACHE_TTL
@@ -360,9 +413,7 @@ export async function isModelAvailable(userId: string, value: string) {
 	const parsed = splitModelRef(value);
 	if (!parsed) return false;
 	const available = await listAvailableModels(userId);
-	return available.some(
-		(model) => model.provider === parsed.provider && model.id === parsed.id
-	);
+	return available.some((model) => model.provider === parsed.provider && model.id === parsed.id);
 }
 
 export function resolveModel(provider: string, id: string, credential?: ProviderCredential) {

@@ -159,21 +159,30 @@ export const POST: RequestHandler = async (event) => {
 					parsed.data.model,
 					parsed.data.content,
 					(event) => send(event.type, event),
-					user.id
+					user.id,
+					userMessage.id
 				);
 				send('done', { type: 'done' });
 			} catch (error) {
 				const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
 				const message =
-					code === 'MODEL_NOT_AVAILABLE'
-						? 'Selected model is not available.'
-						: code === 'PROVIDER_NOT_CONFIGURED'
-							? 'This provider is not configured on the server.'
-							: code === 'CONVERSATION_NOT_FOUND'
-								? 'Conversation not found.'
-								: error instanceof Error
-									? error.message
-									: 'The agent could not complete this turn.';
+					code === 'PDF_VISION_MODEL_UNSUPPORTED'
+						? 'This PDF has no extractable text. Choose a vision-capable model to analyze its rendered pages.'
+						: code === 'PDF_PASSWORD_REQUIRED'
+							? 'This PDF is password-protected. Unlock it and attach it again before sending.'
+							: code === 'PDF_VISION_RENDER_FAILED'
+								? 'The PDF text could not be extracted and its pages could not be rendered for visual analysis.'
+								: code === 'INVALID_PDF'
+									? 'This PDF is invalid or corrupted and could not be analyzed.'
+									: code === 'MODEL_NOT_AVAILABLE'
+										? 'Selected model is not available.'
+										: code === 'PROVIDER_NOT_CONFIGURED'
+											? 'This provider is not configured on the server.'
+											: code === 'CONVERSATION_NOT_FOUND'
+												? 'Conversation not found.'
+												: error instanceof Error
+													? error.message
+													: 'The agent could not complete this turn.';
 				send('error', { type: 'error', error: { code, message } });
 			} finally {
 				close();
