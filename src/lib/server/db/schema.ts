@@ -149,6 +149,26 @@ export const messages = pgTable(
 	(table) => ({ conversationIdx: index('messages_conversation_idx').on(table.conversationId) })
 );
 
+export const messageAttachments = pgTable(
+	'message_attachments',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		messageId: uuid('message_id')
+			.notNull()
+			.references(() => messages.id, { onDelete: 'cascade' }),
+		filename: text('filename').notNull(),
+		mimeType: text('mime_type').notNull(),
+		sizeBytes: integer('size_bytes').notNull(),
+		storageKey: text('storage_key').notNull(),
+		extractedText: text('extracted_text'),
+		extractionStatus: text('extraction_status').notNull().default('not_started'),
+		pageCount: integer('page_count'),
+		extractionError: text('extraction_error'),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({ messageIdx: index('message_attachments_message_idx').on(table.messageId) })
+);
+
 export const toolCalls = pgTable('tool_calls', {
 	id: uuid('id').defaultRandom().primaryKey(),
 	messageId: uuid('message_id').references(() => messages.id, { onDelete: 'cascade' }),

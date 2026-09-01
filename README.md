@@ -19,10 +19,12 @@ Available:
 - `project_knowledge_search` for project conversations
 - Project file upload and deletion
 - Basic text extraction for `.txt`, `.md`, and `.json`
+- Bounded PDF text extraction for chat attachments and project knowledge
 - Project knowledge chunking for basic text search
 - Stop generation with `AbortController` and Pi agent abort
 - Project and conversation CRUD
 - Projects dashboard and project overview pages on live API state (list, create, upload, delete, start chat)
+- Per-message chat attachments with persisted metadata and conversation history context
 - Per-user provider API key settings with encrypted storage, masking, and env fallback
 - PostgreSQL migration and seed script
 - Normalized API errors
@@ -31,9 +33,8 @@ Available:
 Not yet available:
 
 - Registration and password reset
-- PDF text extraction
+- OCR for image-only PDFs
 - Provider adapter for web fetch
-- Chat attachment processing
 - Semantic embeddings and pgvector
 - Full citation persistence from tool results to assistant messages
 - Explicit production deployment adapter
@@ -317,6 +318,18 @@ POST /api/conversations/:id/stop
 
 Message requests accept content, a model reference, and enabled tools. The message endpoint returns `text/event-stream`.
 
+#### Chat attachments
+
+The chat composer accepts up to 5 attachments per message. Supported formats are `.txt`, `.md`, `.json`, and `.pdf`; each file and the combined attachments are limited to 25 MB. Plain-text and extractable PDF text are included as bounded, clearly delimited reference context for the agent (including attachments from earlier turns) without changing the visible or stored message text. PDF extraction runs once at upload with limits of 100 pages, 500,000 extracted characters, 10 seconds, and 16 MP per image resource. Empty, corrupt, and password-protected PDFs remain stored with an extraction status/error; image-only PDFs currently produce no text.
+
+Multipart requests use `content`, optional `model`, and repeated `files` fields:
+
+```bash
+curl -X POST http://localhost:5173/api/conversations/CONVERSATION_ID/messages \
+  -F 'content=Summarize these notes' \
+  -F 'files=@notes.md'
+```
+
 Application-level events:
 
 ```text
@@ -364,7 +377,7 @@ upload file
     ↓
 validate and store file
     ↓
-extract TXT/MD/JSON
+extract TXT/MD/JSON/PDF
     ↓
 chunk text
     ↓
@@ -435,11 +448,10 @@ Provider settings       save/encrypt/mask/delete verified
 ## Known limitations and next steps
 
 1. Add registration and password reset flows.
-2. Add PDF extraction with time and memory limits.
+2. Add OCR for image-only PDFs.
 3. Add web fetch with SSRF protection and connect citation persistence to normalized web sources.
-4. Add chat attachments and message attachment relationships.
-5. Add integration tests with disposable PostgreSQL.
-6. Add an explicit deployment adapter, such as Node or Cloudflare.
+4. Add integration tests with disposable PostgreSQL.
+5. Add an explicit deployment adapter, such as Node or Cloudflare.
 
 ## Indonesian documentation
 

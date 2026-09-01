@@ -16,19 +16,20 @@ Sudah tersedia:
 - `project_knowledge_search` untuk project conversation
 - Upload dan delete file project
 - Text extraction sederhana untuk `.txt`, `.md`, dan `.json`
+- PDF text extraction terbatas untuk chat attachment dan project knowledge
 - Chunking project knowledge untuk basic text search
 - Stop generation dengan `AbortController` dan Pi agent abort
 - CRUD project dan conversation
 - Pengaturan API key provider per pengguna dengan penyimpanan terenkripsi, masking, dan env fallback
+- Attachment per message di chat dengan metadata persisten dan konteks riwayat percakapan
 - PostgreSQL migration dan seed script
 - Normalized API errors
 - Unit tests untuk validation, password hashing, tool registry, dan provider settings
 
 Belum tersedia:
 
-- PDF text extraction
+- OCR untuk PDF yang hanya berisi gambar
 - Provider adapter untuk web search dan web fetch
-- Pemrosesan chat attachment
 - Semantic embeddings dan pgvector
 - Persistence citation penuh dari tool result ke assistant message
 - Production deployment adapter eksplisit
@@ -272,6 +273,18 @@ POST /api/conversations/:id/stop
 
 Request message menerima content, model reference, dan enabled tools. Endpoint message mengembalikan `text/event-stream`.
 
+#### Attachment chat
+
+Composer chat menerima maksimal 5 attachment per message. Format yang didukung adalah `.txt`, `.md`, `.json`, dan `.pdf`; batas setiap file dan total attachment dalam satu message adalah 25 MB. Teks plain text dan teks PDF yang berhasil diekstrak dimasukkan sebagai context referensi yang dibatasi dan diberi delimiter jelas untuk agent (termasuk attachment dari turn sebelumnya), tanpa mengubah teks message yang terlihat atau disimpan. Ekstraksi PDF dilakukan sekali saat upload dengan batas 100 halaman, 500.000 karakter, 10 detik, dan 16 MP per resource gambar. PDF kosong, rusak, atau terlindungi password tetap disimpan dengan status/error ekstraksi; PDF yang hanya berisi gambar belum menghasilkan teks.
+
+Request multipart menggunakan field `content`, `model` (opsional), dan field `files` berulang:
+
+```bash
+curl -X POST http://localhost:5173/api/conversations/CONVERSATION_ID/messages \
+  -F 'content=Ringkas catatan ini' \
+  -F 'files=@notes.md'
+```
+
 Application-level events:
 
 ```text
@@ -319,7 +332,7 @@ upload file
     ↓
 validasi dan simpan file
     ↓
-extract TXT/MD/JSON
+extract TXT/MD/JSON/PDF
     ↓
 chunk text
     ↓
@@ -386,10 +399,9 @@ Lihat [README.md](README.md).
 ## Limitasi dan next steps
 
 1. Tambahkan authentication dan ownership filter ke semua query.
-2. Tambahkan PDF extraction dengan time dan memory limit.
+2. Tambahkan OCR untuk PDF yang hanya berisi gambar.
 3. Implementasikan adapter web search dan web fetch dengan SSRF protection.
 4. Hubungkan citation service ke normalized source dari tool result.
-5. Tambahkan chat attachment dan relasinya ke message.
-6. Migrasikan project overview dan chat history sepenuhnya ke shared API state.
-7. Tambahkan integration test dengan disposable PostgreSQL.
-8. Tambahkan deployment adapter eksplisit, seperti Node atau Cloudflare.
+5. Migrasikan project overview dan chat history sepenuhnya ke shared API state.
+6. Tambahkan integration test dengan disposable PostgreSQL.
+7. Tambahkan deployment adapter eksplisit, seperti Node atau Cloudflare.

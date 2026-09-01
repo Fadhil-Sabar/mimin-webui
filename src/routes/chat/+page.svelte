@@ -25,7 +25,6 @@
 		Square,
 		Trash2,
 		UserRound,
-		Wrench,
 		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -48,6 +47,16 @@
 		role: 'user' | 'assistant';
 		content: unknown;
 		createdAt: string;
+		attachments?: MessageAttachment[];
+	};
+	type MessageAttachment = {
+		id: string;
+		filename: string;
+		mimeType: string;
+		sizeBytes: number;
+		extractionStatus?: string | null;
+		pageCount?: number | null;
+		extractionError?: string | null;
 	};
 
 	let running = $state(false);
@@ -75,6 +84,8 @@
 	let editingTitle = $state('');
 	let deletingConversation = $state<Conversation | null>(null);
 	let deleteLoading = $state(false);
+	let pendingAttachments = $state<File[]>([]);
+	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 
 	let isNewConversationEmpty = $derived(
 		messages.length === 0 && !liveResponse && !running && !!activeConversation
@@ -233,6 +244,7 @@
 	}
 
 	async function loadConversation(id: string, replaceUrl = false) {
+		if (id !== activeId) pendingAttachments = [];
 		activeId = id;
 		activeConversation = conversations.find((c) => c.id === id) ?? null;
 		liveResponse = '';
@@ -257,6 +269,7 @@
 
 	async function startNewConversation(force = false) {
 		if (!force && isNewConversationEmpty) return;
+		pendingAttachments = [];
 		try {
 			const model = defaultModel();
 			const conversation = await createConversation(model ? { model } : {});
@@ -290,9 +303,7 @@
 		}
 		try {
 			const updated = await updateConversation(id, { title: newTitle });
-			conversations = conversations.map((c) =>
-				c.id === id ? { ...c, title: updated.title } : c
-			);
+			conversations = conversations.map((c) => (c.id === id ? { ...c, title: updated.title } : c));
 			if (activeConversation && activeConversation.id === id) {
 				activeConversation = { ...activeConversation, title: updated.title };
 			}
@@ -435,9 +446,7 @@
 			const data = await response.json();
 			if (data.conversation) {
 				activeConversation = data.conversation;
-				conversations = conversations.map((c) =>
-					c.id === activeId ? data.conversation : c
-				);
+				conversations = conversations.map((c) => (c.id === activeId ? data.conversation : c));
 			}
 			const toolObj = availableTools.find((t) => t.name === toolName);
 			const label = toolObj?.label ?? toolName;
@@ -455,6 +464,44 @@
 
 	function formatTime(iso: string) {
 		return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	}
+
+	function formatFileSize(bytes: number) {
+		return bytes > 1024 * 1024
+			? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+			: `${Math.max(1, Math.round(bytes / 1024))} KB`;
+	}
+
+	function addAttachments(selected: FileList | null) {
+		if (!selected || selected.length === 0) return;
+		const allowed = /\.(txt|md|json|pdf)$/i;
+		const accepted: File[] = [];
+		for (const file of Array.from(selected)) {
+			if (!allowed.test(file.name)) {
+				notify(`${file.name}: file type is not supported`);
+				continue;
+			}
+			if (file.size > 25 * 1024 * 1024) {
+				notify(`${file.name}: file exceeds 25 MB`);
+				continue;
+			}
+			accepted.push(file);
+		}
+		const combined = [...pendingAttachments, ...accepted];
+		if (combined.length > 5) {
+			notify('Attach up to 5 files per message');
+			return;
+		}
+		if (combined.reduce((total, file) => total + file.size, 0) > 25 * 1024 * 1024) {
+			notify('Attachments must total 25 MB or less');
+			return;
+		}
+		pendingAttachments = combined;
+		if (fileInput) fileInput.value = '';
+	}
+
+	function removeAttachment(index: number) {
+		pendingAttachments = pendingAttachments.filter((_, itemIndex) => itemIndex !== index);
 	}
 
 	function appendAssistantMessage(text: string, thinking: string = '') {
@@ -479,19 +526,33 @@
 
 	async function sendMessage() {
 		const content = message.trim();
-		if (!content || !activeId) {
-			notify(!activeId ? 'No active conversation' : 'Type a message first');
+		if ((!content && pendingAttachments.length === 0) || !activeId) {
+			notify(!activeId ? 'No active conversation' : 'Type a message or attach a file first');
 			return;
 		}
+		const filesToSend = pendingAttachments;
 		running = true;
 		liveError = '';
 		liveResponse = '';
 		liveThinking = '';
 		message = '';
+		pendingAttachments = [];
 		userAtBottom = true;
+		const attachmentTimestamp = Date.now();
 		messages = [
 			...messages,
-			{ id: `${activeId}:user`, role: 'user', content, createdAt: new Date().toISOString() }
+			{
+				id: `${activeId}:user`,
+				role: 'user',
+				content,
+				attachments: filesToSend.map((file, index) => ({
+					id: `${activeId}:attachment:${attachmentTimestamp}:${index}`,
+					filename: file.name,
+					mimeType: file.type || 'application/octet-stream',
+					sizeBytes: file.size
+				})),
+				createdAt: new Date().toISOString()
+			}
 		];
 		abortController = new AbortController();
 		try {
@@ -506,11 +567,13 @@
 					}
 				},
 				abortController.signal,
-				activeConversation?.model
+				activeConversation?.model,
+				filesToSend
 			);
 			if ((liveResponse || liveThinking) && !liveError)
 				appendAssistantMessage(liveResponse, liveThinking);
 		} catch (error) {
+			if ((error as Error).name !== 'AbortError') pendingAttachments = filesToSend;
 			if ((error as Error).name !== 'AbortError')
 				notify(error instanceof Error ? error.message : 'Agent error');
 		} finally {
@@ -566,16 +629,15 @@
 				><MessageSquare size={16} /> Chat <span class="nav-count">{conversations.length}</span></a
 			>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
-			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}><Settings size={16} /> Users</a>{/if}
+			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}
+					><Settings size={16} /> Users</a
+				>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			{#if conversations.length > 0}
 				<div class="nav-label projects-label">Recent chats</div>
 				{#each conversations as conversation (conversation.id)}
-					<div
-						class="recent-chat-item"
-						class:active-project={conversation.id === activeId}
-					>
+					<div class="recent-chat-item" class:active-project={conversation.id === activeId}>
 						{#if editingId === conversation.id}
 							<form
 								class="inline-rename-form"
@@ -713,6 +775,23 @@
 						<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
 					</div>
 					<div class="message-body">
+						{#if msg.attachments?.length}
+							<div class="attachment-list message-attachments" aria-label="Attached files">
+								{#each msg.attachments as attachment (attachment.id)}
+									<div class="attachment-chip">
+										<Paperclip size={13} aria-hidden="true" />
+										<span>{attachment.filename}</span><small>
+											{formatFileSize(
+												attachment.sizeBytes
+											)}{#if attachment.extractionStatus === 'failed'}
+												· text unavailable{:else if attachment.extractionStatus === 'empty'}
+												· no text{:else if attachment.extractionStatus}
+												· ready{/if}
+										</small>
+									</div>
+								{/each}
+							</div>
+						{/if}
 						{#if msg.role === 'assistant' && thinkingText(msg.content)}
 							<details class="thinking-block">
 								<summary class="thinking-summary">
@@ -769,19 +848,45 @@
 			{/if}
 			<div class="composer-container">
 				<div class="chat-composer">
+					{#if pendingAttachments.length}
+						<div class="attachment-list" aria-label="Files to attach">
+							{#each pendingAttachments as file, index (file.name + file.size + index)}
+								<div class="attachment-chip pending-attachment">
+									<Paperclip size={13} aria-hidden="true" />
+									<span>{file.name}</span><small>{formatFileSize(file.size)}</small>
+									<button
+										type="button"
+										class="remove-attachment"
+										aria-label={`Remove ${file.name}`}
+										title={`Remove ${file.name}`}
+										onclick={() => removeAttachment(index)}><X size={13} /></button
+									>
+								</div>
+							{/each}
+						</div>
+					{/if}
 					<textarea
 						bind:value={message}
 						aria-label="Message Mimin"
-						placeholder={running ? 'Mimin is responding...' : 'Ask Mimin to think, write, or plan...'}
+						placeholder={running
+							? 'Mimin is responding...'
+							: 'Ask Mimin to think, write, or plan...'}
 						disabled={running}
 						onkeydown={onKeydown}></textarea>
 					<div class="composer-row">
+						<input
+							bind:this={fileInput}
+							type="file"
+							multiple
+							accept=".txt,.md,.json,.pdf"
+							hidden
+							onchange={(event) => addAttachments(event.currentTarget.files)}
+						/>
 						<button
 							class="control"
-							title="Attachments are not available in chat yet"
+							title="Attach files"
 							disabled={running}
-							onclick={() => notify('Attachments are not available in chat yet')}
-							><Paperclip size={15} /> File</button
+							onclick={() => fileInput?.click()}><Paperclip size={15} /> File</button
 						>
 						<ModelPicker
 							models={pickerModels}
@@ -837,7 +942,8 @@
 				</button>
 			</div>
 			<p class="modal-text">
-				Are you sure you want to delete <strong>"{deletingConversation.title}"</strong>? This will permanently remove all messages in this conversation.
+				Are you sure you want to delete <strong>"{deletingConversation.title}"</strong>? This will
+				permanently remove all messages in this conversation.
 			</p>
 			<div class="modal-actions">
 				<button class="button" onclick={cancelDelete} disabled={deleteLoading}>Cancel</button>
@@ -924,7 +1030,9 @@
 		background: transparent;
 		color: var(--text-muted);
 		padding: 0;
-		transition: color 0.15s ease, background 0.15s ease;
+		transition:
+			color 0.15s ease,
+			background 0.15s ease;
 	}
 	.item-action-btn:hover {
 		color: var(--text-strong);
@@ -1053,6 +1161,48 @@
 		white-space: pre-wrap;
 		font-family: var(--font-body);
 	}
+	.attachment-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-bottom: 10px;
+	}
+	.attachment-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		max-width: 100%;
+		padding: 6px 8px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--surface-subtle);
+		color: var(--text-body);
+		font-size: var(--text-xs);
+	}
+	.attachment-chip span {
+		max-width: 220px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.attachment-chip small {
+		color: var(--text-faint);
+		white-space: nowrap;
+	}
+	.remove-attachment {
+		display: grid;
+		place-items: center;
+		padding: 1px;
+		border: 0;
+		background: transparent;
+		color: var(--text-muted);
+	}
+	.remove-attachment:hover {
+		color: var(--danger-text);
+	}
+	.message-attachments {
+		margin-bottom: 12px;
+	}
 	.assistant-message .response,
 	.assistant-message > div:last-child {
 		min-width: 0;
@@ -1152,7 +1302,8 @@
 		animation: pulse-glow 1.4s ease-in-out infinite;
 	}
 	@keyframes pulse-glow {
-		0%, 100% {
+		0%,
+		100% {
 			opacity: 0.3;
 			transform: scale(0.85);
 		}
@@ -1177,6 +1328,9 @@
 		border-radius: 9px;
 		padding: 12px;
 		box-shadow: 0 10px 28px var(--shadow-faint);
+	}
+	.chat-composer > .attachment-list {
+		margin: 0 0 8px;
 	}
 	.chat-composer textarea {
 		width: 100%;

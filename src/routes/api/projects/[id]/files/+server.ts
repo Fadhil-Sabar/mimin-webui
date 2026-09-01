@@ -3,7 +3,12 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { desc, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
-import { chunkText, extractText, saveProjectFile } from '$lib/server/files/storage';
+import {
+	chunkText,
+	cleanupStoredFiles,
+	extractUploadedFile,
+	saveProjectFile
+} from '$lib/server/files/storage';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -25,6 +30,8 @@ export const GET: RequestHandler = async (event) => {
 	}
 };
 export const POST: RequestHandler = async (event) => {
+	let savedStorageKey: string | undefined;
+	let savedFileId: string | undefined;
 	try {
 		const user = await requireUser(event);
 		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
@@ -37,6 +44,8 @@ export const POST: RequestHandler = async (event) => {
 		const value = form.get('file');
 		if (!(value instanceof File)) return apiError('FILE_REQUIRED', 'A file field is required.');
 		const saved = await saveProjectFile(projectId, value);
+		savedStorageKey = saved.storageKey;
+		const extraction = await extractUploadedFile(value);
 		const [record] = await db
 			.insert(schema.projectFiles)
 			.values({
@@ -47,20 +56,42 @@ export const POST: RequestHandler = async (event) => {
 				storageKey: saved.storageKey
 			})
 			.returning();
-		const text = await extractText(value);
-		const chunks = chunkText(text);
+		savedFileId = record.id;
+		const chunks = chunkText(extraction.extractedText ?? '');
 		if (chunks.length)
 			await db
 				.insert(schema.projectFileChunks)
 				.values(chunks.map((content) => ({ projectId, fileId: record.id, content })));
-		return json({ file: record, chunks: chunks.length }, { status: 201 });
+		return json(
+			{
+				file: record,
+				chunks: chunks.length,
+				extraction: {
+					status: extraction.extractionStatus,
+					pageCount: extraction.pageCount,
+					error: extraction.extractionError
+				}
+			},
+			{ status: 201 }
+		);
 	} catch (error) {
-		if (error instanceof Error && ['UNSUPPORTED_FILE', 'FILE_TOO_LARGE'].includes(error.message))
+		if (savedStorageKey) await cleanupStoredFiles([savedStorageKey]);
+		if (savedFileId)
+			await getDb()
+				.delete(schema.projectFiles)
+				.where(eq(schema.projectFiles.id, savedFileId))
+				.catch(() => {});
+		if (
+			error instanceof Error &&
+			['UNSUPPORTED_FILE', 'FILE_TOO_LARGE', 'INVALID_PDF'].includes(error.message)
+		)
 			return apiError(
 				error.message,
 				error.message === 'FILE_TOO_LARGE'
 					? 'File exceeds the 25 MB limit.'
-					: 'File type is not supported.',
+					: error.message === 'INVALID_PDF'
+						? 'The file does not contain a valid PDF header.'
+						: 'File type is not supported.',
 				400
 			);
 		return handleApiError(error);

@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable } from '$lib/server/ai/model.service';
@@ -35,7 +35,40 @@ export const GET: RequestHandler = async (event) => {
 			.innerJoin(schema.messages, eq(schema.toolCalls.messageId, schema.messages.id))
 			.where(eq(schema.messages.conversationId, id))
 			.orderBy(desc(schema.toolCalls.startedAt));
-		return json({ conversation, messages: rows, toolCalls: calls });
+		const attachmentRows = rows.length
+			? await db
+					.select({
+						id: schema.messageAttachments.id,
+						messageId: schema.messageAttachments.messageId,
+						filename: schema.messageAttachments.filename,
+						mimeType: schema.messageAttachments.mimeType,
+						sizeBytes: schema.messageAttachments.sizeBytes,
+						extractionStatus: schema.messageAttachments.extractionStatus,
+						pageCount: schema.messageAttachments.pageCount,
+						extractionError: schema.messageAttachments.extractionError
+					})
+					.from(schema.messageAttachments)
+					.where(
+						inArray(
+							schema.messageAttachments.messageId,
+							rows.map((row) => row.id)
+						)
+					)
+			: [];
+		const attachmentsByMessage = new Map<string, typeof attachmentRows>();
+		for (const attachment of attachmentRows) {
+			const current = attachmentsByMessage.get(attachment.messageId) ?? [];
+			current.push(attachment);
+			attachmentsByMessage.set(attachment.messageId, current);
+		}
+		return json({
+			conversation,
+			messages: rows.map((row) => ({
+				...row,
+				attachments: attachmentsByMessage.get(row.id) ?? []
+			})),
+			toolCalls: calls
+		});
 	} catch (error) {
 		return handleApiError(error);
 	}

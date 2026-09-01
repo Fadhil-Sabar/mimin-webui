@@ -48,12 +48,24 @@ export async function streamMessage(
 	content: string,
 	onEvent: (event: SseEvent) => void,
 	signal?: AbortSignal,
-	model?: string
+	model?: string,
+	files: File[] = []
 ) {
+	const body = files.length
+		? (() => {
+				const form = new FormData();
+				form.set('content', content);
+				if (model) form.set('model', model);
+				for (const file of files) form.append('files', file, file.name);
+				return form;
+			})()
+		: JSON.stringify({ content, ...(model ? { model } : {}) });
 	const response = await fetch(`/api/conversations/${id}/messages`, {
 		method: 'POST',
-		headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-		body: JSON.stringify({ content, ...(model ? { model } : {}) }),
+		headers: files.length
+			? { accept: 'text/event-stream' }
+			: { 'content-type': 'application/json', accept: 'text/event-stream' },
+		body,
 		signal
 	});
 	if (!response.ok || !response.body)

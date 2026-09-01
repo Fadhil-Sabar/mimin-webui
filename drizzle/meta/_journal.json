@@ -43,6 +43,20 @@
 			"when": 1788265000000,
 			"tag": "0005_better_auth",
 			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1788273000000,
+			"tag": "0006_message_attachments",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1788274369557,
+			"tag": "0007_pdf_extraction",
+			"breakpoints": true
 		}
 	]
 }
