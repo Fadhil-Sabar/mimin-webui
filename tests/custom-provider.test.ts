@@ -33,4 +33,21 @@ describe('custom providers', () => {
 			input: ['text', 'image']
 		});
 	});
+
+	it('registers provider with auth configuration avoiding undefined apiKey errors', () => {
+		const credential: ProviderCredential = {
+			provider: 'custom_234e5678-e89b-12d3-a456-426614174000',
+			apiKey: 'sk-test-key-2',
+			baseUrl: 'https://api.example.com/v1',
+			fromUser: true,
+			customConfig: {
+				name: 'Test Auth Provider',
+				protocol: 'openai-completions',
+				models: [{ id: 'test-model', contextWindow: 128_000 }]
+			}
+		};
+		registerCustomProvider(credential);
+		const model = resolveModel(credential.provider, 'test-model');
+		expect(model).toBeDefined();
+	});
 });

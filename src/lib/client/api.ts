@@ -47,12 +47,13 @@ export async function streamMessage(
 	id: string,
 	content: string,
 	onEvent: (event: SseEvent) => void,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	model?: string
 ) {
 	const response = await fetch(`/api/conversations/${id}/messages`, {
 		method: 'POST',
 		headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-		body: JSON.stringify({ content }),
+		body: JSON.stringify({ content, ...(model ? { model } : {}) }),
 		signal
 	});
 	if (!response.ok || !response.body)

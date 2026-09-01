@@ -3,7 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { and, desc, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
-import { isModelAvailable } from '$lib/server/ai/model.service';
+import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
 
 export const GET: RequestHandler = async (event) => {
@@ -44,14 +44,26 @@ export const POST: RequestHandler = async (event) => {
 			typeof body === 'object' &&
 			body !== null &&
 			Object.prototype.hasOwnProperty.call(body, 'model');
-		if (hasExplicitModel && !(await isModelAvailable(user.id, parsed.data.model)))
-			return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
+
+		let targetModel = parsed.data.model;
+		if (hasExplicitModel) {
+			if (!(await isModelAvailable(user.id, targetModel)))
+				return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
+		} else {
+			const available = await listAvailableModels(user.id);
+			if (available.length > 0) {
+				const preferred = available.find((m) => `${m.provider}/${m.id}` === 'openai/gpt-4o-mini');
+				const selected = preferred ?? available[0];
+				targetModel = `${selected.provider}/${selected.id}`;
+			}
+		}
+
 		const db = getDb();
 		if (parsed.data.projectId && !(await getOwnedProject(parsed.data.projectId, user.id)))
 			return apiError('PROJECT_NOT_FOUND', 'Project not found.', 404);
 		const [conversation] = await db
 			.insert(schema.conversations)
-			.values({ ...parsed.data, userId: user.id })
+			.values({ ...parsed.data, model: targetModel, userId: user.id })
 			.returning();
 		return json({ conversation }, { status: 201 });
 	} catch (error) {

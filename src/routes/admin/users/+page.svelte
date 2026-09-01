@@ -1,6 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { UserPlus, Users } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
+	import {
+		FolderKanban,
+		LogOut,
+		MessageSquare,
+		Plus,
+		Settings,
+		Sparkles,
+		UserPlus,
+		Users
+	} from '@lucide/svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { authClient } from '$lib/client/auth';
 
 	type ManagedUser = {
@@ -24,6 +35,7 @@
 	let email = $state('');
 	let password = $state('');
 	let role = $state<'user' | 'admin'>('user');
+	let user = $state<{ name: string; role?: string | null } | null>(null);
 
 	function messageFrom(errorValue: unknown, fallback: string) {
 		return errorValue && typeof errorValue === 'object' && 'message' in errorValue
@@ -94,102 +106,162 @@
 		}
 	}
 
-	onMount(loadUsers);
+	async function logout() {
+		await authClient.signOut();
+		window.location.href = '/login';
+	}
+
+	onMount(async () => {
+		try {
+			const sessionResponse = await authClient.getSession();
+			if (sessionResponse.data) user = sessionResponse.data.user ?? null;
+		} catch {
+			/* ignore */
+		}
+		await loadUsers();
+	});
 	let pageCount = $derived(Math.max(1, Math.ceil(total / pageSize)));
 </script>
 
 <svelte:head><title>User management | Mimin WebUI</title></svelte:head>
 
-<div class="admin-page">
-	<header class="page-header">
-		<div>
-			<p class="eyebrow">Administration</p>
-			<h1>User management</h1>
-			<p class="subtitle">Provision workspace accounts and choose their access role.</p>
-		</div>
-		<Users size={24} aria-hidden="true" />
-	</header>
-
-	<div class="admin-grid">
-		<section class="panel">
-			<div class="panel-heading">
-				<UserPlus size={18} />
-				<h2>Create account</h2>
-			</div>
-			<p class="muted">Users receive access immediately with the initial password you provide.</p>
-			<form
-				onsubmit={(event) => {
-					event.preventDefault();
-					createUser();
-				}}
-				aria-busy={saving}
+<div class="app-shell">
+	<aside class="sidebar">
+		<div class="brand">
+			<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
+				class="brand-muted">/ workbench</span
 			>
-				<label>Name<input bind:value={name} autocomplete="name" required /></label>
-				<label>Email<input bind:value={email} type="email" autocomplete="email" required /></label>
-				<label
-					>Initial password<input
-						bind:value={password}
-						type="password"
-						minlength="8"
-						autocomplete="new-password"
-						required
-					/></label
-				>
-				<label
-					>Role<select bind:value={role}
-						><option value="user">User</option><option value="admin">Admin</option></select
-					></label
-				>
-				{#if error}<p class="message error" role="alert">{error}</p>{/if}
-				{#if success}<p class="message success" role="status">{success}</p>{/if}
-				<button class="primary" type="submit" disabled={saving}
-					>{saving ? 'Creating…' : 'Create user'}</button
-				>
-			</form>
-		</section>
-
-		<section class="panel users-panel">
-			<div class="panel-heading">
-				<Users size={18} />
-				<h2>Workspace users</h2>
-				<span class="count">{total}</span>
+		</div>
+		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
+		<div class="sidebar-scroll">
+			<div class="nav-label">Workspace</div>
+			<a class="nav-item" href={resolve('/chat')}><MessageSquare size={16} /> Chat</a>
+			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
+			{#if user?.role === 'admin'}<a class="nav-item active" href={resolve('/admin/users')}
+					><Settings size={16} /> Users</a
+				>{/if}
+			<div class="nav-label projects-label">Preferences</div>
+			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
+		</div>
+		<div class="sidebar-bottom">
+			<div class="user-row">
+				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span>
+				<div class="user-meta">
+					<strong>{user?.name ?? 'Fadhil'}</strong>
+					<small>Personal workspace</small>
+				</div>
+				<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
+					<LogOut size={15} />
+				</button>
 			</div>
-			{#if loading}<p class="muted">Loading users…</p>
-			{:else if users.length === 0}<p class="muted">No users found.</p>
-			{:else}
-				<div class="user-list">
-					{#each users as managedUser (managedUser.id)}
-						<div class="user-row">
-							<span class="avatar">{managedUser.name.slice(0, 1).toUpperCase()}</span>
-							<div class="identity">
-								<strong>{managedUser.name}</strong><span>{managedUser.email}</span>
-							</div>
-							<span class:admin-role={managedUser.role === 'admin'} class="role"
-								>{managedUser.role ?? 'user'}</span
+		</div>
+	</aside>
+	<main class="main-content">
+		<header class="topbar">
+			<div class="breadcrumb">
+				<strong>Admin</strong><span class="crumb-sep">/</span><span>Users</span>
+			</div>
+			<div class="top-actions">
+				<ThemeToggle /><span class="avatar avatar-top">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span
+				>
+			</div>
+		</header>
+		<div class="admin-page">
+			<header class="page-header">
+				<div>
+					<p class="eyebrow">Administration</p>
+					<h1>User management</h1>
+					<p class="subtitle">Provision workspace accounts and choose their access role.</p>
+				</div>
+				<Users size={24} aria-hidden="true" />
+			</header>
+
+			<div class="admin-grid">
+				<section class="panel">
+					<div class="panel-heading">
+						<UserPlus size={18} />
+						<h2>Create account</h2>
+					</div>
+					<p class="muted">
+						Users receive access immediately with the initial password you provide.
+					</p>
+					<form
+						onsubmit={(event) => {
+							event.preventDefault();
+							createUser();
+						}}
+						aria-busy={saving}
+					>
+						<label>Name<input bind:value={name} autocomplete="name" required /></label>
+						<label
+							>Email<input bind:value={email} type="email" autocomplete="email" required /></label
+						>
+						<label
+							>Initial password<input
+								bind:value={password}
+								type="password"
+								minlength="8"
+								autocomplete="new-password"
+								required
+							/></label
+						>
+						<label
+							>Role<select bind:value={role}
+								><option value="user">User</option><option value="admin">Admin</option></select
+							></label
+						>
+						{#if error}<p class="message error" role="alert">{error}</p>{/if}
+						{#if success}<p class="message success" role="status">{success}</p>{/if}
+						<button class="primary" type="submit" disabled={saving}
+							>{saving ? 'Creating…' : 'Create user'}</button
+						>
+					</form>
+				</section>
+
+				<section class="panel users-panel">
+					<div class="panel-heading">
+						<Users size={18} />
+						<h2>Workspace users</h2>
+						<span class="count">{total}</span>
+					</div>
+					{#if loading}<p class="muted">Loading users…</p>
+					{:else if users.length === 0}<p class="muted">No users found.</p>
+					{:else}
+						<div class="user-list">
+							{#each users as managedUser (managedUser.id)}
+								<div class="user-entry">
+									<span class="avatar-chip">{managedUser.name.slice(0, 1).toUpperCase()}</span>
+									<div class="identity">
+										<strong>{managedUser.name}</strong><span>{managedUser.email}</span>
+									</div>
+									<span class:admin-role={managedUser.role === 'admin'} class="role"
+										>{managedUser.role ?? 'user'}</span
+									>
+								</div>
+							{/each}
+						</div>
+						<div class="pagination">
+							<button
+								type="button"
+								onclick={() => {
+									page -= 1;
+									loadUsers();
+								}}
+								disabled={page === 0 || loading}>Previous</button
+							><span>Page {page + 1} of {pageCount}</span><button
+								type="button"
+								onclick={() => {
+									page += 1;
+									loadUsers();
+								}}
+								disabled={page + 1 >= pageCount || loading}>Next</button
 							>
 						</div>
-					{/each}
-				</div>
-				<div class="pagination">
-					<button
-						type="button"
-						onclick={() => {
-							page -= 1;
-							loadUsers();
-						}}
-						disabled={page === 0 || loading}>Previous</button
-					><span>Page {page + 1} of {pageCount}</span><button
-						type="button"
-						onclick={() => {
-							page += 1;
-							loadUsers();
-						}}
-						disabled={page + 1 >= pageCount || loading}>Next</button
-					>
-				</div>
-			{/if}
-		</section>
-	</div>
+					{/if}
+				</section>
+			</div>
+		</div>
+	</main>
 </div>
 
 <style>
@@ -304,14 +376,14 @@
 		margin-top: 18px;
 		border-top: 1px solid var(--border);
 	}
-	.user-row {
+	.user-entry {
 		display: flex;
 		align-items: center;
 		gap: 11px;
 		padding: 14px 0;
 		border-bottom: 1px solid var(--border);
 	}
-	.avatar {
+	.avatar-chip {
 		display: grid;
 		flex: 0 0 32px;
 		place-items: center;
@@ -322,6 +394,10 @@
 		border-radius: 50%;
 		font-size: var(--text-sm);
 		font-weight: 650;
+	}
+	.crumb-sep {
+		color: var(--text-faint);
+		margin: 0 3px;
 	}
 	.identity {
 		display: grid;

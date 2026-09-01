@@ -2,7 +2,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
-import { isModelAvailable } from '$lib/server/ai/model.service';
+import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
 import { messageInput } from '$lib/server/validation';
 import { runConversationTurn, stopConversation } from '$lib/server/ai/agent.service';
 
@@ -21,8 +21,23 @@ export const POST: RequestHandler = async (event) => {
 		const db = getDb();
 		const conversation = await getOwnedConversation(conversationId, user.id);
 		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
-		if (parsed.data.model && !(await isModelAvailable(user.id, parsed.data.model)))
-			return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
+
+		let modelToUse = parsed.data.model ?? conversation.model;
+		if (!(await isModelAvailable(user.id, modelToUse))) {
+			const available = await listAvailableModels(user.id);
+			if (available.length > 0) {
+				const preferred = available.find((m) => `${m.provider}/${m.id}` === 'openai/gpt-4o-mini');
+				const fallback = preferred ?? available[0];
+				modelToUse = `${fallback.provider}/${fallback.id}`;
+				await db
+					.update(schema.conversations)
+					.set({ model: modelToUse, updatedAt: new Date() })
+					.where(eq(schema.conversations.id, conversationId));
+			} else {
+				return apiError('MODEL_NOT_AVAILABLE', 'No configured models are available.');
+			}
+		}
+
 		const [userMessage] = await db
 			.insert(schema.messages)
 			.values({ conversationId, role: 'user', content: parsed.data.content })

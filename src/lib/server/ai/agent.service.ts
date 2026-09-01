@@ -2,7 +2,7 @@ import { Agent } from '@earendil-works/pi-agent-core';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { asc, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
-import { modelRegistry, resolveModel, splitModelRef } from './model.service';
+import { listAvailableModels, modelRegistry, resolveModel, splitModelRef } from './model.service';
 import { getProviderCredential, type ProviderCredential } from './provider-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
 import { createWebSearchTool } from './tools/web-search.tool';
@@ -100,14 +100,31 @@ export async function runConversationTurn(
 		.from(schema.conversations)
 		.where(eq(schema.conversations.id, conversationId));
 	if (!conversation) throw new Error('CONVERSATION_NOT_FOUND');
-	const selectedModelRef = modelRef ?? conversation.model;
-	const selectedModel = splitModelRef(selectedModelRef);
+	let selectedModelRef = modelRef ?? conversation.model;
+	let selectedModel = splitModelRef(selectedModelRef);
 	if (!selectedModel) throw new Error('MODEL_NOT_AVAILABLE');
-	const { provider, id: modelId } = selectedModel;
+	let { provider, id: modelId } = selectedModel;
 	let credential: ProviderCredential | undefined;
-	if (userId || conversation.userId) {
-		credential = await getProviderCredential(userId ?? conversation.userId ?? '', provider);
-		if (!credential.apiKey && !credential.customConfig) throw new Error('PROVIDER_NOT_CONFIGURED');
+	const effectiveUserId = userId ?? conversation.userId ?? '';
+	if (effectiveUserId) {
+		credential = await getProviderCredential(effectiveUserId, provider);
+		if (!credential.apiKey && !credential.customConfig) {
+			const available = await listAvailableModels(effectiveUserId);
+			if (available.length > 0) {
+				const preferred = available.find((m) => `${m.provider}/${m.id}` === 'openai/gpt-4o-mini');
+				const fallback = preferred ?? available[0];
+				provider = fallback.provider;
+				modelId = fallback.id;
+				selectedModelRef = `${provider}/${modelId}`;
+				credential = await getProviderCredential(effectiveUserId, provider);
+				await db
+					.update(schema.conversations)
+					.set({ model: selectedModelRef, updatedAt: new Date() })
+					.where(eq(schema.conversations.id, conversationId));
+			} else {
+				throw new Error('PROVIDER_NOT_CONFIGURED');
+			}
+		}
 	}
 	const model = resolveModel(provider, modelId, credential);
 	if (!model) throw new Error('MODEL_NOT_AVAILABLE');

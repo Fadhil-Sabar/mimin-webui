@@ -505,7 +505,8 @@
 						liveError = String((event.error as { message?: string })?.message ?? 'Agent error');
 					}
 				},
-				abortController.signal
+				abortController.signal,
+				activeConversation?.model
 			);
 			if ((liveResponse || liveThinking) && !liveError)
 				appendAssistantMessage(liveResponse, liveThinking);

@@ -216,8 +216,10 @@
 	}
 	:global(.markdown-body ul),
 	:global(.markdown-body ol) {
+		list-style: revert;
+		list-style-position: outside;
 		margin: 0 0 12px;
-		padding-left: 20px;
+		padding-left: 24px;
 	}
 	:global(.markdown-body li) {
 		margin-bottom: 4px;

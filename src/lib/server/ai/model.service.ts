@@ -351,15 +351,17 @@ export function splitModelRef(value: string) {
 	return { provider: value.slice(0, separator), id: value.slice(separator + 1) };
 }
 
+export async function listAvailableModels(userId: string): Promise<AppModel[]> {
+	const result = await listModels(userId);
+	return result.models.filter((model) => model.configured || model.userConfigured);
+}
+
 export async function isModelAvailable(userId: string, value: string) {
 	const parsed = splitModelRef(value);
 	if (!parsed) return false;
-	const result = await listModels(userId);
-	return result.models.some(
-		(model) =>
-			model.provider === parsed.provider &&
-			model.id === parsed.id &&
-			(model.configured || model.userConfigured)
+	const available = await listAvailableModels(userId);
+	return available.some(
+		(model) => model.provider === parsed.provider && model.id === parsed.id
 	);
 }
 
