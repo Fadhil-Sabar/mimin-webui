@@ -1,51 +1,46 @@
-import { createHash, randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { env } from '$env/dynamic/private';
+import { drizzleAdapter } from '@better-auth/drizzle-adapter';
+import { betterAuth } from 'better-auth';
+import { admin } from 'better-auth/plugins';
 import { getDb, schema } from '$lib/server/db/client';
 import { hashPassword, verifyPassword } from './password';
 
+/** The single Better Auth instance used by the SvelteKit handler and server APIs. */
+export const auth = betterAuth({
+	appName: 'Mimin WebUI',
+	baseURL: env.BETTER_AUTH_URL || undefined,
+	secret: env.BETTER_AUTH_SECRET || undefined,
+	database: drizzleAdapter(getDb(), {
+		provider: 'pg',
+		usePlural: true,
+		schema: {
+			users: schema.users,
+			sessions: schema.sessions,
+			accounts: schema.accounts,
+			verifications: schema.verifications
+		}
+	}),
+	emailAndPassword: {
+		enabled: true,
+		disableSignUp: true,
+		minPasswordLength: 8,
+		password: {
+			hash: hashPassword,
+			verify: ({ hash, password }) => verifyPassword(password, hash)
+		}
+	},
+	session: {
+		expiresIn: 60 * 60 * 24 * 30
+	},
+	advanced: {
+		database: {
+			generateId: 'uuid'
+		}
+	},
+	plugins: [admin({ defaultRole: 'user', adminRoles: ['admin'] })]
+});
+
+export type AuthSession = typeof auth.$Infer.Session.session;
+export type AuthUser = typeof auth.$Infer.Session.user;
+
 export { hashPassword, verifyPassword };
-
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-export interface AuthUser {
-	id: string;
-	email: string;
-	name: string;
-}
-
-function sha256(value: string) {
-	return createHash('sha256').update(value).digest('hex');
-}
-
-export async function createSession(userId: string): Promise<string> {
-	const token = randomBytes(32).toString('base64url');
-	await getDb()
-		.insert(schema.sessions)
-		.values({ userId, tokenHash: sha256(token), expiresAt: new Date(Date.now() + SESSION_TTL_MS) });
-	return token;
-}
-
-export async function deleteSession(token: string) {
-	if (!token) return;
-	await getDb()
-		.delete(schema.sessions)
-		.where(eq(schema.sessions.tokenHash, sha256(token)))
-		.catch(() => undefined);
-}
-
-export async function getSessionUser(token: string | undefined): Promise<AuthUser | null> {
-	if (!token) return null;
-	const tokenHash = sha256(token);
-	const db = getDb();
-	const [row] = await db
-		.select({
-			user: { id: schema.users.id, email: schema.users.email, name: schema.users.name },
-			expiresAt: schema.sessions.expiresAt
-		})
-		.from(schema.sessions)
-		.innerJoin(schema.users, eq(schema.sessions.userId, schema.users.id))
-		.where(eq(schema.sessions.tokenHash, tokenHash));
-	if (!row) return null;
-	if (row.expiresAt.getTime() < Date.now()) return null;
-	return row.user;
-}

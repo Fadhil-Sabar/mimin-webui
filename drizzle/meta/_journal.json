@@ -36,6 +36,13 @@
 			"when": 1788260720574,
 			"tag": "0004_kind_monster_badoon",
 			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1788265000000,
+			"tag": "0005_better_auth",
+			"breakpoints": true
 		}
 	]
 }

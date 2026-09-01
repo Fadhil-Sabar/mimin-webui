@@ -13,6 +13,7 @@
 		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { authClient } from '$lib/client/auth';
 
 	type ProviderState = {
 		provider: string;
@@ -69,7 +70,7 @@
 		}
 	];
 
-	let user = $state<{ name: string } | null>(null);
+	let user = $state<{ name: string; role?: string | null } | null>(null);
 	let loading = $state(true);
 	let saving = $state(false);
 	let toast = $state('');
@@ -130,8 +131,8 @@
 
 	onMount(async () => {
 		try {
-			const sessionResponse = await fetch('/api/auth/session');
-			if (sessionResponse.ok) user = (await sessionResponse.json()).user ?? null;
+			const sessionResponse = await authClient.getSession();
+			if (sessionResponse.data) user = sessionResponse.data.user ?? null;
 		} catch {
 			/* ignore */
 		}
@@ -269,7 +270,7 @@
 	}
 
 	async function logout() {
-		await fetch('/api/auth/logout', { method: 'POST' });
+		await authClient.signOut();
 		window.location.href = '/login';
 	}
 </script>
@@ -287,6 +288,7 @@
 			<div class="nav-label">Workspace</div>
 			<a class="nav-item" href={resolve('/chat')}><MessageSquare size={16} /> Chat</a>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
+			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}><Settings size={16} /> Users</a>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item active" href={resolve('/settings')}><Settings size={16} /> Models</a>
 		</div>

@@ -176,8 +176,10 @@ drizzle/
 
 Main tables:
 
-- `users`: accounts with scrypt password hashes
-- `sessions`: bearer tokens (SHA-256 hashes) with expiry
+- `users`: Better Auth users with UUID IDs, roles, verification, and ban metadata
+- `accounts`: Better Auth credential accounts containing the migrated scrypt hashes
+- `sessions`: Better Auth database sessions with metadata and 30-day expiry
+- `verifications`: Better Auth verification records
 - `provider_settings`: encrypted per-user provider keys and base URLs
 - `projects`: project metadata and instructions, owned by a user
 - `project_files`: file metadata and storage keys
@@ -199,20 +201,22 @@ The seed script creates the default `admin@mimin.local` account, claims existing
 
 ## Authentication
 
-Authentication uses email and password with scrypt password hashing and HTTP-only session cookies.
+Authentication uses Better Auth 1.7.x with email/password, the Drizzle PostgreSQL adapter, and the Admin plugin. Existing scrypt hashes are verified in place and all legacy sessions are invalidated by migration `0005_better_auth`.
 
 ```text
-POST /api/auth/login
-POST /api/auth/logout
-GET  /api/auth/session
+POST /api/auth/sign-in/email
+POST /api/auth/sign-out
+GET  /api/auth/get-session
 ```
 
-- Passwords are hashed with scrypt and a per-user salt; only the hash is stored.
-- Session tokens are random 256-bit values; only their SHA-256 hashes are stored, and they expire after 30 days.
-- The session cookie is `HttpOnly`, `SameSite=Lax`, and scoped to the app path.
-- `src/hooks.server.ts` redirects unauthenticated page requests to `/login` and exposes `event.locals.user`.
+- Passwords are hashed with scrypt and a per-user salt; migrated hashes remain usable without resets.
+- Better Auth owns `/api/auth/*`, including CSRF/origin protections and HTTP-only session cookies.
+- `src/hooks.server.ts` redirects unauthenticated page requests to `/login` and exposes `event.locals.user` plus `event.locals.session`.
+- Public registration is disabled. Administrators provision users from `/admin/users`; the page supports only listing and initial account creation.
 - Every data API route requires a valid session and filters rows by `user_id`. Cross-user access returns `404` for list, read, update, and delete operations, so ownership cannot be probed.
 - `/api/models` and `/api/tools` stay public because they expose no user data.
+
+Deploy the migration and the Better Auth environment variables together. Every user must sign in again after cutover because legacy session cookies are deliberately not accepted.
 
 ## API
 

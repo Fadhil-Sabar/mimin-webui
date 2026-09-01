@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Sparkles } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { authClient } from '$lib/client/auth';
 	let email = $state('');
 	let password = $state('');
 	let error = $state('');
@@ -14,14 +15,12 @@
 		}
 		busy = true;
 		try {
-			const response = await fetch('/api/auth/login', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ email, password })
+			const { error: signInError } = await authClient.signIn.email({
+				email: email.trim().toLowerCase(),
+				password
 			});
-			const data = await response.json().catch(() => null);
-			if (!response.ok) {
-				error = data?.error?.message ?? 'Could not sign in.';
+			if (signInError) {
+				error = signInError.message ?? 'Could not sign in.';
 				return;
 			}
 			window.location.href = '/';

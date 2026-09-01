@@ -26,7 +26,6 @@ Sudah tersedia:
 
 Belum tersedia:
 
-- Authentication dan user ownership
 - PDF text extraction
 - Provider adapter untuk web search dan web fetch
 - Pemrosesan chat attachment

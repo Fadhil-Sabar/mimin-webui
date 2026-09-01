@@ -79,6 +79,8 @@ svg { flex: 0 0 auto }
 .button:hover { color: var(--text); border-color: var(--text-dim) }
 .button.primary { color: var(--accent-fg); background: var(--accent-bg); border-color: var(--accent-bg) }
 .button.primary:hover { background: var(--accent-bg-hover) }
+.button.danger { color: #ffffff; background: var(--danger-bg); border-color: var(--danger-bg) }
+.button.danger:hover { background: color-mix(in srgb, var(--danger-bg) 85%, #000000) }
 .stats { display: flex; align-items: center; gap: 35px; padding: 19px 0; border-bottom: 1px solid var(--border) }
 .stats strong, .stats span { display: block }
 .stats strong { font-size: var(--text-lg); letter-spacing: -0.03em }

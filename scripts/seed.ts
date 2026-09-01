@@ -23,12 +23,24 @@ async function hashPassword(password: string) {
 
 const passwordHash = await hashPassword(DEFAULT_PASSWORD);
 await sql`
-	insert into users (email, name, password_hash)
-	values (${DEFAULT_EMAIL}, 'Admin', ${passwordHash})
-	on conflict (email) do update set name = excluded.name
+	insert into users (email, name, email_verified, role)
+	values (${DEFAULT_EMAIL}, 'Admin', true, 'admin')
+	on conflict (email) do update set
+		name = excluded.name,
+		email_verified = true,
+		role = 'admin',
+		updated_at = now()
 `;
 const [user] = await sql`select id from users where email = ${DEFAULT_EMAIL} limit 1`;
 if (!user) throw new Error('Failed to create default user');
+
+await sql`
+	insert into accounts (provider_id, issuer, account_id, user_id, password)
+	values ('credential', 'local:credential', ${user.id}, ${user.id}, ${passwordHash})
+	on conflict (issuer, account_id) do update set
+		password = coalesce(accounts.password, excluded.password),
+		updated_at = now()
+`;
 
 // Claim existing unowned data for the default user so nothing is lost.
 await sql`update projects set user_id = ${user.id} where user_id is null`;

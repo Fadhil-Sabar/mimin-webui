@@ -17,6 +17,32 @@ export async function stopConversation(id: string) {
 	await fetch(`/api/conversations/${id}/stop`, { method: 'POST' });
 }
 
+export async function updateConversation(
+	id: string,
+	input: { title?: string; model?: string; enabledTools?: string[] }
+) {
+	const response = await fetch(`/api/conversations/${id}`, {
+		method: 'PATCH',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(input)
+	});
+	if (!response.ok)
+		throw new Error(
+			(await response.json().catch(() => null))?.error?.message ?? 'Could not update conversation'
+		);
+	return (await response.json()).conversation;
+}
+
+export async function deleteConversation(id: string) {
+	const response = await fetch(`/api/conversations/${id}`, {
+		method: 'DELETE'
+	});
+	if (!response.ok)
+		throw new Error(
+			(await response.json().catch(() => null))?.error?.message ?? 'Could not delete conversation'
+		);
+}
+
 export async function streamMessage(
 	id: string,
 	content: string,

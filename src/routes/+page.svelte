@@ -11,10 +11,11 @@
 		Sparkles
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { authClient } from '$lib/client/auth';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
 	let prompt = $state('');
 	let toast = $state('');
-	let user = $state<{ name: string } | null>(null);
+	let user = $state<{ name: string; role?: string | null } | null>(null);
 	let conversations = $state<{ id: string; title: string }[]>([]);
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
@@ -96,8 +97,8 @@
 
 	onMount(async () => {
 		try {
-			const sessionResponse = await fetch('/api/auth/session');
-			if (sessionResponse.ok) user = (await sessionResponse.json()).user ?? null;
+			const sessionResponse = await authClient.getSession();
+			if (sessionResponse.data) user = sessionResponse.data.user ?? null;
 		} catch {
 			/* ignore */
 		}
@@ -111,7 +112,7 @@
 	});
 
 	async function logout() {
-		await fetch('/api/auth/logout', { method: 'POST' });
+		await authClient.signOut();
 		window.location.href = '/login';
 	}
 </script>
@@ -131,6 +132,7 @@
 				><MessageSquare size={16} /> Chat <span class="nav-count">{conversations.length}</span></a
 			>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
+			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}><Settings size={16} /> Users</a>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			{#if conversations.length > 0}

@@ -1,24 +1,35 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { resolve } from '$app/paths';
-	import { createConversation, stopConversation, streamMessage } from '$lib/client/api';
+	import {
+		createConversation,
+		deleteConversation,
+		stopConversation,
+		streamMessage,
+		updateConversation
+	} from '$lib/client/api';
 	import {
 		ArrowUp,
 		Bot,
+		Check,
 		ChevronDown,
 		FolderKanban,
 		LogOut,
 		MessageSquare,
 		Paperclip,
+		Pencil,
 		Plus,
 		Search,
 		Settings,
 		Sparkles,
 		Square,
+		Trash2,
 		UserRound,
-		Wrench
+		Wrench,
+		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { authClient } from '$lib/client/auth';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
@@ -43,7 +54,7 @@
 	let message = $state('');
 	let toast = $state('');
 	let busy = $state(true);
-	let user = $state<{ name: string } | null>(null);
+	let user = $state<{ name: string; role?: string | null } | null>(null);
 	let conversations = $state<Conversation[]>([]);
 	let activeId = $state('');
 	let activeConversation = $state<Conversation | null>(null);
@@ -60,6 +71,14 @@
 	let abortController: AbortController | undefined;
 	let scrollEl: HTMLElement | undefined;
 	let userAtBottom = $state(true);
+	let editingId = $state<string | null>(null);
+	let editingTitle = $state('');
+	let deletingConversation = $state<Conversation | null>(null);
+	let deleteLoading = $state(false);
+
+	let isNewConversationEmpty = $derived(
+		messages.length === 0 && !liveResponse && !running && !!activeConversation
+	);
 
 	const SCROLL_THRESHOLD = 80;
 
@@ -183,11 +202,42 @@
 		}
 	}
 
-	async function loadConversation(id: string) {
+	function updateChatUrl(id: string, replace = false) {
+		if (typeof window === 'undefined') return;
+		const url = new URL(window.location.href);
+		if (
+			url.searchParams.get('id') === id &&
+			!url.searchParams.has('prompt') &&
+			!url.searchParams.has('new')
+		) {
+			return;
+		}
+		url.searchParams.set('id', id);
+		url.searchParams.delete('prompt');
+		url.searchParams.delete('new');
+		if (replace) {
+			window.history.replaceState({}, '', url.pathname + '?' + url.searchParams.toString());
+		} else {
+			window.history.pushState({}, '', url.pathname + '?' + url.searchParams.toString());
+		}
+	}
+
+	function handlePopState() {
+		const params = new URL(window.location.href).searchParams;
+		const id = params.get('id');
+		if (id && id !== activeId) {
+			void loadConversation(id, true);
+		} else if (!id && conversations.length > 0 && conversations[0].id !== activeId) {
+			void loadConversation(conversations[0].id, true);
+		}
+	}
+
+	async function loadConversation(id: string, replaceUrl = false) {
 		activeId = id;
 		activeConversation = conversations.find((c) => c.id === id) ?? null;
 		liveResponse = '';
 		liveError = '';
+		updateChatUrl(id, replaceUrl);
 		try {
 			const response = await fetch(`/api/conversations/${id}`);
 			if (!response.ok) throw new Error('Could not load conversation');
@@ -201,24 +251,108 @@
 			}
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not load conversation');
+			throw error;
 		}
 	}
 
-	async function startNewConversation() {
+	async function startNewConversation(force = false) {
+		if (!force && isNewConversationEmpty) return;
 		try {
 			const model = defaultModel();
 			const conversation = await createConversation(model ? { model } : {});
 			await loadConversations();
-			await loadConversation(conversation.id);
+			await loadConversation(conversation.id, false);
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Backend unavailable');
 		}
 	}
 
+	function focusInput(node: HTMLInputElement) {
+		node.focus();
+		node.select();
+	}
+
+	function startRename(conversation: Conversation) {
+		editingId = conversation.id;
+		editingTitle = conversation.title;
+	}
+
+	function cancelRename() {
+		editingId = null;
+		editingTitle = '';
+	}
+
+	async function saveRename(id: string) {
+		const newTitle = editingTitle.trim();
+		if (!newTitle) {
+			notify('Title cannot be empty');
+			return;
+		}
+		try {
+			const updated = await updateConversation(id, { title: newTitle });
+			conversations = conversations.map((c) =>
+				c.id === id ? { ...c, title: updated.title } : c
+			);
+			if (activeConversation && activeConversation.id === id) {
+				activeConversation = { ...activeConversation, title: updated.title };
+			}
+			editingId = null;
+			notify('Conversation renamed');
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not rename conversation');
+		}
+	}
+
+	function promptDelete(conversation: Conversation) {
+		deletingConversation = conversation;
+	}
+
+	function cancelDelete() {
+		deletingConversation = null;
+	}
+
+	async function confirmDelete() {
+		if (!deletingConversation) return;
+		const id = deletingConversation.id;
+		deleteLoading = true;
+		try {
+			await deleteConversation(id);
+			conversations = conversations.filter((c) => c.id !== id);
+			notify('Conversation deleted');
+			const wasActive = activeId === id;
+			deletingConversation = null;
+
+			if (wasActive) {
+				if (conversations.length > 0) {
+					await loadConversation(conversations[0].id, false);
+				} else {
+					await startNewConversation(true);
+				}
+			}
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not delete conversation');
+		} finally {
+			deleteLoading = false;
+		}
+	}
+
+	function handleWindowKeydown(event: KeyboardEvent) {
+		if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+			event.preventDefault();
+			if (!isNewConversationEmpty && !running) {
+				void startNewConversation();
+			}
+		}
+		if (event.key === 'Escape') {
+			if (deletingConversation) cancelDelete();
+			if (editingId) cancelRename();
+		}
+	}
+
 	onMount(async () => {
 		try {
-			const response = await fetch('/api/auth/session');
-			if (response.ok) user = (await response.json()).user ?? null;
+			const response = await authClient.getSession();
+			if (response.data) user = response.data.user ?? null;
 		} catch {
 			/* ignore */
 		}
@@ -226,11 +360,24 @@
 		const params = new URL(window.location.href).searchParams;
 		const requested = params.get('id');
 		const pendingPrompt = params.get('prompt');
-		const target = requested ? conversations.find((c) => c.id === requested) : conversations[0];
-		if (target) {
-			await loadConversation(target.id);
+		const isNew = params.get('new') === '1';
+
+		if (requested) {
+			try {
+				await loadConversation(requested, true);
+			} catch {
+				if (conversations.length > 0) {
+					await loadConversation(conversations[0].id, true);
+				} else {
+					await startNewConversation(true);
+				}
+			}
+		} else if (isNew) {
+			await startNewConversation(true);
+		} else if (conversations.length > 0) {
+			await loadConversation(conversations[0].id, true);
 		} else {
-			await startNewConversation();
+			await startNewConversation(true);
 		}
 		busy = false;
 		if (pendingPrompt) {
@@ -390,12 +537,13 @@
 	}
 
 	async function logout() {
-		await fetch('/api/auth/logout', { method: 'POST' });
+		await authClient.signOut();
 		window.location.href = '/login';
 	}
 </script>
 
 <svelte:head><title>Mimin WebUI | Chat</title></svelte:head>
+<svelte:window onpopstate={handlePopState} onkeydown={handleWindowKeydown} />
 <div class="app-shell">
 	<aside class="sidebar">
 		<div class="brand">
@@ -403,27 +551,100 @@
 				class="brand-muted">/ workbench</span
 			>
 		</div>
-		<button class="new-chat" onclick={startNewConversation}
-			><Plus size={16} /> New chat <kbd>⌘ K</kbd></button
+		<button
+			class="new-chat"
+			disabled={isNewConversationEmpty || running}
+			title={isNewConversationEmpty ? 'Already on a new conversation' : 'New chat'}
+			onclick={() => startNewConversation()}
 		>
+			<Plus size={16} /> New chat <kbd>⌘ K</kbd>
+		</button>
 		<div class="sidebar-scroll">
 			<div class="nav-label">Workspace</div>
 			<a class="nav-item active" href={resolve('/chat')}
 				><MessageSquare size={16} /> Chat <span class="nav-count">{conversations.length}</span></a
 			>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
+			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}><Settings size={16} /> Users</a>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			{#if conversations.length > 0}
 				<div class="nav-label projects-label">Recent chats</div>
 				{#each conversations as conversation (conversation.id)}
-					<button
-						class="project-item"
+					<div
+						class="recent-chat-item"
 						class:active-project={conversation.id === activeId}
-						onclick={() => loadConversation(conversation.id)}
 					>
-						<span class="project-dot"></span>{conversation.title}
-					</button>
+						{#if editingId === conversation.id}
+							<form
+								class="inline-rename-form"
+								onsubmit={(e) => {
+									e.preventDefault();
+									saveRename(conversation.id);
+								}}
+							>
+								<input
+									type="text"
+									class="inline-rename-input"
+									bind:value={editingTitle}
+									onkeydown={(e) => {
+										if (e.key === 'Escape') cancelRename();
+									}}
+									use:focusInput
+								/>
+								<button
+									type="submit"
+									class="item-action-btn check"
+									title="Save"
+									aria-label="Save title"
+								>
+									<Check size={13} />
+								</button>
+								<button
+									type="button"
+									class="item-action-btn cancel"
+									onclick={cancelRename}
+									title="Cancel"
+									aria-label="Cancel rename"
+								>
+									<X size={13} />
+								</button>
+							</form>
+						{:else}
+							<button
+								class="project-item-btn"
+								onclick={() => loadConversation(conversation.id)}
+								title={conversation.title}
+							>
+								<span class="project-dot"></span>
+								<span class="chat-item-title">{conversation.title}</span>
+							</button>
+							<div class="chat-item-actions">
+								<button
+									class="item-action-btn"
+									title="Rename chat"
+									aria-label="Rename chat"
+									onclick={(e) => {
+										e.stopPropagation();
+										startRename(conversation);
+									}}
+								>
+									<Pencil size={13} />
+								</button>
+								<button
+									class="item-action-btn danger"
+									title="Delete chat"
+									aria-label="Delete chat"
+									onclick={(e) => {
+										e.stopPropagation();
+										promptDelete(conversation);
+									}}
+								>
+									<Trash2 size={13} />
+								</button>
+							</div>
+						{/if}
+					</div>
 				{/each}
 			{/if}
 		</div>
@@ -594,9 +815,152 @@
 		</div>
 	</main>
 </div>
+{#if deletingConversation}
+	<div
+		class="modal-backdrop"
+		role="dialog"
+		aria-modal="true"
+		tabindex="-1"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) cancelDelete();
+		}}
+		onkeydown={(e) => {
+			if (e.key === 'Escape') cancelDelete();
+		}}
+	>
+		<div class="modal" role="document">
+			<div class="modal-head">
+				<h2>Delete chat</h2>
+				<button class="icon-button" onclick={cancelDelete} aria-label="Close dialog">
+					<X size={16} />
+				</button>
+			</div>
+			<p class="modal-text">
+				Are you sure you want to delete <strong>"{deletingConversation.title}"</strong>? This will permanently remove all messages in this conversation.
+			</p>
+			<div class="modal-actions">
+				<button class="button" onclick={cancelDelete} disabled={deleteLoading}>Cancel</button>
+				<button class="button danger" onclick={confirmDelete} disabled={deleteLoading}>
+					{deleteLoading ? 'Deleting...' : 'Delete'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
 {#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <style>
+	.new-chat:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+		transform: none;
+		box-shadow: none;
+	}
+	.recent-chat-item {
+		display: flex;
+		align-items: center;
+		position: relative;
+		width: 100%;
+		min-height: 32px;
+		border-radius: 6px;
+		transition: background 0.16s ease;
+	}
+	.recent-chat-item:hover {
+		background: color-mix(in srgb, var(--surface-hover) 75%, transparent);
+	}
+	.recent-chat-item.active-project {
+		background: var(--surface-hover);
+	}
+	.project-item-btn {
+		display: flex;
+		align-items: center;
+		gap: 9px;
+		flex: 1 1 auto;
+		min-width: 0;
+		min-height: 32px;
+		color: var(--text-dim);
+		padding: 6px 4px 6px 10px;
+		background: transparent;
+		border: 0;
+		text-align: left;
+		border-radius: 6px;
+		font-size: var(--text-sm);
+	}
+	.recent-chat-item.active-project .project-item-btn {
+		color: var(--text-strong);
+		font-weight: 550;
+	}
+	.recent-chat-item.active-project .project-dot {
+		background: var(--text-strong);
+	}
+	.chat-item-title {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		flex: 1 1 auto;
+		min-width: 0;
+	}
+	.chat-item-actions {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		padding-right: 4px;
+		opacity: 0;
+		transition: opacity 0.15s ease;
+		flex-shrink: 0;
+	}
+	.recent-chat-item:hover .chat-item-actions,
+	.recent-chat-item:focus-within .chat-item-actions {
+		opacity: 1;
+	}
+	.item-action-btn {
+		display: grid;
+		place-items: center;
+		width: 22px;
+		height: 22px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--text-muted);
+		padding: 0;
+		transition: color 0.15s ease, background 0.15s ease;
+	}
+	.item-action-btn:hover {
+		color: var(--text-strong);
+		background: var(--surface-3);
+	}
+	.item-action-btn.danger:hover {
+		color: var(--danger-text);
+		background: color-mix(in srgb, var(--danger-text) 12%, transparent);
+	}
+	.inline-rename-form {
+		display: flex;
+		align-items: center;
+		gap: 3px;
+		width: 100%;
+		padding: 3px 6px;
+	}
+	.inline-rename-input {
+		flex: 1 1 auto;
+		min-width: 0;
+		height: 26px;
+		padding: 2px 6px;
+		font-size: var(--text-xs);
+		color: var(--text);
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: 4px;
+		outline: none;
+	}
+	.inline-rename-input:focus {
+		border-color: var(--focus);
+	}
+	.modal-text {
+		margin: 0 0 16px;
+		color: var(--text-body);
+		font-size: var(--text-sm);
+		line-height: 1.5;
+	}
 	.chat-wrap {
 		width: 100%;
 		min-height: calc(100dvh - 66px);
