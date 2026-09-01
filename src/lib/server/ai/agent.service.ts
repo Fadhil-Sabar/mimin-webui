@@ -8,6 +8,8 @@ import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
 import { createWebSearchTool } from './tools/web-search.tool';
 
 export type AppEvent = { type: string; [key: string]: unknown };
+export const AGENT_SYSTEM_PROMPT =
+	'You are Sol, a concise and helpful AI agent. Answer clearly and use Markdown when useful. For current, uncertain, niche, or verifiable information, use web_search before answering. After each tool result, assess whether the evidence is sufficient. If not, call the same or another tool repeatedly until the answer is sufficiently grounded, unless the tool fails or the user asks you to stop. Prefer primary and recent sources, compare sources when practical, and cite source URLs in the answer. Never claim you searched if the tool failed or is unavailable.';
 const activeAgents = new Map<string, Agent>();
 
 type AgentEvent = {
@@ -139,8 +141,7 @@ export async function runConversationTurn(
 	];
 	const agent = new Agent({
 		initialState: {
-			systemPrompt:
-				'You are Sol, a concise and helpful AI agent. Answer clearly and use Markdown when useful. For current, uncertain, niche, or verifiable information, use web_search before answering. Prefer primary and recent sources, compare sources when practical, and cite source URLs in the answer. Never claim you searched if the tool failed or is unavailable.',
+			systemPrompt: AGENT_SYSTEM_PROMPT,
 			model: requestModel,
 			messages: toAgentMessages(history),
 			tools
