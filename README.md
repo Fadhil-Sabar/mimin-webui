@@ -21,6 +21,7 @@ Available:
 - Project knowledge chunking for basic text search
 - Stop generation with `AbortController` and Pi agent abort
 - Project and conversation CRUD
+- Projects dashboard and project overview pages on live API state (list, create, upload, delete, start chat)
 - PostgreSQL migration and seed script
 - Normalized API errors
 - Unit tests for validation, password hashing, and tool registry
@@ -346,7 +347,7 @@ The full file is not injected into every model request. The tool returns only ch
 /                                  Home composer
 /chat                              Chat room and SSE response
 /projects                          Project dashboard
-/projects/mimin-coding-agent       Project overview and knowledge
+/projects/:id                      Project overview and knowledge
 ```
 
 The chat frontend uses `src/lib/client/api.ts` to create conversations and read SSE streams. The projects dashboard attempts to load data from the API and keeps a visual fallback when the backend is not configured.
@@ -401,9 +402,8 @@ SSE provider guard      normalized error, no secret leak
 3. Implement web search and web fetch adapters with SSRF protection.
 4. Connect citation service to normalized tool sources.
 5. Add chat attachments and message attachment relationships.
-6. Migrate the project overview page fully to shared API state.
-7. Add integration tests with disposable PostgreSQL.
-8. Add an explicit deployment adapter, such as Node or Cloudflare.
+6. Add integration tests with disposable PostgreSQL.
+7. Add an explicit deployment adapter, such as Node or Cloudflare.
 
 ## Indonesian documentation
 
