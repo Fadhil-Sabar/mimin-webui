@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Sparkles } from '@lucide/svelte';
+	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	let email = $state('');
 	let password = $state('');
 	let error = $state('');
@@ -41,6 +42,7 @@
 
 <svelte:head><title>Sign in | Mimin WebUI</title></svelte:head>
 <div class="auth-page">
+	<div class="auth-theme-toggle"><ThemeToggle /></div>
 	<div class="auth-card">
 		<div class="brand">
 			<span class="brand-mark"><Sparkles size={14} /></span><span>solace</span><span
@@ -90,6 +92,11 @@
 		place-items: center;
 		background: var(--bg);
 		padding: 24px;
+	}
+	.auth-theme-toggle {
+		position: fixed;
+		top: 24px;
+		right: 24px;
 	}
 	.auth-card {
 		width: 100%;
