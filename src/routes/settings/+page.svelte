@@ -106,15 +106,18 @@
 	async function saveProvider() {
 		if (!editing) return;
 		const provider = editing;
-		if (!draftKey.trim() && !draftBaseUrl.trim()) {
+		const current = providers.find((p) => p.provider === provider);
+		if (!draftKey.trim() && !draftBaseUrl.trim() && !current?.fromUser) {
 			notify('Enter an API key or a base URL');
 			return;
 		}
 		saving = true;
 		try {
-			const body: Record<string, string> = {};
+			const body: Record<string, string | null> = {};
+			// An empty key field keeps the saved key; use Remove to delete it.
 			if (draftKey.trim()) body.apiKey = draftKey.trim();
 			if (draftBaseUrl.trim()) body.baseUrl = draftBaseUrl.trim();
+			else if (current?.baseUrl) body.baseUrl = null;
 			const response = await fetch(`/api/providers/${provider}`, {
 				method: 'PUT',
 				headers: { 'content-type': 'application/json' },

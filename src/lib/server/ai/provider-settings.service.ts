@@ -148,11 +148,15 @@ export async function saveProviderCredential(
 	provider: ProviderId,
 	input: { apiKey?: string | null; baseUrl?: string | null }
 ): Promise<void> {
-	const apiKey = input.apiKey ? await encryptSecret(input.apiKey) : null;
-	const baseUrl = input.baseUrl?.trim() || null;
+	// Undefined preserves the stored value; null explicitly clears it. This way
+	// a base-URL-only edit does not wipe a saved key.
 	const db = getDb();
 	const existing = await db
-		.select({ id: schema.providerSettings.id })
+		.select({
+			id: schema.providerSettings.id,
+			apiKey: schema.providerSettings.apiKey,
+			baseUrl: schema.providerSettings.baseUrl
+		})
 		.from(schema.providerSettings)
 		.where(
 			and(
@@ -161,6 +165,18 @@ export async function saveProviderCredential(
 			)
 		)
 		.limit(1);
+	const apiKey =
+		input.apiKey === undefined
+			? (existing[0]?.apiKey ?? null)
+			: input.apiKey
+				? await encryptSecret(input.apiKey)
+				: null;
+	const baseUrl =
+		input.baseUrl === undefined
+			? (existing[0]?.baseUrl ?? null)
+			: input.baseUrl
+				? input.baseUrl.trim() || null
+				: null;
 	if (existing[0]) {
 		await db
 			.update(schema.providerSettings)

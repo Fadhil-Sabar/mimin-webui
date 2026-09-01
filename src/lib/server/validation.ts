@@ -16,6 +16,6 @@ export const messageInput = z.object({
 	enabledTools: z.array(z.string()).max(20).optional()
 });
 export const providerSettingsInput = z.object({
-	apiKey: z.string().trim().min(1).max(400).optional(),
-	baseUrl: z.string().trim().max(500).optional()
+	apiKey: z.string().trim().min(1).max(400).nullable().optional(),
+	baseUrl: z.string().trim().max(500).nullable().optional()
 });
