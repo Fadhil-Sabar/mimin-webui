@@ -1,7 +1,9 @@
-import { createModels, type Api, type Model } from '@earendil-works/pi-ai';
+import { createModels, createProvider, type Api, type Model } from '@earendil-works/pi-ai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { googleProvider } from '@earendil-works/pi-ai/providers/google';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
+import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
+import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import {
 	getProviderCredential,
 	isProviderId,
@@ -24,10 +26,25 @@ let registry: ReturnType<typeof createModels> | undefined;
 const runtimeModels = new Map<string, RuntimeModel>();
 const liveModelCache = new Map<string, { models: RuntimeModel[]; expiresAt: number }>();
 
+function createCustomOpenAiProvider() {
+	const base = openaiProvider();
+	return createProvider({
+		id: 'openai',
+		name: 'OpenAI',
+		baseUrl: 'https://api.openai.com/v1',
+		auth: base.auth,
+		models: base.getModels(),
+		api: {
+			'openai-responses': openAIResponsesApi(),
+			'openai-completions': openAICompletionsApi()
+		} as any
+	});
+}
+
 function getRegistry() {
 	if (registry) return registry;
 	registry = createModels();
-	registry.setProvider(openaiProvider());
+	registry.setProvider(createCustomOpenAiProvider());
 	registry.setProvider(anthropicProvider());
 	registry.setProvider(googleProvider());
 	return registry;
@@ -91,7 +108,8 @@ function runtimeModel(
 		...template,
 		id: discovered.id,
 		name: discovered.name?.trim() || modelDisplayName(discovered.id),
-		provider
+		provider,
+		...(provider === 'openai' ? { api: 'openai-completions' as const } : {})
 	} as RuntimeModel;
 	runtimeModels.set(runtimeModelKey(provider, discovered.id), model);
 	return model;

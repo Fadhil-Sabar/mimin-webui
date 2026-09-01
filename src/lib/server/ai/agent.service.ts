@@ -21,6 +21,15 @@ type AgentEvent = {
 	message?: { role?: string };
 };
 
+const EMPTY_USAGE = {
+	input: 0,
+	output: 0,
+	cacheRead: 0,
+	cacheWrite: 0,
+	totalTokens: 0,
+	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
+};
+
 function encodeContent(content: unknown) {
 	return typeof content === 'string' ? content : JSON.stringify(content);
 }
@@ -29,11 +38,50 @@ function toAgentMessages(
 ): AgentMessage[] {
 	return rows
 		.filter((row) => row.role === 'user' || row.role === 'assistant')
-		.map((row) => ({
-			role: row.role as 'user' | 'assistant',
-			content: encodeContent(row.content),
-			timestamp: row.createdAt.getTime()
-		})) as AgentMessage[];
+		.map((row) => {
+			if (row.role === 'user') {
+				const text = typeof row.content === 'string' ? row.content : JSON.stringify(row.content);
+				return {
+					role: 'user' as const,
+					content: [{ type: 'text' as const, text }],
+					timestamp: row.createdAt.getTime()
+				};
+			}
+			let contentBlocks: Array<
+				{ type: 'thinking'; thinking: string } | { type: 'text'; text: string }
+			> = [];
+			if (Array.isArray(row.content)) {
+				contentBlocks = row.content
+					.map((part) => {
+						if (part && typeof part === 'object' && 'type' in part) {
+							if (part.type === 'thinking' && typeof part.thinking === 'string') {
+								return { type: 'thinking' as const, thinking: part.thinking };
+							}
+							if (part.type === 'text' && typeof part.text === 'string') {
+								return { type: 'text' as const, text: part.text };
+							}
+						}
+						return null;
+					})
+					.filter(Boolean) as Array<
+					{ type: 'thinking'; thinking: string } | { type: 'text'; text: string }
+				>;
+			}
+			if (contentBlocks.length === 0) {
+				const text = typeof row.content === 'string' ? row.content : JSON.stringify(row.content);
+				contentBlocks = [{ type: 'text' as const, text }];
+			}
+			return {
+				role: 'assistant' as const,
+				content: contentBlocks as any,
+				api: 'unknown' as any,
+				provider: 'unknown' as any,
+				model: 'unknown',
+				usage: EMPTY_USAGE,
+				stopReason: 'stop' as const,
+				timestamp: row.createdAt.getTime()
+			};
+		}) as AgentMessage[];
 }
 
 export async function runConversationTurn(
@@ -61,7 +109,17 @@ export async function runConversationTurn(
 		if (!credential.apiKey) throw new Error('PROVIDER_NOT_CONFIGURED');
 	}
 	// A user-saved base URL points the provider adapters at a custom endpoint.
-	const requestModel = credential?.baseUrl ? { ...model, baseUrl: credential.baseUrl } : model;
+	const isCustomOpenAi =
+		provider === 'openai' &&
+		Boolean(
+			credential?.baseUrl &&
+				!credential.baseUrl.replace(/\/+$/, '').endsWith('api.openai.com/v1')
+		);
+	const requestModel = {
+		...model,
+		...(credential?.baseUrl ? { baseUrl: credential.baseUrl } : {}),
+		...(isCustomOpenAi ? { api: 'openai-completions' as const } : {})
+	};
 	const history = (
 		await db
 			.select({
@@ -92,6 +150,7 @@ export async function runConversationTurn(
 		.returning();
 	activeAgents.set(conversationId, agent);
 	let assistantText = '';
+	let thinkingText = '';
 	agent.subscribe(async (event) => {
 		const e = event as AgentEvent;
 		if (e.type === 'agent_start') emit({ type: 'turn.start' });
@@ -124,10 +183,16 @@ export async function runConversationTurn(
 				result: e.result
 			});
 		}
-		if (e.type === 'message_update' && e.assistantMessageEvent?.type === 'text_delta') {
-			const delta = e.assistantMessageEvent.delta;
-			assistantText += delta;
-			emit({ type: 'message.delta', messageId: `${conversationId}:assistant`, delta });
+		if (e.type === 'message_update') {
+			if (e.assistantMessageEvent?.type === 'thinking_delta') {
+				const delta = e.assistantMessageEvent.delta;
+				thinkingText += delta;
+				emit({ type: 'thinking.delta', messageId: `${conversationId}:assistant`, delta });
+			} else if (e.assistantMessageEvent?.type === 'text_delta') {
+				const delta = e.assistantMessageEvent.delta;
+				assistantText += delta;
+				emit({ type: 'message.delta', messageId: `${conversationId}:assistant`, delta });
+			}
 		}
 		if (e.type === 'message_end' && e.message?.role === 'assistant')
 			emit({ type: 'message.end', messageId: `${conversationId}:assistant` });
@@ -135,15 +200,42 @@ export async function runConversationTurn(
 	});
 	try {
 		await agent.prompt(prompt);
+		if (agent.state.errorMessage) {
+			throw new Error(agent.state.errorMessage);
+		}
+		const lastMsg = agent.state.messages[agent.state.messages.length - 1];
+		if (
+			lastMsg &&
+			lastMsg.role === 'assistant' &&
+			(lastMsg as { stopReason?: string }).stopReason === 'error'
+		) {
+			throw new Error(
+				(lastMsg as { errorMessage?: string }).errorMessage || 'Agent execution failed'
+			);
+		}
+		const content = thinkingText.trim()
+			? [
+					{ type: 'thinking', thinking: thinkingText },
+					{ type: 'text', text: assistantText }
+				]
+			: assistantText;
 		await db
 			.update(schema.messages)
-			.set({ content: assistantText })
+			.set({ content })
 			.where(eq(schema.messages.id, assistantMessage.id));
 		await db
 			.update(schema.conversations)
 			.set({ updatedAt: new Date() })
 			.where(eq(schema.conversations.id, conversationId));
 		return assistantMessage;
+	} catch (error) {
+		if (!assistantText && !thinkingText) {
+			await db
+				.delete(schema.messages)
+				.where(eq(schema.messages.id, assistantMessage.id))
+				.catch(() => {});
+		}
+		throw error;
 	} finally {
 		activeAgents.delete(conversationId);
 	}

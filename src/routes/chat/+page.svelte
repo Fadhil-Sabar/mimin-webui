@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { createConversation, stopConversation, streamMessage } from '$lib/client/api';
 	import {
@@ -20,6 +20,7 @@
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
+	import Markdown from '$lib/components/Markdown.svelte';
 
 	type Conversation = {
 		id: string;
@@ -47,12 +48,42 @@
 	let activeConversation = $state<Conversation | null>(null);
 	let messages = $state<ChatMessage[]>([]);
 	let liveResponse = $state('');
+	let liveThinking = $state('');
 	let liveError = $state('');
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
 	let modelLoadError = $state('');
 	let modelSaving = $state(false);
 	let abortController: AbortController | undefined;
+	let scrollEl: HTMLElement | undefined;
+	let userAtBottom = $state(true);
+
+	const SCROLL_THRESHOLD = 80;
+
+	function isNearBottom(el: HTMLElement) {
+		return el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
+	}
+
+	function handleScroll() {
+		if (!scrollEl) return;
+		userAtBottom = isNearBottom(scrollEl);
+	}
+
+	function scrollToBottom() {
+		if (!scrollEl) return;
+		scrollEl.scrollTop = scrollEl.scrollHeight;
+	}
+
+	$effect(() => {
+		// Subscribe to reactive changes
+		void liveResponse;
+		void liveThinking;
+		void messages;
+
+		if (userAtBottom) {
+			tick().then(scrollToBottom);
+		}
+	});
 
 	function notify(value: string) {
 		toast = value;
@@ -62,8 +93,21 @@
 	function contentText(content: unknown): string {
 		if (typeof content === 'string') return content;
 		if (Array.isArray(content))
-			return content.map((part) => (typeof part === 'string' ? part : (part?.text ?? ''))).join('');
+			return content
+				.filter((part) => (typeof part === 'string' ? true : part?.type !== 'thinking'))
+				.map((part) => (typeof part === 'string' ? part : (part?.text ?? '')))
+				.join('');
 		return '';
+	}
+
+	function thinkingText(content: unknown): string {
+		if (!Array.isArray(content)) return '';
+		return content
+			.filter((part) => part && typeof part === 'object' && part.type === 'thinking')
+			.map((part) => (typeof part.thinking === 'string' ? part.thinking : ''))
+			.filter(Boolean)
+			.join('\n')
+			.trim();
 	}
 
 	function modelRef(model: ModelOption) {
@@ -204,17 +248,24 @@
 		return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 	}
 
-	function appendAssistantMessage(text: string) {
+	function appendAssistantMessage(text: string, thinking: string = '') {
+		const content = thinking.trim()
+			? [
+					{ type: 'thinking', thinking: thinking.trim() },
+					{ type: 'text', text }
+				]
+			: text;
 		messages = [
 			...messages,
 			{
 				id: `${activeId}:assistant`,
 				role: 'assistant',
-				content: text,
+				content,
 				createdAt: new Date().toISOString()
 			}
 		];
 		liveResponse = '';
+		liveThinking = '';
 	}
 
 	async function sendMessage() {
@@ -226,7 +277,9 @@
 		running = true;
 		liveError = '';
 		liveResponse = '';
+		liveThinking = '';
 		message = '';
+		userAtBottom = true;
 		messages = [
 			...messages,
 			{ id: `${activeId}:user`, role: 'user', content, createdAt: new Date().toISOString() }
@@ -237,6 +290,7 @@
 				activeId,
 				content,
 				(event) => {
+					if (event.type === 'thinking.delta') liveThinking += String(event.delta ?? '');
 					if (event.type === 'message.delta') liveResponse += String(event.delta ?? '');
 					if (event.type === 'error') {
 						liveError = String((event.error as { message?: string })?.message ?? 'Agent error');
@@ -244,7 +298,8 @@
 				},
 				abortController.signal
 			);
-			if (liveResponse && !liveError) appendAssistantMessage(liveResponse);
+			if ((liveResponse || liveThinking) && !liveError)
+				appendAssistantMessage(liveResponse, liveThinking);
 		} catch (error) {
 			if ((error as Error).name !== 'AbortError')
 				notify(error instanceof Error ? error.message : 'Agent error');
@@ -252,16 +307,16 @@
 			running = false;
 			abortController = undefined;
 			await loadConversations();
-			const updated = conversations.find((c) => c.id === activeId);
-			if (updated) activeConversation = updated;
+			if (activeId) await loadConversation(activeId);
 		}
 	}
 
 	async function stopMessage() {
-		if (activeId) await stopConversation(activeId);
+		if (activeId) await stopConversation(activeId).catch(() => {});
 		abortController?.abort();
 		running = false;
-		if (liveResponse && !liveError) appendAssistantMessage(liveResponse);
+		if ((liveResponse || liveThinking) && !liveError)
+			appendAssistantMessage(liveResponse, liveThinking);
 		notify('Generation stopped');
 	}
 
@@ -323,7 +378,7 @@
 			</div>
 		</div>
 	</aside>
-	<main class="main-content">
+	<main class="main-content" bind:this={scrollEl} onscroll={handleScroll}>
 		<header class="topbar">
 			<div class="breadcrumb">
 				<strong>Chat</strong><ChevronDown size={14} /><span
@@ -373,16 +428,56 @@
 						{/if}
 						<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
 					</div>
-					<div><p>{contentText(msg.content)}</p></div>
+					<div class="message-body">
+						{#if msg.role === 'assistant' && thinkingText(msg.content)}
+							<details class="thinking-block">
+								<summary class="thinking-summary">
+									<Sparkles size={13} />
+									<span>Thinking process</span>
+									<ChevronDown size={13} class="chevron" />
+								</summary>
+								<div class="thinking-content">{thinkingText(msg.content)}</div>
+							</details>
+						{/if}
+						{#if contentText(msg.content)}
+							{#if msg.role === 'assistant'}
+								<Markdown content={contentText(msg.content)} />
+							{:else}
+								<p>{contentText(msg.content)}</p>
+							{/if}
+						{/if}
+					</div>
 				</article>
 			{/each}
-			{#if liveResponse}
+			{#if running || liveResponse || liveThinking}
 				<article class="message assistant-message" aria-label="Mimin message">
 					<div class="message-label">
 						<Bot size={14} aria-hidden="true" />
 						<span>MIMIN</span>
+						{#if running}
+							<span class="live-tag">{liveResponse ? 'responding...' : 'thinking...'}</span>
+						{/if}
 					</div>
-					<div class="response"><p class="response-text">{liveResponse}</p></div>
+					<div class="response">
+						{#if liveThinking}
+							<details class="thinking-block" open={!liveResponse}>
+								<summary class="thinking-summary">
+									<Sparkles size={13} />
+									<span>Thinking process</span>
+									{#if running && !liveResponse}
+										<span class="thinking-live-dot"></span>
+									{/if}
+									<ChevronDown size={13} class="chevron" />
+								</summary>
+								<div class="thinking-content">{liveThinking}</div>
+							</details>
+						{/if}
+						{#if liveResponse}
+							<Markdown content={liveResponse} />
+						{:else if !liveThinking}
+							<p class="response-text thinking"><span class="pulse-dot"></span> Thinking...</p>
+						{/if}
+					</div>
 				</article>
 			{/if}
 			{#if liveError}
@@ -392,12 +487,14 @@
 				<textarea
 					bind:value={message}
 					aria-label="Message Mimin"
-					placeholder="Ask Mimin to think, write, or plan..."
+					placeholder={running ? 'Mimin is responding...' : 'Ask Mimin to think, write, or plan...'}
+					disabled={running}
 					onkeydown={onKeydown}></textarea>
 				<div class="composer-row">
 					<button
 						class="control"
 						title="Attachments are not available in chat yet"
+						disabled={running}
 						onclick={() => notify('Attachments are not available in chat yet')}
 						><Paperclip size={15} /> File</button
 					>
@@ -405,7 +502,7 @@
 						models={pickerModels}
 						value={activeConversation?.model ?? ''}
 						loading={modelsLoading}
-						disabled={!activeId || modelSaving || configuredModels.length === 0}
+						disabled={running || !activeId || modelSaving || configuredModels.length === 0}
 						placeholder={configuredModels.length
 							? 'Pick a model'
 							: modelLoadError
@@ -416,6 +513,7 @@
 					<button
 						class="control"
 						title="Show enabled tools"
+						disabled={running}
 						onclick={() =>
 							notify(
 								activeConversation?.enabledTools?.length
@@ -549,6 +647,88 @@
 		font-size: var(--text-sm);
 		margin-bottom: 2px;
 	}
+	.thinking-block {
+		margin-bottom: 10px;
+		border: 1px solid var(--border);
+		background: var(--surface-subtle);
+		border-radius: 7px;
+		font-size: var(--text-sm);
+		overflow: hidden;
+	}
+	.thinking-summary {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 7px 11px;
+		cursor: pointer;
+		color: var(--text-muted);
+		font-size: var(--text-xs);
+		font-weight: 500;
+		user-select: none;
+		list-style: none;
+	}
+	.thinking-summary::-webkit-details-marker {
+		display: none;
+	}
+	.thinking-summary:hover {
+		color: var(--text-strong);
+		background: var(--surface-hover);
+	}
+	:global(.thinking-summary .chevron) {
+		margin-left: auto;
+		transition: transform 0.18s ease;
+	}
+	details[open] > .thinking-summary :global(.chevron) {
+		transform: rotate(180deg);
+	}
+	.thinking-live-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--accent-bg);
+		animation: pulse-glow 1s ease-in-out infinite;
+	}
+	.thinking-content {
+		padding: 8px 12px 10px;
+		border-top: 1px solid var(--border);
+		color: var(--text-dim);
+		font-size: var(--text-xs);
+		line-height: 1.55;
+		white-space: pre-wrap;
+		font-family: var(--font-mono, monospace);
+		max-height: 260px;
+		overflow-y: auto;
+	}
+	.live-tag {
+		font-size: var(--text-xs);
+		color: var(--text-dim);
+		margin-left: 6px;
+		font-style: italic;
+	}
+	.thinking {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--text-muted);
+		font-style: italic;
+	}
+	.pulse-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: var(--accent-bg);
+		animation: pulse-glow 1.4s ease-in-out infinite;
+	}
+	@keyframes pulse-glow {
+		0%, 100% {
+			opacity: 0.3;
+			transform: scale(0.85);
+		}
+		50% {
+			opacity: 1;
+			transform: scale(1.2);
+		}
+	}
 	.chat-composer {
 		position: sticky;
 		bottom: 18px;
@@ -567,6 +747,10 @@
 		resize: none;
 		font: var(--text-base)/1.5 inherit;
 		background: transparent;
+	}
+	.chat-composer textarea:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
 	}
 	.composer-row {
 		display: flex;

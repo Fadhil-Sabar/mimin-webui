@@ -88,7 +88,9 @@ export const POST: RequestHandler = async (event) => {
 							? 'This provider is not configured on the server.'
 							: code === 'CONVERSATION_NOT_FOUND'
 								? 'Conversation not found.'
-								: 'The agent could not complete this turn.';
+								: error instanceof Error
+									? error.message
+									: 'The agent could not complete this turn.';
 				send('error', { type: 'error', error: { code, message } });
 			} finally {
 				close();

@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { Check, ChevronDown, Bot } from '@lucide/svelte';
+	import { Check, ChevronDown, Bot, Search } from '@lucide/svelte';
 	import { SvelteMap } from 'svelte/reactivity';
+	import { tick } from 'svelte';
 
 	export type ModelOption = {
 		id: string;
@@ -29,8 +30,10 @@
 	}: Props = $props();
 
 	let open = $state(false);
-	let root: HTMLDivElement | undefined;
-	let trigger: HTMLButtonElement | undefined;
+	let search = $state('');
+	let root = $state<HTMLDivElement | undefined>();
+	let trigger = $state<HTMLButtonElement | undefined>();
+	let searchInput = $state<HTMLInputElement | undefined>();
 
 	const providerNames: Record<string, string> = {
 		openai: 'OpenAI',
@@ -53,6 +56,21 @@
 			models: providerModels
 		}));
 	});
+	let filteredGroups = $derived.by(() => {
+		const q = search.trim().toLowerCase();
+		if (!q) return groups;
+		return groups
+			.map((group) => ({
+				...group,
+				models: group.models.filter(
+					(m) =>
+						m.name.toLowerCase().includes(q) ||
+						m.id.toLowerCase().includes(q) ||
+						group.label.toLowerCase().includes(q)
+				)
+			}))
+			.filter((group) => group.models.length > 0);
+	});
 
 	function modelRef(model: ModelOption) {
 		return `${model.provider}/${model.id}`;
@@ -65,21 +83,30 @@
 	function toggle() {
 		if (disabled || loading || models.length === 0) return;
 		open = !open;
+		if (open) {
+			search = '';
+			tick().then(() => searchInput?.focus());
+		}
 	}
 
 	function choose(model: ModelOption) {
 		open = false;
+		search = '';
 		void onselect?.(modelRef(model));
 	}
 
 	function closeOnOutsideClick(event: MouseEvent) {
 		if (!open || !root) return;
-		if (event.target instanceof Node && !root.contains(event.target)) open = false;
+		if (event.target instanceof Node && !root.contains(event.target)) {
+			open = false;
+			search = '';
+		}
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && open) {
 			open = false;
+			search = '';
 			trigger?.focus();
 		}
 	}
@@ -104,7 +131,18 @@
 
 	{#if open}
 		<div class="model-menu" role="listbox" aria-label="Available models">
-			{#each groups as group (group.provider)}
+			<div class="model-search">
+				<Search size={14} aria-hidden="true" />
+				<input
+					bind:this={searchInput}
+					bind:value={search}
+					type="text"
+					placeholder="Search models..."
+					aria-label="Search models"
+					autocomplete="off"
+				/>
+			</div>
+			{#each filteredGroups as group (group.provider)}
 				<div class="model-group">
 					<div class="model-group-label">{group.label}</div>
 					{#each group.models as model (modelRef(model))}
@@ -131,6 +169,9 @@
 					{/each}
 				</div>
 			{/each}
+			{#if filteredGroups.length === 0}
+				<div class="model-no-results">No models match "{search}"</div>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -188,6 +229,39 @@
 		border-radius: 9px;
 		background: var(--surface);
 		box-shadow: 0 14px 32px var(--shadow);
+	}
+	.model-search {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		padding: 6px 8px;
+		margin-bottom: 4px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--surface-subtle);
+		color: var(--text-dim);
+		position: sticky;
+		top: 0;
+		z-index: 1;
+	}
+	.model-search input {
+		flex: 1;
+		min-width: 0;
+		border: 0;
+		outline: 0;
+		background: transparent;
+		font: inherit;
+		font-size: var(--text-sm);
+		color: var(--text-body);
+	}
+	.model-search input::placeholder {
+		color: var(--text-dim);
+	}
+	.model-no-results {
+		padding: 16px 8px;
+		text-align: center;
+		color: var(--text-dim);
+		font-size: var(--text-sm);
 	}
 	.model-group + .model-group {
 		margin-top: 5px;
