@@ -103,8 +103,10 @@
 			/* ignore */
 		}
 		await loadConversations();
-		if (conversations.length > 0) {
-			await loadConversation(conversations[0].id);
+		const requested = new URL(window.location.href).searchParams.get('id');
+		const target = requested ? conversations.find((c) => c.id === requested) : conversations[0];
+		if (target) {
+			await loadConversation(target.id);
 		} else {
 			await startNewConversation();
 		}
