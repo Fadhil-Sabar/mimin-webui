@@ -22,9 +22,10 @@ Available:
 - Stop generation with `AbortController` and Pi agent abort
 - Project and conversation CRUD
 - Projects dashboard and project overview pages on live API state (list, create, upload, delete, start chat)
+- Per-user provider API key settings with encrypted storage, masking, and env fallback
 - PostgreSQL migration and seed script
 - Normalized API errors
-- Unit tests for validation, password hashing, and tool registry
+- Unit tests for validation, password hashing, tool registry, and provider settings
 
 Not yet available:
 
@@ -397,7 +398,7 @@ The latest verified commands:
 
 ```text
 npm test
-7 tests passed
+15 tests passed
 
 npm run check
 0 errors, 0 warnings

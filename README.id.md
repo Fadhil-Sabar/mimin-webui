@@ -19,9 +19,10 @@ Sudah tersedia:
 - Chunking project knowledge untuk basic text search
 - Stop generation dengan `AbortController` dan Pi agent abort
 - CRUD project dan conversation
+- Pengaturan API key provider per pengguna dengan penyimpanan terenkripsi, masking, dan env fallback
 - PostgreSQL migration dan seed script
 - Normalized API errors
-- Unit tests untuk validation dan tool registry
+- Unit tests untuk validation, password hashing, tool registry, dan provider settings
 
 Belum tersedia:
 
