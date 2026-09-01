@@ -2,7 +2,9 @@
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import {
+		ChevronDown,
 		FolderKanban,
+		LogOut,
 		MessageSquare,
 		Paperclip,
 		Plus,
@@ -32,7 +34,9 @@
 		return `${model.provider}/${model.id}`;
 	}
 
-	let configuredModels = $derived(models.filter((model) => model.configured || model.userConfigured));
+	let configuredModels = $derived(
+		models.filter((model) => model.configured || model.userConfigured)
+	);
 
 	async function loadModels() {
 		try {
@@ -131,7 +135,7 @@
 			{/if}
 		</div>
 		<div class="sidebar-bottom">
-			<button class="nav-item" onclick={logout}>Log out</button>
+			<button class="nav-item" onclick={logout}><LogOut size={16} /> Log out</button>
 			<div class="user-row">
 				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span><span
 					><strong>{user?.name ?? 'Fadhil'}</strong><small>Personal workspace</small></span
@@ -144,18 +148,20 @@
 			<div class="breadcrumb"><strong>Home</strong></div>
 			<div class="top-actions">
 				<ThemeToggle />
-				<span class="avatar avatar-top">F</span>
+				<span class="avatar avatar-top">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span>
 			</div>
 		</header>
 		<div class="home-wrap">
-			<div class="eyebrow">AI WORKSPACE · READY</div>
 			<h1>What would you like to<br />work on today?</h1>
 			<p class="intro">
 				Think with an agent that can research, build, and organize your work in one calm workspace.
 			</p>
 			<div class="home-composer">
-				<textarea bind:value={prompt} placeholder="Ask anything..." onkeydown={onKeydown}
-				></textarea>
+				<textarea
+					bind:value={prompt}
+					aria-label="Prompt"
+					placeholder="Ask anything..."
+					onkeydown={onKeydown}></textarea>
 				<div class="composer-row">
 					<button class="control" onclick={() => notify('File picker opened')}
 						><Paperclip size={15} /> Attach</button
@@ -171,9 +177,14 @@
 						}}
 					/>
 					<button class="control" onclick={() => notify('Tools selector opened')}
-						><Wrench size={15} /> Tools <span>⌄</span></button
+						><Wrench size={15} /> Tools <ChevronDown size={13} aria-hidden="true" /></button
 					>
-					<button class="send-button" onclick={submitPrompt}><Send size={15} /></button>
+					<button
+						class="send-button"
+						aria-label="Send prompt"
+						title="Send prompt"
+						onclick={submitPrompt}><Send size={16} aria-hidden="true" /></button
+					>
 				</div>
 			</div>
 			<div class="example-row">
@@ -185,75 +196,87 @@
 		</div>
 	</main>
 </div>
-{#if toast}<div class="toast">{toast}</div>{/if}
+{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <style>
 	.home-wrap {
 		max-width: 800px;
 		margin: auto;
-		padding: 15vh 32px 80px;
+		padding: clamp(64px, 15vh, 150px) 32px 80px;
 	}
 	.home-wrap h1 {
+		font-family: var(--font-display);
 		font-size: var(--text-3xl);
-		line-height: 1.08;
-		letter-spacing: -0.065em;
+		line-height: 1.06;
+		letter-spacing: -0.03em;
 		margin: 0 0 14px;
 	}
 	.intro {
 		max-width: 500px;
 		color: var(--text-muted);
-		margin: 0 0 43px;
+		line-height: 1.6;
+		margin: 0 0 36px;
 	}
 	.home-composer {
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: 11px;
-		padding: 15px;
-		box-shadow: 0 10px 30px var(--shadow-softer);
+		border-radius: 12px;
+		padding: 16px;
+		box-shadow: 0 10px 30px var(--shadow-soft);
 	}
 	.home-composer textarea {
 		display: block;
 		width: 100%;
-		height: 72px;
+		min-height: 78px;
 		border: 0;
 		outline: 0;
 		resize: none;
 		font: var(--text-base)/1.5 inherit;
+		background: transparent;
 	}
 	.composer-row {
 		display: flex;
+		align-items: center;
 		gap: 7px;
 		border-top: 1px solid var(--border);
-		padding-top: 10px;
+		padding-top: 12px;
 	}
 	.control {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
+		min-height: 38px;
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		background: var(--surface-subtle);
 		padding: 7px 9px;
 		color: var(--text-muted);
 		font-size: var(--text-sm);
+		transition: 0.18s ease;
 	}
 	.control:hover {
 		color: var(--text-strong);
 		border-color: var(--text-faint);
 	}
-	.control span {
+	.control :global(svg:last-child) {
 		color: var(--text-faint);
 	}
 	.send-button {
 		display: grid;
 		place-items: center;
 		margin-left: auto;
-		width: 32px;
+		width: 40px;
+		height: 40px;
+		flex: 0 0 auto;
 		border: 0;
-		border-radius: 6px;
+		border-radius: 8px;
 		color: var(--accent-fg);
 		background: var(--accent-bg);
 		text-decoration: none;
+		transition: 0.18s ease;
+	}
+	.send-button:hover {
+		background: var(--accent-bg-hover);
 	}
 	.example-row {
 		display: flex;
@@ -287,7 +310,7 @@
 	}
 	@media (max-width: 700px) {
 		.home-wrap {
-			padding: 10vh 18px;
+			padding: clamp(48px, 10vh, 84px) 18px 60px;
 		}
 		.home-wrap h1 {
 			font-size: var(--text-2xl);
@@ -296,7 +319,7 @@
 			flex-wrap: wrap;
 		}
 		.send-button {
-			height: 32px;
+			margin-left: auto;
 		}
 	}
 </style>

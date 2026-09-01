@@ -7,6 +7,7 @@
 		Bot,
 		ChevronDown,
 		FolderKanban,
+		LogOut,
 		MessageSquare,
 		Paperclip,
 		Plus,
@@ -14,6 +15,7 @@
 		Settings,
 		Sparkles,
 		Square,
+		UserRound,
 		Wrench
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -67,7 +69,9 @@
 		return `${model.provider}/${model.id}`;
 	}
 
-	let configuredModels = $derived(models.filter((model) => model.configured || model.userConfigured));
+	let configuredModels = $derived(
+		models.filter((model) => model.configured || model.userConfigured)
+	);
 	let pickerModels = $derived.by(() => {
 		const current = activeConversation?.model;
 		if (!current || configuredModels.some((model) => modelRef(model) === current))
@@ -169,7 +173,9 @@
 				body: JSON.stringify({ model })
 			});
 			if (!response.ok)
-				throw new Error((await response.json().catch(() => null))?.error?.message ?? 'Could not select model');
+				throw new Error(
+					(await response.json().catch(() => null))?.error?.message ?? 'Could not select model'
+				);
 			const data = await response.json();
 			activeConversation = data.conversation;
 			conversations = conversations.map((conversation) =>
@@ -294,7 +300,7 @@
 			{/if}
 		</div>
 		<div class="sidebar-bottom">
-			<button class="nav-item" onclick={logout}>Log out</button>
+			<button class="nav-item" onclick={logout}><LogOut size={16} /> Log out</button>
 			<div class="user-row">
 				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span><span
 					><strong>{user?.name ?? 'Fadhil'}</strong><small>Personal workspace</small></span
@@ -310,8 +316,11 @@
 				>
 			</div>
 			<div class="top-actions">
-				<button class="icon-button" onclick={() => notify('Search opened')}
-					><Search size={17} /></button
+				<button
+					class="icon-button"
+					aria-label="Search conversations"
+					title="Search conversations"
+					onclick={() => notify('Search opened')}><Search size={17} /></button
 				>
 				<ThemeToggle />
 			</div>
@@ -329,33 +338,44 @@
 				</p>
 			</div>
 			{#if busy}
-				<div class="empty-state">Loading conversations...</div>
+				<div class="empty-state" role="status">Loading conversations...</div>
 			{:else if messages.length === 0 && !liveResponse}
 				<div class="empty-state">Ask something to start a conversation.</div>
 			{/if}
 			{#each messages as msg (msg.id)}
-				<article class="message">
+				<article class="message" aria-label={`${msg.role === 'user' ? 'Your' : 'Sol'} message`}>
 					<div class="message-label">
-						{msg.role === 'user' ? 'YOU' : ''}<Bot size={14} />
-						{msg.role === 'user' ? '' : 'SOL'} <small>{formatTime(msg.createdAt)}</small>
+						{#if msg.role === 'user'}<UserRound size={14} aria-hidden="true" /> YOU{:else}<Bot
+								size={14}
+								aria-hidden="true"
+							/> SOL{/if}
+						<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
 					</div>
 					<div><p>{contentText(msg.content)}</p></div>
 				</article>
 			{/each}
 			{#if liveResponse}
-				<article class="message">
-					<div class="message-label"><Bot size={14} /> SOL</div>
+				<article class="message" aria-label="Sol message">
+					<div class="message-label"><Bot size={14} aria-hidden="true" /> SOL</div>
 					<div class="response"><p class="response-text">{liveResponse}</p></div>
 				</article>
 			{/if}
 			{#if liveError}
-				<div class="inline-error"><strong>Agent error</strong> {liveError}</div>
+				<div class="inline-error" role="alert"><strong>Agent error</strong> {liveError}</div>
 			{/if}
 			<div class="chat-composer">
-				<textarea bind:value={message} placeholder="Message Sol..." onkeydown={onKeydown}
-				></textarea>
+				<textarea
+					bind:value={message}
+					aria-label="Message Sol"
+					placeholder="Message Sol..."
+					onkeydown={onKeydown}></textarea>
 				<div class="composer-row">
-					<button class="control"><Paperclip size={15} /> File</button>
+					<button
+						class="control"
+						title="Attachments are not available yet"
+						onclick={() => notify('Attachments are not available in chat yet')}
+						><Paperclip size={15} /> File</button
+					>
 					<ModelPicker
 						models={pickerModels}
 						value={activeConversation?.model ?? ''}
@@ -376,6 +396,8 @@
 					<button
 						class="send-button"
 						class:stop={running}
+						aria-label={running ? 'Stop generation' : 'Send message'}
+						title={running ? 'Stop generation' : 'Send message'}
 						onclick={() => (running ? stopMessage() : sendMessage())}
 						>{#if running}<Square size={13} />{:else}<ArrowUp size={16} />{/if}</button
 					>
@@ -384,7 +406,7 @@
 		</div>
 	</main>
 </div>
-{#if toast}<div class="toast">{toast}</div>{/if}
+{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <style>
 	.chat-wrap {
@@ -397,8 +419,10 @@
 		border-bottom: 1px solid var(--border);
 	}
 	.chat-title h1 {
+		font-family: var(--font-display);
 		font-size: var(--text-xl);
-		letter-spacing: -0.05em;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
 		margin: 9px 0 5px;
 	}
 	.chat-title p {
@@ -413,6 +437,7 @@
 		padding: 4px 7px;
 		border-radius: 5px;
 		font-size: var(--text-xs);
+		line-height: 1.2;
 	}
 	.ready i {
 		display: inline-block;
@@ -423,8 +448,8 @@
 		margin-right: 4px;
 	}
 	.ready.working {
-		color: #b08a4a;
-		border-color: color-mix(in srgb, #b08a4a 40%, transparent);
+		color: var(--status-working-text);
+		border-color: color-mix(in srgb, var(--status-working-dot) 40%, transparent);
 	}
 	.empty-state {
 		text-align: center;
@@ -436,7 +461,7 @@
 		display: grid;
 		grid-template-columns: 80px 1fr;
 		gap: 24px;
-		padding: 25px 0;
+		padding: 24px 0;
 		border-bottom: 1px solid var(--border);
 	}
 	.message-label {
@@ -446,18 +471,20 @@
 		color: var(--text-dim);
 		font-size: var(--text-xs);
 	}
-	.message-label small {
+	.message-label time {
 		color: var(--text-faint);
 		margin-left: 4px;
+		font-variant-numeric: tabular-nums;
 	}
 	.message p {
 		margin: 0;
 		color: var(--text-body);
+		line-height: 1.6;
 		white-space: pre-wrap;
-		font-family: ui-sans-serif, system-ui, sans-serif;
+		font-family: var(--font-body);
 	}
 	.response {
-		font-family: ui-sans-serif, system-ui, sans-serif;
+		font-family: var(--font-body);
 	}
 	.response-text {
 		margin: 0;
@@ -467,7 +494,7 @@
 	.inline-error {
 		background: rgba(141, 47, 38, 0.09);
 		border: 1px solid rgba(141, 47, 38, 0.35);
-		color: #e08a80;
+		color: var(--danger-text);
 		border-radius: 6px;
 		padding: 10px 12px;
 		margin: 18px 0 0;
@@ -486,18 +513,20 @@
 		border-radius: 9px;
 		padding: 12px;
 		margin-top: 28px;
-		box-shadow: 0 8px 24px var(--shadow-faint);
+		box-shadow: 0 10px 28px var(--shadow-faint);
 	}
 	.chat-composer textarea {
 		width: 100%;
-		height: 45px;
+		min-height: 45px;
 		border: 0;
 		outline: 0;
 		resize: none;
 		font: var(--text-base)/1.5 inherit;
+		background: transparent;
 	}
 	.composer-row {
 		display: flex;
+		align-items: center;
 		gap: 7px;
 		border-top: 1px solid var(--border);
 		padding-top: 10px;
@@ -506,12 +535,14 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
+		min-height: 38px;
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		background: var(--surface-subtle);
 		padding: 7px 9px;
 		color: var(--text-muted);
 		font-size: var(--text-sm);
+		transition: 0.18s ease;
 	}
 	.control:hover {
 		color: var(--text-strong);
@@ -521,14 +552,21 @@
 		display: grid;
 		place-items: center;
 		margin-left: auto;
-		width: 32px;
+		width: 40px;
+		height: 40px;
+		flex: 0 0 auto;
 		border: 0;
-		border-radius: 6px;
+		border-radius: 8px;
 		color: var(--accent-fg);
 		background: var(--accent-bg);
+		transition: 0.18s ease;
+	}
+	.send-button:hover {
+		background: var(--accent-bg-hover);
 	}
 	.send-button.stop {
-		background: #a8433a;
+		background: var(--danger-bg);
+		color: #ffffff;
 	}
 	.toast {
 		position: fixed;
@@ -544,11 +582,15 @@
 	}
 	@media (max-width: 700px) {
 		.chat-wrap {
-			padding: 24px 18px;
+			padding: 28px 18px 36px;
 		}
 		.message {
 			grid-template-columns: 1fr;
 			gap: 6px;
+		}
+		.ready {
+			float: none;
+			display: inline-flex;
 		}
 	}
 </style>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Check, ChevronDown, Bot } from '@lucide/svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 
 	export type ModelOption = {
 		id: string;
@@ -40,7 +41,7 @@
 	let selected = $derived(models.find((model) => modelRef(model) === value));
 	let selectedLabel = $derived(selected?.name ?? (value ? modelId(value) : placeholder));
 	let groups = $derived.by(() => {
-		const grouped = new Map<string, ModelOption[]>();
+		const grouped = new SvelteMap<string, ModelOption[]>();
 		for (const model of models) {
 			const current = grouped.get(model.provider) ?? [];
 			current.push(model);

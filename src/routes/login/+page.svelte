@@ -52,6 +52,7 @@
 		<h1>Welcome back</h1>
 		<p class="subtitle">Sign in to your workspace.</p>
 		<form
+			aria-busy={busy}
 			onsubmit={(e) => {
 				e.preventDefault();
 				submit();
@@ -74,7 +75,7 @@
 					onkeydown={onKeydown}
 				/></label
 			>
-			{#if error}<div class="form-error">{error}</div>{/if}
+			{#if error}<div class="form-error" role="alert">{error}</div>{/if}
 			<button class="submit" type="submit" disabled={busy}
 				>{busy ? 'Signing in...' : 'Sign in'}</button
 			>
@@ -103,17 +104,16 @@
 		max-width: 360px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 12px;
-		padding: 34px 30px;
+		border-radius: 14px;
+		padding: 36px 30px;
 		box-shadow: 0 12px 34px var(--shadow-soft);
 	}
 	.brand {
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		font-family: var(--font-display);
 		font-size: var(--text-lg);
-		font-weight: 700;
-		letter-spacing: -0.045em;
 		margin-bottom: 26px;
 	}
 	.brand-mark {
@@ -132,8 +132,10 @@
 	}
 	h1 {
 		margin: 0 0 5px;
+		font-family: var(--font-display);
 		font-size: var(--text-xl);
-		letter-spacing: -0.05em;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
 	}
 	.subtitle {
 		margin: 0 0 24px;
@@ -151,6 +153,7 @@
 		display: block;
 		width: 100%;
 		margin-top: 6px;
+		min-height: 44px;
 		padding: 10px 11px;
 		border: 1px solid var(--input-border);
 		border-radius: 7px;
@@ -163,15 +166,17 @@
 		background: var(--surface);
 	}
 	.form-error {
-		background: rgba(141, 47, 38, 0.09);
-		border: 1px solid rgba(141, 47, 38, 0.35);
-		color: #e08a80;
+		background: color-mix(in srgb, var(--danger-text) 10%, transparent);
+		border: 1px solid color-mix(in srgb, var(--danger-text) 45%, transparent);
+		color: var(--danger-text);
 		border-radius: 6px;
 		padding: 9px 11px;
 		font-size: var(--text-sm);
+		line-height: 1.45;
 	}
 	.submit {
 		width: 100%;
+		min-height: 44px;
 		padding: 11px;
 		border: 0;
 		border-radius: 7px;

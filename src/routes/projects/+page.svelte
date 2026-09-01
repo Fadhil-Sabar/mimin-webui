@@ -11,7 +11,8 @@
 		Plus,
 		Search,
 		Settings,
-		Sparkles
+		Sparkles,
+		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
@@ -34,6 +35,9 @@
 	let user = $state<{ name: string } | null>(null);
 	let loading = $state(true);
 	let projects = $state<Project[]>([]);
+	let filteredProjects = $derived(
+		projects.filter((project) => project.name.toLowerCase().includes(query.toLowerCase()))
+	);
 
 	function notify(v: string) {
 		toast = v;
@@ -156,7 +160,6 @@
 		<div class="projects-wrap">
 			<div class="page-heading">
 				<div>
-					<div class="eyebrow">WORKSPACE</div>
 					<h1>Projects</h1>
 					<p>Persistent context for the work you return to.</p>
 				</div>
@@ -165,58 +168,81 @@
 				>
 			</div>
 			<div class="toolbar">
-				<span>{projects.length} projects</span>
+				<span>{projects.length} {projects.length === 1 ? 'project' : 'projects'}</span>
 				<div class="toolbar-right">
-					<button class="search-field"
-						><Search size={15} /><input
+					<div class="search-field">
+						<Search size={15} aria-hidden="true" /><input
 							bind:value={query}
+							aria-label="Search projects"
 							placeholder="Search projects..."
-						/></button
+						/>
+					</div>
+					<button
+						class:chosen={view === 'grid'}
+						class="view-button"
+						aria-label="Grid view"
+						aria-pressed={view === 'grid'}
+						title="Grid view"
+						onclick={() => (view = 'grid')}><Grid2X2 size={16} /></button
 					>
-					<button class:chosen={view === 'grid'} class="view-button" onclick={() => (view = 'grid')}
-						><Grid2X2 size={16} /></button
-					>
-					<button class:chosen={view === 'list'} class="view-button" onclick={() => (view = 'list')}
-						><List size={16} /></button
+					<button
+						class:chosen={view === 'list'}
+						class="view-button"
+						aria-label="List view"
+						aria-pressed={view === 'list'}
+						title="List view"
+						onclick={() => (view = 'list')}><List size={16} /></button
 					>
 				</div>
 			</div>
 			{#if loading}
-				<div class="empty-state">Loading projects...</div>
+				<div class="empty-state" role="status">Loading projects...</div>
 			{:else if projects.length === 0}
 				<div class="empty-state">
 					No projects yet. Create your first project to give the agent persistent context.
 				</div>
+			{:else if filteredProjects.length === 0}
+				<div class="empty-state">No projects match “{query}”.</div>
 			{/if}
-			<div class:grid-view={view === 'grid'} class:list-view={view === 'list'} class="project-grid">
-				{#each projects.filter((p) => p.name
-						.toLowerCase()
-						.includes(query.toLowerCase())) as project (project.id)}
-					<a class="project-card" href={resolve(`/projects/${project.id}`)}>
-						<div class="card-top"><span class="card-icon"><FolderKanban size={18} /></span></div>
-						<h2>{project.name}</h2>
-						<p>{project.description || 'No description yet.'}</p>
-						<div class="card-footer">
-							<span>{project.fileCount ?? 0} files · {project.chatCount ?? 0} chats</span>
-							<span>{formatDate(project.updatedAt)}</span>
-						</div>
-						<span class="card-arrow"><ArrowUpRight size={17} /></span>
-					</a>
-				{/each}
-				<button class="empty-card" onclick={() => (showCreate = true)}
-					><Plus size={19} /><strong>Create a new project</strong><span
-						>Give your agent persistent context</span
-					></button
+			{#if !loading}
+				<div
+					class:grid-view={view === 'grid'}
+					class:list-view={view === 'list'}
+					class="project-grid"
 				>
-			</div>
+					{#each filteredProjects as project (project.id)}
+						<a class="project-card" href={resolve(`/projects/${project.id}`)}>
+							<div class="card-top"><span class="card-icon"><FolderKanban size={18} /></span></div>
+							<h2>{project.name}</h2>
+							<p>{project.description || 'No description yet.'}</p>
+							<div class="card-footer">
+								<span>{project.fileCount ?? 0} files · {project.chatCount ?? 0} chats</span>
+								<span>{formatDate(project.updatedAt)}</span>
+							</div>
+							<span class="card-arrow"><ArrowUpRight size={17} /></span>
+						</a>
+					{/each}
+					{#if !query.trim()}
+						<button class="empty-card" onclick={() => (showCreate = true)}
+							><Plus size={19} /><strong>Create a new project</strong><span
+								>Give your agent persistent context</span
+							></button
+						>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	</main>
 </div>
 {#if showCreate}
 	<div
 		class="modal-backdrop"
-		role="presentation"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="create-project-title"
+		tabindex="-1"
 		onclick={(event) => event.target === event.currentTarget && (showCreate = false)}
+		onkeydown={(event) => event.key === 'Escape' && (showCreate = false)}
 	>
 		<form
 			class="modal"
@@ -227,14 +253,14 @@
 		>
 			<div class="modal-head">
 				<div>
-					<div class="eyebrow">NEW WORKSPACE</div>
-					<h2>Create a project</h2>
+					<h2 id="create-project-title">Create a project</h2>
 				</div>
 				<button
 					type="button"
 					class="icon-button"
 					aria-label="Close"
-					onclick={() => (showCreate = false)}>×</button
+					title="Close dialog"
+					onclick={() => (showCreate = false)}><X size={18} /></button
 				>
 			</div>
 			<label>Project name<input bind:value={newName} placeholder="e.g. Product launch" /></label>
@@ -251,13 +277,15 @@
 		</form>
 	</div>
 {/if}
-{#if toast}<div class="toast">{toast}</div>{/if}
+{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
+
+<svelte:window onkeydown={(event) => event.key === 'Escape' && (showCreate = false)} />
 
 <style>
 	.projects-wrap {
 		max-width: 1050px;
 		margin: auto;
-		padding: 43px 35px 75px;
+		padding: clamp(32px, 6vh, 56px) 35px 75px;
 	}
 	.page-heading {
 		display: flex;
@@ -267,9 +295,11 @@
 		padding-bottom: 30px;
 	}
 	.page-heading h1 {
-		margin: 7px 0 5px;
+		margin: 0 0 7px;
+		font-family: var(--font-display);
 		font-size: 32px;
-		letter-spacing: -0.06em;
+		line-height: 1.1;
+		letter-spacing: -0.03em;
 	}
 	.page-heading p {
 		margin: 0;
@@ -279,11 +309,13 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
+		min-height: 40px;
 		padding: 9px 12px;
 		border-radius: 6px;
 		border: 1px solid var(--border-strong);
 		background: var(--surface);
 		color: var(--text-body);
+		transition: 0.18s ease;
 	}
 	.button.primary {
 		color: var(--accent-fg);
@@ -299,7 +331,7 @@
 		justify-content: space-between;
 		padding: 22px 0;
 		color: var(--text-dim);
-		font-size: 12px;
+		font-size: var(--text-sm);
 	}
 	.toolbar-right {
 		display: flex;
@@ -310,23 +342,27 @@
 		align-items: center;
 		gap: 7px;
 		width: 220px;
-		padding: 7px 9px;
+		min-height: 40px;
+		padding: 7px 10px;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 5px;
 		color: var(--text-dim);
 	}
 	.search-field input {
+		min-width: 0;
 		width: 100%;
 		border: 0;
 		outline: 0;
 		color: var(--text-body);
-		font-size: 12px;
+		font-size: var(--text-sm);
+		background: transparent;
 	}
 	.view-button {
 		display: grid;
 		place-items: center;
-		width: 31px;
+		width: 40px;
+		height: 40px;
 		border: 1px solid var(--border);
 		background: var(--surface);
 		color: var(--text-faint);
@@ -342,6 +378,7 @@
 		color: var(--text-dim);
 		font-size: 13px;
 		padding: 40px 0;
+		line-height: 1.5;
 	}
 	.project-grid {
 		display: grid;
@@ -357,9 +394,9 @@
 		padding: 18px;
 		text-align: left;
 		border: 1px solid var(--border);
-		border-radius: 9px;
+		border-radius: 12px;
 		background: var(--surface);
-		transition: 0.18s;
+		transition: 0.18s ease;
 		text-decoration: none;
 		color: inherit;
 	}
@@ -437,20 +474,24 @@
 	}
 	.modal {
 		width: min(420px, 100%);
-		padding: 22px;
+		padding: 24px;
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: 10px;
+		border-radius: 12px;
 		box-shadow: 0 20px 50px var(--shadow);
 	}
 	.modal-head {
 		display: flex;
+		align-items: flex-start;
 		justify-content: space-between;
+		gap: 16px;
 	}
 	.modal h2 {
-		margin: 5px 0 20px;
+		margin: 0 0 20px;
+		font-family: var(--font-display);
 		font-size: 22px;
-		letter-spacing: -0.04em;
+		line-height: 1.1;
+		letter-spacing: -0.02em;
 	}
 	.modal label {
 		display: block;
@@ -465,7 +506,7 @@
 		margin-top: 6px;
 		padding: 10px;
 		border: 1px solid var(--input-border);
-		border-radius: 5px;
+		border-radius: 6px;
 		outline: 0;
 	}
 	.modal textarea {
@@ -487,6 +528,7 @@
 		border-radius: 6px;
 		padding: 10px 14px;
 		font-size: 13px;
+		z-index: 50;
 	}
 	@media (max-width: 800px) {
 		.projects-wrap {
@@ -499,6 +541,9 @@
 			align-items: flex-start;
 			gap: 18px;
 			flex-direction: column;
+		}
+		.page-heading .button {
+			width: 100%;
 		}
 	}
 	@media (max-width: 540px) {
@@ -515,6 +560,10 @@
 		}
 		.toolbar-right {
 			width: 100%;
+			align-items: center;
+		}
+		.toolbar-right .search-field {
+			flex: 1;
 		}
 	}
 </style>

@@ -9,7 +9,8 @@
 		Plus,
 		Settings,
 		Sparkles,
-		Trash2
+		Trash2,
+		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 
@@ -136,6 +137,7 @@
 	}
 
 	async function removeProvider(provider: string) {
+		if (!window.confirm('Remove this provider key? This cannot be undone.')) return;
 		try {
 			const response = await fetch(`/api/providers/${provider}`, { method: 'DELETE' });
 			if (!response.ok) throw new Error('Could not remove provider');
@@ -191,7 +193,6 @@
 		<div class="page-wrap">
 			<div class="page-heading">
 				<div>
-					<div class="eyebrow">AI PROVIDERS</div>
 					<h1>Providers</h1>
 					<p>
 						Add your own API keys. Keys are encrypted and only used to power your conversations.
@@ -199,7 +200,7 @@
 				</div>
 			</div>
 			{#if loading}
-				<div class="empty-state">Loading providers...</div>
+				<div class="empty-state" role="status">Loading providers...</div>
 			{:else}
 				<div class="provider-list">
 					{#each providers as provider (provider.provider)}
@@ -258,8 +259,12 @@
 {#if editing}
 	<div
 		class="modal-backdrop"
-		role="presentation"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="provider-dialog-title"
+		tabindex="-1"
 		onclick={(event) => event.target === event.currentTarget && (editing = null)}
+		onkeydown={(event) => event.key === 'Escape' && (editing = null)}
 	>
 		<form
 			class="modal"
@@ -270,14 +275,16 @@
 		>
 			<div class="modal-head">
 				<div>
-					<div class="eyebrow">PROVIDER KEY</div>
-					<h2>{providers.find((p) => p.provider === editing)?.name ?? 'Provider'}</h2>
+					<h2 id="provider-dialog-title">
+						{providers.find((p) => p.provider === editing)?.name ?? 'Provider'}
+					</h2>
 				</div>
 				<button
 					type="button"
 					class="icon-button"
 					aria-label="Close"
-					onclick={() => (editing = null)}>×</button
+					title="Close dialog"
+					onclick={() => (editing = null)}><X size={18} /></button
 				>
 			</div>
 			<label
@@ -302,13 +309,15 @@
 		</form>
 	</div>
 {/if}
-{#if toast}<div class="toast">{toast}</div>{/if}
+{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
+
+<svelte:window onkeydown={(event) => event.key === 'Escape' && (editing = null)} />
 
 <style>
 	.page-wrap {
 		max-width: 860px;
 		margin: auto;
-		padding: 43px 35px 75px;
+		padding: clamp(32px, 6vh, 56px) 35px 75px;
 	}
 	.page-heading {
 		display: flex;
@@ -318,9 +327,11 @@
 		padding-bottom: 28px;
 	}
 	.page-heading h1 {
-		margin: 7px 0 5px;
+		margin: 0 0 7px;
+		font-family: var(--font-display);
 		font-size: 32px;
-		letter-spacing: -0.06em;
+		line-height: 1.1;
+		letter-spacing: -0.03em;
 	}
 	.page-heading p {
 		margin: 0;
@@ -331,6 +342,7 @@
 		color: var(--text-dim);
 		font-size: 13px;
 		padding: 40px 0;
+		line-height: 1.5;
 	}
 	.provider-list {
 		display: flex;
@@ -346,7 +358,8 @@
 		padding: 17px 19px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 9px;
+		border-radius: 12px;
+		transition: 0.18s ease;
 	}
 	.provider-card:hover {
 		border-color: var(--text-dim);
@@ -423,12 +436,14 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 7px;
+		min-height: 40px;
 		padding: 8px 11px;
 		border-radius: 6px;
 		border: 1px solid var(--border-strong);
 		background: var(--surface);
 		color: var(--text-body);
 		font-size: var(--text-sm);
+		transition: 0.18s ease;
 	}
 	.button:hover {
 		color: var(--text);
@@ -443,12 +458,12 @@
 		background: var(--accent-bg-hover);
 	}
 	.button.danger {
-		color: #e08a80;
+		color: var(--danger-text);
 		border-color: color-mix(in srgb, #a8433a 45%, transparent);
 	}
 	.button.danger:hover {
-		color: #f0a49b;
-		border-color: #c05a50;
+		color: var(--danger-text);
+		border-color: var(--danger-text);
 	}
 	.footnote {
 		margin: 22px 0 0;
@@ -473,6 +488,11 @@
 		}
 		.provider-actions {
 			justify-content: flex-end;
+			flex-wrap: wrap;
+		}
+		.provider-actions .button {
+			flex: 1;
+			justify-content: center;
 		}
 	}
 </style>

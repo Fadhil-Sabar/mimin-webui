@@ -4,7 +4,7 @@
 	import { resolve } from '$app/paths';
 	import {
 		Bot,
-		ChevronDown,
+		ChevronRight,
 		FileJson2,
 		FileText,
 		FolderKanban,
@@ -40,8 +40,10 @@
 	let files = $state<ProjectFile[]>([]);
 	let conversations = $state<Conversation[]>([]);
 	let loading = $state(true);
+	let loadError = $state('');
 	let toast = $state('');
 	let uploading = $state(false);
+	let dragActive = $state(false);
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 	function notify(message: string) {
 		toast = message;
@@ -54,6 +56,7 @@
 		const response = await fetch(`/api/projects/${projectId}`);
 		if (!response.ok) throw new Error('Could not load project');
 		const data = await response.json();
+		if (!data.project) throw new Error('Project not found');
 		project = data.project;
 		files = data.files ?? [];
 		conversations = data.conversations ?? [];
@@ -69,7 +72,8 @@
 		try {
 			await load();
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load project');
+			loadError = error instanceof Error ? error.message : 'Could not load project';
+			notify(loadError);
 		} finally {
 			loading = false;
 		}
@@ -97,8 +101,24 @@
 			notify(error instanceof Error ? error.message : 'Upload failed');
 		} finally {
 			uploading = false;
+			dragActive = false;
 			if (fileInput) fileInput.value = '';
 		}
+	}
+
+	function handleDragOver(event: DragEvent) {
+		event.preventDefault();
+		dragActive = true;
+	}
+
+	function handleDragLeave(event: DragEvent) {
+		if (event.currentTarget === event.target) dragActive = false;
+	}
+
+	function handleDrop(event: DragEvent) {
+		event.preventDefault();
+		dragActive = false;
+		void uploadFiles(event.dataTransfer?.files);
 	}
 
 	async function deleteFile(fileId: string) {
@@ -183,21 +203,29 @@
 	<main class="main-content">
 		<header class="topbar">
 			<div class="breadcrumb">
-				<a href={resolve('/projects')}>Projects</a><ChevronDown size={14} /><strong
+				<a href={resolve('/projects')}>Projects</a><ChevronRight size={14} /><strong
 					>{project?.name ?? '...'}</strong
 				>
 			</div>
 			<div class="top-actions">
-				<button class="icon-button" aria-label="Search" onclick={() => notify('Search opened')}
-					><Search size={17} /></button
+				<button
+					class="icon-button"
+					aria-label="Search project"
+					title="Search project"
+					onclick={() => notify('Search opened')}><Search size={17} /></button
 				><ThemeToggle />
 			</div>
 		</header>
 		<div class="page-wrap">
 			{#if loading}
-				<div class="empty-state">Loading project...</div>
+				<div class="empty-state" role="status">Loading project...</div>
+			{:else if loadError}
+				<div class="empty-state error-state" role="alert">
+					<strong>Couldn’t open this project</strong>
+					<span>{loadError}</span>
+					<a href={resolve('/projects')}>Back to projects</a>
+				</div>
 			{:else if project}
-				<div class="eyebrow">PROJECT OVERVIEW</div>
 				<section class="hero">
 					<div>
 						<div class="title-row">
@@ -230,7 +258,16 @@
 							<p>Files available to the agent in this project.</p>
 						</div>
 					</div>
-					<button class="upload-zone" onclick={() => fileInput?.click()} disabled={uploading}>
+					<button
+						class="upload-zone"
+						class:drag-active={dragActive}
+						aria-label="Upload knowledge files"
+						onclick={() => fileInput?.click()}
+						ondragover={handleDragOver}
+						ondragleave={handleDragLeave}
+						ondrop={handleDrop}
+						disabled={uploading}
+					>
 						<Upload size={18} /><span
 							><strong>{uploading ? 'Uploading...' : 'Drop files here or browse'}</strong><small
 								>PDF, Markdown, JSON, TXT · up to 25 MB</small
@@ -291,7 +328,7 @@
 								<span class="muted">{formatDate(conversation.updatedAt)}</span>
 							</a>
 						{/each}
-						{#if conversations.length === 0}<div class="empty-state" style="padding:20px 0">
+						{#if conversations.length === 0}<div class="empty-state conversation-empty">
 								No conversations yet.
 							</div>{/if}
 					</div>
@@ -300,19 +337,38 @@
 		</div>
 	</main>
 </div>
-{#if toast}<div class="toast">{toast}</div>{/if}
+{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <style>
 	.page-wrap {
 		max-width: 970px;
 		margin: auto;
-		padding: 43px 35px 70px;
+		padding: clamp(32px, 6vh, 56px) 35px 70px;
 	}
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
 		font-size: 13px;
 		padding: 34px 0;
+		line-height: 1.5;
+	}
+	.error-state strong,
+	.error-state span,
+	.error-state a {
+		display: block;
+	}
+	.error-state strong {
+		color: var(--text-body);
+		font-size: var(--text-base);
+	}
+	.error-state span {
+		margin-top: 5px;
+	}
+	.error-state a {
+		margin-top: 14px;
+		color: var(--text-body);
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 	.hero {
 		display: flex;
@@ -339,9 +395,10 @@
 	}
 	.hero h1 {
 		margin: 0 0 8px;
+		font-family: var(--font-display);
 		font-size: 30px;
 		line-height: 1.1;
-		letter-spacing: -0.06em;
+		letter-spacing: -0.03em;
 	}
 	.hero p {
 		max-width: 560px;
@@ -362,6 +419,7 @@
 		background: var(--surface);
 		color: var(--text-body);
 		white-space: nowrap;
+		transition: 0.18s ease;
 	}
 	.button.primary {
 		color: var(--accent-fg);
@@ -434,16 +492,23 @@
 		justify-content: center;
 		gap: 11px;
 		width: 100%;
+		min-height: 76px;
 		padding: 17px;
 		color: var(--text-muted);
 		background: var(--surface-subtle);
 		border: 1px dashed var(--border-strong);
 		border-radius: 7px;
 		text-align: left;
+		transition: 0.18s ease;
 	}
 	.upload-zone:hover {
 		color: var(--text-body);
 		border-color: var(--text-muted);
+	}
+	.upload-zone.drag-active {
+		color: var(--text-body);
+		background: var(--surface-3);
+		border-color: var(--focus);
 	}
 	.upload-zone strong,
 	.upload-zone small {
@@ -465,13 +530,14 @@
 		overflow: hidden;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 7px;
+		border-radius: 10px;
 	}
 	.file-row,
 	.conversation-row {
 		display: grid;
 		align-items: center;
 		gap: 11px;
+		min-height: 54px;
 		width: 100%;
 		padding: 12px 14px;
 		border-bottom: 1px solid var(--border);
@@ -543,7 +609,7 @@
 		border: 0;
 	}
 	.row-menu:hover {
-		color: #e08a80;
+		color: var(--danger-text);
 	}
 	.breadcrumb a {
 		color: var(--text-dim);
