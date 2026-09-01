@@ -1,39 +1,39 @@
 # Mimin WebUI
 
-Mimin WebUI adalah workspace AI agent berbasis project. Aplikasi ini menggabungkan chat, project knowledge, model registry, tool execution, dan persistent conversation dalam satu antarmuka minimal.
+Mimin WebUI is a project-based AI agent workspace. It combines chat, project knowledge, model discovery, tool execution, and persistent conversations in one minimal interface.
 
-Frontend menggunakan **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, dan **Lucide**. Backend berjalan di SvelteKit server routes dengan **PostgreSQL**, **Drizzle ORM**, `@earendil-works/pi-agent-core`, dan `@earendil-works/pi-ai`.
+The frontend uses **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, and **Lucide**. The backend runs on SvelteKit server routes with **PostgreSQL**, **Drizzle ORM**, `@earendil-works/pi-agent-core`, and `@earendil-works/pi-ai`.
 
-## Status implementasi
+## Implementation status
 
-Sudah tersedia:
+Available:
 
-- Home workspace dengan chat composer
-- Chat room dengan SSE response stream
-- Persistent project dan conversation
-- Model catalog dari Pi AI
-- Tool registry
-- `project_knowledge_search` untuk project conversation
-- Upload dan delete file project
-- Text extraction sederhana untuk `.txt`, `.md`, dan `.json`
-- Chunking project knowledge untuk basic text search
-- Stop generation dengan `AbortController` dan Pi agent abort
-- CRUD project dan conversation
-- PostgreSQL migration dan seed script
+- Home workspace with chat composer
+- Chat room with SSE response streaming
+- Persistent projects and conversations
+- Model catalog from Pi AI
+- Normalized tool registry
+- `project_knowledge_search` for project conversations
+- Project file upload and deletion
+- Basic text extraction for `.txt`, `.md`, and `.json`
+- Project knowledge chunking for basic text search
+- Stop generation with `AbortController` and Pi agent abort
+- Project and conversation CRUD
+- PostgreSQL migration and seed script
 - Normalized API errors
-- Unit tests untuk validation dan tool registry
+- Unit tests for validation and tool registry
 
-Belum tersedia:
+Not yet available:
 
-- Authentication dan user ownership
+- Authentication and user ownership
 - PDF text extraction
-- Provider adapter untuk web search dan web fetch
+- Provider adapters for web search and web fetch
 - Chat attachment processing
-- Semantic embeddings dan pgvector
-- Citation persistence penuh dari tool result ke assistant message
-- Production deployment adapter
+- Semantic embeddings and pgvector
+- Full citation persistence from tool results to assistant messages
+- Explicit production deployment adapter
 
-## Arsitektur
+## Architecture
 
 ```text
 ┌────────────────────────────────────────────┐
@@ -61,7 +61,7 @@ Belum tersedia:
                       └─────────────────────────┘
 ```
 
-Domain dan runtime dipisahkan di `src/lib/server`:
+Domain and runtime logic are separated under `src/lib/server`:
 
 ```text
 src/
@@ -82,37 +82,30 @@ src/
     └── api/
 ```
 
-Route handler melakukan validasi dan orkestrasi. Agent tidak dibuat langsung dari setiap endpoint.
+Route handlers validate input and orchestrate services. Agents are not constructed ad hoc inside every endpoint.
 
 ## Requirements
 
-- Node.js 22+ atau Bun
-- Docker, jika ingin memakai PostgreSQL compose lokal
+- Node.js 22+ or Bun
+- Docker, when using the local PostgreSQL compose setup
 - PostgreSQL 17+
-- Minimal satu provider key untuk live response:
+- At least one provider key for live responses:
   - `OPENAI_API_KEY`
   - `ANTHROPIC_API_KEY`
   - `GOOGLE_API_KEY`
 
-Bun kompatibel dengan source code. Lockfile dan script repository saat ini menggunakan npm agar setup konsisten.
+Bun is compatible with the source code. The repository currently uses npm and a package lockfile for reproducible setup.
 
-## Setup lokal
-
-1. Clone repository dan masuk ke folder project:
+## Local setup
 
 ```bash
 git clone git@github.com:Fadhil-Sabar/mimin-webui.git
 cd mimin-webui
-```
-
-2. Install dependency dan buat environment file:
-
-```bash
 npm install
 cp .env.example .env
 ```
 
-3. Isi `.env`:
+Set the required values in `.env`:
 
 ```env
 DATABASE_URL=postgres://mimin:mimin@localhost:5432/mimin
@@ -121,46 +114,36 @@ STORAGE_DRIVER=local
 STORAGE_PATH=./data/uploads
 ```
 
-Provider key tetap hanya dibaca server-side. Jangan menaruhnya di source code atau mengirimnya ke browser.
+Provider keys are read only on the server. Do not put them in source code or send them to the browser.
 
-4. Jalankan PostgreSQL lokal:
+Start PostgreSQL, apply the schema, seed initial data, and start the app:
 
 ```bash
 docker compose up -d postgres
-```
-
-5. Jalankan migration dan seed:
-
-```bash
 npm run db:migrate
 npm run db:seed
-```
-
-6. Jalankan development server:
-
-```bash
 npm run dev
 ```
 
-Buka `http://localhost:5173`.
+Open `http://localhost:5173`.
 
-Untuk mematikan database lokal:
+Stop the local database with:
 
 ```bash
 docker compose down
 ```
 
-Data PostgreSQL disimpan di Docker volume `mimin-postgres`.
+PostgreSQL data is stored in the `mimin-postgres` Docker volume.
 
 ## Database
 
-Schema Drizzle berada di:
+The Drizzle schema is located at:
 
 ```text
 src/lib/server/db/schema.ts
 ```
 
-Migration berada di:
+Generated migrations are located under:
 
 ```text
 drizzle/
@@ -168,53 +151,38 @@ drizzle/
 └── meta/
 ```
 
-Table utama:
+Main tables:
 
-- `projects`: metadata project dan instructions
-- `project_files`: metadata file dan storage key
-- `project_file_chunks`: text chunks untuk retrieval
-- `conversations`: chat standalone atau project chat
-- `messages`: user, assistant, system, dan tool state
-- `tool_calls`: lifecycle tool execution
-- `sources`: sumber web atau file
-- `message_citations`: relasi citation ke message
+- `projects`: project metadata and instructions
+- `project_files`: file metadata and storage keys
+- `project_file_chunks`: text chunks for retrieval
+- `conversations`: standalone or project conversations
+- `messages`: user, assistant, system, and tool state
+- `tool_calls`: tool execution lifecycle
+- `sources`: web or file sources
+- `message_citations`: citation relationships
 
-Setelah mengubah schema:
+After changing the schema:
 
 ```bash
 npm run db:generate
 npm run db:migrate
 ```
 
-Seed membuat project awal `Mimin Coding Agent` dan satu conversation `Welcome to Mimin`.
+The seed script creates the initial `Mimin Coding Agent` project and a `Welcome to Mimin` conversation.
 
 ## API
 
-### Models dan tools
+### Models and tools
 
 ```text
 GET /api/models
 GET /api/tools?projectId=:projectId
 ```
 
-`/api/models` mengembalikan model normalized seperti:
+`/api/models` returns normalized model metadata, including provider, context window, capabilities, and server-side configuration status.
 
-```json
-{
-	"id": "gpt-4o-mini",
-	"provider": "openai",
-	"name": "GPT-4o Mini",
-	"contextWindow": 128000,
-	"capabilities": {
-		"vision": true,
-		"tools": true,
-		"reasoning": false
-	},
-	"configured": false
-}
-```
-
-Tool project-only seperti `project_knowledge_search` hanya muncul jika `projectId` diberikan.
+Project-only tools such as `project_knowledge_search` are returned only when `projectId` is provided.
 
 ### Projects
 
@@ -226,7 +194,7 @@ PATCH  /api/projects/:id
 DELETE /api/projects/:id
 ```
 
-Contoh create:
+Example:
 
 ```bash
 curl -X POST http://localhost:5173/api/projects \
@@ -242,20 +210,20 @@ POST   /api/projects/:id/files
 DELETE /api/projects/:id/files/:fileId
 ```
 
-Upload memakai multipart form dengan field `file`:
+Upload files using multipart form data:
 
 ```bash
 curl -X POST http://localhost:5173/api/projects/PROJECT_ID/files \
   -F 'file=@README.md'
 ```
 
-Format awal yang diterima:
+Supported initial formats:
 
 ```text
 .txt · .md · .json · .pdf
 ```
 
-Ukuran maksimum adalah 25 MB. File disimpan di `STORAGE_PATH`. Filename disanitasi dan path traversal ditolak.
+The maximum file size is 25 MB. Filenames are sanitized and path traversal is rejected.
 
 ### Conversations
 
@@ -268,26 +236,18 @@ DELETE /api/conversations/:id
 PATCH  /api/conversations/:id/settings
 ```
 
-Conversation standalone memakai `projectId: null`. Project conversation menyimpan `projectId` dan otomatis mendapatkan tool `project_knowledge_search`.
+Standalone conversations use `projectId: null`. Project conversations store `projectId` and automatically receive `project_knowledge_search`.
 
-### Messages dan streaming
+### Messages and streaming
 
 ```text
 POST /api/conversations/:id/messages
 POST /api/conversations/:id/stop
 ```
 
-Request message:
+Message requests accept content, a model reference, and enabled tools. The message endpoint returns `text/event-stream`.
 
-```json
-{
-	"content": "Summarize the project architecture",
-	"model": "openai/gpt-4o-mini",
-	"enabledTools": ["project_knowledge_search"]
-}
-```
-
-Endpoint message mengembalikan `text/event-stream`. Event yang digunakan aplikasi:
+Application-level events:
 
 ```text
 turn.start
@@ -302,55 +262,36 @@ error
 done
 ```
 
-Contoh delta:
-
-```text
-event: message.delta
-data: {"type":"message.delta","messageId":"...","delta":"Project ini"}
-```
-
-Contoh error ter-normalisasi:
-
-```json
-{
-	"type": "error",
-	"error": {
-		"code": "PROVIDER_NOT_CONFIGURED",
-		"message": "This provider is not configured on the server."
-	}
-}
-```
-
-Stop request membatalkan agent yang sedang aktif dan meneruskan abort ke Pi runtime serta request provider jika didukung.
+Pi internal event types are not exposed to the browser.
 
 ## AI runtime
 
-`src/lib/server/ai/agent.service.ts` adalah adapter aplikasi terhadap Pi:
+`src/lib/server/ai/agent.service.ts` adapts Pi to the application domain:
 
-- Mengambil conversation dan history dari PostgreSQL
-- Resolve model melalui `pi-ai`
-- Membuat `Agent` dari `pi-agent-core`
-- Mengaktifkan tool sesuai konteks project
-- Mengubah Pi events menjadi application events
-- Menyimpan assistant message dan tool calls
-- Menyediakan cancellation berdasarkan conversation ID
+- Loads conversation history from PostgreSQL
+- Resolves models through `pi-ai`
+- Creates an `Agent` from `pi-agent-core`
+- Enables tools based on the conversation context
+- Maps Pi events into application events
+- Persists assistant messages and tool calls
+- Supports cancellation by conversation ID
 
-Provider yang diregistrasikan:
+Registered providers:
 
 - OpenAI
 - Anthropic
 - Google
 
-API key tidak pernah dikirim melalui API response model.
+Provider keys never appear in model API responses or browser code.
 
 ## Knowledge retrieval
 
-Tahap pertama menggunakan text retrieval:
+The first retrieval implementation uses text search:
 
 ```text
 upload file
     ↓
-validate + store file
+validate and store file
     ↓
 extract TXT/MD/JSON
     ↓
@@ -361,37 +302,37 @@ store project_file_chunks
 project_knowledge_search
 ```
 
-`project_knowledge_search` tidak mengirim seluruh file ke model. Tool hanya mengembalikan chunk yang cocok dengan query. Embedding dan pgvector dapat ditambahkan kemudian tanpa mengubah kontrak tool.
+The full file is not injected into every model request. The tool returns only chunks matching the search query. Embeddings and pgvector can be added later without changing the tool contract.
 
 ## Frontend routes
 
 ```text
 /                                  Home composer
-/chat                              Chat room dan SSE response
+/chat                              Chat room and SSE response
 /projects                          Project dashboard
-/projects/mimin-coding-agent       Project overview dan knowledge
+/projects/mimin-coding-agent       Project overview and knowledge
 ```
 
-Chat frontend menggunakan `src/lib/client/api.ts` untuk membuat conversation dan membaca SSE stream. Projects dashboard mencoba mengambil data dari API dan mempertahankan fallback visual jika backend belum dikonfigurasi.
+The chat frontend uses `src/lib/client/api.ts` to create conversations and read SSE streams. The projects dashboard attempts to load data from the API and keeps a visual fallback when the backend is not configured.
 
 ## Development commands
 
 ```bash
-npm run dev          # development server
-npm run check        # Svelte/type check
-npm test             # Vitest unit tests
-npm run build        # production build
-npm run lint         # Prettier + ESLint
-npm run format       # format source
+npm run dev
+npm run check
+npm test
+npm run build
+npm run lint
+npm run format
 
-npm run db:generate  # generate migration dari schema
-npm run db:migrate   # apply migration ke DATABASE_URL
-npm run db:seed      # seed project dan conversation awal
+npm run db:generate
+npm run db:migrate
+npm run db:seed
 ```
 
 ## Verification
 
-Verifikasi terakhir yang dijalankan:
+The latest verified commands:
 
 ```text
 npm test
@@ -404,23 +345,27 @@ npm run build
 success
 ```
 
-Smoke-test PostgreSQL dan API:
+PostgreSQL and API smoke tests verified:
 
 ```text
 GET /api/projects       200
 GET /api/models         200
 GET /api/tools          200
-CRUD project            create/read/delete verified
+Project CRUD            create/read/delete verified
 SSE provider guard      normalized error, no secret leak
 ```
 
-## Known limitations dan next steps
+## Known limitations and next steps
 
-1. Tambahkan authentication dan filter ownership di semua query.
-2. Tambahkan PDF extractor dengan batas waktu dan batas memory.
-3. Implementasikan adapter web search dan web fetch dengan SSRF protection.
-4. Hubungkan citation service ke normalized source dari tool result.
-5. Tambahkan chat attachments dan relasi attachment ke message.
-6. Migrasikan project overview dan chat history sepenuhnya ke shared API state.
-7. Tambahkan integration test dengan disposable PostgreSQL.
-8. Tambahkan adapter deployment yang eksplisit, misalnya Node atau Cloudflare.
+1. Add authentication and ownership filters to all queries.
+2. Add PDF extraction with time and memory limits.
+3. Implement web search and web fetch adapters with SSRF protection.
+4. Connect citation service to normalized tool sources.
+5. Add chat attachments and message attachment relationships.
+6. Migrate project overview and chat history fully to shared API state.
+7. Add integration tests with disposable PostgreSQL.
+8. Add an explicit deployment adapter, such as Node or Cloudflare.
+
+## Indonesian documentation
+
+See [README.id.md](README.id.md) for the Indonesian version.
