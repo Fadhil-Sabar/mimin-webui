@@ -23,6 +23,34 @@
 		prompt = value;
 	}
 
+	async function submitPrompt() {
+		const content = prompt.trim();
+		if (!content) {
+			notify('Write a prompt first');
+			return;
+		}
+		try {
+			const response = await fetch('/api/conversations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({})
+			});
+			if (!response.ok)
+				throw new Error((await response.json()).error?.message ?? 'Could not start a conversation');
+			const conversation = (await response.json()).conversation;
+			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}&prompt=${encodeURIComponent(content)}`;
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not start a conversation');
+		}
+	}
+
+	function onKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter' && !event.shiftKey) {
+			event.preventDefault();
+			submitPrompt();
+		}
+	}
+
 	onMount(async () => {
 		try {
 			const sessionResponse = await fetch('/api/auth/session');
@@ -87,7 +115,8 @@
 				Think with an agent that can research, build, and organize your work in one calm workspace.
 			</p>
 			<div class="home-composer">
-				<textarea bind:value={prompt} placeholder="Ask anything..."></textarea>
+				<textarea bind:value={prompt} placeholder="Ask anything..." onkeydown={onKeydown}
+				></textarea>
 				<div class="composer-row">
 					<button class="control" onclick={() => notify('File picker opened')}
 						><Paperclip size={15} /> Attach</button
@@ -98,7 +127,7 @@
 					<button class="control" onclick={() => notify('Tools selector opened')}
 						><Wrench size={15} /> Tools <span>⌄</span></button
 					>
-					<a class="send-button" href={resolve('/chat')}><Send size={15} /></a>
+					<button class="send-button" onclick={submitPrompt}><Send size={15} /></button>
 				</div>
 			</div>
 			<div class="example-row">

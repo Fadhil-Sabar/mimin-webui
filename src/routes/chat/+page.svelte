@@ -103,7 +103,9 @@
 			/* ignore */
 		}
 		await loadConversations();
-		const requested = new URL(window.location.href).searchParams.get('id');
+		const params = new URL(window.location.href).searchParams;
+		const requested = params.get('id');
+		const pendingPrompt = params.get('prompt');
 		const target = requested ? conversations.find((c) => c.id === requested) : conversations[0];
 		if (target) {
 			await loadConversation(target.id);
@@ -111,6 +113,10 @@
 			await startNewConversation();
 		}
 		busy = false;
+		if (pendingPrompt) {
+			message = pendingPrompt;
+			await sendMessage();
+		}
 	});
 
 	function formatTime(iso: string) {
