@@ -8,6 +8,7 @@
 		Paperclip,
 		Plus,
 		Send,
+		Settings,
 		Sparkles,
 		Wrench
 	} from '@lucide/svelte';
@@ -88,6 +89,8 @@
 				><MessageSquare size={16} /> Chat <span class="nav-count">{conversations.length}</span></a
 			>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
+			<div class="nav-label projects-label">Preferences</div>
+			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Providers</a>
 			{#if conversations.length > 0}
 				<div class="nav-label projects-label">Recent chats</div>
 				{#each conversations as conversation (conversation.id)}

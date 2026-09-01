@@ -93,6 +93,7 @@ Route handler bertugas melakukan validasi dan orkestrasi service. Agent tidak di
   - `OPENAI_API_KEY`
   - `ANTHROPIC_API_KEY`
   - `GOOGLE_API_KEY`
+- `PROVIDER_KEY_ENCRYPTION_SECRET` untuk mengenkripsi provider key milik pengguna
 
 Bun kompatibel dengan source code. Repository saat ini menggunakan npm dan lockfile agar setup reproducible.
 
@@ -110,6 +111,7 @@ Isi `.env`:
 ```env
 DATABASE_URL=postgres://mimin:mimin@localhost:5432/mimin
 OPENAI_API_KEY=your-provider-key
+PROVIDER_KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
 STORAGE_DRIVER=local
 STORAGE_PATH=./data/uploads
 ```
@@ -180,7 +182,7 @@ GET /api/models
 GET /api/tools?projectId=:projectId
 ```
 
-`/api/models` mengembalikan metadata model yang dinormalisasi, termasuk provider, context window, capabilities, dan status konfigurasi server.
+`/api/models` mengembalikan metadata model yang dinormalisasi, termasuk provider, context window, capabilities, dan status konfigurasi server. Jika ada sesi, endpoint ini juga melaporkan apakah pengguna menyimpan key sendiri untuk tiap provider (`userConfigured`).
 
 Tool khusus project seperti `project_knowledge_search` hanya dikembalikan jika `projectId` diberikan.
 

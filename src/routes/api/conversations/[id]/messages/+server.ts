@@ -68,8 +68,12 @@ export const POST: RequestHandler = async (event) => {
 					role: 'user',
 					content: parsed.data.content
 				});
-				await runConversationTurn(conversationId, parsed.data.model, parsed.data.content, (event) =>
-					send(event.type, event)
+				await runConversationTurn(
+					conversationId,
+					parsed.data.model,
+					parsed.data.content,
+					(event) => send(event.type, event),
+					user.id
 				);
 				send('done', { type: 'done' });
 			} catch (error) {

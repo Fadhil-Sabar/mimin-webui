@@ -33,6 +33,7 @@ if (!user) throw new Error('Failed to create default user');
 // Claim existing unowned data for the default user so nothing is lost.
 await sql`update projects set user_id = ${user.id} where user_id is null`;
 await sql`update conversations set user_id = ${user.id} where user_id is null`;
+await sql`update provider_settings set user_id = ${user.id} where user_id is null`;
 
 await sql`insert into projects (user_id, name, description) values (${user.id}, 'Mimin Coding Agent', 'Development workspace for designing and building a lightweight multi-agent coding system.') on conflict do nothing`;
 const [project] = await sql`select id from projects where name = 'Mimin Coding Agent' limit 1`;

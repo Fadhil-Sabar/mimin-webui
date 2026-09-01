@@ -101,6 +101,7 @@ Route handlers validate input and orchestrate services. Agents are not construct
   - `OPENAI_API_KEY`
   - `ANTHROPIC_API_KEY`
   - `GOOGLE_API_KEY`
+- `PROVIDER_KEY_ENCRYPTION_SECRET` to encrypt user-saved provider keys at rest
 
 Bun is compatible with the source code. The repository currently uses npm and a package lockfile for reproducible setup.
 
@@ -118,6 +119,7 @@ Set the required values in `.env`:
 ```env
 DATABASE_URL=postgres://mimin:mimin@localhost:5432/mimin
 OPENAI_API_KEY=your-provider-key
+PROVIDER_KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
 STORAGE_DRIVER=local
 STORAGE_PATH=./data/uploads
 ```
@@ -172,6 +174,7 @@ Main tables:
 
 - `users`: accounts with scrypt password hashes
 - `sessions`: bearer tokens (SHA-256 hashes) with expiry
+- `provider_settings`: encrypted per-user provider keys and base URLs
 - `projects`: project metadata and instructions, owned by a user
 - `project_files`: file metadata and storage keys
 - `project_file_chunks`: text chunks for retrieval
@@ -216,9 +219,29 @@ GET /api/models
 GET /api/tools?projectId=:projectId
 ```
 
-`/api/models` returns normalized model metadata, including provider, context window, capabilities, and server-side configuration status.
+`/api/models` returns normalized model metadata, including provider, context window, capabilities, and server-side configuration status. When a session is present, it also reports whether the user saved their own key for each provider (`userConfigured`).
 
 Project-only tools such as `project_knowledge_search` are returned only when `projectId` is provided.
+
+### Providers
+
+```text
+GET    /api/providers
+PUT    /api/providers/:provider
+DELETE /api/providers/:provider
+```
+
+Users can save their own API keys per provider (currently `openai`, `anthropic`, and `google`). Keys are encrypted at rest with AES-256-GCM using a key derived from `PROVIDER_KEY_ENCRYPTION_SECRET`, and never returned to the browser; the API responds with a masked form such as `•••• 4f2a`. When no user key is saved, the server environment variable (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) is used as fallback.
+
+```bash
+curl -X PUT http://localhost:5173/api/providers/openai \
+  -H 'content-type: application/json' \
+  -d '{"apiKey":"sk-..."}'
+
+curl -X DELETE http://localhost:5173/api/providers/openai
+```
+
+The provider settings page lives at `/settings`.
 
 ### Projects
 
@@ -318,7 +341,7 @@ Registered providers:
 - Anthropic
 - Google
 
-Provider keys never appear in model API responses or browser code.
+Provider keys never appear in model API responses or browser code. Each conversation turn resolves the provider key for the owning user: a key saved in the user's provider settings wins, otherwise the server environment variable is used.
 
 ## Knowledge retrieval
 
@@ -348,6 +371,7 @@ The full file is not injected into every model request. The tool returns only ch
 /chat                              Chat room and SSE response
 /projects                          Project dashboard
 /projects/:id                      Project overview and knowledge
+/settings                          Provider API key settings
 ```
 
 The chat frontend uses `src/lib/client/api.ts` to create conversations and read SSE streams. The projects dashboard attempts to load data from the API and keeps a visual fallback when the backend is not configured.
@@ -393,6 +417,7 @@ Cross-user project      404
 Cross-user conversation 404
 Project CRUD            create/read/delete verified
 SSE provider guard      normalized error, no secret leak
+Provider settings       save/encrypt/mask/delete verified
 ```
 
 ## Known limitations and next steps
@@ -404,6 +429,7 @@ SSE provider guard      normalized error, no secret leak
 5. Add chat attachments and message attachment relationships.
 6. Add integration tests with disposable PostgreSQL.
 7. Add an explicit deployment adapter, such as Node or Cloudflare.
+8. Support custom provider base URLs from the settings page (the field is stored but not yet applied to requests).
 
 ## Indonesian documentation
 
