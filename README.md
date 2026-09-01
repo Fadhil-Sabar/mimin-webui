@@ -8,6 +8,8 @@ The frontend uses **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, and **Lu
 
 Available:
 
+- Authentication with email/password and session cookies
+- Ownership filters on all projects, conversations, and files
 - Home workspace with chat composer
 - Chat room with SSE response streaming
 - Persistent projects and conversations
@@ -21,11 +23,11 @@ Available:
 - Project and conversation CRUD
 - PostgreSQL migration and seed script
 - Normalized API errors
-- Unit tests for validation and tool registry
+- Unit tests for validation, password hashing, and tool registry
 
 Not yet available:
 
-- Authentication and user ownership
+- Registration and password reset
 - PDF text extraction
 - Provider adapters for web search and web fetch
 - Chat attachment processing
@@ -38,12 +40,12 @@ Not yet available:
 ```text
 ┌────────────────────────────────────────────┐
 │ SvelteKit UI                               │
-│ Home · Chat · Projects · Project Overview  │
+│ Login · Home · Chat · Projects · Overview  │
 └──────────────────┬─────────────────────────┘
                    │ REST + Server-Sent Events
 ┌──────────────────▼─────────────────────────┐
 │ SvelteKit API routes                       │
-│ Projects · Conversations · Files           │
+│ Auth · Projects · Conversations · Files    │
 │ Models · Tools · Messages · Stop           │
 └──────┬──────────────────────┬───────────────┘
        │                      │
@@ -51,14 +53,15 @@ Not yet available:
 │ PostgreSQL   │      │ Application AI layer    │
 │ Drizzle ORM  │      │ Agent service           │
 │              │      │ pi-agent-core           │
-│ projects     │      │ pi-ai model/provider    │
-│ conversations│      │ Tool registry           │
-│ messages     │      └─────────────────────────┘
-│ tool_calls   │
-│ sources      │      ┌─────────────────────────┐
-│ knowledge    │      │ Local file storage       │
-└──────────────┘      │ STORAGE_PATH             │
-                      └─────────────────────────┘
+│ users        │      │ pi-ai model/provider    │
+│ sessions     │      │ Tool registry           │
+│ projects     │      └─────────────────────────┘
+│ conversations│
+│ messages     │      ┌─────────────────────────┐
+│ tool_calls   │      │ Local file storage       │
+│ sources      │      │ STORAGE_PATH             │
+│ knowledge    │      └─────────────────────────┘
+└──────────────┘
 ```
 
 Domain and runtime logic are separated under `src/lib/server`:
@@ -72,13 +75,17 @@ src/
 │       │   ├── agent.service.ts
 │       │   ├── model.service.ts
 │       │   └── tools/
+│       ├── auth.ts
+│       ├── password.ts
 │       ├── db/
 │       │   ├── client.ts
 │       │   └── schema.ts
 │       ├── files/storage.ts
 │       ├── api.ts
 │       └── validation.ts
+├── hooks.server.ts
 └── routes/
+    ├── login/
     └── api/
 ```
 
@@ -127,6 +134,15 @@ npm run dev
 
 Open `http://localhost:5173`.
 
+The seed script creates a default account:
+
+```text
+email:    admin@mimin.local
+password: admin123
+```
+
+Set `SEED_PASSWORD` in the environment before running `npm run db:seed` to override the default password.
+
 Stop the local database with:
 
 ```bash
@@ -153,10 +169,12 @@ drizzle/
 
 Main tables:
 
-- `projects`: project metadata and instructions
+- `users`: accounts with scrypt password hashes
+- `sessions`: bearer tokens (SHA-256 hashes) with expiry
+- `projects`: project metadata and instructions, owned by a user
 - `project_files`: file metadata and storage keys
 - `project_file_chunks`: text chunks for retrieval
-- `conversations`: standalone or project conversations
+- `conversations`: standalone or project conversations, owned by a user
 - `messages`: user, assistant, system, and tool state
 - `tool_calls`: tool execution lifecycle
 - `sources`: web or file sources
@@ -169,7 +187,24 @@ npm run db:generate
 npm run db:migrate
 ```
 
-The seed script creates the initial `Mimin Coding Agent` project and a `Welcome to Mimin` conversation.
+The seed script creates the default `admin@mimin.local` account, claims existing rows for it, and seeds the initial `Mimin Coding Agent` project with a `Welcome to Mimin` conversation.
+
+## Authentication
+
+Authentication uses email and password with scrypt password hashing and HTTP-only session cookies.
+
+```text
+POST /api/auth/login
+POST /api/auth/logout
+GET  /api/auth/session
+```
+
+- Passwords are hashed with scrypt and a per-user salt; only the hash is stored.
+- Session tokens are random 256-bit values; only their SHA-256 hashes are stored, and they expire after 30 days.
+- The session cookie is `HttpOnly`, `SameSite=Lax`, and scoped to the app path.
+- `src/hooks.server.ts` redirects unauthenticated page requests to `/login` and exposes `event.locals.user`.
+- Every data API route requires a valid session and filters rows by `user_id`. Cross-user access returns `404` for list, read, update, and delete operations, so ownership cannot be probed.
+- `/api/models` and `/api/tools` stay public because they expose no user data.
 
 ## API
 
@@ -307,6 +342,7 @@ The full file is not injected into every model request. The tool returns only ch
 ## Frontend routes
 
 ```text
+/login                             Sign in
 /                                  Home composer
 /chat                              Chat room and SSE response
 /projects                          Project dashboard
@@ -336,7 +372,7 @@ The latest verified commands:
 
 ```text
 npm test
-4 tests passed
+7 tests passed
 
 npm run check
 0 errors, 0 warnings
@@ -348,21 +384,24 @@ success
 PostgreSQL and API smoke tests verified:
 
 ```text
-GET /api/projects       200
+GET /api/projects       401 without session
 GET /api/models         200
 GET /api/tools          200
+Login                   200 with default account
+Cross-user project      404
+Cross-user conversation 404
 Project CRUD            create/read/delete verified
 SSE provider guard      normalized error, no secret leak
 ```
 
 ## Known limitations and next steps
 
-1. Add authentication and ownership filters to all queries.
+1. Add registration and password reset flows.
 2. Add PDF extraction with time and memory limits.
 3. Implement web search and web fetch adapters with SSRF protection.
 4. Connect citation service to normalized tool sources.
 5. Add chat attachments and message attachment relationships.
-6. Migrate project overview and chat history fully to shared API state.
+6. Migrate the project overview page fully to shared API state.
 7. Add integration tests with disposable PostgreSQL.
 8. Add an explicit deployment adapter, such as Node or Cloudflare.
 
