@@ -5,6 +5,7 @@ import { getDb, schema } from '$lib/server/db/client';
 import { modelRegistry, resolveModel, splitModelRef } from './model.service';
 import { getProviderCredential, isProviderId } from './provider-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
+import { createWebSearchTool } from './tools/web-search.tool';
 
 export type AppEvent = { type: string; [key: string]: unknown };
 const activeAgents = new Map<string, Agent>();
@@ -112,8 +113,7 @@ export async function runConversationTurn(
 	const isCustomOpenAi =
 		provider === 'openai' &&
 		Boolean(
-			credential?.baseUrl &&
-				!credential.baseUrl.replace(/\/+$/, '').endsWith('api.openai.com/v1')
+			credential?.baseUrl && !credential.baseUrl.replace(/\/+$/, '').endsWith('api.openai.com/v1')
 		);
 	const requestModel = {
 		...model,
@@ -131,11 +131,16 @@ export async function runConversationTurn(
 			.where(eq(schema.messages.conversationId, conversationId))
 			.orderBy(asc(schema.messages.createdAt))
 	).slice(0, -1);
-	const tools = conversation.projectId ? [createProjectKnowledgeTool(conversation.projectId)] : [];
+	const tools = [
+		...(conversation.enabledTools.includes('web_search') ? [createWebSearchTool()] : []),
+		...(conversation.projectId && conversation.enabledTools.includes('project_knowledge_search')
+			? [createProjectKnowledgeTool(conversation.projectId)]
+			: [])
+	];
 	const agent = new Agent({
 		initialState: {
 			systemPrompt:
-				'You are Sol, a concise and helpful AI agent. Answer clearly and use Markdown when useful.',
+				'You are Sol, a concise and helpful AI agent. Answer clearly and use Markdown when useful. For current, uncertain, niche, or verifiable information, use web_search before answering. Prefer primary and recent sources, compare sources when practical, and cite source URLs in the answer. Never claim you searched if the tool failed or is unavailable.',
 			model: requestModel,
 			messages: toAgentMessages(history),
 			tools

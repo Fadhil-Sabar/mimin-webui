@@ -15,6 +15,7 @@ Available:
 - Persistent projects and conversations
 - Live model discovery for configured OpenAI, Anthropic, and Google providers
 - Normalized tool registry
+- `web_search` with Tavily support and a free DuckDuckGo fallback
 - `project_knowledge_search` for project conversations
 - Project file upload and deletion
 - Basic text extraction for `.txt`, `.md`, and `.json`
@@ -31,7 +32,7 @@ Not yet available:
 
 - Registration and password reset
 - PDF text extraction
-- Provider adapters for web search and web fetch
+- Provider adapter for web fetch
 - Chat attachment processing
 - Semantic embeddings and pgvector
 - Full citation persistence from tool results to assistant messages
@@ -120,6 +121,8 @@ Set the required values in `.env`:
 ```env
 DATABASE_URL=postgres://mimin:mimin@localhost:5432/mimin
 OPENAI_API_KEY=your-provider-key
+# Optional: improves web_search quality. Empty uses DuckDuckGo fallback.
+WEB_SEARCH_API_KEY=your-tavily-key
 PROVIDER_KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
 STORAGE_DRIVER=local
 STORAGE_PATH=./data/uploads
@@ -425,11 +428,10 @@ Provider settings       save/encrypt/mask/delete verified
 
 1. Add registration and password reset flows.
 2. Add PDF extraction with time and memory limits.
-3. Implement web search and web fetch adapters with SSRF protection.
-4. Connect citation service to normalized tool sources.
-5. Add chat attachments and message attachment relationships.
-6. Add integration tests with disposable PostgreSQL.
-7. Add an explicit deployment adapter, such as Node or Cloudflare.
+3. Add web fetch with SSRF protection and connect citation persistence to normalized web sources.
+4. Add chat attachments and message attachment relationships.
+5. Add integration tests with disposable PostgreSQL.
+6. Add an explicit deployment adapter, such as Node or Cloudflare.
 
 ## Indonesian documentation
 

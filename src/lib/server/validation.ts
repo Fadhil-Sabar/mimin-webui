@@ -8,7 +8,7 @@ export const conversationInput = z.object({
 	projectId: z.string().uuid().nullable().optional(),
 	title: z.string().trim().min(1).max(200).optional(),
 	model: z.string().trim().min(1).max(200).default('openai/gpt-4o-mini'),
-	enabledTools: z.array(z.string()).max(20).default([])
+	enabledTools: z.array(z.string()).max(20).default(['web_search'])
 });
 export const messageInput = z.object({
 	content: z.string().trim().min(1).max(100000),
