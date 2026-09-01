@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import {
-		Bot,
 		FolderKanban,
 		MessageSquare,
 		Paperclip,
@@ -13,10 +12,14 @@
 		Wrench
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
 	let prompt = $state('');
 	let toast = $state('');
 	let user = $state<{ name: string } | null>(null);
 	let conversations = $state<{ id: string; title: string }[]>([]);
+	let models = $state<ModelOption[]>([]);
+	let modelsLoading = $state(true);
+	let selectedModel = $state('');
 	function notify(message: string) {
 		toast = message;
 		setTimeout(() => (toast = ''), 1600);
@@ -25,17 +28,43 @@
 		prompt = value;
 	}
 
+	function modelRef(model: ModelOption) {
+		return `${model.provider}/${model.id}`;
+	}
+
+	let configuredModels = $derived(models.filter((model) => model.configured || model.userConfigured));
+
+	async function loadModels() {
+		try {
+			const response = await fetch('/api/models');
+			if (!response.ok) throw new Error('Could not load models');
+			const data = await response.json();
+			models = Array.isArray(data.models) ? data.models : [];
+			const preferred = configuredModels.find((model) => modelRef(model) === 'openai/gpt-4o-mini');
+			const selected = preferred ?? configuredModels[0];
+			selectedModel = selected ? modelRef(selected) : '';
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not load models');
+		} finally {
+			modelsLoading = false;
+		}
+	}
+
 	async function submitPrompt() {
 		const content = prompt.trim();
 		if (!content) {
 			notify('Write a prompt first');
 			return;
 		}
+		if (!selectedModel) {
+			notify('Configure a provider before starting a chat');
+			return;
+		}
 		try {
 			const response = await fetch('/api/conversations', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({})
+				body: JSON.stringify({ model: selectedModel })
 			});
 			if (!response.ok)
 				throw new Error((await response.json()).error?.message ?? 'Could not start a conversation');
@@ -60,6 +89,7 @@
 		} catch {
 			/* ignore */
 		}
+		await loadModels();
 		try {
 			const response = await fetch('/api/conversations');
 			if (response.ok) conversations = (await response.json()).conversations ?? [];
@@ -130,9 +160,16 @@
 					<button class="control" onclick={() => notify('File picker opened')}
 						><Paperclip size={15} /> Attach</button
 					>
-					<button class="control" onclick={() => notify('Model selector opened')}
-						><Bot size={15} /> GPT-5.6 Sol <span>⌄</span></button
-					>
+					<ModelPicker
+						models={configuredModels}
+						value={selectedModel}
+						loading={modelsLoading}
+						disabled={configuredModels.length === 0}
+						placeholder="Configure a provider"
+						onselect={(model) => {
+							selectedModel = model;
+						}}
+					/>
 					<button class="control" onclick={() => notify('Tools selector opened')}
 						><Wrench size={15} /> Tools <span>⌄</span></button
 					>

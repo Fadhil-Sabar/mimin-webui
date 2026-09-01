@@ -17,6 +17,7 @@
 		Wrench
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
 
 	type Conversation = {
 		id: string;
@@ -45,6 +46,9 @@
 	let messages = $state<ChatMessage[]>([]);
 	let liveResponse = $state('');
 	let liveError = $state('');
+	let models = $state<ModelOption[]>([]);
+	let modelsLoading = $state(true);
+	let modelSaving = $state(false);
 	let abortController: AbortController | undefined;
 
 	function notify(value: string) {
@@ -57,6 +61,38 @@
 		if (Array.isArray(content))
 			return content.map((part) => (typeof part === 'string' ? part : (part?.text ?? ''))).join('');
 		return '';
+	}
+
+	function modelRef(model: ModelOption) {
+		return `${model.provider}/${model.id}`;
+	}
+
+	let configuredModels = $derived(models.filter((model) => model.configured || model.userConfigured));
+	let pickerModels = $derived.by(() => {
+		const current = activeConversation?.model;
+		if (!current || configuredModels.some((model) => modelRef(model) === current))
+			return configuredModels;
+		const currentModel = models.find((model) => modelRef(model) === current);
+		return currentModel ? [currentModel, ...configuredModels] : configuredModels;
+	});
+
+	async function loadModels() {
+		try {
+			const response = await fetch('/api/models');
+			if (!response.ok) throw new Error('Could not load models');
+			const data = await response.json();
+			models = Array.isArray(data.models) ? data.models : [];
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not load models');
+		} finally {
+			modelsLoading = false;
+		}
+	}
+
+	function defaultModel() {
+		const preferred = configuredModels.find((model) => modelRef(model) === 'openai/gpt-4o-mini');
+		const selected = preferred ?? configuredModels[0];
+		return selected ? modelRef(selected) : undefined;
 	}
 
 	async function loadConversations() {
@@ -79,6 +115,7 @@
 			const response = await fetch(`/api/conversations/${id}`);
 			if (!response.ok) throw new Error('Could not load conversation');
 			const data = await response.json();
+			activeConversation = data.conversation ?? activeConversation;
 			messages = (data.messages ?? []).filter(
 				(m: ChatMessage) => m.role === 'user' || m.role === 'assistant'
 			);
@@ -89,7 +126,8 @@
 
 	async function startNewConversation() {
 		try {
-			const conversation = await createConversation({});
+			const model = defaultModel();
+			const conversation = await createConversation(model ? { model } : {});
 			await loadConversations();
 			await loadConversation(conversation.id);
 		} catch (error) {
@@ -104,7 +142,7 @@
 		} catch {
 			/* ignore */
 		}
-		await loadConversations();
+		await Promise.all([loadModels(), loadConversations()]);
 		const params = new URL(window.location.href).searchParams;
 		const requested = params.get('id');
 		const pendingPrompt = params.get('prompt');
@@ -120,6 +158,30 @@
 			await sendMessage();
 		}
 	});
+
+	async function selectModel(model: string) {
+		if (!activeId || model === activeConversation?.model) return;
+		modelSaving = true;
+		try {
+			const response = await fetch(`/api/conversations/${activeId}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ model })
+			});
+			if (!response.ok)
+				throw new Error((await response.json().catch(() => null))?.error?.message ?? 'Could not select model');
+			const data = await response.json();
+			activeConversation = data.conversation;
+			conversations = conversations.map((conversation) =>
+				conversation.id === activeId ? data.conversation : conversation
+			);
+			notify('Model selected');
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not select model');
+		} finally {
+			modelSaving = false;
+		}
+	}
 
 	function formatTime(iso: string) {
 		return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -294,13 +356,14 @@
 				></textarea>
 				<div class="composer-row">
 					<button class="control"><Paperclip size={15} /> File</button>
-					<button class="control" onclick={() => notify('Model selector opened')}
-						><Bot size={15} />
-						{activeConversation?.model
-							? (activeConversation.model.split('/')[1] ?? activeConversation.model)
-							: 'Pick a model'}
-						<ChevronDown size={13} /></button
-					>
+					<ModelPicker
+						models={pickerModels}
+						value={activeConversation?.model ?? ''}
+						loading={modelsLoading}
+						disabled={!activeId || modelSaving || configuredModels.length === 0}
+						placeholder={configuredModels.length ? 'Pick a model' : 'Configure a provider'}
+						onselect={selectModel}
+					/>
 					<button
 						class="control"
 						onclick={() =>
