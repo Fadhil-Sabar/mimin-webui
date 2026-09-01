@@ -1,8 +1,14 @@
+import type { CustomProviderProtocol } from './provider-settings.service';
+
 export type DiscoverableProvider = 'openai' | 'anthropic' | 'google';
 
 export type DiscoveredModel = {
 	id: string;
 	name?: string;
+	contextWindow?: number;
+	maxTokens?: number;
+	reasoning?: boolean;
+	vision?: boolean;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -162,3 +168,160 @@ export async function fetchProviderModels(
 		clearTimeout(timeout);
 	}
 }
+
+/** Build custom provider model-list endpoint URL based on protocol. */
+export function customModelListUrl(protocol: CustomProviderProtocol, baseUrl: string) {
+	const base = baseUrl.trim().replace(/\/+$/, '');
+	if (base.endsWith('/models')) return base;
+	if (protocol === 'anthropic-messages' || protocol === 'mistral-conversations') {
+		if (base.endsWith('/v1')) return `${base}/models`;
+		return `${base}/v1/models`;
+	}
+	return `${base}/models`;
+}
+
+/** Build request headers for custom provider model discovery. */
+export function customRequestHeaders(
+	protocol: CustomProviderProtocol,
+	apiKey?: string | null
+): Record<string, string> {
+	const headers: Record<string, string> = {
+		Accept: 'application/json'
+	};
+	if (!apiKey?.trim()) return headers;
+	const key = apiKey.trim();
+	if (protocol === 'anthropic-messages') {
+		headers['x-api-key'] = key;
+		headers['anthropic-version'] = '2023-06-01';
+	} else if (protocol === 'google-generative-ai') {
+		headers['x-goog-api-key'] = key;
+	} else if (protocol === 'azure-openai-responses') {
+		headers['api-key'] = key;
+		headers.Authorization = `Bearer ${key}`;
+	} else {
+		headers.Authorization = `Bearer ${key}`;
+	}
+	return headers;
+}
+
+/** Parse models from custom provider response. */
+export function parseCustomProviderModelList(
+	protocol: CustomProviderProtocol,
+	payload: unknown
+): DiscoveredModel[] {
+	let rows: unknown[] | undefined;
+	if (Array.isArray(payload)) {
+		rows = payload;
+	} else {
+		const body = asObject(payload);
+		if (Array.isArray(body?.data)) {
+			rows = body.data;
+		} else if (Array.isArray(body?.models)) {
+			rows = body.models;
+		}
+	}
+	if (!rows) throw new Error(`Invalid model list response format from custom provider`);
+
+	const models: DiscoveredModel[] = [];
+	const seen = new Set<string>();
+	for (const row of rows) {
+		const item = asObject(row);
+		if (!item) continue;
+
+		const rawId =
+			stringField(item, 'id') ?? stringField(item, 'name') ?? stringField(item, 'model');
+		if (!rawId) continue;
+		const id = protocol === 'google-generative-ai' ? rawId.replace(/^models\//, '') : rawId;
+		if (!id || seen.has(id)) continue;
+
+		if (
+			(protocol === 'openai-completions' ||
+				protocol === 'openai-responses' ||
+				protocol === 'azure-openai-responses') &&
+			!isUsableOpenAiModel(id)
+		) {
+			continue;
+		}
+		if (protocol === 'google-generative-ai' && !isUsableGoogleModel(item)) {
+			continue;
+		}
+
+		seen.add(id);
+		const rawName =
+			stringField(item, protocol === 'anthropic-messages' ? 'display_name' : 'displayName') ??
+			stringField(item, 'name');
+		const name = rawName && rawName !== id ? rawName : undefined;
+
+		const contextWindow =
+			typeof item.context_length === 'number'
+				? item.context_length
+				: typeof item.context_window === 'number'
+					? item.context_window
+					: typeof item.contextWindow === 'number'
+						? item.contextWindow
+						: typeof item.max_context_length === 'number'
+							? item.max_context_length
+							: undefined;
+
+		const maxTokens =
+			typeof item.max_tokens === 'number'
+				? item.max_tokens
+				: typeof item.max_output_tokens === 'number'
+					? item.max_output_tokens
+					: typeof item.maxTokens === 'number'
+						? item.maxTokens
+						: undefined;
+
+		const reasoning = typeof item.reasoning === 'boolean' ? item.reasoning : undefined;
+		const vision =
+			typeof item.vision === 'boolean'
+				? item.vision
+				: Array.isArray(item.modalities) && item.modalities.includes('image')
+					? true
+					: undefined;
+
+		models.push({
+			id,
+			name,
+			contextWindow,
+			maxTokens,
+			reasoning,
+			vision
+		});
+	}
+	return models;
+}
+
+/** Fetch models from a custom provider endpoint. */
+export async function fetchCustomProviderModels(
+	protocol: CustomProviderProtocol,
+	baseUrl: string,
+	apiKey?: string | null,
+	fetcher: typeof globalThis.fetch = globalThis.fetch
+): Promise<DiscoveredModel[]> {
+	const controller = new AbortController();
+	const timeout = setTimeout(() => controller.abort(), 8000);
+	try {
+		let url = customModelListUrl(protocol, baseUrl);
+		if (protocol === 'google-generative-ai') {
+			url = addQuery(url, { pageSize: '1000' });
+		} else if (protocol === 'anthropic-messages') {
+			url = addQuery(url, { limit: '1000' });
+		}
+		const response = await fetcher(url, {
+			method: 'GET',
+			headers: customRequestHeaders(protocol, apiKey),
+			signal: controller.signal
+		});
+		if (!response.ok) {
+			throw new Error(
+				`Provider returned HTTP ${response.status} (${response.statusText || 'Error'})`
+			);
+		}
+		const body = await response.json();
+		return parseCustomProviderModelList(protocol, body);
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+

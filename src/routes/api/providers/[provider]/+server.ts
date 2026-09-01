@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { apiError, handleApiError, requireUser } from '$lib/server/api';
+import { fetchCustomProviderModels } from '$lib/server/ai/model-discovery';
 import {
 	deleteProviderCredential,
 	isProviderId,
@@ -63,6 +64,45 @@ export const PUT: RequestHandler = async (event) => {
 			return apiError('INVALID_INPUT', 'Provide an API key or base URL.');
 		if (input.apiKey && input.apiKey.length < 8)
 			return apiError('INVALID_INPUT', 'API key looks too short.');
+
+		if (input.customConfig) {
+			const baseUrl = input.baseUrl ?? existing?.baseUrl;
+			const apiKey = input.apiKey === undefined ? existing?.apiKey : input.apiKey;
+			let models = input.customConfig.models ?? [];
+			if (models.length === 0 && baseUrl) {
+				try {
+					const discovered = await fetchCustomProviderModels(
+						input.customConfig.protocol,
+						baseUrl,
+						apiKey
+					);
+					models = discovered.map((model) => ({
+						id: model.id,
+						name: model.name,
+						contextWindow: model.contextWindow,
+						maxTokens: model.maxTokens,
+						reasoning: model.reasoning,
+						vision: model.vision
+					}));
+				} catch (err) {
+					if (!existing?.customConfig?.models?.length) {
+						return apiError(
+							'INVALID_INPUT',
+							`Could not retrieve models from provider: ${err instanceof Error ? err.message : 'Connection failed'}. Please verify your base URL and API key, or provide model IDs manually.`
+						);
+					}
+					models = existing.customConfig.models;
+				}
+				if (models.length === 0) {
+					return apiError(
+						'INVALID_INPUT',
+						'No usable chat models found at provider endpoint. Please specify model IDs manually.'
+					);
+				}
+				input.customConfig.models = models;
+			}
+		}
+
 		await saveProviderCredential(user.id, provider, input);
 		const credential = (await listProviderCredentials(user.id)).find(
 			(c) => c.provider === provider

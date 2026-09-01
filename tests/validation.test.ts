@@ -26,12 +26,26 @@ describe('request validation', () => {
 			).toBe(true);
 		}
 	});
-	it('rejects unsafe custom provider URLs and empty model lists', () => {
+	it('rejects unsafe custom provider URLs', () => {
 		expect(
 			providerSettingsInput.safeParse({
 				baseUrl: 'not a URL',
 				customConfig: { name: 'Example', protocol: 'openai-completions', models: [] }
 			}).success
 		).toBe(false);
+	});
+	it('accepts custom provider definitions with empty or omitted models for auto-discovery', () => {
+		expect(
+			providerSettingsInput.safeParse({
+				baseUrl: 'https://models.example.com/v1',
+				customConfig: { name: 'Example', protocol: 'openai-completions', models: [] }
+			}).success
+		).toBe(true);
+		expect(
+			providerSettingsInput.safeParse({
+				baseUrl: 'https://models.example.com/v1',
+				customConfig: { name: 'Example', protocol: 'openai-completions' }
+			}).success
+		).toBe(true);
 	});
 });

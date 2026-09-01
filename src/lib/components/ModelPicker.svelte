@@ -72,6 +72,9 @@
 			.filter((group) => group.models.length > 0);
 	});
 
+	let placement = $state<'top' | 'bottom'>('top');
+	let maxHeight = $state<string | undefined>(undefined);
+
 	function modelRef(model: ModelOption) {
 		return `${model.provider}/${model.id}`;
 	}
@@ -80,12 +83,30 @@
 		return modelRefValue.split('/').slice(1).join('/') || modelRefValue;
 	}
 
+	function updatePlacement() {
+		if (!trigger) return;
+		const rect = trigger.getBoundingClientRect();
+		const spaceAbove = rect.top;
+		const spaceBelow = window.innerHeight - rect.bottom;
+		if (spaceAbove < 320 && spaceBelow > spaceAbove) {
+			placement = 'bottom';
+			maxHeight = `${Math.max(160, Math.min(420, spaceBelow - 20))}px`;
+		} else {
+			placement = 'top';
+			maxHeight = `${Math.max(160, Math.min(420, spaceAbove - 20))}px`;
+		}
+	}
+
 	function toggle() {
 		if (disabled || loading || models.length === 0) return;
 		open = !open;
 		if (open) {
+			updatePlacement();
 			search = '';
-			tick().then(() => searchInput?.focus());
+			tick().then(() => {
+				updatePlacement();
+				searchInput?.focus();
+			});
 		}
 	}
 
@@ -130,7 +151,13 @@
 	</button>
 
 	{#if open}
-		<div class="model-menu" role="listbox" aria-label="Available models">
+		<div
+			class="model-menu"
+			class:placement-bottom={placement === 'bottom'}
+			style:max-height={maxHeight}
+			role="listbox"
+			aria-label="Available models"
+		>
 			<div class="model-search">
 				<Search size={14} aria-hidden="true" />
 				<input
@@ -229,6 +256,10 @@
 		border-radius: 9px;
 		background: var(--surface);
 		box-shadow: 0 14px 32px var(--shadow);
+	}
+	.model-menu.placement-bottom {
+		bottom: auto;
+		top: calc(100% + 8px);
 	}
 	.model-search {
 		display: flex;

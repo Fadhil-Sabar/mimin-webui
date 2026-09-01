@@ -238,7 +238,7 @@ DELETE /api/providers/:provider
 
 Users can save their own API keys per provider (currently `openai`, `anthropic`, and `google`). Keys are encrypted at rest with AES-256-GCM using a key derived from `PROVIDER_KEY_ENCRYPTION_SECRET`, and never returned to the browser; the API responds with a masked form such as `•••• 4f2a`. When no user key is saved, the server environment variable is used as fallback (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GOOGLE_API_KEY` or `GEMINI_API_KEY` for Google). An optional `baseUrl` can be saved to route provider requests to a custom endpoint.
 
-`POST /api/providers` creates a user-owned custom provider. The settings UI includes templates for every Pi HTTP protocol that fits an API key/base URL connection: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Google Generative AI, Mistral Conversations, Pi Messages, and Azure OpenAI Responses. Model IDs are configured explicitly because custom servers do not share a universal discovery endpoint. API keys are optional for keyless local servers.
+`POST /api/providers` creates a user-owned custom provider. The settings UI includes templates for every Pi HTTP protocol that fits an API key/base URL connection: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Google Generative AI, Mistral Conversations, Pi Messages, and Azure OpenAI Responses. Model IDs are automatically retrieved from the endpoint when saving the connection, or can be specified manually. API keys are optional for keyless local servers.
 
 ```bash
 curl -X PUT http://localhost:5173/api/providers/openai \

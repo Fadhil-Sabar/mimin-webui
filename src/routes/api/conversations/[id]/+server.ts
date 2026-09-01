@@ -49,10 +49,13 @@ export const PATCH: RequestHandler = async (event) => {
 		if (!(await getOwnedConversation(id, user.id)))
 			return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		const body = await event.request.json();
-		const parsed = conversationInput
+		const updateSchema = conversationInput
 			.pick({ title: true, model: true, enabledTools: true })
-			.partial()
-			.safeParse(body);
+			.extend({
+				model: conversationInput.shape.model.removeDefault().optional(),
+				enabledTools: conversationInput.shape.enabledTools.removeDefault().optional()
+			});
+		const parsed = updateSchema.safeParse(body);
 		if (!parsed.success) return apiError('INVALID_INPUT', 'Invalid conversation payload.');
 		if (parsed.data.model && !(await isModelAvailable(user.id, parsed.data.model)))
 			return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');

@@ -55,7 +55,7 @@ svg { flex: 0 0 auto }
 
 /* ---------- Topbar ---------- */
 .main-content { min-width: 0; overflow-y: auto; height: 100dvh; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent }
-.topbar { display: flex; align-items: center; justify-content: space-between; height: 66px; padding: 0 44px; border-bottom: 1px solid var(--border) }
+.topbar { position: sticky; top: 0; z-index: 30; background: var(--bg); display: flex; align-items: center; justify-content: space-between; height: 66px; padding: 0 44px; border-bottom: 1px solid var(--border); backdrop-filter: blur(12px) }
 .breadcrumb { display: flex; align-items: center; gap: 7px; color: var(--text-dim); font-size: var(--text-sm) }
 .breadcrumb strong { color: var(--text-body); font-weight: 500 }
 .top-actions { display: flex; align-items: center; gap: 13px }

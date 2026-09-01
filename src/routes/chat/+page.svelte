@@ -20,6 +20,7 @@
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
+	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 
 	type Conversation = {
@@ -54,6 +55,8 @@
 	let modelsLoading = $state(true);
 	let modelLoadError = $state('');
 	let modelSaving = $state(false);
+	let availableTools = $state<ToolOption[]>([]);
+	let toolsLoading = $state(true);
 	let abortController: AbortController | undefined;
 	let scrollEl: HTMLElement | undefined;
 	let userAtBottom = $state(true);
@@ -165,6 +168,21 @@
 		}
 	}
 
+	async function loadTools(projectId?: string | null) {
+		try {
+			const url = projectId ? `/api/tools?projectId=${projectId}` : '/api/tools';
+			const response = await fetch(url);
+			if (response.ok) {
+				const data = await response.json();
+				availableTools = data.tools ?? [];
+			}
+		} catch {
+			/* ignore */
+		} finally {
+			toolsLoading = false;
+		}
+	}
+
 	async function loadConversation(id: string) {
 		activeId = id;
 		activeConversation = conversations.find((c) => c.id === id) ?? null;
@@ -178,6 +196,9 @@
 			messages = (data.messages ?? []).filter(
 				(m: ChatMessage) => m.role === 'user' || m.role === 'assistant'
 			);
+			if (activeConversation?.projectId) {
+				void loadTools(activeConversation.projectId);
+			}
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not load conversation');
 		}
@@ -201,7 +222,7 @@
 		} catch {
 			/* ignore */
 		}
-		await Promise.all([loadModels(), loadConversations()]);
+		await Promise.all([loadModels(), loadConversations(), loadTools()]);
 		const params = new URL(window.location.href).searchParams;
 		const requested = params.get('id');
 		const pendingPrompt = params.get('prompt');
@@ -241,6 +262,47 @@
 			notify(error instanceof Error ? error.message : 'Could not select model');
 		} finally {
 			modelSaving = false;
+		}
+	}
+
+	async function toggleTool(toolName: string, enable: boolean) {
+		if (!activeId || !activeConversation) return;
+		const conversation = activeConversation;
+		const current = conversation.enabledTools ?? [];
+		const updated = enable
+			? [...new Set([...current, toolName])]
+			: current.filter((t) => t !== toolName);
+
+		activeConversation = { ...conversation, enabledTools: updated };
+		conversations = conversations.map((c) =>
+			c.id === activeId ? { ...c, enabledTools: updated } : c
+		);
+
+		try {
+			const response = await fetch(`/api/conversations/${activeId}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ enabledTools: updated })
+			});
+			if (!response.ok) throw new Error('Could not update tools');
+			const data = await response.json();
+			if (data.conversation) {
+				activeConversation = data.conversation;
+				conversations = conversations.map((c) =>
+					c.id === activeId ? data.conversation : c
+				);
+			}
+			const toolObj = availableTools.find((t) => t.name === toolName);
+			const label = toolObj?.label ?? toolName;
+			notify(enable ? `${label} enabled` : `${label} disabled`);
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not update tools');
+			if (activeConversation) {
+				activeConversation = { ...activeConversation, enabledTools: current };
+			}
+			conversations = conversations.map((c) =>
+				c.id === activeId ? { ...c, enabledTools: current } : c
+			);
 		}
 	}
 
@@ -483,52 +545,50 @@
 			{#if liveError}
 				<div class="inline-error" role="alert"><strong>Agent error</strong> {liveError}</div>
 			{/if}
-			<div class="chat-composer">
-				<textarea
-					bind:value={message}
-					aria-label="Message Mimin"
-					placeholder={running ? 'Mimin is responding...' : 'Ask Mimin to think, write, or plan...'}
-					disabled={running}
-					onkeydown={onKeydown}></textarea>
-				<div class="composer-row">
-					<button
-						class="control"
-						title="Attachments are not available in chat yet"
+			<div class="composer-container">
+				<div class="chat-composer">
+					<textarea
+						bind:value={message}
+						aria-label="Message Mimin"
+						placeholder={running ? 'Mimin is responding...' : 'Ask Mimin to think, write, or plan...'}
 						disabled={running}
-						onclick={() => notify('Attachments are not available in chat yet')}
-						><Paperclip size={15} /> File</button
-					>
-					<ModelPicker
-						models={pickerModels}
-						value={activeConversation?.model ?? ''}
-						loading={modelsLoading}
-						disabled={running || !activeId || modelSaving || configuredModels.length === 0}
-						placeholder={configuredModels.length
-							? 'Pick a model'
-							: modelLoadError
-								? 'Models unavailable'
-								: 'Configure a provider'}
-						onselect={selectModel}
-					/>
-					<button
-						class="control"
-						title="Show enabled tools"
-						disabled={running}
-						onclick={() =>
-							notify(
-								activeConversation?.enabledTools?.length
-									? `Active tools: ${activeConversation.enabledTools.join(', ')}`
-									: 'No tools are enabled for this chat'
-							)}><Wrench size={15} /> Tools</button
-					>
-					<button
-						class="send-button"
-						class:stop={running}
-						aria-label={running ? 'Stop generation' : 'Send message'}
-						title={running ? 'Stop generation' : 'Send message'}
-						onclick={() => (running ? stopMessage() : sendMessage())}
-						>{#if running}<Square size={13} />{:else}<ArrowUp size={16} />{/if}</button
-					>
+						onkeydown={onKeydown}></textarea>
+					<div class="composer-row">
+						<button
+							class="control"
+							title="Attachments are not available in chat yet"
+							disabled={running}
+							onclick={() => notify('Attachments are not available in chat yet')}
+							><Paperclip size={15} /> File</button
+						>
+						<ModelPicker
+							models={pickerModels}
+							value={activeConversation?.model ?? ''}
+							loading={modelsLoading}
+							disabled={running || !activeId || modelSaving || configuredModels.length === 0}
+							placeholder={configuredModels.length
+								? 'Pick a model'
+								: modelLoadError
+									? 'Models unavailable'
+									: 'Configure a provider'}
+							onselect={selectModel}
+						/>
+						<ToolPicker
+							tools={availableTools}
+							enabledTools={activeConversation?.enabledTools ?? []}
+							loading={toolsLoading}
+							disabled={running || !activeId}
+							ontoggle={toggleTool}
+						/>
+						<button
+							class="send-button"
+							class:stop={running}
+							aria-label={running ? 'Stop generation' : 'Send message'}
+							title={running ? 'Stop generation' : 'Send message'}
+							onclick={() => (running ? stopMessage() : sendMessage())}
+							>{#if running}<Square size={13} />{:else}<ArrowUp size={16} />{/if}</button
+						>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -539,7 +599,10 @@
 <style>
 	.chat-wrap {
 		width: 100%;
-		padding: 34px 44px 45px;
+		min-height: calc(100dvh - 66px);
+		display: flex;
+		flex-direction: column;
+		padding: 34px 44px 20px;
 	}
 	.chat-title {
 		padding-bottom: 24px;
@@ -579,6 +642,10 @@
 		border-color: color-mix(in srgb, var(--status-working-dot) 40%, transparent);
 	}
 	.empty-state {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		text-align: center;
 		color: var(--text-dim);
 		font-size: var(--text-sm);
@@ -623,7 +690,7 @@
 	}
 	.assistant-message .response,
 	.assistant-message > div:last-child {
-		max-width: 66ch;
+		min-width: 0;
 	}
 	.response {
 		font-family: var(--font-body);
@@ -729,14 +796,21 @@
 			transform: scale(1.2);
 		}
 	}
-	.chat-composer {
+	.composer-container {
 		position: sticky;
-		bottom: 18px;
+		bottom: 0;
+		margin-top: auto;
+		padding-top: 24px;
+		padding-bottom: 20px;
+		background: linear-gradient(to top, var(--bg) 80%, transparent);
+		z-index: 15;
+	}
+	.chat-composer {
+		position: relative;
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
 		border-radius: 9px;
 		padding: 12px;
-		margin-top: 28px;
 		box-shadow: 0 10px 28px var(--shadow-faint);
 	}
 	.chat-composer textarea {
@@ -808,9 +882,9 @@
 		border-radius: 6px;
 		z-index: 50;
 	}
-	@media (max-width: 860px) {
+	@media (max-width: 760px) {
 		.chat-wrap {
-			padding: 28px 18px 36px;
+			padding: 28px 18px 20px;
 		}
 		.message {
 			grid-template-columns: 1fr;

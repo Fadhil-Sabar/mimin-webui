@@ -19,6 +19,7 @@ import {
 	type ProviderId
 } from './provider-settings.service';
 import {
+	fetchCustomProviderModels,
 	fetchProviderModels,
 	modelDisplayName,
 	type DiscoverableProvider,
@@ -275,20 +276,68 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 
 	for (const credential of customCredentials) {
 		registerCustomProvider(credential);
-		for (const model of getRegistry().getModels(credential.provider)) {
+		const config = credential.customConfig;
+		if (!config || !credential.baseUrl) continue;
+
+		let providerModels: RuntimeModel[] = [...getRegistry().getModels(credential.provider)] as RuntimeModel[];
+		let source: ModelSource = 'catalog';
+
+		const cacheKey = credentialCacheKey(
+			userId,
+			credential.provider as any,
+			credential.apiKey ?? '',
+			credential.baseUrl
+		);
+		const cached = liveModelCache.get(cacheKey);
+		if (cached && cached.expiresAt > Date.now()) {
+			providerModels = cached.models;
+			source = 'live';
+		} else {
+			try {
+				const discovered = await fetchCustomProviderModels(
+					config.protocol,
+					credential.baseUrl,
+					credential.apiKey
+				);
+				if (discovered.length > 0) {
+					const baseUrl = credential.baseUrl.replace(/\/+$/, '');
+					providerModels = discovered.map((d) => ({
+						id: d.id,
+						name: d.name?.trim() || modelDisplayName(d.id),
+						provider: credential.provider,
+						api: config.protocol,
+						baseUrl,
+						reasoning: d.reasoning ?? false,
+						input: d.vision ? ['text', 'image'] : ['text'],
+						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+						contextWindow: d.contextWindow ?? 128_000,
+						maxTokens: d.maxTokens ?? 8_192
+					}));
+					liveModelCache.set(cacheKey, {
+						models: providerModels,
+						expiresAt: Date.now() + LIVE_MODEL_CACHE_TTL
+					});
+					source = 'live';
+				}
+			} catch {
+				// Fallback to catalog models already in registry
+			}
+		}
+
+		for (const model of providerModels) {
 			models.push({
 				id: model.id,
 				provider: credential.provider,
 				name: model.name,
 				contextWindow: model.contextWindow,
 				capabilities: {
-					vision: model.input.includes('image'),
+					vision: model.input?.includes('image') ?? false,
 					tools: true,
-					reasoning: model.reasoning
+					reasoning: Boolean(model.reasoning)
 				},
 				configured: Boolean(credential.baseUrl),
 				userConfigured: credential.fromUser,
-				source: 'catalog'
+				source
 			});
 		}
 	}
@@ -318,6 +367,21 @@ export function resolveModel(provider: string, id: string, credential?: Provider
 	if (credential?.customConfig) registerCustomProvider(credential);
 	const existing = getRegistry().getModel(provider, id);
 	if (existing) return existing;
+	if (credential?.customConfig && credential.baseUrl) {
+		const baseUrl = credential.baseUrl.replace(/\/+$/, '');
+		return {
+			id,
+			name: modelDisplayName(id),
+			provider,
+			api: credential.customConfig.protocol,
+			baseUrl,
+			reasoning: false,
+			input: ['text', 'image'],
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			contextWindow: 128_000,
+			maxTokens: 8_192
+		} as RuntimeModel;
+	}
 	if (!isProviderId(provider) || !id.trim()) return undefined;
 	return runtimeModel(provider, { id: id.trim() });
 }

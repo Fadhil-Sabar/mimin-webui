@@ -81,6 +81,7 @@
 	let draftProtocol = $state<Protocol>('openai-completions');
 	let draftModels = $state('');
 	let creatingCustom = $state(false);
+	let discovering = $state(false);
 
 	function notify(message: string) {
 		toast = message;
@@ -164,6 +165,41 @@
 		draftModels = '';
 	}
 
+	async function discoverModels() {
+		if (!draftBaseUrl.trim()) {
+			notify('Enter a base URL to fetch models');
+			return;
+		}
+		discovering = true;
+		try {
+			const res = await fetch('/api/providers/discover', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					protocol: draftProtocol,
+					baseUrl: draftBaseUrl.trim(),
+					apiKey: draftKey.trim() || undefined,
+					provider: creatingCustom ? undefined : editing ?? undefined
+				})
+			});
+			if (!res.ok) {
+				const err = await res.json();
+				throw new Error(err.error?.message ?? 'Could not retrieve models');
+			}
+			const data = await res.json();
+			if (!data.models || data.models.length === 0) {
+				notify('No models found at endpoint');
+			} else {
+				draftModels = data.models.map((m: { id: string }) => m.id).join('\n');
+				notify(`Retrieved ${data.models.length} model${data.models.length === 1 ? '' : 's'}`);
+			}
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not retrieve models');
+		} finally {
+			discovering = false;
+		}
+	}
+
 	async function saveProvider() {
 		if (!editing) return;
 		const provider = editing;
@@ -189,8 +225,8 @@
 							.filter(Boolean)
 					)
 				];
-				if (!draftName.trim() || !draftBaseUrl.trim() || modelIds.length === 0) {
-					notify('Enter a name, base URL, and at least one model ID');
+				if (!draftName.trim() || !draftBaseUrl.trim()) {
+					notify('Enter a provider name and base URL');
 					return;
 				}
 				body.customConfig = {
@@ -397,21 +433,6 @@
 				</label>
 			{/if}
 			<label
-				>API key {#if creatingCustom || providers.find((p) => p.provider === editing)?.customConfig}<span
-						class="optional">optional for keyless servers</span
-					>{/if}
-				<input type="password" bind:value={draftKey} placeholder="sk-..." autocomplete="off" />
-			</label>
-			{#if creatingCustom || providers.find((p) => p.provider === editing)?.customConfig}
-				<label
-					>Model IDs <span class="optional">one per line</span>
-					<textarea
-						bind:value={draftModels}
-						rows="4"
-						placeholder="llama-3.3-70b-instruct&#10;deepseek-r1"></textarea>
-				</label>
-			{/if}
-			<label
 				>Base URL {#if !creatingCustom && !providers.find((p) => p.provider === editing)?.customConfig}<span
 						class="optional">optional</span
 					>{/if}
@@ -422,6 +443,31 @@
 					autocomplete="off"
 				/>
 			</label>
+			<label
+				>API key {#if creatingCustom || providers.find((p) => p.provider === editing)?.customConfig}<span
+						class="optional">optional for keyless servers</span
+					>{/if}
+				<input type="password" bind:value={draftKey} placeholder="sk-..." autocomplete="off" />
+			</label>
+			{#if creatingCustom || providers.find((p) => p.provider === editing)?.customConfig}
+				<div class="models-label-row">
+					<span class="field-title"
+						>Model IDs <span class="optional">auto-retrieved if blank</span></span
+					>
+					<button
+						type="button"
+						class="fetch-models-btn"
+						onclick={discoverModels}
+						disabled={discovering}
+					>
+						{discovering ? 'Fetching...' : 'Fetch models'}
+					</button>
+				</div>
+				<textarea
+					bind:value={draftModels}
+					rows="4"
+					placeholder="Leave blank to retrieve automatically, or enter one per line"></textarea>
+			{/if}
 			<div class="modal-actions">
 				<button type="button" class="button" onclick={() => (editing = null)}>Cancel</button>
 				<button type="submit" class="button primary" disabled={saving}
@@ -641,6 +687,36 @@
 		font-size: var(--text-xs);
 		font-weight: 400;
 		margin-left: 4px;
+	}
+	.models-label-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-top: 14px;
+		margin-bottom: 2px;
+	}
+	.field-title {
+		font-size: var(--text-sm);
+		font-weight: 500;
+		color: var(--text);
+	}
+	.fetch-models-btn {
+		background: var(--surface-subtle, rgba(255, 255, 255, 0.05));
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: var(--text-muted);
+		font-size: var(--text-xs);
+		padding: 3px 9px;
+		cursor: pointer;
+		transition: 0.15s ease;
+	}
+	.fetch-models-btn:hover:not(:disabled) {
+		color: var(--text);
+		border-color: var(--text-dim);
+	}
+	.fetch-models-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 	@media (max-width: 700px) {
 		.page-heading {

@@ -46,8 +46,9 @@ export const providerSettingsInput = z.object({
 						vision: z.boolean().optional()
 					})
 				)
-				.min(1)
-				.max(100)
+				.max(1000)
+				.optional()
+				.default([])
 		})
 		.optional()
 });
