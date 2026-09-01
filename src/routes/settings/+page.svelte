@@ -222,6 +222,9 @@
 										{:else if provider.configured}
 											<span class="mono dim">Fallback: server {provider.envVar}</span>
 										{/if}
+										{#if provider.baseUrl}
+											<span class="mono dim base-url">{provider.baseUrl}</span>
+										{/if}
 									</div>
 								</div>
 							</div>
@@ -399,6 +402,13 @@
 	}
 	.mono.dim {
 		color: var(--text-faint);
+	}
+	.base-url {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 220px;
+		color: var(--text-dim);
 	}
 	.provider-actions {
 		display: flex;

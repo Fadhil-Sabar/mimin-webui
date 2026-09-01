@@ -231,12 +231,12 @@ PUT    /api/providers/:provider
 DELETE /api/providers/:provider
 ```
 
-Users can save their own API keys per provider (currently `openai`, `anthropic`, and `google`). Keys are encrypted at rest with AES-256-GCM using a key derived from `PROVIDER_KEY_ENCRYPTION_SECRET`, and never returned to the browser; the API responds with a masked form such as `•••• 4f2a`. When no user key is saved, the server environment variable (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) is used as fallback.
+Users can save their own API keys per provider (currently `openai`, `anthropic`, and `google`). Keys are encrypted at rest with AES-256-GCM using a key derived from `PROVIDER_KEY_ENCRYPTION_SECRET`, and never returned to the browser; the API responds with a masked form such as `•••• 4f2a`. When no user key is saved, the server environment variable (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) is used as fallback. An optional `baseUrl` can be saved to route provider requests to a custom endpoint.
 
 ```bash
 curl -X PUT http://localhost:5173/api/providers/openai \
   -H 'content-type: application/json' \
-  -d '{"apiKey":"sk-..."}'
+  -d '{"apiKey":"sk-...","baseUrl":"https://gateway.example.com/v1"}'
 
 curl -X DELETE http://localhost:5173/api/providers/openai
 ```
@@ -429,7 +429,6 @@ Provider settings       save/encrypt/mask/delete verified
 5. Add chat attachments and message attachment relationships.
 6. Add integration tests with disposable PostgreSQL.
 7. Add an explicit deployment adapter, such as Node or Cloudflare.
-8. Support custom provider base URLs from the settings page (the field is stored but not yet applied to requests).
 
 ## Indonesian documentation
 

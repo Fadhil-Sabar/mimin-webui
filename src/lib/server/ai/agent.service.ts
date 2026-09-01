@@ -45,6 +45,8 @@ export async function runConversationTurn(
 		credential = await getProviderCredential(userId ?? conversation.userId ?? '', provider);
 		if (!credential.apiKey) throw new Error('PROVIDER_NOT_CONFIGURED');
 	}
+	// A user-saved base URL points the provider adapters at a custom endpoint.
+	const requestModel = credential?.baseUrl ? { ...model, baseUrl: credential.baseUrl } : model;
 	const history = (
 		await db
 			.select({
@@ -61,7 +63,7 @@ export async function runConversationTurn(
 		initialState: {
 			systemPrompt:
 				'You are Sol, a concise and helpful AI agent. Answer clearly and use Markdown when useful.',
-			model,
+			model: requestModel,
 			messages: toAgentMessages(history),
 			tools
 		},
