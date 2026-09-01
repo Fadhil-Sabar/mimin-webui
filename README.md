@@ -398,7 +398,7 @@ The latest verified commands:
 
 ```text
 npm test
-15 tests passed
+19 tests passed
 
 npm run check
 0 errors, 0 warnings
