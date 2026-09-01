@@ -208,23 +208,25 @@
 		<button class="new-chat" onclick={startNewConversation}
 			><Plus size={16} /> New chat <kbd>⌘ K</kbd></button
 		>
-		<div class="nav-label">Workspace</div>
-		<a class="nav-item active" href={resolve('/chat')}
-			><MessageSquare size={16} /> Chat <span class="nav-count">{conversations.length}</span></a
-		>
-		<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
-		{#if conversations.length > 0}
-			<div class="nav-label projects-label">Recent chats</div>
-			{#each conversations as conversation (conversation.id)}
-				<button
-					class="project-item"
-					class:active-project={conversation.id === activeId}
-					onclick={() => loadConversation(conversation.id)}
-				>
-					<span class="project-dot"></span>{conversation.title}
-				</button>
-			{/each}
-		{/if}
+		<div class="sidebar-scroll">
+			<div class="nav-label">Workspace</div>
+			<a class="nav-item active" href={resolve('/chat')}
+				><MessageSquare size={16} /> Chat <span class="nav-count">{conversations.length}</span></a
+			>
+			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
+			{#if conversations.length > 0}
+				<div class="nav-label projects-label">Recent chats</div>
+				{#each conversations as conversation (conversation.id)}
+					<button
+						class="project-item"
+						class:active-project={conversation.id === activeId}
+						onclick={() => loadConversation(conversation.id)}
+					>
+						<span class="project-dot"></span>{conversation.title}
+					</button>
+				{/each}
+			{/if}
+		</div>
 		<div class="sidebar-bottom">
 			<button class="nav-item" onclick={logout}>Log out</button>
 			<div class="user-row">
