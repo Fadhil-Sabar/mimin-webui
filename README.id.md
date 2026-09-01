@@ -11,7 +11,7 @@ Sudah tersedia:
 - Home workspace dengan chat composer
 - Chat room dengan SSE response streaming
 - Project dan conversation yang tersimpan secara persistent
-- Model catalog dari Pi AI
+- Discovery model live untuk provider OpenAI, Anthropic, dan Google yang dikonfigurasi
 - Tool registry ter-normalisasi
 - `project_knowledge_search` untuk project conversation
 - Upload dan delete file project
@@ -183,7 +183,7 @@ GET /api/models
 GET /api/tools?projectId=:projectId
 ```
 
-`/api/models` mengembalikan metadata model yang dinormalisasi, termasuk provider, context window, capabilities, dan status konfigurasi server. Jika ada sesi, endpoint ini juga melaporkan apakah pengguna menyimpan key sendiri untuk tiap provider (`userConfigured`).
+`/api/models` menanyakan endpoint daftar model provider yang dikonfigurasi dan mengembalikan metadata model yang dinormalisasi, termasuk provider, context window, capabilities, source (`live` atau `catalog`), dan status konfigurasi server. Provider yang belum dikonfigurasi tetap mengembalikan metadata catalog bawaan untuk UI setup, sedangkan provider yang dikonfigurasi hanya menampilkan model yang dikembalikan API-nya. Jika ada sesi, endpoint ini juga melaporkan apakah pengguna menyimpan key sendiri untuk tiap provider (`userConfigured`). Kegagalan discovery provider dikembalikan dalam array `errors`.
 
 Tool khusus project seperti `project_knowledge_search` hanya dikembalikan jika `projectId` diberikan.
 

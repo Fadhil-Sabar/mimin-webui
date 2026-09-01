@@ -7,7 +7,7 @@ import { handleApiError } from '$lib/server/api';
 export async function GET(event: RequestEvent) {
 	try {
 		const user = await requireUser(event);
-		return json({ models: await listModels(user?.id) });
+		return json(await listModels(user?.id));
 	} catch (error) {
 		return handleApiError(error);
 	}

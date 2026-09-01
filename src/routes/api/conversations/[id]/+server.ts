@@ -3,6 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { asc, desc, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
+import { isModelAvailable } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
 
 export const GET: RequestHandler = async (event) => {
@@ -53,6 +54,8 @@ export const PATCH: RequestHandler = async (event) => {
 			.partial()
 			.safeParse(body);
 		if (!parsed.success) return apiError('INVALID_INPUT', 'Invalid conversation payload.');
+		if (parsed.data.model && !(await isModelAvailable(user.id, parsed.data.model)))
+			return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
 		const [conversation] = await getDb()
 			.update(schema.conversations)
 			.set({ ...parsed.data, updatedAt: new Date() })

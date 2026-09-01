@@ -2,16 +2,13 @@
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import {
-		ChevronDown,
 		FolderKanban,
 		LogOut,
 		MessageSquare,
-		Paperclip,
 		Plus,
 		Send,
 		Settings,
-		Sparkles,
-		Wrench
+		Sparkles
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
@@ -21,6 +18,7 @@
 	let conversations = $state<{ id: string; title: string }[]>([]);
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
+	let modelLoadError = $state('');
 	let selectedModel = $state('');
 	function notify(message: string) {
 		toast = message;
@@ -44,6 +42,12 @@
 			if (!response.ok) throw new Error('Could not load models');
 			const data = await response.json();
 			models = Array.isArray(data.models) ? data.models : [];
+			const errors = Array.isArray(data.errors) ? data.errors : [];
+			modelLoadError = errors
+				.map((error: { message?: string }) => error.message ?? '')
+				.filter(Boolean)
+				.join(' ');
+			if (modelLoadError) notify('Some live models could not be loaded. Check Providers.');
 			const preferred = configuredModels.find((model) => modelRef(model) === 'openai/gpt-4o-mini');
 			const selected = preferred ?? configuredModels[0];
 			selectedModel = selected ? modelRef(selected) : '';
@@ -61,7 +65,11 @@
 			return;
 		}
 		if (!selectedModel) {
-			notify('Configure a provider before starting a chat');
+			notify(
+				modelLoadError
+					? 'Live models are unavailable. Check Providers.'
+					: 'Configure a provider before starting a chat'
+			);
 			return;
 		}
 		try {
@@ -112,8 +120,8 @@
 <div class="app-shell">
 	<aside class="sidebar">
 		<div class="brand">
-			<span class="brand-mark"><Sparkles size={13} /></span><span>solace</span><span
-				class="brand-muted">/ agent</span
+			<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
+				class="brand-muted">/ workbench</span
 			>
 		</div>
 		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
@@ -124,7 +132,7 @@
 			>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
 			<div class="nav-label projects-label">Preferences</div>
-			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Providers</a>
+			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			{#if conversations.length > 0}
 				<div class="nav-label projects-label">Recent chats</div>
 				{#each conversations as conversation (conversation.id)}
@@ -135,11 +143,15 @@
 			{/if}
 		</div>
 		<div class="sidebar-bottom">
-			<button class="nav-item" onclick={logout}><LogOut size={16} /> Log out</button>
 			<div class="user-row">
-				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span><span
-					><strong>{user?.name ?? 'Fadhil'}</strong><small>Personal workspace</small></span
-				>
+				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span>
+				<div class="user-meta">
+					<strong>{user?.name ?? 'Fadhil'}</strong>
+					<small>Personal workspace</small>
+				</div>
+				<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
+					<LogOut size={15} />
+				</button>
 			</div>
 		</div>
 	</aside>
@@ -152,10 +164,17 @@
 			</div>
 		</header>
 		<div class="home-wrap">
-			<h1>What would you like to<br />work on today?</h1>
+			<span class="workbench-label">Your workbench</span>
+			<h1>Start with the work<br />in front of you.</h1>
 			<p class="intro">
-				Think with an agent that can research, build, and organize your work in one calm workspace.
+				Mimin keeps your conversation, model, and project context together while you think through
+				the next step.
 			</p>
+			{#if !modelsLoading && !selectedModel}
+				<a class="setup-callout" href={resolve('/settings')}
+					>Connect a model before starting a chat <span>→</span></a
+				>
+			{/if}
 			<div class="home-composer">
 				<textarea
 					bind:value={prompt}
@@ -163,22 +182,16 @@
 					placeholder="Ask anything..."
 					onkeydown={onKeydown}></textarea>
 				<div class="composer-row">
-					<button class="control" onclick={() => notify('File picker opened')}
-						><Paperclip size={15} /> Attach</button
-					>
 					<ModelPicker
 						models={configuredModels}
 						value={selectedModel}
 						loading={modelsLoading}
 						disabled={configuredModels.length === 0}
-						placeholder="Configure a provider"
+						placeholder={modelLoadError ? 'Models unavailable' : 'Configure a provider'}
 						onselect={(model) => {
 							selectedModel = model;
 						}}
 					/>
-					<button class="control" onclick={() => notify('Tools selector opened')}
-						><Wrench size={15} /> Tools <ChevronDown size={13} aria-hidden="true" /></button
-					>
 					<button
 						class="send-button"
 						aria-label="Send prompt"
@@ -211,11 +224,36 @@
 		letter-spacing: -0.03em;
 		margin: 0 0 14px;
 	}
+	.workbench-label {
+		display: inline-flex;
+		margin-bottom: 12px;
+		color: var(--text-dim);
+		font-size: var(--text-xs);
+		font-weight: 650;
+		letter-spacing: 0.13em;
+		text-transform: uppercase;
+	}
 	.intro {
 		max-width: 500px;
 		color: var(--text-muted);
 		line-height: 1.6;
 		margin: 0 0 36px;
+	}
+	.setup-callout {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		max-width: 640px;
+		margin: 0 0 16px;
+		padding: 11px 13px;
+		color: var(--text-body);
+		background: var(--surface-3);
+		border-left: 2px solid var(--text-strong);
+		font-size: var(--text-sm);
+		text-decoration: none;
+	}
+	.setup-callout:hover {
+		background: var(--surface-hover);
 	}
 	.home-composer {
 		background: var(--surface);
@@ -240,26 +278,6 @@
 		gap: 7px;
 		border-top: 1px solid var(--border);
 		padding-top: 12px;
-	}
-	.control {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		min-height: 38px;
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		background: var(--surface-subtle);
-		padding: 7px 9px;
-		color: var(--text-muted);
-		font-size: var(--text-sm);
-		transition: 0.18s ease;
-	}
-	.control:hover {
-		color: var(--text-strong);
-		border-color: var(--text-faint);
-	}
-	.control :global(svg:last-child) {
-		color: var(--text-faint);
 	}
 	.send-button {
 		display: grid;

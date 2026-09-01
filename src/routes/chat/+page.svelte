@@ -50,6 +50,7 @@
 	let liveError = $state('');
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
+	let modelLoadError = $state('');
 	let modelSaving = $state(false);
 	let abortController: AbortController | undefined;
 
@@ -69,6 +70,10 @@
 		return `${model.provider}/${model.id}`;
 	}
 
+	function modelId(modelRefValue: string) {
+		return modelRefValue.split('/').slice(1).join('/') || modelRefValue;
+	}
+
 	let configuredModels = $derived(
 		models.filter((model) => model.configured || model.userConfigured)
 	);
@@ -86,6 +91,12 @@
 			if (!response.ok) throw new Error('Could not load models');
 			const data = await response.json();
 			models = Array.isArray(data.models) ? data.models : [];
+			const errors = Array.isArray(data.errors) ? data.errors : [];
+			modelLoadError = errors
+				.map((error: { message?: string }) => error.message ?? '')
+				.filter(Boolean)
+				.join(' ');
+			if (modelLoadError) notify('Some live models could not be loaded. Check Providers.');
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not load models');
 		} finally {
@@ -271,8 +282,8 @@
 <div class="app-shell">
 	<aside class="sidebar">
 		<div class="brand">
-			<span class="brand-mark"><Sparkles size={13} /></span><span>solace</span><span
-				class="brand-muted">/ agent</span
+			<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
+				class="brand-muted">/ workbench</span
 			>
 		</div>
 		<button class="new-chat" onclick={startNewConversation}
@@ -285,7 +296,7 @@
 			>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
 			<div class="nav-label projects-label">Preferences</div>
-			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Providers</a>
+			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			{#if conversations.length > 0}
 				<div class="nav-label projects-label">Recent chats</div>
 				{#each conversations as conversation (conversation.id)}
@@ -300,11 +311,15 @@
 			{/if}
 		</div>
 		<div class="sidebar-bottom">
-			<button class="nav-item" onclick={logout}><LogOut size={16} /> Log out</button>
 			<div class="user-row">
-				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span><span
-					><strong>{user?.name ?? 'Fadhil'}</strong><small>Personal workspace</small></span
-				>
+				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span>
+				<div class="user-meta">
+					<strong>{user?.name ?? 'Fadhil'}</strong>
+					<small>Personal workspace</small>
+				</div>
+				<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
+					<LogOut size={15} />
+				</button>
 			</div>
 		</div>
 	</aside>
@@ -331,7 +346,7 @@
 				<h1>{activeConversation?.title ?? 'New conversation'}</h1>
 				<p>
 					{activeConversation?.model
-						? (activeConversation.model.split('/')[1] ?? activeConversation.model)
+						? modelId(activeConversation.model)
 						: 'Pick a model'}{activeConversation && activeConversation.enabledTools?.length
 						? ` · ${activeConversation.enabledTools.join(', ')}`
 						: ''}
@@ -343,20 +358,30 @@
 				<div class="empty-state">Ask something to start a conversation.</div>
 			{/if}
 			{#each messages as msg (msg.id)}
-				<article class="message" aria-label={`${msg.role === 'user' ? 'Your' : 'Sol'} message`}>
+				<article
+					class="message"
+					class:assistant-message={msg.role === 'assistant'}
+					aria-label={`${msg.role === 'user' ? 'Your' : 'Mimin'} message`}
+				>
 					<div class="message-label">
-						{#if msg.role === 'user'}<UserRound size={14} aria-hidden="true" /> YOU{:else}<Bot
-								size={14}
-								aria-hidden="true"
-							/> SOL{/if}
+						{#if msg.role === 'user'}
+							<UserRound size={14} aria-hidden="true" />
+							<span>YOU</span>
+						{:else}
+							<Bot size={14} aria-hidden="true" />
+							<span>MIMIN</span>
+						{/if}
 						<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
 					</div>
 					<div><p>{contentText(msg.content)}</p></div>
 				</article>
 			{/each}
 			{#if liveResponse}
-				<article class="message" aria-label="Sol message">
-					<div class="message-label"><Bot size={14} aria-hidden="true" /> SOL</div>
+				<article class="message assistant-message" aria-label="Mimin message">
+					<div class="message-label">
+						<Bot size={14} aria-hidden="true" />
+						<span>MIMIN</span>
+					</div>
 					<div class="response"><p class="response-text">{liveResponse}</p></div>
 				</article>
 			{/if}
@@ -366,13 +391,13 @@
 			<div class="chat-composer">
 				<textarea
 					bind:value={message}
-					aria-label="Message Sol"
-					placeholder="Message Sol..."
+					aria-label="Message Mimin"
+					placeholder="Ask Mimin to think, write, or plan..."
 					onkeydown={onKeydown}></textarea>
 				<div class="composer-row">
 					<button
 						class="control"
-						title="Attachments are not available yet"
+						title="Attachments are not available in chat yet"
 						onclick={() => notify('Attachments are not available in chat yet')}
 						><Paperclip size={15} /> File</button
 					>
@@ -381,17 +406,22 @@
 						value={activeConversation?.model ?? ''}
 						loading={modelsLoading}
 						disabled={!activeId || modelSaving || configuredModels.length === 0}
-						placeholder={configuredModels.length ? 'Pick a model' : 'Configure a provider'}
+						placeholder={configuredModels.length
+							? 'Pick a model'
+							: modelLoadError
+								? 'Models unavailable'
+								: 'Configure a provider'}
 						onselect={selectModel}
 					/>
 					<button
 						class="control"
+						title="Show enabled tools"
 						onclick={() =>
 							notify(
 								activeConversation?.enabledTools?.length
-									? `Active: ${activeConversation.enabledTools.join(', ')}`
-									: 'No tools active'
-							)}><Wrench size={15} /> Tools <ChevronDown size={13} /></button
+									? `Active tools: ${activeConversation.enabledTools.join(', ')}`
+									: 'No tools are enabled for this chat'
+							)}><Wrench size={15} /> Tools</button
 					>
 					<button
 						class="send-button"
@@ -410,9 +440,8 @@
 
 <style>
 	.chat-wrap {
-		max-width: 850px;
-		margin: auto;
-		padding: 34px 32px 45px;
+		width: 100%;
+		padding: 34px 44px 45px;
 	}
 	.chat-title {
 		padding-bottom: 24px;
@@ -459,21 +488,32 @@
 	}
 	.message {
 		display: grid;
-		grid-template-columns: 80px 1fr;
+		grid-template-columns: 130px 1fr;
 		gap: 24px;
 		padding: 24px 0;
 		border-bottom: 1px solid var(--border);
 	}
+	.assistant-message {
+		margin-inline: -14px;
+		padding-inline: 14px;
+		background: color-mix(in srgb, var(--surface-3) 52%, transparent);
+		border-bottom-color: transparent;
+	}
+	.assistant-message + .message {
+		border-top: 1px solid var(--border);
+	}
 	.message-label {
 		display: flex;
 		align-items: center;
-		gap: 5px;
+		gap: 6px;
 		color: var(--text-dim);
 		font-size: var(--text-xs);
+		white-space: nowrap;
+		flex-shrink: 0;
 	}
 	.message-label time {
 		color: var(--text-faint);
-		margin-left: 4px;
+		margin-left: 2px;
 		font-variant-numeric: tabular-nums;
 	}
 	.message p {
@@ -482,6 +522,10 @@
 		line-height: 1.6;
 		white-space: pre-wrap;
 		font-family: var(--font-body);
+	}
+	.assistant-message .response,
+	.assistant-message > div:last-child {
+		max-width: 66ch;
 	}
 	.response {
 		font-family: var(--font-body);
@@ -580,7 +624,7 @@
 		border-radius: 6px;
 		z-index: 50;
 	}
-	@media (max-width: 700px) {
+	@media (max-width: 860px) {
 		.chat-wrap {
 			padding: 28px 18px 36px;
 		}
@@ -591,6 +635,11 @@
 		.ready {
 			float: none;
 			display: inline-flex;
+		}
+	}
+	@media (max-width: 420px) {
+		.chat-wrap {
+			padding-inline: 14px;
 		}
 	}
 </style>

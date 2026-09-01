@@ -2,6 +2,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
+import { isModelAvailable } from '$lib/server/ai/model.service';
 import { messageInput } from '$lib/server/validation';
 import { runConversationTurn, stopConversation } from '$lib/server/ai/agent.service';
 
@@ -20,6 +21,8 @@ export const POST: RequestHandler = async (event) => {
 		const db = getDb();
 		const conversation = await getOwnedConversation(conversationId, user.id);
 		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
+		if (parsed.data.model && !(await isModelAvailable(user.id, parsed.data.model)))
+			return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
 		const [userMessage] = await db
 			.insert(schema.messages)
 			.values({ conversationId, role: 'user', content: parsed.data.content })

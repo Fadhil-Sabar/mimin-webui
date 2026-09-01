@@ -1,13 +1,25 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
-import { and, asc, eq } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
-import { modelRegistry, resolveModel } from './model.service';
+import { modelRegistry, resolveModel, splitModelRef } from './model.service';
 import { getProviderCredential, isProviderId } from './provider-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
 
 export type AppEvent = { type: string; [key: string]: unknown };
 const activeAgents = new Map<string, Agent>();
+
+type AgentEvent = {
+	type?: string;
+	toolCallId: string;
+	toolName: string;
+	args: unknown;
+	partialResult: unknown;
+	result: unknown;
+	isError: boolean;
+	assistantMessageEvent?: { type?: string; delta?: string };
+	message?: { role?: string };
+};
 
 function encodeContent(content: unknown) {
 	return typeof content === 'string' ? content : JSON.stringify(content);
@@ -37,7 +49,10 @@ export async function runConversationTurn(
 		.from(schema.conversations)
 		.where(eq(schema.conversations.id, conversationId));
 	if (!conversation) throw new Error('CONVERSATION_NOT_FOUND');
-	const [provider, modelId] = (modelRef ?? conversation.model).split('/', 2);
+	const selectedModelRef = modelRef ?? conversation.model;
+	const selectedModel = splitModelRef(selectedModelRef);
+	if (!selectedModel) throw new Error('MODEL_NOT_AVAILABLE');
+	const { provider, id: modelId } = selectedModel;
 	const model = resolveModel(provider, modelId);
 	if (!model) throw new Error('MODEL_NOT_AVAILABLE');
 	let credential: { apiKey: string | null; baseUrl: string | null; fromUser: boolean } | undefined;
@@ -78,7 +93,7 @@ export async function runConversationTurn(
 	activeAgents.set(conversationId, agent);
 	let assistantText = '';
 	agent.subscribe(async (event) => {
-		const e = event as any;
+		const e = event as AgentEvent;
 		if (e.type === 'agent_start') emit({ type: 'turn.start' });
 		if (e.type === 'tool_execution_start') {
 			await db.insert(schema.toolCalls).values({

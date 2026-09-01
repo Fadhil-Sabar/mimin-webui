@@ -13,7 +13,7 @@ Available:
 - Home workspace with chat composer
 - Chat room with SSE response streaming
 - Persistent projects and conversations
-- Model catalog from Pi AI
+- Live model discovery for configured OpenAI, Anthropic, and Google providers
 - Normalized tool registry
 - `project_knowledge_search` for project conversations
 - Project file upload and deletion
@@ -220,7 +220,7 @@ GET /api/models
 GET /api/tools?projectId=:projectId
 ```
 
-`/api/models` returns normalized model metadata, including provider, context window, capabilities, and server-side configuration status. When a session is present, it also reports whether the user saved their own key for each provider (`userConfigured`).
+`/api/models` queries each configured provider's model-list endpoint and returns normalized model metadata, including provider, context window, capabilities, source (`live` or `catalog`), and server-side configuration status. Unconfigured providers retain their bundled catalog metadata for setup UI, while configured providers expose only models returned by their API. When a session is present, it also reports whether the user saved their own key for each provider (`userConfigured`). Provider discovery failures are returned in an `errors` array.
 
 Project-only tools such as `project_knowledge_search` are returned only when `projectId` is provided.
 

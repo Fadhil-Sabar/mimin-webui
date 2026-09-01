@@ -158,8 +158,8 @@
 <div class="app-shell">
 	<aside class="sidebar">
 		<div class="brand">
-			<span class="brand-mark"><Sparkles size={13} /></span><span>solace</span><span
-				class="brand-muted">/ agent</span
+			<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
+				class="brand-muted">/ workbench</span
 			>
 		</div>
 		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
@@ -168,14 +168,18 @@
 			<a class="nav-item" href={resolve('/chat')}><MessageSquare size={16} /> Chat</a>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
 			<div class="nav-label projects-label">Preferences</div>
-			<a class="nav-item active" href={resolve('/settings')}><Settings size={16} /> Providers</a>
+			<a class="nav-item active" href={resolve('/settings')}><Settings size={16} /> Models</a>
 		</div>
 		<div class="sidebar-bottom">
-			<button class="nav-item" onclick={logout}><LogOut size={16} /> Log out</button>
 			<div class="user-row">
-				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span><span
-					><strong>{user?.name ?? 'Fadhil'}</strong><small>Personal workspace</small></span
-				>
+				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span>
+				<div class="user-meta">
+					<strong>{user?.name ?? 'Fadhil'}</strong>
+					<small>Personal workspace</small>
+				</div>
+				<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
+					<LogOut size={15} />
+				</button>
 			</div>
 		</div>
 	</aside>
@@ -183,7 +187,7 @@
 	<main class="main-content">
 		<header class="topbar">
 			<div class="breadcrumb">
-				<strong>Settings</strong><span class="crumb-sep">/</span><span>Providers</span>
+				<strong>Settings</strong><span class="crumb-sep">/</span><span>Models</span>
 			</div>
 			<div class="top-actions">
 				<ThemeToggle /><span class="avatar avatar-top">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span
@@ -193,14 +197,14 @@
 		<div class="page-wrap">
 			<div class="page-heading">
 				<div>
-					<h1>Providers</h1>
+					<h1>Models & connections</h1>
 					<p>
-						Add your own API keys. Keys are encrypted and only used to power your conversations.
+						Connect the models Mimin can use. Your keys are encrypted and only power your conversations.
 					</p>
 				</div>
 			</div>
 			{#if loading}
-				<div class="empty-state" role="status">Loading providers...</div>
+				<div class="empty-state" role="status">Checking model connections...</div>
 			{:else}
 				<div class="provider-list">
 					{#each providers as provider (provider.provider)}
@@ -211,15 +215,16 @@
 									<div class="provider-name">
 										<strong>{provider.name}</strong>
 										{#if provider.fromUser}
-											<span class="badge ok">Your key</span>
+											<span class="badge ok">Ready</span>
 										{:else if provider.configured}
-											<span class="badge ok">Server key</span>
+											<span class="badge ok">Ready</span>
 										{:else}
-											<span class="badge">Not set</span>
+											<span class="badge">Not connected</span>
 										{/if}
 									</div>
 									<p>{provider.description}</p>
-									<div class="provider-meta">
+									<details class="provider-meta">
+										<summary>Connection details</summary>
 										<span class="mono">{provider.envVar}</span>
 										{#if provider.fromUser}
 											<span class="mono dim">{provider.apiKey}</span>
@@ -229,7 +234,7 @@
 										{#if provider.baseUrl}
 											<span class="mono dim base-url">{provider.baseUrl}</span>
 										{/if}
-									</div>
+									</details>
 								</div>
 							</div>
 							<div class="provider-actions">
@@ -241,15 +246,14 @@
 									>
 								{/if}
 								<button class="button primary" onclick={() => openEditor(provider.provider)}
-									>Edit</button
+									>{provider.configured || provider.fromUser ? 'Manage' : 'Connect'}</button
 								>
 							</div>
 						</article>
 					{/each}
 				</div>
 				<p class="footnote">
-					Keys are stored encrypted in the database and never sent back to the browser. Without a
-					saved key, the server environment variable is used.
+					Technical connection details stay here. Saved keys are encrypted and never returned to your browser.
 				</p>
 			{/if}
 		</div>
@@ -303,7 +307,7 @@
 			<div class="modal-actions">
 				<button type="button" class="button" onclick={() => (editing = null)}>Cancel</button>
 				<button type="submit" class="button primary" disabled={saving}
-					>{saving ? 'Saving...' : 'Save provider'}</button
+					>{saving ? 'Saving...' : 'Save connection'}</button
 				>
 			</div>
 		</form>
@@ -409,8 +413,19 @@
 	.provider-meta {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		gap: 10px;
 	}
+	.provider-meta summary {
+		width: 100%;
+		color: var(--text-dim);
+		cursor: pointer;
+		font-size: var(--text-xs);
+		list-style: none;
+	}
+	.provider-meta summary::-webkit-details-marker { display: none; }
+	.provider-meta summary::before { content: '+'; display: inline-block; width: 12px; color: var(--text-faint); }
+	.provider-meta[open] summary::before { content: '−'; }
 	.mono {
 		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 		font-size: var(--text-xs);

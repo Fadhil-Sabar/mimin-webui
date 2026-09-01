@@ -168,8 +168,8 @@
 <div class="app-shell">
 	<aside class="sidebar">
 		<div class="brand">
-			<span class="brand-mark"><Sparkles size={13} /></span><span>solace</span><span
-				class="brand-muted">/ agent</span
+			<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
+				class="brand-muted">/ workbench</span
 			>
 		</div>
 		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
@@ -178,7 +178,7 @@
 			<a class="nav-item" href={resolve('/chat')}><MessageSquare size={16} /> Chat</a>
 			<a class="nav-item active" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
 			<div class="nav-label projects-label">Preferences</div>
-			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Providers</a>
+			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			{#if project}
 				<div class="nav-label projects-label">Knowledge files</div>
 				{#each files as file (file.id)}
@@ -191,11 +191,15 @@
 			{/if}
 		</div>
 		<div class="sidebar-bottom">
-			<button class="nav-item" onclick={logout}><LogOut size={16} /> Log out</button>
 			<div class="user-row">
-				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span><span
-					><strong>{user?.name ?? 'Fadhil'}</strong><small>Personal workspace</small></span
-				>
+				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span>
+				<div class="user-meta">
+					<strong>{user?.name ?? 'Fadhil'}</strong>
+					<small>Personal workspace</small>
+				</div>
+				<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
+					<LogOut size={15} />
+				</button>
 			</div>
 		</div>
 	</aside>

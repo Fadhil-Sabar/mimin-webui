@@ -45,8 +45,8 @@
 	<div class="auth-theme-toggle"><ThemeToggle /></div>
 	<div class="auth-card">
 		<div class="brand">
-			<span class="brand-mark"><Sparkles size={14} /></span><span>solace</span><span
-				class="brand-muted">/ agent</span
+			<span class="brand-mark"><Sparkles size={14} /></span><span>mimin</span><span
+				class="brand-muted">/ workbench</span
 			>
 		</div>
 		<h1>Welcome back</h1>
