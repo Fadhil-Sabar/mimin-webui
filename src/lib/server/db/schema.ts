@@ -139,6 +139,22 @@ export const conversations = pgTable(
 	})
 );
 
+export const modelPreferences = pgTable(
+	'model_preferences',
+	{
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		model: text('model').notNull(),
+		thinkingLevel: text('thinking_level').notNull().default('off'),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.userId, table.model] }),
+		userIdx: index('model_preferences_user_idx').on(table.userId)
+	})
+);
+
 export const messages = pgTable(
 	'messages',
 	{

@@ -100,6 +100,15 @@
 	</button>
 
 	{#if open}
+		<button
+			type="button"
+			class="picker-backdrop"
+			onclick={() => {
+				open = false;
+			}}
+			aria-label="Close tools menu"
+			tabindex="-1"
+		></button>
 		<div
 			class="tool-menu"
 			class:placement-bottom={placement === 'bottom'}
@@ -306,10 +315,40 @@
 		color: var(--text-dim);
 		font-size: var(--text-sm);
 	}
+	.picker-backdrop {
+		display: none;
+	}
 	@media (max-width: 700px) {
+		.picker-backdrop {
+			display: block;
+			position: fixed;
+			inset: 0;
+			background: var(--overlay);
+			backdrop-filter: blur(2px);
+			-webkit-backdrop-filter: blur(2px);
+			z-index: 65;
+			border: 0;
+			padding: 0;
+			margin: 0;
+			cursor: pointer;
+		}
+		.tool-trigger {
+			min-height: 34px;
+			padding: 5px 8px;
+			font-size: var(--text-xs);
+		}
 		.tool-menu {
-			left: auto;
-			right: 0;
+			position: fixed;
+			top: auto;
+			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+			left: 12px;
+			right: 12px;
+			width: auto;
+			max-width: calc(100vw - 24px);
+			max-height: min(460px, 75dvh) !important;
+			z-index: 70;
+			border-radius: 12px;
+			box-shadow: 0 16px 48px var(--shadow);
 		}
 	}
 </style>

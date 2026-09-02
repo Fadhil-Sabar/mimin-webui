@@ -10,6 +10,10 @@ export const conversationInput = z.object({
 	model: z.string().trim().min(1).max(200).default('openai/gpt-4o-mini'),
 	enabledTools: z.array(z.string()).max(20).default(['web_search'])
 });
+export const modelPreferenceInput = z.object({
+	model: z.string().trim().min(1).max(200),
+	thinkingLevel: z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
+});
 export const messageInput = z.object({
 	content: z.string().trim().min(1).max(100000),
 	model: z.string().trim().max(200).optional(),

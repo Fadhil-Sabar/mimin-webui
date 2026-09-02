@@ -416,7 +416,13 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | {project?.name ?? 'Project'}</title></svelte:head>
-<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed}>
+<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed} class:mobile-open={sidebar.mobileOpen}>
+	<button
+		class="sidebar-backdrop"
+		onclick={() => sidebar.closeMobile()}
+		aria-label="Close sidebar"
+		tabindex="-1"
+	></button>
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -427,8 +433,8 @@
 			<button
 				class="sidebar-toggle"
 				onclick={() => sidebar.toggle()}
-				title="Collapse sidebar"
-				aria-label="Collapse sidebar"><PanelLeft size={16} /></button
+				title="Toggle sidebar"
+				aria-label="Toggle sidebar"><PanelLeft size={16} /></button
 			>
 		</div>
 		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
@@ -469,14 +475,12 @@
 	<main class="main-content">
 		<header class="topbar">
 			<div class="topbar-left">
-				{#if sidebar.collapsed}
-					<button
-						class="sidebar-toggle topbar-toggle"
-						onclick={() => sidebar.toggle()}
-						title="Expand sidebar"
-						aria-label="Expand sidebar"><PanelLeft size={16} /></button
-					>
-				{/if}
+				<button
+					class="sidebar-toggle topbar-toggle"
+					onclick={() => sidebar.toggle()}
+					title="Toggle sidebar"
+					aria-label="Toggle sidebar"><PanelLeft size={16} /></button
+				>
 				<div class="breadcrumb">
 					<a href={resolve('/projects')}>Projects</a><ChevronRight size={14} /><strong
 						>{project?.name ?? '...'}</strong

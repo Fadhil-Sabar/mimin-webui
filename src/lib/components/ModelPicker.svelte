@@ -3,12 +3,20 @@
 	import { SvelteMap } from 'svelte/reactivity';
 	import { tick } from 'svelte';
 
+	export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+
 	export type ModelOption = {
 		id: string;
 		provider: string;
 		name: string;
 		configured: boolean;
 		userConfigured: boolean;
+		capabilities?: {
+			vision: boolean;
+			tools: boolean;
+			reasoning: boolean;
+			thinkingLevels?: ThinkingLevel[];
+		};
 	};
 
 	type Props = {
@@ -151,6 +159,16 @@
 	</button>
 
 	{#if open}
+		<button
+			type="button"
+			class="picker-backdrop"
+			onclick={() => {
+				open = false;
+				search = '';
+			}}
+			aria-label="Close menu"
+			tabindex="-1"
+		></button>
 		<div
 			class="model-menu"
 			class:placement-bottom={placement === 'bottom'}
@@ -158,6 +176,38 @@
 			role="listbox"
 			aria-label="Available models"
 		>
+			<div class="model-list">
+				{#each filteredGroups as group (group.provider)}
+					<div class="model-group">
+						<div class="model-group-label">{group.label}</div>
+						{#each group.models as model (modelRef(model))}
+							{@const ref = modelRef(model)}
+							<button
+								type="button"
+								class="model-option"
+								class:selected={ref === value}
+								role="option"
+								aria-selected={ref === value}
+								onclick={() => choose(model)}
+							>
+								<span class="model-option-copy">
+									<strong>{model.name}</strong>
+									<small>{model.id}</small>
+								</span>
+								{#if model.userConfigured}
+									<span class="model-badge">Your key</span>
+								{:else if model.configured}
+									<span class="model-badge">Server key</span>
+								{/if}
+								{#if ref === value}<Check size={14} aria-hidden="true" />{/if}
+							</button>
+						{/each}
+					</div>
+				{/each}
+				{#if filteredGroups.length === 0}
+					<div class="model-no-results">No models match "{search}"</div>
+				{/if}
+			</div>
 			<div class="model-search">
 				<Search size={14} aria-hidden="true" />
 				<input
@@ -169,36 +219,6 @@
 					autocomplete="off"
 				/>
 			</div>
-			{#each filteredGroups as group (group.provider)}
-				<div class="model-group">
-					<div class="model-group-label">{group.label}</div>
-					{#each group.models as model (modelRef(model))}
-						{@const ref = modelRef(model)}
-						<button
-							type="button"
-							class="model-option"
-							class:selected={ref === value}
-							role="option"
-							aria-selected={ref === value}
-							onclick={() => choose(model)}
-						>
-							<span class="model-option-copy">
-								<strong>{model.name}</strong>
-								<small>{model.id}</small>
-							</span>
-							{#if model.userConfigured}
-								<span class="model-badge">Your key</span>
-							{:else if model.configured}
-								<span class="model-badge">Server key</span>
-							{/if}
-							{#if ref === value}<Check size={14} aria-hidden="true" />{/if}
-						</button>
-					{/each}
-				</div>
-			{/each}
-			{#if filteredGroups.length === 0}
-				<div class="model-no-results">No models match "{search}"</div>
-			{/if}
 		</div>
 	{/if}
 </div>
@@ -250,7 +270,8 @@
 		z-index: 20;
 		width: min(360px, calc(100vw - 36px));
 		max-height: min(420px, 58vh);
-		overflow-y: auto;
+		display: flex;
+		flex-direction: column;
 		padding: 6px;
 		border: 1px solid var(--border-strong);
 		border-radius: 9px;
@@ -261,19 +282,24 @@
 		bottom: auto;
 		top: calc(100% + 8px);
 	}
+	.model-list {
+		flex: 1 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+		padding-bottom: 2px;
+	}
 	.model-search {
 		display: flex;
 		align-items: center;
 		gap: 7px;
 		padding: 6px 8px;
-		margin-bottom: 4px;
+		margin-top: 6px;
+		margin-bottom: 0;
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		background: var(--surface-subtle);
 		color: var(--text-dim);
-		position: sticky;
-		top: 0;
-		z-index: 1;
+		flex-shrink: 0;
 	}
 	.model-search input {
 		flex: 1;
@@ -360,13 +386,41 @@
 		line-height: 1.2;
 		white-space: nowrap;
 	}
+	.picker-backdrop {
+		display: none;
+	}
 	@media (max-width: 700px) {
+		.picker-backdrop {
+			display: block;
+			position: fixed;
+			inset: 0;
+			background: var(--overlay);
+			backdrop-filter: blur(2px);
+			-webkit-backdrop-filter: blur(2px);
+			z-index: 65;
+			border: 0;
+			padding: 0;
+			margin: 0;
+			cursor: pointer;
+		}
 		.model-trigger {
-			max-width: min(230px, 58vw);
+			min-height: 34px;
+			padding: 5px 8px;
+			font-size: var(--text-xs);
+			max-width: min(190px, 45vw);
 		}
 		.model-menu {
-			left: auto;
-			right: 0;
+			position: fixed;
+			top: auto;
+			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+			left: 12px;
+			right: 12px;
+			width: auto;
+			max-width: calc(100vw - 24px);
+			max-height: min(460px, 75dvh) !important;
+			z-index: 70;
+			border-radius: 12px;
+			box-shadow: 0 16px 48px var(--shadow);
 		}
 	}
 </style>

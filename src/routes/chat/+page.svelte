@@ -33,7 +33,10 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
-	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
+	import ModelPicker, {
+		type ModelOption,
+		type ThinkingLevel
+	} from '$lib/components/ModelPicker.svelte';
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 
@@ -79,6 +82,8 @@
 	let modelsLoading = $state(true);
 	let modelLoadError = $state('');
 	let modelSaving = $state(false);
+	let thinkingSaving = $state(false);
+	let thinkingLevelsByModel = $state<Record<string, ThinkingLevel>>({});
 	let availableTools = $state<ToolOption[]>([]);
 	let toolsLoading = $state(true);
 	let abortController: AbortController | undefined;
@@ -165,6 +170,20 @@
 		const currentModel = models.find((model) => modelRef(model) === current);
 		return currentModel ? [currentModel, ...configuredModels] : configuredModels;
 	});
+	let selectedModel = $derived(
+		models.find((model) => modelRef(model) === activeConversation?.model)
+	);
+	let availableThinkingLevels = $derived<ThinkingLevel[]>(
+		selectedModel?.capabilities?.thinkingLevels ?? ['off']
+	);
+	let selectedThinkingLevel = $derived.by(() => {
+		const saved = activeConversation?.model
+			? thinkingLevelsByModel[activeConversation.model]
+			: undefined;
+		return saved && availableThinkingLevels.includes(saved)
+			? saved
+			: (availableThinkingLevels[0] ?? 'off');
+	});
 
 	async function loadModels() {
 		try {
@@ -214,6 +233,18 @@
 			/* ignore */
 		} finally {
 			toolsLoading = false;
+		}
+	}
+
+	async function loadThinkingPreferences() {
+		try {
+			const response = await fetch('/api/preferences');
+			if (!response.ok) return;
+			const data = await response.json();
+			if (data.thinkingLevels && typeof data.thinkingLevels === 'object')
+				thinkingLevelsByModel = data.thinkingLevels as Record<string, ThinkingLevel>;
+		} catch {
+			/* ignore */
 		}
 	}
 
@@ -374,7 +405,7 @@
 		} catch {
 			/* ignore */
 		}
-		await Promise.all([loadModels(), loadConversations(), loadTools()]);
+		await Promise.all([loadModels(), loadConversations(), loadTools(), loadThinkingPreferences()]);
 		const params = new URL(window.location.href).searchParams;
 		const requested = params.get('id');
 		const pendingPrompt = params.get('prompt');
@@ -427,6 +458,38 @@
 			notify(error instanceof Error ? error.message : 'Could not select model');
 		} finally {
 			modelSaving = false;
+		}
+	}
+
+	async function selectThinkingLevel(level: string) {
+		const model = activeConversation?.model;
+		if (!activeId || !model || !availableThinkingLevels.includes(level as ThinkingLevel)) return;
+		const nextLevel = level as ThinkingLevel;
+		const previousLevel = thinkingLevelsByModel[model];
+		thinkingLevelsByModel = { ...thinkingLevelsByModel, [model]: nextLevel };
+		thinkingSaving = true;
+		try {
+			const response = await fetch('/api/preferences', {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ model, thinkingLevel: nextLevel })
+			});
+			if (!response.ok)
+				throw new Error(
+					(await response.json().catch(() => null))?.error?.message ??
+						'Could not save thinking level'
+				);
+			notify('Thinking level saved');
+		} catch (error) {
+			if (previousLevel) thinkingLevelsByModel = { ...thinkingLevelsByModel, [model]: previousLevel };
+			else {
+				const restored = { ...thinkingLevelsByModel };
+				delete restored[model];
+				thinkingLevelsByModel = restored;
+			}
+			notify(error instanceof Error ? error.message : 'Could not save thinking level');
+		} finally {
+			thinkingSaving = false;
 		}
 	}
 
@@ -615,7 +678,13 @@
 
 <svelte:head><title>Mimin WebUI | Chat</title></svelte:head>
 <svelte:window onpopstate={handlePopState} onkeydown={handleWindowKeydown} />
-<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed}>
+<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed} class:mobile-open={sidebar.mobileOpen}>
+	<button
+		class="sidebar-backdrop"
+		onclick={() => sidebar.closeMobile()}
+		aria-label="Close sidebar"
+		tabindex="-1"
+	></button>
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -629,7 +698,10 @@
 			class="new-chat"
 			disabled={isNewConversationEmpty || running}
 			title={isNewConversationEmpty ? 'Already on a new conversation' : 'New chat'}
-			onclick={() => startNewConversation()}
+			onclick={() => {
+				sidebar.closeMobile();
+				startNewConversation();
+			}}
 		>
 			<Plus size={16} /> New chat <kbd>⌘ K</kbd>
 		</button>
@@ -686,7 +758,10 @@
 						{:else}
 							<button
 								class="project-item-btn"
-								onclick={() => loadConversation(conversation.id)}
+								onclick={() => {
+									sidebar.closeMobile();
+									loadConversation(conversation.id);
+								}}
 								title={conversation.title}
 							>
 								<span class="project-dot"></span>
@@ -737,9 +812,7 @@
 	<main class="main-content" bind:this={scrollEl} onscroll={handleScroll}>
 		<header class="topbar">
 			<div class="topbar-left">
-				{#if sidebar.collapsed}
-					<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Expand sidebar" aria-label="Expand sidebar"><PanelLeft size={16} /></button>
-				{/if}
+				<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Toggle sidebar" aria-label="Toggle sidebar"><PanelLeft size={16} /></button>
 				<div class="breadcrumb">
 					<strong>Chat</strong><ChevronDown size={14} /><span
 						>{activeConversation?.title ?? 'New session'}</span
@@ -889,39 +962,55 @@
 						disabled={running}
 						onkeydown={onKeydown}></textarea>
 					<div class="composer-row">
-						<input
-							bind:this={fileInput}
-							type="file"
-							multiple
-							accept=".txt,.md,.json,.pdf"
-							hidden
-							onchange={(event) => addAttachments(event.currentTarget.files)}
-						/>
-						<button
-							class="control"
-							title="Attach files"
-							disabled={running}
-							onclick={() => fileInput?.click()}><Paperclip size={15} /> File</button
-						>
-						<ModelPicker
-							models={pickerModels}
-							value={activeConversation?.model ?? ''}
-							loading={modelsLoading}
-							disabled={running || !activeId || modelSaving || configuredModels.length === 0}
-							placeholder={configuredModels.length
-								? 'Pick a model'
-								: modelLoadError
-									? 'Models unavailable'
-									: 'Configure a provider'}
-							onselect={selectModel}
-						/>
-						<ToolPicker
-							tools={availableTools}
-							enabledTools={activeConversation?.enabledTools ?? []}
-							loading={toolsLoading}
-							disabled={running || !activeId}
-							ontoggle={toggleTool}
-						/>
+						<div class="composer-tools">
+							<input
+								bind:this={fileInput}
+								type="file"
+								multiple
+								accept=".txt,.md,.json,.pdf"
+								hidden
+								onchange={(event) => addAttachments(event.currentTarget.files)}
+							/>
+							<button
+								class="control"
+								title="Attach files"
+								disabled={running}
+								onclick={() => fileInput?.click()}><Paperclip size={15} /> File</button
+							>
+							<ModelPicker
+								models={pickerModels}
+								value={activeConversation?.model ?? ''}
+								loading={modelsLoading}
+								disabled={running || !activeId || modelSaving || configuredModels.length === 0}
+								placeholder={configuredModels.length
+									? 'Pick a model'
+									: modelLoadError
+										? 'Models unavailable'
+										: 'Configure a provider'}
+								onselect={selectModel}
+							/>
+							<select
+								class="control thinking-level-control"
+								value={selectedThinkingLevel}
+								disabled={running || thinkingSaving || !activeId || !activeConversation?.model}
+								aria-label="Thinking level"
+								title="Thinking level"
+								onchange={(event) => selectThinkingLevel(event.currentTarget.value)}
+							>
+								{#each availableThinkingLevels as level}
+									<option value={level}>
+										{level === 'off' ? 'Thinking off' : `${level[0].toUpperCase()}${level.slice(1)}`}
+									</option>
+								{/each}
+							</select>
+							<ToolPicker
+								tools={availableTools}
+								enabledTools={activeConversation?.enabledTools ?? []}
+								loading={toolsLoading}
+								disabled={running || !activeId}
+								ontoggle={toggleTool}
+							/>
+						</div>
 						<button
 							class="send-button"
 							class:stop={running}
@@ -1364,10 +1453,19 @@
 	}
 	.composer-row {
 		display: flex;
-		align-items: center;
-		gap: 7px;
+		align-items: flex-end;
+		justify-content: space-between;
+		gap: 8px;
 		border-top: 1px solid var(--border);
 		padding-top: 10px;
+	}
+	.composer-tools {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 6px;
+		flex: 1 1 auto;
+		min-width: 0;
 	}
 	.control {
 		display: inline-flex;
@@ -1386,13 +1484,22 @@
 		color: var(--text-strong);
 		border-color: var(--text-faint);
 	}
+	.thinking-level-control {
+		max-width: 138px;
+		cursor: pointer;
+	}
+	.thinking-level-control:disabled {
+		opacity: 0.72;
+		cursor: not-allowed;
+	}
 	.send-button {
 		display: grid;
 		place-items: center;
+		width: 38px;
+		height: 38px;
+		flex: 0 0 38px;
 		margin-left: auto;
-		width: 40px;
-		height: 40px;
-		flex: 0 0 auto;
+		align-self: flex-end;
 		border: 0;
 		border-radius: 8px;
 		color: var(--accent-fg);
@@ -1420,7 +1527,7 @@
 	}
 	@media (max-width: 760px) {
 		.chat-wrap {
-			padding: 28px 18px 20px;
+			padding: 24px 14px 20px;
 		}
 		.message {
 			grid-template-columns: 1fr;
@@ -1430,10 +1537,37 @@
 			float: none;
 			display: inline-flex;
 		}
+		.composer-row {
+			gap: 6px;
+			padding-top: 8px;
+		}
+		.composer-tools {
+			gap: 5px;
+		}
+		.control {
+			min-height: 34px;
+			padding: 5px 8px;
+			font-size: var(--text-xs);
+		}
+		.thinking-level-control {
+			max-width: 110px;
+		}
+		.send-button {
+			width: 34px;
+			height: 34px;
+			flex: 0 0 34px;
+		}
 	}
 	@media (max-width: 420px) {
 		.chat-wrap {
-			padding-inline: 14px;
+			padding-inline: 12px;
+		}
+		.control {
+			min-height: 32px;
+			padding: 4px 7px;
+		}
+		.thinking-level-control {
+			max-width: 95px;
 		}
 	}
 </style>

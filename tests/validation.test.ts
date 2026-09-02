@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	conversationInput,
 	messageInput,
+	modelPreferenceInput,
 	projectInput,
 	providerSettingsInput
 } from '../src/lib/server/validation';
@@ -57,6 +58,20 @@ describe('request validation', () => {
 	});
 	it('rejects empty messages', () => {
 		expect(messageInput.safeParse({ content: '   ' }).success).toBe(false);
+	});
+	it('accepts supported model thinking levels and rejects unknown levels', () => {
+		expect(
+			modelPreferenceInput.safeParse({
+				model: 'openai/gpt-5',
+				thinkingLevel: 'high'
+			}).success
+		).toBe(true);
+		expect(
+			modelPreferenceInput.safeParse({
+				model: 'openai/gpt-5',
+				thinkingLevel: 'extreme'
+			}).success
+		).toBe(false);
 	});
 	it('accepts every supported custom provider protocol', () => {
 		for (const protocol of [

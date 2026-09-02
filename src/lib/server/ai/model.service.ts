@@ -1,7 +1,15 @@
-import { createModels, createProvider, type Api, type Model } from '@earendil-works/pi-ai';
+import {
+	createModels,
+	createProvider,
+	getSupportedThinkingLevels,
+	type Api,
+	type Model,
+	type ModelThinkingLevel
+} from '@earendil-works/pi-ai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { googleProvider } from '@earendil-works/pi-ai/providers/google';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
+import { builtinModels } from '@earendil-works/pi-ai/providers/all';
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy';
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy';
 import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messages.lazy';
@@ -33,6 +41,7 @@ type RuntimeModel = Model<Api>;
 export type ModelSource = 'live' | 'catalog';
 
 let registry: ReturnType<typeof createModels> | undefined;
+let catalogModels: RuntimeModel[] | undefined;
 const runtimeModels = new Map<string, RuntimeModel>();
 const liveModelCache = new Map<string, { models: RuntimeModel[]; expiresAt: number }>();
 
@@ -71,7 +80,12 @@ export interface AppModel {
 	name: string;
 	description?: string;
 	contextWindow?: number;
-	capabilities: { vision: boolean; tools: boolean; reasoning: boolean };
+	capabilities: {
+		vision: boolean;
+		tools: boolean;
+		reasoning: boolean;
+		thinkingLevels: ModelThinkingLevel[];
+	};
 	configured: boolean;
 	/** Whether the current user saved their own key for this provider. */
 	userConfigured: boolean;
@@ -158,18 +172,69 @@ function customRuntimeModel(
 	configured?: CustomModelDefinition
 ): RuntimeModel {
 	const metadata = mergeCustomModelMetadata(discovered, configured);
+	const catalogModel = knownCatalogModel(metadata.id, protocol);
+	const reasoning = metadata.reasoning ?? catalogModel?.reasoning ?? false;
 	return {
 		id: metadata.id,
 		name: metadata.name?.trim() || modelDisplayName(metadata.id),
 		provider,
 		api: protocol,
 		baseUrl,
-		reasoning: metadata.reasoning ?? false,
+		reasoning,
+		...(reasoning && catalogModel?.thinkingLevelMap
+			? { thinkingLevelMap: catalogModel.thinkingLevelMap }
+			: {}),
 		input: customModelInput(protocol, metadata.vision),
 		cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 		contextWindow: metadata.contextWindow ?? 128_000,
 		maxTokens: metadata.maxTokens ?? 8_192
 	};
+}
+
+/** Reuse precise thinking capabilities when a custom endpoint serves a known model. */
+function knownCatalogModel(
+	id: string,
+	protocol: CustomProviderProtocol
+): RuntimeModel | undefined {
+	catalogModels ??= [...builtinModels().getModels()] as RuntimeModel[];
+	const normalize = (value: string) => value.toLowerCase().replace(/^~/, '').replace(/-latest$/, '');
+	const normalizedId = normalize(id);
+	const preferredProvider: Partial<Record<CustomProviderProtocol, string>> = {
+		'openai-responses': 'openai',
+		'anthropic-messages': 'anthropic',
+		'google-generative-ai': 'google',
+		'mistral-conversations': 'mistral',
+		'azure-openai-responses': 'azure-openai-responses'
+	};
+	const familyProvider = /^(gpt-|o\d)/i.test(id)
+		? 'openai'
+		: /^claude/i.test(id)
+			? 'anthropic'
+			: /^gemini/i.test(id)
+				? 'google'
+				: /^deepseek/i.test(id)
+					? 'deepseek'
+					: undefined;
+	const providerHint = preferredProvider[protocol] ?? familyProvider;
+	const exactMatches = catalogModels.filter((model) => normalize(model.id) === normalizedId);
+	const hintedMatch = providerHint
+		? exactMatches.find((model) => model.provider === providerHint)
+		: undefined;
+
+	// Prefer the complete provider-qualified ID, then fall back to the final
+	// segment used by direct vendor endpoints (for example deepseek-v4-pro).
+	return (
+		hintedMatch ??
+		exactMatches[0] ??
+		catalogModels.find(
+			(model) => normalize(model.id.split('/').at(-1) ?? model.id) === normalizedId
+		) ??
+		catalogModels.find(
+			(model) =>
+				normalize(model.id.split('/').at(-1) ?? model.id) ===
+				normalize(id.split('/').at(-1) ?? id)
+		)
+	);
 }
 
 /** Register a user-owned custom provider from its persisted protocol/model definition. */
@@ -318,7 +383,8 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 				capabilities: {
 					vision: model.input?.includes('image') ?? false,
 					tools: true,
-					reasoning: Boolean(model.reasoning)
+					reasoning: Boolean(model.reasoning),
+					thinkingLevels: getSupportedThinkingLevels(model)
 				},
 				configured: isProviderConfigured(provider),
 				userConfigured: credential.fromUser,
@@ -386,7 +452,8 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 				capabilities: {
 					vision: model.input?.includes('image') ?? false,
 					tools: true,
-					reasoning: Boolean(model.reasoning)
+					reasoning: Boolean(model.reasoning),
+					thinkingLevels: getSupportedThinkingLevels(model)
 				},
 				configured: Boolean(credential.baseUrl),
 				userConfigured: credential.fromUser,

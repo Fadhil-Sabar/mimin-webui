@@ -121,7 +121,13 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | Home</title></svelte:head>
-<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed}>
+<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed} class:mobile-open={sidebar.mobileOpen}>
+	<button
+		class="sidebar-backdrop"
+		onclick={() => sidebar.closeMobile()}
+		aria-label="Close sidebar"
+		tabindex="-1"
+	></button>
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -166,9 +172,7 @@
 	<main class="main-content">
 		<header class="topbar">
 			<div class="topbar-left">
-				{#if sidebar.collapsed}
-					<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Expand sidebar" aria-label="Expand sidebar"><PanelLeft size={16} /></button>
-				{/if}
+				<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Toggle sidebar" aria-label="Toggle sidebar"><PanelLeft size={16} /></button>
 				<div class="breadcrumb"><strong>Home</strong></div>
 			</div>
 			<div class="top-actions">

@@ -1,11 +1,13 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import { clampThinkingLevel, type ModelThinkingLevel } from '@earendil-works/pi-ai';
 import { and, asc, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { listAvailableModels, modelRegistry, resolveModel, splitModelRef } from './model.service';
 import { getProviderCredential, type ProviderCredential } from './provider-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
 import { createWebSearchTool } from './tools/web-search.tool';
+import { getModelThinkingPreference } from './model-preferences.service';
 import { readStoredFile } from '$lib/server/files/storage';
 import { buildAttachmentContext } from '$lib/server/files/attachment-context';
 import { buildPdfVisionFallback } from '$lib/server/files/pdf-vision';
@@ -141,6 +143,13 @@ export async function runConversationTurn(
 		...(credential?.baseUrl ? { baseUrl: credential.baseUrl } : {}),
 		...(isCustomOpenAi ? { api: 'openai-completions' as const } : {})
 	};
+	const savedThinkingLevel = effectiveUserId
+		? await getModelThinkingPreference(effectiveUserId, selectedModelRef)
+		: 'off';
+	const thinkingLevel = clampThinkingLevel(
+		requestModel,
+		savedThinkingLevel as ModelThinkingLevel
+	);
 	const historyRows = await db
 		.select({
 			id: schema.messages.id,
@@ -210,6 +219,7 @@ export async function runConversationTurn(
 		initialState: {
 			systemPrompt: buildProjectSystemPrompt(AGENT_SYSTEM_PROMPT, project?.instructions),
 			model: requestModel,
+			thinkingLevel,
 			messages: toAgentMessages(history),
 			tools
 		},
