@@ -24,6 +24,7 @@ export const GET: RequestHandler = async (event) => {
 		const calls = await db
 			.select({
 				id: schema.toolCalls.id,
+				messageId: schema.toolCalls.messageId,
 				toolCallId: schema.toolCalls.toolCallId,
 				toolName: schema.toolCalls.toolName,
 				input: schema.toolCalls.input,
@@ -35,7 +36,14 @@ export const GET: RequestHandler = async (event) => {
 			.from(schema.toolCalls)
 			.innerJoin(schema.messages, eq(schema.toolCalls.messageId, schema.messages.id))
 			.where(eq(schema.messages.conversationId, id))
-			.orderBy(desc(schema.toolCalls.startedAt));
+			.orderBy(asc(schema.toolCalls.startedAt));
+		const toolCallsByMessage = new Map<string, typeof calls>();
+		for (const call of calls) {
+			if (!call.messageId) continue;
+			const current = toolCallsByMessage.get(call.messageId) ?? [];
+			current.push(call);
+			toolCallsByMessage.set(call.messageId, current);
+		}
 		const attachmentRows = rows.length
 			? await db
 					.select({
@@ -66,7 +74,8 @@ export const GET: RequestHandler = async (event) => {
 			conversation,
 			messages: rows.map((row) => ({
 				...row,
-				attachments: attachmentsByMessage.get(row.id) ?? []
+				attachments: attachmentsByMessage.get(row.id) ?? [],
+				toolCalls: toolCallsByMessage.get(row.id) ?? []
 			})),
 			toolCalls: calls
 		});

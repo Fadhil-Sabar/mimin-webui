@@ -42,17 +42,16 @@ const EMPTY_USAGE = {
 function toAgentMessages(
 	rows: Array<{ role: string; content: unknown; createdAt: Date }>
 ): AgentMessage[] {
-	return rows
-		.filter((row) => row.role === 'user' || row.role === 'assistant')
-		.map((row) => {
-			if (row.role === 'user') {
-				const text = typeof row.content === 'string' ? row.content : JSON.stringify(row.content);
-				return {
-					role: 'user' as const,
-					content: [{ type: 'text' as const, text }],
-					timestamp: row.createdAt.getTime()
-				};
-			}
+	const result: AgentMessage[] = [];
+	for (const row of rows) {
+		if (row.role === 'user') {
+			const text = typeof row.content === 'string' ? row.content : JSON.stringify(row.content);
+			result.push({
+				role: 'user' as const,
+				content: [{ type: 'text' as const, text }],
+				timestamp: row.createdAt.getTime()
+			});
+		} else if (row.role === 'assistant') {
 			let contentBlocks: Array<
 				{ type: 'thinking'; thinking: string } | { type: 'text'; text: string }
 			> = [];
@@ -72,22 +71,30 @@ function toAgentMessages(
 					.filter(Boolean) as Array<
 					{ type: 'thinking'; thinking: string } | { type: 'text'; text: string }
 				>;
+			} else if (typeof row.content === 'string' && row.content.trim()) {
+				contentBlocks = [{ type: 'text' as const, text: row.content }];
 			}
 			if (contentBlocks.length === 0) {
-				const text = typeof row.content === 'string' ? row.content : JSON.stringify(row.content);
-				contentBlocks = [{ type: 'text' as const, text }];
+				continue;
 			}
-			return {
-				role: 'assistant' as const,
-				content: contentBlocks,
-				api: 'unknown',
-				provider: 'unknown',
-				model: 'unknown',
-				usage: EMPTY_USAGE,
-				stopReason: 'stop' as const,
-				timestamp: row.createdAt.getTime()
-			} as unknown as AgentMessage;
-		}) as AgentMessage[];
+			const last = result[result.length - 1];
+			if (last && last.role === 'assistant') {
+				last.content.push(...contentBlocks);
+			} else {
+				result.push({
+					role: 'assistant' as const,
+					content: contentBlocks,
+					api: 'unknown',
+					provider: 'unknown',
+					model: 'unknown',
+					usage: EMPTY_USAGE,
+					stopReason: 'stop' as const,
+					timestamp: row.createdAt.getTime()
+				} as unknown as AgentMessage);
+			}
+		}
+	}
+	return result;
 }
 
 export async function runConversationTurn(
@@ -227,29 +234,111 @@ export async function runConversationTurn(
 		toolExecution: 'sequential',
 		getApiKey: credential?.apiKey ? () => credential.apiKey as string : undefined
 	});
-	const [assistantMessage] = await db
-		.insert(schema.messages)
-		.values({ conversationId, role: 'assistant', content: '' })
-		.returning();
 	activeAgents.set(conversationId, agent);
-	let assistantText = '';
-	let thinkingText = '';
+
+	let currentAssistantMessageId: string | null = null;
+	let currentAssistantText = '';
+	let currentThinkingText = '';
+	let lastAssistantMessageId: string | null = null;
+	const createdAssistantMessageIds: string[] = [];
+
+	async function ensureAssistantMessage(): Promise<string> {
+		if (currentAssistantMessageId) return currentAssistantMessageId;
+		const [msg] = await db
+			.insert(schema.messages)
+			.values({ conversationId, role: 'assistant', content: '' })
+			.returning();
+		currentAssistantMessageId = msg.id;
+		lastAssistantMessageId = msg.id;
+		createdAssistantMessageIds.push(msg.id);
+		emit({
+			type: 'message.start',
+			messageId: msg.id,
+			role: 'assistant',
+			createdAt: msg.createdAt.toISOString()
+		});
+		return msg.id;
+	}
+
+	async function finalizeCurrentAssistantMessage() {
+		if (!currentAssistantMessageId) return;
+		const msgId = currentAssistantMessageId;
+		const text = currentAssistantText;
+		const thinking = currentThinkingText;
+		const content = thinking.trim()
+			? [
+					{ type: 'thinking', thinking: thinking.trim() },
+					{ type: 'text', text }
+				]
+			: text;
+		await db
+			.update(schema.messages)
+			.set({ content })
+			.where(eq(schema.messages.id, msgId));
+		emit({
+			type: 'message.end',
+			messageId: msgId,
+			content
+		});
+		currentAssistantMessageId = null;
+		currentAssistantText = '';
+		currentThinkingText = '';
+	}
+
 	agent.subscribe(async (event) => {
 		const e = event as AgentEvent;
 		if (e.type === 'agent_start') emit({ type: 'turn.start' });
+		if (e.type === 'message_start') {
+			const role = (e.message as { role?: string })?.role;
+			if (role === 'assistant') {
+				await ensureAssistantMessage();
+			}
+		}
+		if (e.type === 'message_update') {
+			const msgId = await ensureAssistantMessage();
+			if (e.assistantMessageEvent?.type === 'thinking_delta') {
+				const delta = e.assistantMessageEvent.delta ?? '';
+				currentThinkingText += delta;
+				emit({ type: 'thinking.delta', messageId: msgId, delta });
+			} else if (e.assistantMessageEvent?.type === 'text_delta') {
+				const delta = e.assistantMessageEvent.delta ?? '';
+				currentAssistantText += delta;
+				emit({ type: 'message.delta', messageId: msgId, delta });
+			}
+		}
+		if (e.type === 'message_end') {
+			const role = (e.message as { role?: string })?.role;
+			if (role === 'assistant') {
+				await finalizeCurrentAssistantMessage();
+			}
+		}
 		if (e.type === 'tool_execution_start') {
+			const parentMessageId = lastAssistantMessageId ?? (await ensureAssistantMessage());
 			await db.insert(schema.toolCalls).values({
-				messageId: assistantMessage.id,
+				messageId: parentMessageId,
 				toolCallId: e.toolCallId,
 				toolName: e.toolName,
 				input: e.args,
 				status: 'running',
 				startedAt: new Date()
 			});
-			emit({ type: 'tool.start', toolCallId: e.toolCallId, tool: e.toolName, label: e.toolName });
+			emit({
+				type: 'tool.start',
+				messageId: parentMessageId,
+				toolCallId: e.toolCallId,
+				tool: e.toolName,
+				label: e.toolName,
+				input: e.args
+			});
 		}
-		if (e.type === 'tool_execution_update')
-			emit({ type: 'tool.update', toolCallId: e.toolCallId, update: e.partialResult });
+		if (e.type === 'tool_execution_update') {
+			emit({
+				type: 'tool.update',
+				messageId: lastAssistantMessageId,
+				toolCallId: e.toolCallId,
+				update: e.partialResult
+			});
+		}
 		if (e.type === 'tool_execution_end') {
 			await db
 				.update(schema.toolCalls)
@@ -261,28 +350,17 @@ export async function runConversationTurn(
 				.where(eq(schema.toolCalls.toolCallId, e.toolCallId));
 			emit({
 				type: 'tool.end',
+				messageId: lastAssistantMessageId,
 				toolCallId: e.toolCallId,
 				status: e.isError ? 'failed' : 'completed',
 				result: e.result
 			});
 		}
-		if (e.type === 'message_update') {
-			if (e.assistantMessageEvent?.type === 'thinking_delta') {
-				const delta = e.assistantMessageEvent.delta;
-				thinkingText += delta;
-				emit({ type: 'thinking.delta', messageId: `${conversationId}:assistant`, delta });
-			} else if (e.assistantMessageEvent?.type === 'text_delta') {
-				const delta = e.assistantMessageEvent.delta;
-				assistantText += delta;
-				emit({ type: 'message.delta', messageId: `${conversationId}:assistant`, delta });
-			}
-		}
-		if (e.type === 'message_end' && e.message?.role === 'assistant')
-			emit({ type: 'message.end', messageId: `${conversationId}:assistant` });
 		if (e.type === 'agent_end') emit({ type: 'turn.end' });
 	});
 	try {
 		await agent.prompt(promptWithAttachments, pdfVisionFallback.images);
+		await finalizeCurrentAssistantMessage();
 		if (agent.state.errorMessage) {
 			throw new Error(agent.state.errorMessage);
 		}
@@ -296,16 +374,31 @@ export async function runConversationTurn(
 				(lastMsg as { errorMessage?: string }).errorMessage || 'Agent execution failed'
 			);
 		}
-		const content = thinkingText.trim()
-			? [
-					{ type: 'thinking', thinking: thinkingText },
-					{ type: 'text', text: assistantText }
-				]
-			: assistantText;
-		await db
-			.update(schema.messages)
-			.set({ content })
-			.where(eq(schema.messages.id, assistantMessage.id));
+
+		for (const msgId of createdAssistantMessageIds) {
+			const [msg] = await db
+				.select()
+				.from(schema.messages)
+				.where(eq(schema.messages.id, msgId));
+			if (msg) {
+				const hasContent =
+					typeof msg.content === 'string'
+						? msg.content.trim().length > 0
+						: Array.isArray(msg.content)
+							? msg.content.length > 0
+							: Boolean(msg.content);
+				if (!hasContent) {
+					const toolCallsForMsg = await db
+						.select()
+						.from(schema.toolCalls)
+						.where(eq(schema.toolCalls.messageId, msgId));
+					if (toolCallsForMsg.length === 0) {
+						await db.delete(schema.messages).where(eq(schema.messages.id, msgId)).catch(() => {});
+					}
+				}
+			}
+		}
+
 		await db
 			.update(schema.conversations)
 			.set({ updatedAt: new Date() })
@@ -315,13 +408,25 @@ export async function runConversationTurn(
 				.update(schema.projects)
 				.set({ updatedAt: new Date() })
 				.where(eq(schema.projects.id, conversation.projectId));
-		return assistantMessage;
+		return lastAssistantMessageId;
 	} catch (error) {
-		if (!assistantText && !thinkingText) {
-			await db
-				.delete(schema.messages)
-				.where(eq(schema.messages.id, assistantMessage.id))
-				.catch(() => {});
+		for (const msgId of createdAssistantMessageIds) {
+			const [msg] = await db
+				.select()
+				.from(schema.messages)
+				.where(eq(schema.messages.id, msgId))
+				.catch(() => []);
+			if (msg) {
+				const hasContent =
+					typeof msg.content === 'string'
+						? msg.content.trim().length > 0
+						: Array.isArray(msg.content)
+							? msg.content.length > 0
+							: Boolean(msg.content);
+				if (!hasContent) {
+					await db.delete(schema.messages).where(eq(schema.messages.id, msgId)).catch(() => {});
+				}
+			}
 		}
 		throw error;
 	} finally {

@@ -14,7 +14,9 @@
 		Bot,
 		Check,
 		ChevronDown,
+		FileText,
 		FolderKanban,
+		Globe,
 		LogOut,
 		MessageSquare,
 		PanelLeft,
@@ -28,6 +30,7 @@
 		Trash2,
 		User,
 		UserRound,
+		Wrench,
 		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
@@ -49,12 +52,24 @@
 		updatedAt: string;
 		projectId: string | null;
 	};
+	type ToolCall = {
+		id?: string;
+		toolCallId: string;
+		toolName: string;
+		input?: unknown;
+		output?: unknown;
+		status: 'pending' | 'running' | 'completed' | 'failed';
+		startedAt?: string | null;
+		completedAt?: string | null;
+	};
 	type ChatMessage = {
 		id: string;
 		role: 'user' | 'assistant';
 		content: unknown;
 		createdAt: string;
 		attachments?: MessageAttachment[];
+		toolCalls?: ToolCall[];
+		isStreaming?: boolean;
 	};
 	type MessageAttachment = {
 		id: string;
@@ -75,8 +90,6 @@
 	let activeId = $state('');
 	let activeConversation = $state<Conversation | null>(null);
 	let messages = $state<ChatMessage[]>([]);
-	let liveResponse = $state('');
-	let liveThinking = $state('');
 	let liveError = $state('');
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
@@ -97,7 +110,7 @@
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 
 	let isNewConversationEmpty = $derived(
-		messages.length === 0 && !liveResponse && !running && !!activeConversation
+		messages.length === 0 && !running && !!activeConversation
 	);
 
 	const SCROLL_THRESHOLD = 80;
@@ -118,13 +131,95 @@
 
 	$effect(() => {
 		// Subscribe to reactive changes
-		void liveResponse;
-		void liveThinking;
 		void messages;
 
 		if (userAtBottom) {
 			tick().then(scrollToBottom);
 		}
+	});
+
+	function formatToolLabel(
+		toolName: string,
+		input?: unknown
+	): { label: string; action: string; query?: string } {
+		const rawInput = input && typeof input === 'object' ? (input as Record<string, unknown>) : {};
+		const query = typeof rawInput.query === 'string' ? rawInput.query : undefined;
+
+		if (toolName === 'project_knowledge_search') {
+			return {
+				label: 'Project Knowledge Search',
+				action: query ? `Searching project knowledge for "${query}"` : 'Searching project knowledge...',
+				query
+			};
+		}
+		if (toolName === 'web_search') {
+			return {
+				label: 'Web Search',
+				action: query ? `Searching web for "${query}"` : 'Searching web...',
+				query
+			};
+		}
+		return {
+			label: toolName,
+			action: query ? `Running ${toolName} for "${query}"` : `Running ${toolName}...`,
+			query
+		};
+	}
+
+	function getToolSourceList(
+		toolCall: ToolCall
+	): Array<{ title: string; url?: string; page?: number | null; type?: string }> {
+		if (!toolCall.output || typeof toolCall.output !== 'object') return [];
+		const output = toolCall.output as Record<string, unknown>;
+		const details = output.details as Record<string, unknown> | undefined;
+		if (details && Array.isArray(details.sources)) {
+			return details.sources as Array<{
+				title: string;
+				url?: string;
+				page?: number | null;
+				type?: string;
+			}>;
+		}
+		return [];
+	}
+
+	function getToolResultSummary(toolCall: ToolCall): string {
+		const sources = getToolSourceList(toolCall);
+		if (toolCall.toolName === 'project_knowledge_search') {
+			if (sources.length > 0) {
+				return `${sources.length} document${sources.length === 1 ? '' : 's'} referenced`;
+			}
+			return 'Search completed';
+		}
+		if (toolCall.toolName === 'web_search') {
+			if (sources.length > 0) {
+				return `${sources.length} source${sources.length === 1 ? '' : 's'} found`;
+			}
+			return 'Search completed';
+		}
+		return 'Completed';
+	}
+
+	let activeAgentActivity = $derived.by(() => {
+		if (!running) return '';
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const msg = messages[i];
+			if (msg.role === 'assistant') {
+				const runningTool = msg.toolCalls?.find((t) => t.status === 'running');
+				if (runningTool) {
+					return formatToolLabel(runningTool.toolName, runningTool.input).action;
+				}
+				if (msg.isStreaming) {
+					if (thinkingText(msg.content) && !contentText(msg.content)) {
+						return 'Thinking...';
+					}
+					if (contentText(msg.content)) {
+						return 'Responding...';
+					}
+				}
+			}
+		}
+		return 'Working...';
 	});
 
 	function notify(value: string) {
@@ -283,8 +378,6 @@
 		activeId = id;
 		activeConversation = conversations.find((c) => c.id === id) ?? null;
 		if (!preserveLiveState) {
-			liveResponse = '';
-			liveThinking = '';
 			liveError = '';
 		}
 		updateChatUrl(id, replaceUrl);
@@ -574,26 +667,6 @@
 		pendingAttachments = pendingAttachments.filter((_, itemIndex) => itemIndex !== index);
 	}
 
-	function appendAssistantMessage(text: string, thinking: string = '') {
-		const content = thinking.trim()
-			? [
-					{ type: 'thinking', thinking: thinking.trim() },
-					{ type: 'text', text }
-				]
-			: text;
-		messages = [
-			...messages,
-			{
-				id: `${activeId}:assistant`,
-				role: 'assistant',
-				content,
-				createdAt: new Date().toISOString()
-			}
-		];
-		liveResponse = '';
-		liveThinking = '';
-	}
-
 	async function sendMessage() {
 		const content = message.trim();
 		if ((!content && pendingAttachments.length === 0) || !activeId) {
@@ -603,8 +676,6 @@
 		const filesToSend = pendingAttachments;
 		running = true;
 		liveError = '';
-		liveResponse = '';
-		liveThinking = '';
 		message = '';
 		pendingAttachments = [];
 		userAtBottom = true;
@@ -612,7 +683,7 @@
 		messages = [
 			...messages,
 			{
-				id: `${activeId}:user`,
+				id: `${activeId}:user:${Date.now()}`,
 				role: 'user',
 				content,
 				attachments: filesToSend.map((file, index) => ({
@@ -630,18 +701,174 @@
 				activeId,
 				content,
 				(event) => {
-					if (event.type === 'thinking.delta') liveThinking += String(event.delta ?? '');
-					if (event.type === 'message.delta') liveResponse += String(event.delta ?? '');
-					if (event.type === 'error') {
+					if (event.type === 'message.start') {
+						if (event.role === 'assistant') {
+							const msgId = String(event.messageId);
+							const existing = messages.find((m) => m.id === msgId);
+							if (!existing) {
+								messages = [
+									...messages,
+									{
+										id: msgId,
+										role: 'assistant',
+										content: '',
+										createdAt:
+											typeof event.createdAt === 'string'
+												? event.createdAt
+												: new Date().toISOString(),
+										toolCalls: [],
+										isStreaming: true
+									}
+								];
+							}
+						}
+					} else if (event.type === 'thinking.delta') {
+						const msgId = String(event.messageId);
+						const delta = String(event.delta ?? '');
+						let found = false;
+						messages = messages.map((msg) => {
+							if (msg.id !== msgId) return msg;
+							found = true;
+							let currentThinking = thinkingText(msg.content);
+							let currentText = contentText(msg.content);
+							currentThinking += delta;
+							return {
+								...msg,
+								content: [
+									{ type: 'thinking', thinking: currentThinking },
+									...(currentText ? [{ type: 'text', text: currentText }] : [])
+								],
+								isStreaming: true
+							};
+						});
+						if (!found) {
+							messages = [
+								...messages,
+								{
+									id: msgId,
+									role: 'assistant',
+									content: [{ type: 'thinking', thinking: delta }],
+									createdAt: new Date().toISOString(),
+									toolCalls: [],
+									isStreaming: true
+								}
+							];
+						}
+					} else if (event.type === 'message.delta') {
+						const msgId = String(event.messageId);
+						const delta = String(event.delta ?? '');
+						let found = false;
+						messages = messages.map((msg) => {
+							if (msg.id !== msgId) return msg;
+							found = true;
+							let currentThinking = thinkingText(msg.content);
+							let currentText = contentText(msg.content);
+							currentText += delta;
+							return {
+								...msg,
+								content: currentThinking
+									? [
+											{ type: 'thinking', thinking: currentThinking },
+											{ type: 'text', text: currentText }
+										]
+									: currentText,
+								isStreaming: true
+							};
+						});
+						if (!found) {
+							messages = [
+								...messages,
+								{
+									id: msgId,
+									role: 'assistant',
+									content: delta,
+									createdAt: new Date().toISOString(),
+									toolCalls: [],
+									isStreaming: true
+								}
+							];
+						}
+					} else if (event.type === 'tool.start') {
+						const msgId = event.messageId ? String(event.messageId) : undefined;
+						const toolCallId = String(event.toolCallId);
+						const toolName = String(event.tool ?? event.label ?? 'tool');
+						const input = event.input;
+						const newCall: ToolCall = {
+							toolCallId,
+							toolName,
+							input,
+							status: 'running',
+							startedAt: new Date().toISOString()
+						};
+						let targetMsgId = msgId;
+						if (!targetMsgId) {
+							const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+							targetMsgId = lastAssistant?.id;
+						}
+						if (targetMsgId) {
+							messages = messages.map((msg) => {
+								if (msg.id !== targetMsgId) return msg;
+								const currentCalls = msg.toolCalls ? [...msg.toolCalls] : [];
+								const idx = currentCalls.findIndex((c) => c.toolCallId === toolCallId);
+								if (idx >= 0) {
+									currentCalls[idx] = { ...currentCalls[idx], ...newCall };
+								} else {
+									currentCalls.push(newCall);
+								}
+								return { ...msg, toolCalls: currentCalls };
+							});
+						}
+					} else if (event.type === 'tool.update') {
+						const toolCallId = String(event.toolCallId);
+						messages = messages.map((msg) => {
+							if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
+							return {
+								...msg,
+								toolCalls: msg.toolCalls.map((c) =>
+									c.toolCallId === toolCallId ? { ...c, output: event.update } : c
+								)
+							};
+						});
+					} else if (event.type === 'tool.end') {
+						const toolCallId = String(event.toolCallId);
+						const status = event.status === 'failed' ? 'failed' : 'completed';
+						const result = event.result;
+						messages = messages.map((msg) => {
+							if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
+							return {
+								...msg,
+								toolCalls: msg.toolCalls.map((c) =>
+									c.toolCallId === toolCallId
+										? {
+												...c,
+												status,
+												output: result,
+												completedAt: new Date().toISOString()
+											}
+										: c
+								)
+							};
+						});
+					} else if (event.type === 'message.end') {
+						const msgId = String(event.messageId);
+						messages = messages.map((msg) =>
+							msg.id === msgId
+								? {
+										...msg,
+										isStreaming: false,
+										content: event.content !== undefined ? event.content : msg.content
+									}
+								: msg
+						);
+					} else if (event.type === 'error') {
 						liveError = extractSseErrorMessage(event.error);
+						messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 					}
 				},
 				abortController.signal,
 				activeConversation?.model,
 				filesToSend
 			);
-			if ((liveResponse || liveThinking) && !liveError)
-				appendAssistantMessage(liveResponse, liveThinking);
 		} catch (error) {
 			if ((error as Error).name !== 'AbortError') pendingAttachments = filesToSend;
 			if ((error as Error).name !== 'AbortError')
@@ -649,6 +876,7 @@
 		} finally {
 			running = false;
 			abortController = undefined;
+			messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 			await loadConversations();
 			if (activeId) await loadConversation(activeId, false, true);
 		}
@@ -658,8 +886,7 @@
 		if (activeId) await stopConversation(activeId).catch(() => {});
 		abortController?.abort();
 		running = false;
-		if ((liveResponse || liveThinking) && !liveError)
-			appendAssistantMessage(liveResponse, liveThinking);
+		messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 		notify('Generation stopped');
 	}
 
@@ -831,7 +1058,9 @@
 		</header>
 		<div class="chat-wrap">
 			<div class="chat-title">
-				<span class="ready" class:working={running}><i></i> {running ? 'working' : 'ready'}</span>
+				<span class="ready" class:working={running}>
+					<i></i> {running ? (activeAgentActivity ? `working · ${activeAgentActivity.toLowerCase()}` : 'working') : 'ready'}
+				</span>
 				<h1>{activeConversation?.title ?? 'New conversation'}</h1>
 				<p>
 					{activeConversation?.model
@@ -843,7 +1072,7 @@
 			</div>
 			{#if busy}
 				<div class="empty-state" role="status">Loading conversations...</div>
-			{:else if messages.length === 0 && !liveResponse}
+			{:else if messages.length === 0}
 				<div class="empty-state">Ask something to start a conversation.</div>
 			{/if}
 			{#each messages as msg (msg.id)}
@@ -859,6 +1088,22 @@
 						{:else}
 							<Bot size={14} aria-hidden="true" />
 							<span>MIMIN</span>
+							{#if msg.isStreaming}
+								<span class="live-tag">
+									{#if msg.toolCalls?.some((t) => t.status === 'running')}
+										{formatToolLabel(
+											msg.toolCalls.find((t) => t.status === 'running')!.toolName,
+											msg.toolCalls.find((t) => t.status === 'running')!.input
+										).action.toLowerCase()}
+									{:else if thinkingText(msg.content) && !contentText(msg.content)}
+										thinking...
+									{:else if contentText(msg.content)}
+										responding...
+									{:else}
+										working...
+									{/if}
+								</span>
+							{/if}
 						{/if}
 						<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
 					</div>
@@ -881,10 +1126,13 @@
 							</div>
 						{/if}
 						{#if msg.role === 'assistant' && thinkingText(msg.content)}
-							<details class="thinking-block">
+							<details class="thinking-block" open={msg.isStreaming && !contentText(msg.content)}>
 								<summary class="thinking-summary">
 									<Sparkles size={13} />
 									<span>Thinking process</span>
+									{#if msg.isStreaming && !contentText(msg.content)}
+										<span class="thinking-live-dot"></span>
+									{/if}
 									<ChevronDown size={13} class="chevron" />
 								</summary>
 								<div class="thinking-content">{thinkingText(msg.content)}</div>
@@ -896,41 +1144,87 @@
 							{:else}
 								<p>{contentText(msg.content)}</p>
 							{/if}
+						{:else if msg.role === 'assistant' && msg.isStreaming && !thinkingText(msg.content) && (!msg.toolCalls || msg.toolCalls.length === 0)}
+							<p class="response-text thinking"><span class="pulse-dot"></span> Thinking...</p>
+						{/if}
+						{#if msg.toolCalls && msg.toolCalls.length > 0}
+							<div class="tool-calls-container" aria-label="Tool executions">
+								{#each msg.toolCalls as toolCall (toolCall.toolCallId || toolCall.id || toolCall.toolName)}
+									{@const toolMeta = formatToolLabel(toolCall.toolName, toolCall.input)}
+									<details
+										class="tool-call-card"
+										class:tool-running={toolCall.status === 'running'}
+										class:tool-failed={toolCall.status === 'failed'}
+									>
+										<summary class="tool-call-summary">
+											<div class="tool-call-icon">
+												{#if toolCall.toolName === 'project_knowledge_search'}
+													<FolderKanban size={13} />
+												{:else if toolCall.toolName === 'web_search'}
+													<Globe size={13} />
+												{:else}
+													<Wrench size={13} />
+												{/if}
+											</div>
+											<div class="tool-call-info">
+												<span class="tool-call-label">{toolMeta.label}</span>
+												{#if toolMeta.query}
+													<span class="tool-call-query">"{toolMeta.query}"</span>
+												{/if}
+											</div>
+											<div class="tool-call-status">
+												{#if toolCall.status === 'running'}
+													<span class="tool-status-badge running">
+														<span class="pulse-dot"></span> Running...
+													</span>
+												{:else if toolCall.status === 'failed'}
+													<span class="tool-status-badge failed">Failed</span>
+												{:else}
+													<span class="tool-status-badge completed">
+														<Check size={11} />
+														{getToolResultSummary(toolCall)}
+													</span>
+												{/if}
+												<ChevronDown size={12} class="tool-chevron" />
+											</div>
+										</summary>
+										<div class="tool-call-details">
+											{#if toolCall.input}
+												<div class="tool-detail-section">
+													<span class="tool-detail-heading">Input Parameters</span>
+													<pre class="tool-json">{JSON.stringify(toolCall.input, null, 2)}</pre>
+												</div>
+											{/if}
+											{#if toolCall.output}
+												<div class="tool-detail-section">
+													<span class="tool-detail-heading">Result</span>
+													{#if getToolSourceList(toolCall).length > 0}
+														<div class="tool-source-chips">
+															{#each getToolSourceList(toolCall) as src}
+																<div class="tool-source-chip">
+																	{#if src.type === 'project_file'}
+																		<FileText size={12} />
+																		<span>{src.title}{src.page ? ` (p. ${src.page})` : ''}</span>
+																	{:else}
+																		<Globe size={12} />
+																		<a href={src.url} target="_blank" rel="noopener noreferrer">{src.title || src.url}</a>
+																	{/if}
+																</div>
+															{/each}
+														</div>
+													{:else}
+														<pre class="tool-json">{typeof toolCall.output === 'string' ? toolCall.output : JSON.stringify(toolCall.output, null, 2)}</pre>
+													{/if}
+												</div>
+											{/if}
+										</div>
+									</details>
+								{/each}
+							</div>
 						{/if}
 					</div>
 				</article>
 			{/each}
-			{#if running || liveResponse || liveThinking}
-				<article class="message assistant-message" aria-label="Mimin message">
-					<div class="message-label">
-						<Bot size={14} aria-hidden="true" />
-						<span>MIMIN</span>
-						{#if running}
-							<span class="live-tag">{liveResponse ? 'responding...' : 'thinking...'}</span>
-						{/if}
-					</div>
-					<div class="response">
-						{#if liveThinking}
-							<details class="thinking-block" open={!liveResponse}>
-								<summary class="thinking-summary">
-									<Sparkles size={13} />
-									<span>Thinking process</span>
-									{#if running && !liveResponse}
-										<span class="thinking-live-dot"></span>
-									{/if}
-									<ChevronDown size={13} class="chevron" />
-								</summary>
-								<div class="thinking-content">{liveThinking}</div>
-							</details>
-						{/if}
-						{#if liveResponse}
-							<Markdown content={liveResponse} />
-						{:else if !liveThinking}
-							<p class="response-text thinking"><span class="pulse-dot"></span> Thinking...</p>
-						{/if}
-					</div>
-				</article>
-			{/if}
 			{#if liveError}
 				<div class="inline-error" role="alert"><strong>Agent error</strong> {liveError}</div>
 			{/if}
@@ -1309,12 +1603,8 @@
 	.message-attachments {
 		margin-bottom: 12px;
 	}
-	.assistant-message .response,
 	.assistant-message > div:last-child {
 		min-width: 0;
-	}
-	.response {
-		font-family: var(--font-body);
 	}
 	.response-text {
 		margin: 0;
@@ -1386,6 +1676,173 @@
 		font-family: var(--font-mono, monospace);
 		max-height: 260px;
 		overflow-y: auto;
+	}
+	.tool-calls-container {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		margin: 8px 0 10px;
+	}
+	.tool-call-card {
+		border: 1px solid var(--border);
+		background: var(--surface-subtle);
+		border-radius: 7px;
+		font-size: var(--text-xs);
+		overflow: hidden;
+		transition: border-color 0.16s ease, background 0.16s ease;
+	}
+	.tool-call-card:hover {
+		border-color: var(--border-strong);
+	}
+	.tool-call-card.tool-running {
+		border-color: color-mix(in srgb, var(--status-working-dot) 45%, transparent);
+		background: color-mix(in srgb, var(--surface-3) 40%, var(--surface-subtle));
+	}
+	.tool-call-card.tool-failed {
+		border-color: color-mix(in srgb, var(--danger-text) 35%, transparent);
+	}
+	.tool-call-summary {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 7px 11px;
+		cursor: pointer;
+		user-select: none;
+		list-style: none;
+		color: var(--text-body);
+		font-size: var(--text-xs);
+	}
+	.tool-call-summary::-webkit-details-marker {
+		display: none;
+	}
+	.tool-call-summary:hover {
+		background: var(--surface-hover);
+	}
+	.tool-call-icon {
+		display: grid;
+		place-items: center;
+		width: 20px;
+		height: 20px;
+		flex-shrink: 0;
+		color: var(--text-dim);
+		background: var(--surface-3);
+		border-radius: 4px;
+	}
+	.tool-running .tool-call-icon {
+		color: var(--status-working-text);
+		background: color-mix(in srgb, var(--status-working-dot) 15%, transparent);
+	}
+	.tool-call-info {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+	}
+	.tool-call-label {
+		font-weight: 600;
+		color: var(--text-strong);
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+	.tool-call-query {
+		color: var(--text-muted);
+		font-style: italic;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.tool-call-status {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-left: auto;
+		flex-shrink: 0;
+	}
+	.tool-status-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 2px 6px;
+		border-radius: 4px;
+		font-size: 0.6875rem;
+		font-weight: 500;
+	}
+	.tool-status-badge.running {
+		color: var(--status-working-text);
+		background: color-mix(in srgb, var(--status-working-dot) 15%, transparent);
+	}
+	.tool-status-badge.completed {
+		color: var(--status-ok-text);
+		background: color-mix(in srgb, var(--status-ok-dot) 15%, transparent);
+	}
+	.tool-status-badge.failed {
+		color: var(--danger-text);
+		background: color-mix(in srgb, var(--danger-bg) 15%, transparent);
+	}
+	:global(.tool-chevron) {
+		color: var(--text-faint);
+		transition: transform 0.18s ease;
+	}
+	details[open] > .tool-call-summary :global(.tool-chevron) {
+		transform: rotate(180deg);
+	}
+	.tool-call-details {
+		padding: 8px 12px 10px;
+		border-top: 1px solid var(--border);
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		background: var(--surface-2);
+	}
+	.tool-detail-section {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.tool-detail-heading {
+		font-size: 0.6875rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-faint);
+	}
+	.tool-json {
+		margin: 0;
+		padding: 6px 8px;
+		border-radius: 5px;
+		background: var(--surface-3);
+		border: 1px solid var(--border);
+		color: var(--text-dim);
+		font-family: var(--font-mono, monospace);
+		font-size: 0.6875rem;
+		line-height: 1.4;
+		white-space: pre-wrap;
+		word-break: break-word;
+		max-height: 160px;
+		overflow-y: auto;
+	}
+	.tool-source-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	.tool-source-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 3px 7px;
+		border-radius: 5px;
+		background: var(--surface-3);
+		border: 1px solid var(--border);
+		font-size: var(--text-xs);
+		color: var(--text-body);
+	}
+	.tool-source-chip a {
+		color: var(--text-strong);
+		text-decoration: underline;
+		text-underline-offset: 2px;
 	}
 	.live-tag {
 		font-size: var(--text-xs);
