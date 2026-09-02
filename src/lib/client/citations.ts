@@ -116,7 +116,7 @@ export function parseCitationsAndSources(rawMarkdown: string): {
 
 	// 1. Detect and parse trailing Sources/References section
 	const sourcesSectionRegex =
-		/(?:\n{1,3}|\A)(?:#{1,6}\s+|(?:\*\*|__)?)(?:Sources|References|Citations|Source|Reference|Sumber|Referensi)(?:\*\*|__)?(?::)?\s*\n([\s\S]+)$/i;
+		/(?:\n{1,3}|^)(?:#{1,6}\s+|(?:\*\*|__)?)(?:Sources|References|Citations|Source|Reference|Sumber|Referensi)(?:\*\*|__)?(?::)?\s*\n([\s\S]+)$/i;
 
 	const sectionMatch = text.match(sourcesSectionRegex);
 	if (sectionMatch && sectionMatch.index !== undefined) {
@@ -129,7 +129,7 @@ export function parseCitationsAndSources(rawMarkdown: string): {
 
 			// Match [1] [Title](https://...) or - [1] [Title](url)
 			const matchLinkWithIdx = trimmed.match(
-				/^(?:[-*]\s*)?\[(\d+)\][:.]?\s*\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/i
+				/^(?:[-*]\s*)?\[(\d+)\][:.]?\s*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i
 			);
 			if (matchLinkWithIdx) {
 				addSource(parseInt(matchLinkWithIdx[1], 10), matchLinkWithIdx[3], matchLinkWithIdx[2]);
@@ -138,7 +138,7 @@ export function parseCitationsAndSources(rawMarkdown: string): {
 
 			// Match [1] https://... (optional title after)
 			const matchUrlWithIdx = trimmed.match(
-				/^(?:[-*]\s*)?\[(\d+)\][:.]?\s*(https?:\/\/[^\s\)]+)(?:\s+[-–—]\s+([^\n]+)|\s+\(([^\)]+)\))?/i
+				/^(?:[-*]\s*)?\[(\d+)\][:.]?\s*(https?:\/\/[^\s)]+)(?:\s+[-–—]\s+([^\n]+)|\s+\(([^)]+)\))?/i
 			);
 			if (matchUrlWithIdx) {
 				const title = matchUrlWithIdx[3] || matchUrlWithIdx[4];
@@ -147,35 +147,35 @@ export function parseCitationsAndSources(rawMarkdown: string): {
 			}
 
 			// Match 1. [Title](url)
-			const matchNumListLink = trimmed.match(/^(\d+)\.\s*\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/i);
+			const matchNumListLink = trimmed.match(/^(\d+)\.\s*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i);
 			if (matchNumListLink) {
 				addSource(parseInt(matchNumListLink[1], 10), matchNumListLink[3], matchNumListLink[2]);
 				continue;
 			}
 
 			// Match 1. https://...
-			const matchNumListUrl = trimmed.match(/^(\d+)\.\s*(https?:\/\/[^\s\)]+)/i);
+			const matchNumListUrl = trimmed.match(/^(\d+)\.\s*(https?:\/\/[^\s)]+)/i);
 			if (matchNumListUrl) {
 				addSource(parseInt(matchNumListUrl[1], 10), matchNumListUrl[2]);
 				continue;
 			}
 
 			// Match - [Title](url)
-			const matchBulletLink = trimmed.match(/^[-*]\s*\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/i);
+			const matchBulletLink = trimmed.match(/^[-*]\s*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i);
 			if (matchBulletLink) {
 				addSource(null, matchBulletLink[2], matchBulletLink[1]);
 				continue;
 			}
 
 			// Match - https://...
-			const matchBulletUrl = trimmed.match(/^[-*]\s*(https?:\/\/[^\s\)]+)/i);
+			const matchBulletUrl = trimmed.match(/^[-*]\s*(https?:\/\/[^\s)]+)/i);
 			if (matchBulletUrl) {
 				addSource(null, matchBulletUrl[1]);
 				continue;
 			}
 
 			// Match bare https://...
-			const matchBareUrl = trimmed.match(/^(https?:\/\/[^\s\)]+)/i);
+			const matchBareUrl = trimmed.match(/^(https?:\/\/[^\s)]+)/i);
 			if (matchBareUrl) {
 				addSource(null, matchBareUrl[1]);
 				continue;
@@ -187,7 +187,7 @@ export function parseCitationsAndSources(rawMarkdown: string): {
 	}
 
 	// 2. Parse markdown footnote definitions e.g. [1]: https://...
-	const footnoteDefRegex = /(?:^|\n)\[(\d+)\]:\s*(https?:\/\/[^\s\)]+)(?:\s+"([^"]+)")?/g;
+	const footnoteDefRegex = /(?:^|\n)\[(\d+)\]:\s*(https?:\/\/[^\s)]+)(?:\s+"([^"]+)")?/g;
 	let fnMatch: RegExpExecArray | null;
 	while ((fnMatch = footnoteDefRegex.exec(text)) !== null) {
 		addSource(parseInt(fnMatch[1], 10), fnMatch[2], fnMatch[3]);
@@ -195,7 +195,7 @@ export function parseCitationsAndSources(rawMarkdown: string): {
 	text = text.replace(/(?:^|\n)\[\d+\]:\s*https?:\/\/[^\n]+/g, '').trimEnd();
 
 	// 3. Scan inline markdown links e.g. [1](https://...) or [Fedora](https://...)
-	const inlineLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g;
+	const inlineLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
 	let linkMatch: RegExpExecArray | null;
 	while ((linkMatch = inlineLinkRegex.exec(text)) !== null) {
 		const linkText = linkMatch[1].trim();
@@ -227,9 +227,7 @@ export function renderCitationPillHtml(
 	const safeUrl = url.startsWith('javascript:') ? '#' : url;
 	const safeDomain = escapeHtml(domain || extractDomain(safeUrl));
 	const safeTitle = escapeHtml(title || safeDomain || `Source ${index}`);
-	const safeFavicon = escapeHtml(
-		faviconUrl || (safeDomain ? getFaviconUrl(safeDomain) : '')
-	);
+	const safeFavicon = escapeHtml(faviconUrl || (safeDomain ? getFaviconUrl(safeDomain) : ''));
 
 	return `<span class="citation-pill-wrapper"><a href="${encodeURI(safeUrl)}" target="_blank" rel="noopener noreferrer" class="citation-pill" aria-label="${safeTitle} (${safeDomain})">${safeFavicon ? `<img src="${safeFavicon}" alt="" class="pill-favicon" loading="lazy" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='inline-flex';" />` : ''}<span class="pill-fallback-icon"${safeFavicon ? ' style="display:none;"' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span></a><span class="citation-hover-card"><span class="hover-card-header">${safeFavicon ? `<img src="${safeFavicon}" alt="" class="hover-card-favicon" loading="lazy" onerror="this.style.display='none'" />` : ''}<span class="hover-card-domain">${safeDomain}</span><svg class="hover-card-external" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></span><span class="hover-card-title">${safeTitle}</span><span class="hover-card-url">${escapeHtml(safeUrl)}</span></span></span>`;
 }

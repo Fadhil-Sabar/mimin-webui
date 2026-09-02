@@ -2,7 +2,10 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { apiError, handleApiError, requireUser } from '$lib/server/api';
 import { fetchCustomProviderModels } from '$lib/server/ai/model-discovery';
-import { getProviderCredential, type CustomProviderProtocol } from '$lib/server/ai/provider-settings.service';
+import {
+	getProviderCredential,
+	type CustomProviderProtocol
+} from '$lib/server/ai/provider-settings.service';
 import { z } from 'zod';
 
 const discoverInput = z.object({
@@ -34,7 +37,10 @@ export const POST: RequestHandler = async (event) => {
 
 		const parsed = discoverInput.safeParse(await event.request.json());
 		if (!parsed.success) {
-			return apiError('INVALID_INPUT', 'Invalid discovery parameters. Check protocol and base URL.');
+			return apiError(
+				'INVALID_INPUT',
+				'Invalid discovery parameters. Check protocol and base URL.'
+			);
 		}
 
 		let apiKey = parsed.data.apiKey?.trim() || null;

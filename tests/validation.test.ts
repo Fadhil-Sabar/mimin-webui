@@ -4,7 +4,8 @@ import {
 	messageInput,
 	modelPreferenceInput,
 	projectInput,
-	providerSettingsInput
+	providerSettingsInput,
+	webSearchSettingsInput
 } from '../src/lib/server/validation';
 
 describe('request validation', () => {
@@ -112,5 +113,26 @@ describe('request validation', () => {
 				customConfig: { name: 'Example', protocol: 'openai-completions' }
 			}).success
 		).toBe(true);
+	});
+	it('validates web search settings input', () => {
+		expect(
+			webSearchSettingsInput.safeParse({
+				apiKey: 'tvly-12345678',
+				searchUrl: 'https://api.tavily.com/search',
+				provider: 'tavily'
+			}).success
+		).toBe(true);
+		expect(
+			webSearchSettingsInput.safeParse({
+				apiKey: null,
+				searchUrl: null,
+				provider: 'duckduckgo'
+			}).success
+		).toBe(true);
+		expect(
+			webSearchSettingsInput.safeParse({
+				searchUrl: 'not-valid-url'
+			}).success
+		).toBe(false);
 	});
 });

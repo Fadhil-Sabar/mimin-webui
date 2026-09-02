@@ -56,6 +56,7 @@ function createCustomOpenAiProvider() {
 		api: {
 			'openai-responses': openAIResponsesApi(),
 			'openai-completions': openAICompletionsApi()
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		} as any
 	});
 }
@@ -192,12 +193,13 @@ function customRuntimeModel(
 }
 
 /** Reuse precise thinking capabilities when a custom endpoint serves a known model. */
-function knownCatalogModel(
-	id: string,
-	protocol: CustomProviderProtocol
-): RuntimeModel | undefined {
+function knownCatalogModel(id: string, protocol: CustomProviderProtocol): RuntimeModel | undefined {
 	catalogModels ??= [...builtinModels().getModels()] as RuntimeModel[];
-	const normalize = (value: string) => value.toLowerCase().replace(/^~/, '').replace(/-latest$/, '');
+	const normalize = (value: string) =>
+		value
+			.toLowerCase()
+			.replace(/^~/, '')
+			.replace(/-latest$/, '');
 	const normalizedId = normalize(id);
 	const preferredProvider: Partial<Record<CustomProviderProtocol, string>> = {
 		'openai-responses': 'openai',
@@ -231,8 +233,7 @@ function knownCatalogModel(
 		) ??
 		catalogModels.find(
 			(model) =>
-				normalize(model.id.split('/').at(-1) ?? model.id) ===
-				normalize(id.split('/').at(-1) ?? id)
+				normalize(model.id.split('/').at(-1) ?? model.id) === normalize(id.split('/').at(-1) ?? id)
 		)
 	);
 }
@@ -405,6 +406,7 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 
 		const cacheKey = credentialCacheKey(
 			userId,
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			credential.provider as any,
 			credential.apiKey ?? '',
 			credential.baseUrl

@@ -19,13 +19,7 @@
 		ontoggle?: (name: string, enabled: boolean) => void | Promise<void>;
 	};
 
-	let {
-		tools,
-		enabledTools,
-		loading = false,
-		disabled = false,
-		ontoggle
-	}: Props = $props();
+	let { tools, enabledTools, loading = false, disabled = false, ontoggle }: Props = $props();
 
 	let open = $state(false);
 	let root = $state<HTMLDivElement | undefined>();
@@ -288,7 +282,9 @@
 		border-radius: 10px;
 		background: var(--surface-3, #333);
 		border: 1px solid var(--border);
-		transition: background-color 0.2s ease, border-color 0.2s ease;
+		transition:
+			background-color 0.2s ease,
+			border-color 0.2s ease;
 		flex-shrink: 0;
 	}
 	.tool-switch.checked {

@@ -6,8 +6,23 @@ services:
       POSTGRES_PASSWORD: mimin
       POSTGRES_DB: mimin
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - mimin-postgres:/var/lib/postgresql/data
+
+  # Optional local SearXNG search engine instance.
+  # Uncomment this service and set SEARXNG_URL=http://localhost:8080/search in .env to auto-point web searches to SearXNG.
+  # searxng:
+  #   image: searxng/searxng:latest
+  #   container_name: mimin-searxng
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - SEARXNG_BASE_URL=http://localhost:8080/
+  #     - SEARXNG_SECRET=mimin-searxng-secret-key
+  #   volumes:
+  #     - ./data/searxng:/etc/searxng
+  #   restart: unless-stopped
+
 volumes:
   mimin-postgres:

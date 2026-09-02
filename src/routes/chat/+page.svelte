@@ -109,9 +109,7 @@
 	let pendingAttachments = $state<File[]>([]);
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 
-	let isNewConversationEmpty = $derived(
-		messages.length === 0 && !running && !!activeConversation
-	);
+	let isNewConversationEmpty = $derived(messages.length === 0 && !running && !!activeConversation);
 
 	const SCROLL_THRESHOLD = 80;
 
@@ -148,7 +146,9 @@
 		if (toolName === 'project_knowledge_search') {
 			return {
 				label: 'Project Knowledge Search',
-				action: query ? `Searching project knowledge for "${query}"` : 'Searching project knowledge...',
+				action: query
+					? `Searching project knowledge for "${query}"`
+					: 'Searching project knowledge...',
 				query
 			};
 		}
@@ -366,8 +366,11 @@
 	function handlePopState() {
 		const params = new URL(window.location.href).searchParams;
 		const id = params.get('id');
+		const isNew = params.get('new') === '1';
 		if (id && id !== activeId) {
 			void loadConversation(id, true);
+		} else if (isNew) {
+			void startNewConversation(true);
 		} else if (!id && conversations.length > 0 && conversations[0].id !== activeId) {
 			void loadConversation(conversations[0].id, true);
 		}
@@ -574,7 +577,8 @@
 				);
 			notify('Thinking level saved');
 		} catch (error) {
-			if (previousLevel) thinkingLevelsByModel = { ...thinkingLevelsByModel, [model]: previousLevel };
+			if (previousLevel)
+				thinkingLevelsByModel = { ...thinkingLevelsByModel, [model]: previousLevel };
 			else {
 				const restored = { ...thinkingLevelsByModel };
 				delete restored[model];
@@ -905,7 +909,11 @@
 
 <svelte:head><title>Mimin WebUI | Chat</title></svelte:head>
 <svelte:window onpopstate={handlePopState} onkeydown={handleWindowKeydown} />
-<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed} class:mobile-open={sidebar.mobileOpen}>
+<div
+	class="app-shell"
+	class:sidebar-collapsed={sidebar.collapsed}
+	class:mobile-open={sidebar.mobileOpen}
+>
 	<button
 		class="sidebar-backdrop"
 		onclick={() => sidebar.closeMobile()}
@@ -919,7 +927,12 @@
 					class="brand-muted">/ workbench</span
 				>
 			</div>
-			<button class="sidebar-toggle" onclick={() => sidebar.toggle()} title="Collapse sidebar" aria-label="Collapse sidebar"><PanelLeft size={16} /></button>
+			<button
+				class="sidebar-toggle"
+				onclick={() => sidebar.toggle()}
+				title="Collapse sidebar"
+				aria-label="Collapse sidebar"><PanelLeft size={16} /></button
+			>
 		</div>
 		<button
 			class="new-chat"
@@ -943,6 +956,7 @@
 				>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
+			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
 			{#if conversations.length > 0}
 				<div class="nav-label projects-label">Recent chats</div>
 				{#each conversations as conversation (conversation.id)}
@@ -1039,7 +1053,12 @@
 	<main class="main-content" bind:this={scrollEl} onscroll={handleScroll}>
 		<header class="topbar">
 			<div class="topbar-left">
-				<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Toggle sidebar" aria-label="Toggle sidebar"><PanelLeft size={16} /></button>
+				<button
+					class="sidebar-toggle topbar-toggle"
+					onclick={() => sidebar.toggle()}
+					title="Toggle sidebar"
+					aria-label="Toggle sidebar"><PanelLeft size={16} /></button
+				>
 				<div class="breadcrumb">
 					<strong>Chat</strong><ChevronDown size={14} /><span
 						>{activeConversation?.title ?? 'New session'}</span
@@ -1059,7 +1078,12 @@
 		<div class="chat-wrap">
 			<div class="chat-title">
 				<span class="ready" class:working={running}>
-					<i></i> {running ? (activeAgentActivity ? `working · ${activeAgentActivity.toLowerCase()}` : 'working') : 'ready'}
+					<i></i>
+					{running
+						? activeAgentActivity
+							? `working · ${activeAgentActivity.toLowerCase()}`
+							: 'working'
+						: 'ready'}
 				</span>
 				<h1>{activeConversation?.title ?? 'New conversation'}</h1>
 				<p>
@@ -1200,20 +1224,25 @@
 													<span class="tool-detail-heading">Result</span>
 													{#if getToolSourceList(toolCall).length > 0}
 														<div class="tool-source-chips">
-															{#each getToolSourceList(toolCall) as src}
+															{#each getToolSourceList(toolCall) as src (src.title + src.url + src.page)}
 																<div class="tool-source-chip">
 																	{#if src.type === 'project_file'}
 																		<FileText size={12} />
 																		<span>{src.title}{src.page ? ` (p. ${src.page})` : ''}</span>
 																	{:else}
 																		<Globe size={12} />
-																		<a href={src.url} target="_blank" rel="noopener noreferrer">{src.title || src.url}</a>
+																		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+																		<a href={src.url} target="_blank" rel="noopener noreferrer"
+																			>{src.title || src.url}</a
+																		>
 																	{/if}
 																</div>
 															{/each}
 														</div>
 													{:else}
-														<pre class="tool-json">{typeof toolCall.output === 'string' ? toolCall.output : JSON.stringify(toolCall.output, null, 2)}</pre>
+														<pre class="tool-json">{typeof toolCall.output === 'string'
+																? toolCall.output
+																: JSON.stringify(toolCall.output, null, 2)}</pre>
 													{/if}
 												</div>
 											{/if}
@@ -1291,9 +1320,11 @@
 								title="Thinking level"
 								onchange={(event) => selectThinkingLevel(event.currentTarget.value)}
 							>
-								{#each availableThinkingLevels as level}
+								{#each availableThinkingLevels as level (level)}
 									<option value={level}>
-										{level === 'off' ? 'Thinking off' : `${level[0].toUpperCase()}${level.slice(1)}`}
+										{level === 'off'
+											? 'Thinking off'
+											: `${level[0].toUpperCase()}${level.slice(1)}`}
 									</option>
 								{/each}
 							</select>
@@ -1689,7 +1720,9 @@
 		border-radius: 7px;
 		font-size: var(--text-xs);
 		overflow: hidden;
-		transition: border-color 0.16s ease, background 0.16s ease;
+		transition:
+			border-color 0.16s ease,
+			background 0.16s ease;
 	}
 	.tool-call-card:hover {
 		border-color: var(--border-strong);

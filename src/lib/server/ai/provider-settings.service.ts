@@ -170,7 +170,9 @@ export async function listProviderCredentials(userId: string): Promise<ProviderC
 			};
 		}),
 		...rows
-			.filter((row) => !isProviderId(row.provider) && row.customConfig)
+			.filter(
+				(row) => !isProviderId(row.provider) && row.provider !== 'web_search' && row.customConfig
+			)
 			.map(async (row) => {
 				const apiKey = await decryptSecret(row.apiKey);
 				return {

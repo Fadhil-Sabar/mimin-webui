@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import {
 		FolderKanban,
+		Globe,
 		KeyRound,
 		LogOut,
 		MessageSquare,
@@ -183,7 +184,7 @@
 					protocol: draftProtocol,
 					baseUrl: draftBaseUrl.trim(),
 					apiKey: draftKey.trim() || undefined,
-					provider: creatingCustom ? undefined : editing ?? undefined
+					provider: creatingCustom ? undefined : (editing ?? undefined)
 				})
 			});
 			if (!res.ok) {
@@ -279,7 +280,11 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | Settings</title></svelte:head>
-<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed} class:mobile-open={sidebar.mobileOpen}>
+<div
+	class="app-shell"
+	class:sidebar-collapsed={sidebar.collapsed}
+	class:mobile-open={sidebar.mobileOpen}
+>
 	<button
 		class="sidebar-backdrop"
 		onclick={() => sidebar.closeMobile()}
@@ -293,16 +298,24 @@
 					class="brand-muted">/ workbench</span
 				>
 			</div>
-			<button class="sidebar-toggle" onclick={() => sidebar.toggle()} title="Collapse sidebar" aria-label="Collapse sidebar"><PanelLeft size={16} /></button>
+			<button
+				class="sidebar-toggle"
+				onclick={() => sidebar.toggle()}
+				title="Collapse sidebar"
+				aria-label="Collapse sidebar"><PanelLeft size={16} /></button
+			>
 		</div>
-		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
+		<a class="new-chat" href={resolve('/chat?new=1')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
 		<div class="sidebar-scroll">
 			<div class="nav-label">Workspace</div>
 			<a class="nav-item" href={resolve('/chat')}><MessageSquare size={16} /> Chat</a>
 			<a class="nav-item" href={resolve('/projects')}><FolderKanban size={16} /> Projects</a>
-			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}><User size={16} /> Users</a>{/if}
+			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}
+					><User size={16} /> Users</a
+				>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item active" href={resolve('/settings')}><Settings size={16} /> Models</a>
+			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">
@@ -321,7 +334,12 @@
 	<main class="main-content">
 		<header class="topbar">
 			<div class="topbar-left">
-				<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Toggle sidebar" aria-label="Toggle sidebar"><PanelLeft size={16} /></button>
+				<button
+					class="sidebar-toggle topbar-toggle"
+					onclick={() => sidebar.toggle()}
+					title="Toggle sidebar"
+					aria-label="Toggle sidebar"><PanelLeft size={16} /></button
+				>
 				<div class="breadcrumb">
 					<strong>Settings</strong><span class="crumb-sep">/</span><span>Models</span>
 				</div>
@@ -443,7 +461,7 @@
 				<label
 					>API template
 					<select bind:value={draftProtocol}>
-						{#each PROTOCOLS as protocol}
+						{#each PROTOCOLS as protocol (protocol.id)}
 							<option value={protocol.id}>{protocol.name} — {protocol.description}</option>
 						{/each}
 					</select>

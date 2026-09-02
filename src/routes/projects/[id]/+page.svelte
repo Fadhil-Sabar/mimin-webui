@@ -8,6 +8,7 @@
 		FileJson2,
 		FileText,
 		FolderKanban,
+		Globe,
 		LogOut,
 		MessageSquare,
 		PanelLeft,
@@ -416,7 +417,11 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | {project?.name ?? 'Project'}</title></svelte:head>
-<div class="app-shell" class:sidebar-collapsed={sidebar.collapsed} class:mobile-open={sidebar.mobileOpen}>
+<div
+	class="app-shell"
+	class:sidebar-collapsed={sidebar.collapsed}
+	class:mobile-open={sidebar.mobileOpen}
+>
 	<button
 		class="sidebar-backdrop"
 		onclick={() => sidebar.closeMobile()}
@@ -437,7 +442,7 @@
 				aria-label="Toggle sidebar"><PanelLeft size={16} /></button
 			>
 		</div>
-		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
+		<a class="new-chat" href={resolve('/chat?new=1')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
 		<div class="sidebar-scroll">
 			<div class="nav-label">Workspace</div>
 			<a class="nav-item" href={resolve('/chat')}><MessageSquare size={16} /> Chat</a>
@@ -447,6 +452,7 @@
 				>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
+			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
 			{#if project}
 				<div class="nav-label projects-label">Knowledge files</div>
 				{#each files as file (file.id)}
@@ -534,16 +540,24 @@
 					</div>
 				</section>
 				<div class="stats">
-					<div class="stat-item"><strong>{filePagination.total}</strong><span>Knowledge files</span></div>
-					<div class="stat-item"><strong>{conversationPagination.total}</strong><span>Conversations</span></div>
-					<div class="stat-item"><strong>{formatDate(project.updatedAt)}</strong><span>Last updated</span></div>
+					<div class="stat-item">
+						<strong>{filePagination.total}</strong><span>Knowledge files</span>
+					</div>
+					<div class="stat-item">
+						<strong>{conversationPagination.total}</strong><span>Conversations</span>
+					</div>
+					<div class="stat-item">
+						<strong>{formatDate(project.updatedAt)}</strong><span>Last updated</span>
+					</div>
 					<div class="context {extractionSummary.tone}">
 						<span class="status-dot"></span><span>{extractionSummary.label}</span>
 					</div>
 				</div>
 				<section class="instructions-band" aria-labelledby="project-instructions-heading">
 					<div class="instructions-band-content">
-						<span id="project-instructions-heading" class="instructions-band-title">Agent instructions</span>
+						<span id="project-instructions-heading" class="instructions-band-title"
+							>Agent instructions</span
+						>
 						<p>{project.instructions || 'No project-specific instructions set.'}</p>
 					</div>
 					<button class="button" onclick={openEdit}
@@ -1390,7 +1404,9 @@
 		background: transparent;
 		border: 0;
 		border-radius: 4px;
-		transition: color 0.15s ease, background 0.15s ease;
+		transition:
+			color 0.15s ease,
+			background 0.15s ease;
 	}
 	.row-menu:hover {
 		color: var(--danger-text);

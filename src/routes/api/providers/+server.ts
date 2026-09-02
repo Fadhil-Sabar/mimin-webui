@@ -2,9 +2,7 @@ import { json } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
 import type { RequestHandler } from '@sveltejs/kit';
 import { apiError, handleApiError, requireUser } from '$lib/server/api';
-import {
-	fetchCustomProviderModels
-} from '$lib/server/ai/model-discovery';
+import { fetchCustomProviderModels } from '$lib/server/ai/model-discovery';
 import {
 	listProviderCredentials,
 	maskKey,
@@ -37,10 +35,7 @@ export const POST: RequestHandler = async (event) => {
 		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
 		const parsed = providerSettingsInput.safeParse(await event.request.json());
 		if (!parsed.success || !parsed.data.customConfig || !parsed.data.baseUrl)
-			return apiError(
-				'INVALID_INPUT',
-				'Custom providers require a name, protocol, and base URL.'
-			);
+			return apiError('INVALID_INPUT', 'Custom providers require a name, protocol, and base URL.');
 		if (parsed.data.apiKey && parsed.data.apiKey.length < 8)
 			return apiError('INVALID_INPUT', 'API key looks too short.');
 

@@ -80,6 +80,10 @@
 			.filter((group) => group.models.length > 0);
 	});
 
+	let flatModels = $derived(filteredGroups.flatMap((group) => group.models));
+	let highlightedIndex = $state(0);
+	let listElement = $state<HTMLDivElement | undefined>();
+
 	let placement = $state<'top' | 'bottom'>('top');
 	let maxHeight = $state<string | undefined>(undefined);
 
@@ -90,6 +94,18 @@
 	function modelId(modelRefValue: string) {
 		return modelRefValue.split('/').slice(1).join('/') || modelRefValue;
 	}
+
+	function scrollHighlightedIntoView(idx: number) {
+		tick().then(() => {
+			const el = listElement?.querySelector<HTMLElement>(`[data-model-idx="${idx}"]`);
+			el?.scrollIntoView({ block: 'nearest' });
+		});
+	}
+
+	$effect(() => {
+		void search;
+		highlightedIndex = 0;
+	});
 
 	function updatePlacement() {
 		if (!trigger) return;
@@ -111,9 +127,12 @@
 		if (open) {
 			updatePlacement();
 			search = '';
+			const currentIdx = flatModels.findIndex((m) => modelRef(m) === value);
+			highlightedIndex = currentIdx >= 0 ? currentIdx : 0;
 			tick().then(() => {
 				updatePlacement();
 				searchInput?.focus();
+				scrollHighlightedIntoView(highlightedIndex);
 			});
 		}
 	}
@@ -139,6 +158,31 @@
 			trigger?.focus();
 		}
 	}
+
+	function handleMenuKeydown(event: KeyboardEvent) {
+		if (!open || flatModels.length === 0) return;
+
+		if (event.key === 'ArrowDown') {
+			event.preventDefault();
+			highlightedIndex = (highlightedIndex + 1) % flatModels.length;
+			scrollHighlightedIntoView(highlightedIndex);
+		} else if (event.key === 'ArrowUp') {
+			event.preventDefault();
+			highlightedIndex = (highlightedIndex - 1 + flatModels.length) % flatModels.length;
+			scrollHighlightedIntoView(highlightedIndex);
+		} else if (event.key === 'Enter') {
+			event.preventDefault();
+			const target = flatModels[highlightedIndex];
+			if (target) {
+				choose(target);
+			}
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			open = false;
+			search = '';
+			trigger?.focus();
+		}
+	}
 </script>
 
 <svelte:window onclick={closeOnOutsideClick} onkeydown={handleKeydown} />
@@ -151,6 +195,12 @@
 		aria-haspopup="listbox"
 		aria-expanded={open}
 		onclick={toggle}
+		onkeydown={(e) => {
+			if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+				e.preventDefault();
+				toggle();
+			}
+		}}
 		bind:this={trigger}
 	>
 		<Bot size={15} aria-hidden="true" />
@@ -175,20 +225,29 @@
 			style:max-height={maxHeight}
 			role="listbox"
 			aria-label="Available models"
+			tabindex="-1"
+			onkeydown={handleMenuKeydown}
 		>
-			<div class="model-list">
+			<div class="model-list" bind:this={listElement}>
 				{#each filteredGroups as group (group.provider)}
 					<div class="model-group">
 						<div class="model-group-label">{group.label}</div>
 						{#each group.models as model (modelRef(model))}
 							{@const ref = modelRef(model)}
+							{@const modelIdx = flatModels.indexOf(model)}
+							{@const isHighlighted = modelIdx === highlightedIndex}
 							<button
 								type="button"
 								class="model-option"
 								class:selected={ref === value}
+								class:highlighted={isHighlighted}
 								role="option"
 								aria-selected={ref === value}
+								data-model-idx={modelIdx}
 								onclick={() => choose(model)}
+								onmousemove={() => {
+									highlightedIndex = modelIdx;
+								}}
 							>
 								<span class="model-option-copy">
 									<strong>{model.name}</strong>
@@ -346,9 +405,11 @@
 		text-align: left;
 	}
 	.model-option:hover,
+	.model-option.highlighted,
 	.model-option.selected {
 		background: var(--surface-hover);
 	}
+	.model-option.highlighted,
 	.model-option.selected {
 		color: var(--text-strong);
 	}

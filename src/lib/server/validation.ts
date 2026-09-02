@@ -60,3 +60,17 @@ export const providerSettingsInput = z.object({
 		})
 		.optional()
 });
+
+export const webSearchSettingsInput = z.object({
+	apiKey: z.string().trim().max(400).nullable().optional(),
+	searchUrl: z
+		.string()
+		.trim()
+		.max(500)
+		.refine((value) => !value || value.startsWith('https://') || value.startsWith('http://'), {
+			message: 'Search URL must begin with http:// or https://'
+		})
+		.nullable()
+		.optional(),
+	provider: z.enum(['tavily', 'searxng', 'duckduckgo', 'custom']).optional()
+});

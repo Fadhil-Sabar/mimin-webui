@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Marked } from 'marked';
+	import { Marked, type Tokens } from 'marked';
 	import { slide } from 'svelte/transition';
 	import { ChevronDown, ExternalLink, Globe } from '@lucide/svelte';
 	import { escapeHtml, highlightCode } from '$lib/client/highlighter';
@@ -22,7 +22,11 @@
 			return { html: '', sources: [] as SourceItem[] };
 		}
 
-		const { cleanedMarkdown, sources, sourcesMap } = parseCitationsAndSources(content);
+		const { cleanedMarkdown, sources } = parseCitationsAndSources(content);
+		const sourcesMap: Record<number, SourceItem> = {};
+		for (const src of sources) {
+			sourcesMap[src.index] = src;
+		}
 
 		const marked = new Marked({
 			gfm: true,
@@ -32,11 +36,11 @@
 					name: 'citation',
 					level: 'inline',
 					start(src: string) {
-						const match = src.match(/\[\^?\d+\]/);
-						return match ? match.index : undefined;
+						return src.match(/\[\^?(\d+)\]/)?.index;
 					},
 					tokenizer(src: string) {
-						const match = /^\[\^?(\d+)\]/.exec(src);
+						const rule = /^\[\^?(\d+)\]/;
+						const match = rule.exec(src);
 						if (match) {
 							const index = parseInt(match[1], 10);
 							return {
@@ -46,14 +50,15 @@
 							};
 						}
 					},
-					renderer(token: any) {
-						const source = sourcesMap.get(token.index);
+					renderer(token: Tokens.Generic) {
+						const index = Number(token.index);
+						const source = sourcesMap[index];
 						const url = source ? source.url : '#';
 						const domain = source ? source.domain : '';
-						const title = source ? source.title : `Source [${token.index}]`;
+						const title = source ? source.title : `Source [${index}]`;
 						const favicon = source ? source.faviconUrl : '';
 
-						return renderCitationPillHtml(token.index, url, domain, title, favicon);
+						return renderCitationPillHtml(index, url, domain, title, favicon);
 					}
 				}
 			],
@@ -67,7 +72,7 @@
 					const numMatch = text.match(/^\[?\^?(\d+)\]?$/);
 					if (numMatch) {
 						const index = parseInt(numMatch[1], 10);
-						const source = sourcesMap.get(index);
+						const source = sourcesMap[index];
 						const domain = source?.domain || '';
 						const srcTitle = title || source?.title || '';
 						const favicon = source?.faviconUrl || '';
@@ -88,7 +93,9 @@
 	});
 
 	async function handleClick(event: MouseEvent) {
-		const target = (event.target as HTMLElement)?.closest('.copy-code-btn') as HTMLButtonElement | null;
+		const target = (event.target as HTMLElement)?.closest(
+			'.copy-code-btn'
+		) as HTMLButtonElement | null;
 		if (!target) return;
 		const codeBlock = target.closest('.code-block');
 		const codeEl = codeBlock?.querySelector('pre code');
@@ -110,7 +117,6 @@
 </script>
 
 <div class="markdown-container {className}">
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div class="markdown-body" role="presentation" onclick={handleClick}>
 		<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 		{@html processed.html}
@@ -136,12 +142,8 @@
 			{#if showSources}
 				<div class="sources-list" transition:slide={{ duration: 180 }}>
 					{#each processed.sources as source (source.index + source.url)}
-						<a
-							href={source.url}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="source-card-item"
-						>
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+						<a href={source.url} target="_blank" rel="noopener noreferrer" class="source-card-item">
 							<span class="source-item-badge">{source.index}</span>
 							{#if source.faviconUrl}
 								<img
@@ -377,7 +379,11 @@
 		position: relative;
 		top: -1px;
 		text-decoration: none;
-		transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+		transition:
+			transform 0.15s ease,
+			background 0.15s ease,
+			border-color 0.15s ease,
+			box-shadow 0.15s ease;
 		box-shadow: 0 1px 3px var(--shadow-softer);
 		cursor: pointer;
 	}
@@ -412,12 +418,17 @@
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
 		border-radius: 9px;
-		box-shadow: 0 12px 30px var(--shadow), 0 2px 8px var(--shadow-soft);
+		box-shadow:
+			0 12px 30px var(--shadow),
+			0 2px 8px var(--shadow-soft);
 		z-index: 70;
 		opacity: 0;
 		pointer-events: none;
 		visibility: hidden;
-		transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+		transition:
+			opacity 0.16s ease,
+			transform 0.16s ease,
+			visibility 0.16s ease;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;

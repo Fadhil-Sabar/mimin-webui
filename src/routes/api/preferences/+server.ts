@@ -27,10 +27,12 @@ export const PUT: RequestHandler = async (event) => {
 		const model = (await listAvailableModels(user.id)).find(
 			(item) => `${item.provider}/${item.id}` === parsed.data.model
 		);
-		if (!model)
-			return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
+		if (!model) return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
 		if (!model.capabilities.thinkingLevels.includes(parsed.data.thinkingLevel))
-			return apiError('THINKING_LEVEL_NOT_SUPPORTED', 'Thinking level is not supported by this model.');
+			return apiError(
+				'THINKING_LEVEL_NOT_SUPPORTED',
+				'Thinking level is not supported by this model.'
+			);
 		const preference = await saveModelThinkingPreference(
 			user.id,
 			parsed.data.model,

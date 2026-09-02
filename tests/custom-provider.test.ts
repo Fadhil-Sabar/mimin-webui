@@ -128,11 +128,7 @@ describe('custom providers', () => {
 		const model = resolveModel(credential.provider, 'deepseek/deepseek-v4-pro');
 
 		expect(model?.reasoning).toBe(true);
-		expect(model && getSupportedThinkingLevels(model)).toEqual([
-			'off',
-			'high',
-			'xhigh'
-		]);
+		expect(model && getSupportedThinkingLevels(model)).toEqual(['off', 'high', 'xhigh']);
 	});
 
 	it('preserves configured metadata when live discovery omits it', () => {

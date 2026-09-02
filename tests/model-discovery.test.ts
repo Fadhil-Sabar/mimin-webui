@@ -123,9 +123,9 @@ describe('model discovery', () => {
 		expect(customModelListUrl('mistral-conversations', 'https://api.mistral.ai/v1')).toBe(
 			'https://api.mistral.ai/v1/models'
 		);
-		expect(customModelListUrl('google-generative-ai', 'https://generativelanguage.googleapis.com/v1beta')).toBe(
-			'https://generativelanguage.googleapis.com/v1beta/models'
-		);
+		expect(
+			customModelListUrl('google-generative-ai', 'https://generativelanguage.googleapis.com/v1beta')
+		).toBe('https://generativelanguage.googleapis.com/v1beta/models');
 	});
 
 	it('constructs appropriate custom provider authentication headers', () => {

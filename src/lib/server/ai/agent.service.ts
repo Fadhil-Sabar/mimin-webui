@@ -5,6 +5,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { listAvailableModels, modelRegistry, resolveModel, splitModelRef } from './model.service';
 import { getProviderCredential, type ProviderCredential } from './provider-settings.service';
+import { getWebSearchSettings } from './web-search-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
 import { createWebSearchTool } from './tools/web-search.tool';
 import { getModelThinkingPreference } from './model-preferences.service';
@@ -153,10 +154,7 @@ export async function runConversationTurn(
 	const savedThinkingLevel = effectiveUserId
 		? await getModelThinkingPreference(effectiveUserId, selectedModelRef)
 		: 'off';
-	const thinkingLevel = clampThinkingLevel(
-		requestModel,
-		savedThinkingLevel as ModelThinkingLevel
-	);
+	const thinkingLevel = clampThinkingLevel(requestModel, savedThinkingLevel as ModelThinkingLevel);
 	const historyRows = await db
 		.select({
 			id: schema.messages.id,
@@ -216,8 +214,9 @@ export async function runConversationTurn(
 		conversation.projectId,
 		conversation.enabledTools
 	);
+	const searchSettings = effectiveUserId ? await getWebSearchSettings(effectiveUserId) : undefined;
 	const tools = [
-		...(enabledTools.includes('web_search') ? [createWebSearchTool()] : []),
+		...(enabledTools.includes('web_search') ? [createWebSearchTool(searchSettings)] : []),
 		...(conversation.projectId && enabledTools.includes('project_knowledge_search')
 			? [createProjectKnowledgeTool(conversation.projectId)]
 			: [])
@@ -271,10 +270,7 @@ export async function runConversationTurn(
 					{ type: 'text', text }
 				]
 			: text;
-		await db
-			.update(schema.messages)
-			.set({ content })
-			.where(eq(schema.messages.id, msgId));
+		await db.update(schema.messages).set({ content }).where(eq(schema.messages.id, msgId));
 		emit({
 			type: 'message.end',
 			messageId: msgId,
@@ -376,10 +372,7 @@ export async function runConversationTurn(
 		}
 
 		for (const msgId of createdAssistantMessageIds) {
-			const [msg] = await db
-				.select()
-				.from(schema.messages)
-				.where(eq(schema.messages.id, msgId));
+			const [msg] = await db.select().from(schema.messages).where(eq(schema.messages.id, msgId));
 			if (msg) {
 				const hasContent =
 					typeof msg.content === 'string'
@@ -393,7 +386,10 @@ export async function runConversationTurn(
 						.from(schema.toolCalls)
 						.where(eq(schema.toolCalls.messageId, msgId));
 					if (toolCallsForMsg.length === 0) {
-						await db.delete(schema.messages).where(eq(schema.messages.id, msgId)).catch(() => {});
+						await db
+							.delete(schema.messages)
+							.where(eq(schema.messages.id, msgId))
+							.catch(() => {});
 					}
 				}
 			}
@@ -424,7 +420,10 @@ export async function runConversationTurn(
 							? msg.content.length > 0
 							: Boolean(msg.content);
 				if (!hasContent) {
-					await db.delete(schema.messages).where(eq(schema.messages.id, msgId)).catch(() => {});
+					await db
+						.delete(schema.messages)
+						.where(eq(schema.messages.id, msgId))
+						.catch(() => {});
 				}
 			}
 		}

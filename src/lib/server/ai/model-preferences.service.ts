@@ -6,21 +6,24 @@ export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 export async function listModelThinkingPreferences(userId: string) {
 	const rows = await getDb()
-		.select({ model: schema.modelPreferences.model, thinkingLevel: schema.modelPreferences.thinkingLevel })
+		.select({
+			model: schema.modelPreferences.model,
+			thinkingLevel: schema.modelPreferences.thinkingLevel
+		})
 		.from(schema.modelPreferences)
 		.where(eq(schema.modelPreferences.userId, userId));
 	return Object.fromEntries(rows.map((row) => [row.model, row.thinkingLevel]));
 }
 
-export async function getModelThinkingPreference(userId: string, model: string): Promise<ThinkingLevel> {
+export async function getModelThinkingPreference(
+	userId: string,
+	model: string
+): Promise<ThinkingLevel> {
 	const [row] = await getDb()
 		.select({ thinkingLevel: schema.modelPreferences.thinkingLevel })
 		.from(schema.modelPreferences)
 		.where(
-			and(
-				eq(schema.modelPreferences.userId, userId),
-				eq(schema.modelPreferences.model, model)
-			)
+			and(eq(schema.modelPreferences.userId, userId), eq(schema.modelPreferences.model, model))
 		);
 	return isThinkingLevel(row?.thinkingLevel) ? row.thinkingLevel : 'off';
 }
@@ -37,7 +40,10 @@ export async function saveModelThinkingPreference(
 			target: [schema.modelPreferences.userId, schema.modelPreferences.model],
 			set: { thinkingLevel, updatedAt: new Date() }
 		})
-		.returning({ model: schema.modelPreferences.model, thinkingLevel: schema.modelPreferences.thinkingLevel });
+		.returning({
+			model: schema.modelPreferences.model,
+			thinkingLevel: schema.modelPreferences.thinkingLevel
+		});
 	return row;
 }
 
