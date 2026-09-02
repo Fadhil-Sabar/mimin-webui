@@ -185,7 +185,7 @@
 		border-radius: 9px;
 		background: var(--accent-bg);
 		color: var(--accent-fg);
-		font-size: 10px;
+		font-size: var(--text-xs);
 		font-weight: 600;
 		line-height: 1;
 	}
@@ -226,9 +226,9 @@
 	.tool-menu-title {
 		font-size: var(--text-xs);
 		font-weight: 600;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.04em;
 		text-transform: uppercase;
-		color: var(--text-dim);
+		color: var(--text-muted);
 	}
 	.tool-menu-subtitle {
 		font-size: var(--text-xs);

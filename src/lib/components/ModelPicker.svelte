@@ -301,10 +301,10 @@
 	}
 	.model-group-label {
 		padding: 6px 8px 5px;
-		color: var(--text-dim);
+		color: var(--text-muted);
 		font-size: var(--text-xs);
 		font-weight: 600;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.04em;
 		text-transform: uppercase;
 	}
 	.model-option {
@@ -354,9 +354,10 @@
 		margin-left: auto;
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 35%, transparent);
 		border-radius: 4px;
-		padding: 2px 4px;
+		padding: 2px 5px;
 		color: var(--status-ok-text);
-		font-size: 10px;
+		font-size: var(--text-xs);
+		line-height: 1.2;
 		white-space: nowrap;
 	}
 	@media (max-width: 700px) {

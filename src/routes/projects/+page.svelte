@@ -24,6 +24,7 @@
 		id: string;
 		name: string;
 		description: string;
+		instructions?: string | null;
 		updatedAt: string;
 		fileCount?: number;
 		chatCount?: number;
@@ -35,12 +36,15 @@
 	let showCreate = $state(false);
 	let newName = $state('');
 	let newDescription = $state('');
+	let newInstructions = $state('');
 	let creating = $state(false);
 	let user = $state<{ name: string; role?: string | null } | null>(null);
 	let loading = $state(true);
 	let projects = $state<Project[]>([]);
 	let filteredProjects = $derived(
-		projects.filter((project) => project.name.toLowerCase().includes(query.toLowerCase()))
+		projects.filter((project) =>
+			`${project.name} ${project.description}`.toLowerCase().includes(query.trim().toLowerCase())
+		)
 	);
 
 	function notify(v: string) {
@@ -52,18 +56,11 @@
 		const response = await fetch('/api/projects');
 		if (!response.ok) throw new Error('Could not load projects');
 		const data = await response.json();
-		projects = await Promise.all(
-			(data.projects ?? []).map(async (project: Project) => {
-				const detail = await fetch(`/api/projects/${project.id}`)
-					.then((r) => (r.ok ? r.json() : null))
-					.catch(() => null);
-				return {
-					...project,
-					fileCount: detail?.files?.length ?? 0,
-					chatCount: detail?.conversations?.length ?? 0
-				};
-			})
-		);
+		projects = (data.projects ?? []).map((project: Project) => ({
+			...project,
+			fileCount: project.fileCount ?? 0,
+			chatCount: project.chatCount ?? 0
+		}));
 	}
 
 	onMount(async () => {
@@ -92,12 +89,17 @@
 			const response = await fetch('/api/projects', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ name: newName.trim(), description: newDescription.trim() })
+				body: JSON.stringify({
+					name: newName.trim(),
+					description: newDescription.trim(),
+					instructions: newInstructions.trim()
+				})
 			});
 			if (!response.ok)
 				throw new Error((await response.json()).error?.message ?? 'Could not create project');
 			newName = '';
 			newDescription = '';
+			newInstructions = '';
 			showCreate = false;
 			notify('Project created');
 			await loadProjects();
@@ -127,7 +129,12 @@
 					class="brand-muted">/ workbench</span
 				>
 			</div>
-			<button class="sidebar-toggle" onclick={() => sidebar.toggle()} title="Collapse sidebar" aria-label="Collapse sidebar"><PanelLeft size={16} /></button>
+			<button
+				class="sidebar-toggle"
+				onclick={() => sidebar.toggle()}
+				title="Collapse sidebar"
+				aria-label="Collapse sidebar"><PanelLeft size={16} /></button
+			>
 		</div>
 		<a class="new-chat" href={resolve('/chat')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
 		<div class="sidebar-scroll">
@@ -136,7 +143,9 @@
 			<a class="nav-item active" href={resolve('/projects')}
 				><FolderKanban size={16} /> Projects <span class="nav-count">{projects.length}</span></a
 			>
-			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}><User size={16} /> Users</a>{/if}
+			{#if user?.role === 'admin'}<a class="nav-item" href={resolve('/admin/users')}
+					><User size={16} /> Users</a
+				>{/if}
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			{#if projects.length > 0}
@@ -165,7 +174,12 @@
 		<header class="topbar">
 			<div class="topbar-left">
 				{#if sidebar.collapsed}
-					<button class="sidebar-toggle topbar-toggle" onclick={() => sidebar.toggle()} title="Expand sidebar" aria-label="Expand sidebar"><PanelLeft size={16} /></button>
+					<button
+						class="sidebar-toggle topbar-toggle"
+						onclick={() => sidebar.toggle()}
+						title="Expand sidebar"
+						aria-label="Expand sidebar"><PanelLeft size={16} /></button
+					>
 				{/if}
 				<div class="breadcrumb"><strong>Projects</strong></div>
 			</div>
@@ -233,7 +247,9 @@
 							<h2>{project.name}</h2>
 							<p>{project.description || 'No description yet.'}</p>
 							<div class="card-footer">
-								<span>Context · {project.fileCount ?? 0} files · {project.chatCount ?? 0} chats</span>
+								<span
+									>Context · {project.fileCount ?? 0} files · {project.chatCount ?? 0} chats</span
+								>
 								<span>Updated {formatDate(project.updatedAt)}</span>
 							</div>
 							<span class="card-arrow"><ArrowUpRight size={17} /></span>
@@ -280,10 +296,25 @@
 					onclick={() => (showCreate = false)}><X size={18} /></button
 				>
 			</div>
-			<label>Project name<input bind:value={newName} placeholder="e.g. Product launch" /></label>
 			<label
-				>Description<textarea bind:value={newDescription} placeholder="What will you work on here?"
-				></textarea></label
+				>Project name<input
+					bind:value={newName}
+					maxlength="120"
+					required
+					placeholder="e.g. Product launch"
+				/></label
+			>
+			<label
+				>Description<textarea
+					maxlength="2000"
+					bind:value={newDescription}
+					placeholder="What will you work on here?"></textarea></label
+			>
+			<label
+				>Instructions<textarea
+					maxlength="10000"
+					bind:value={newInstructions}
+					placeholder="How should the agent help with this project?"></textarea></label
 			>
 			<div class="modal-actions">
 				<button type="button" class="button" onclick={() => (showCreate = false)}>Cancel</button
@@ -312,26 +343,33 @@
 		padding-bottom: 30px;
 	}
 	.page-heading h1 {
-		margin: 0 0 7px;
-		font-family: var(--font-display);
-		font-size: 32px;
-		line-height: 1.1;
-		letter-spacing: -0.03em;
+		margin: 0 0 6px;
+		font-family: var(--font-body);
+		font-size: var(--text-2xl);
+		font-weight: 600;
+		line-height: 1.2;
+		letter-spacing: -0.025em;
+		color: var(--text-strong);
 	}
 	.page-heading p {
 		margin: 0;
 		color: var(--text-muted);
+		font-size: var(--text-sm);
+		line-height: 1.5;
 	}
 	.button {
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
-		min-height: 40px;
-		padding: 9px 12px;
+		min-height: 38px;
+		padding: 8px 13px;
 		border-radius: 6px;
 		border: 1px solid var(--border-strong);
 		background: var(--surface);
 		color: var(--text-body);
+		font-family: var(--font-body);
+		font-size: var(--text-sm);
+		font-weight: 500;
 		transition: 0.18s ease;
 	}
 	.button.primary {
@@ -346,7 +384,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 22px 0;
+		padding: 20px 0;
 		color: var(--text-dim);
 		font-size: var(--text-sm);
 	}
@@ -357,13 +395,13 @@
 	.search-field {
 		display: flex;
 		align-items: center;
-		gap: 7px;
+		gap: 8px;
 		width: 220px;
-		min-height: 40px;
+		min-height: 38px;
 		padding: 7px 10px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 5px;
+		border-radius: 6px;
 		color: var(--text-dim);
 	}
 	.search-field input {
@@ -371,19 +409,20 @@
 		width: 100%;
 		border: 0;
 		outline: 0;
-		color: var(--text-body);
+		color: var(--text-strong);
+		font-family: var(--font-body);
 		font-size: var(--text-sm);
 		background: transparent;
 	}
 	.view-button {
 		display: grid;
 		place-items: center;
-		width: 40px;
-		height: 40px;
+		width: 38px;
+		height: 38px;
 		border: 1px solid var(--border);
 		background: var(--surface);
 		color: var(--text-faint);
-		border-radius: 5px;
+		border-radius: 6px;
 	}
 	.view-button.chosen,
 	.view-button:hover {
@@ -393,7 +432,7 @@
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
-		font-size: 13px;
+		font-size: var(--text-sm);
 		padding: 40px 0;
 		line-height: 1.5;
 	}
@@ -407,11 +446,11 @@
 	}
 	.project-card,
 	.empty-card {
-		min-height: 235px;
+		min-height: 220px;
 		padding: 18px;
 		text-align: left;
 		border: 1px solid var(--border);
-		border-radius: 12px;
+		border-radius: 10px;
 		background: var(--surface);
 		transition: 0.18s ease;
 		text-decoration: none;
@@ -436,26 +475,29 @@
 		color: var(--text-body);
 	}
 	.project-card h2 {
-		margin: 25px 0 7px;
-		font-size: 16px;
-		letter-spacing: -0.03em;
+		margin: 20px 0 6px;
+		font-family: var(--font-body);
+		font-size: var(--text-base);
+		font-weight: 600;
+		letter-spacing: -0.015em;
+		color: var(--text-strong);
 	}
 	.project-card p {
-		min-height: 57px;
+		min-height: 52px;
 		margin: 0;
 		color: var(--text-muted);
-		font-size: 12px;
-		line-height: 1.6;
+		font-size: var(--text-sm);
+		line-height: 1.55;
 	}
 	.card-footer {
 		display: flex;
 		justify-content: space-between;
 		gap: 6px;
-		margin-top: 21px;
-		padding-top: 13px;
+		margin-top: 18px;
+		padding-top: 12px;
 		border-top: 1px solid var(--border);
 		color: var(--text-dim);
-		font-size: 11px;
+		font-size: var(--text-xs);
 	}
 	.card-arrow {
 		float: right;
@@ -473,12 +515,13 @@
 		background: transparent;
 	}
 	.empty-card strong {
-		color: var(--text-body);
-		font-size: 13px;
+		color: var(--text-strong);
+		font-size: var(--text-sm);
 		font-weight: 500;
 	}
 	.empty-card span {
-		font-size: 11px;
+		font-size: var(--text-xs);
+		color: var(--text-dim);
 	}
 	.modal-backdrop {
 		position: fixed;
@@ -504,27 +547,34 @@
 		gap: 16px;
 	}
 	.modal h2 {
-		margin: 0 0 20px;
-		font-family: var(--font-display);
-		font-size: 22px;
-		line-height: 1.1;
-		letter-spacing: -0.02em;
+		margin: 0 0 16px;
+		font-family: var(--font-body);
+		font-size: var(--text-lg);
+		font-weight: 600;
+		line-height: 1.3;
+		letter-spacing: -0.015em;
+		color: var(--text-strong);
 	}
 	.modal label {
 		display: block;
 		margin-top: 14px;
-		color: var(--text-body);
-		font-size: 12px;
+		color: var(--text-muted);
+		font-size: var(--text-xs);
+		font-weight: 500;
 	}
 	.modal input,
 	.modal textarea {
 		display: block;
 		width: 100%;
 		margin-top: 6px;
-		padding: 10px;
+		padding: 8px 11px;
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		outline: 0;
+		font-family: var(--font-body);
+		font-size: var(--text-sm);
+		color: var(--text-strong);
+		background: var(--surface);
 	}
 	.modal textarea {
 		min-height: 80px;
@@ -544,7 +594,8 @@
 		background: var(--accent-bg);
 		border-radius: 6px;
 		padding: 10px 14px;
-		font-size: 13px;
+		font-size: var(--text-sm);
+		font-weight: 500;
 		z-index: 50;
 	}
 	@media (max-width: 800px) {

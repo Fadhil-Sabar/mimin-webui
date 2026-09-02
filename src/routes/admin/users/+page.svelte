@@ -289,18 +289,21 @@
 		color: var(--text-muted);
 	}
 	.eyebrow {
-		margin: 0 0 8px;
-		color: var(--text-dim);
+		margin: 0 0 6px;
+		color: var(--text-muted);
 		font-size: var(--text-xs);
-		font-weight: 650;
-		letter-spacing: 0.13em;
+		font-weight: 600;
+		letter-spacing: 0.04em;
 		text-transform: uppercase;
 	}
 	h1 {
-		margin: 0 0 8px;
-		color: var(--text);
-		font: 650 var(--text-2xl)/1.1 var(--font-display);
-		letter-spacing: -0.03em;
+		margin: 0 0 6px;
+		color: var(--text-strong);
+		font-family: var(--font-body);
+		font-size: var(--text-2xl);
+		font-weight: 600;
+		line-height: 1.2;
+		letter-spacing: -0.025em;
 	}
 	.subtitle,
 	.muted {
@@ -323,11 +326,15 @@
 		display: flex;
 		align-items: center;
 		gap: 9px;
-		color: var(--text);
+		color: var(--text-strong);
 	}
 	.panel-heading h2 {
 		margin: 0;
-		font: 600 var(--text-base)/1.2 var(--font-display);
+		font-family: var(--font-body);
+		font-size: var(--text-base);
+		font-weight: 600;
+		letter-spacing: -0.015em;
+		line-height: 1.3;
 	}
 	.count {
 		margin-left: auto;

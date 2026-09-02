@@ -1,9 +1,59 @@
 import { describe, expect, it } from 'vitest';
-import { messageInput, projectInput, providerSettingsInput } from '../src/lib/server/validation';
+import {
+	conversationInput,
+	messageInput,
+	projectInput,
+	providerSettingsInput
+} from '../src/lib/server/validation';
 
 describe('request validation', () => {
 	it('accepts a project and applies a description default', () => {
-		expect(projectInput.parse({ name: 'Mimin' })).toMatchObject({ name: 'Mimin', description: '' });
+		expect(projectInput.parse({ name: '  Mimin  ' })).toMatchObject({
+			name: 'Mimin',
+			description: ''
+		});
+		expect(
+			projectInput.parse({ name: 'Mimin', instructions: '  Use the glossary.  ' })
+		).toMatchObject({
+			instructions: 'Use the glossary.'
+		});
+	});
+	it('enforces project field limits and requires a non-empty name', () => {
+		expect(projectInput.safeParse({ name: 'x'.repeat(120) }).success).toBe(true);
+		expect(projectInput.safeParse({ name: 'x'.repeat(121) }).success).toBe(false);
+		expect(
+			projectInput.safeParse({ name: 'x'.repeat(1), description: 'x'.repeat(2001) }).success
+		).toBe(false);
+		expect(
+			projectInput.safeParse({ name: 'x'.repeat(1), instructions: 'x'.repeat(10001) }).success
+		).toBe(false);
+		expect(projectInput.safeParse({ name: '   ' }).success).toBe(false);
+	});
+	it('normalizes project conversation defaults and bounds client-controlled tools', () => {
+		const parsed = conversationInput.parse({ projectId: null });
+		expect(parsed).toMatchObject({
+			projectId: null,
+			model: 'openai/gpt-4o-mini',
+			enabledTools: ['web_search']
+		});
+		expect(
+			conversationInput.safeParse({
+				projectId: 'not-a-uuid',
+				enabledTools: []
+			}).success
+		).toBe(false);
+		expect(
+			conversationInput.safeParse({
+				projectId: '00000000-0000-4000-8000-000000000001',
+				enabledTools: Array.from({ length: 20 }, (_, index) => `tool-${index}`)
+			}).success
+		).toBe(true);
+		expect(
+			conversationInput.safeParse({
+				projectId: '00000000-0000-4000-8000-000000000001',
+				enabledTools: Array.from({ length: 21 }, (_, index) => `tool-${index}`)
+			}).success
+		).toBe(false);
 	});
 	it('rejects empty messages', () => {
 		expect(messageInput.safeParse({ content: '   ' }).success).toBe(false);

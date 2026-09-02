@@ -57,6 +57,13 @@
 			"when": 1788274369557,
 			"tag": "0007_pdf_extraction",
 			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1788278959005,
+			"tag": "0008_mean_luckman",
+			"breakpoints": true
 		}
 	]
 }

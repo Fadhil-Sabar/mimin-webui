@@ -20,6 +20,9 @@ Sudah tersedia:
 - Chunking project knowledge untuk basic text search
 - Stop generation dengan `AbortController` dan Pi agent abort
 - CRUD project dan conversation
+- UI Projects lengkap untuk membuat, mengedit, menghapus, mencari, mengunggah knowledge, dan memulai chat project
+- Instruksi project diterapkan pada setiap agent turn dan project knowledge aktif secara otomatis
+- Status ekstraksi, jumlah halaman/chunk, dan error file project tersimpan secara persisten
 - Pengaturan API key provider per pengguna dengan penyimpanan terenkripsi, masking, dan env fallback
 - Attachment per message di chat dengan metadata persisten dan konteks riwayat percakapan
 - PostgreSQL migration dan seed script
@@ -157,7 +160,7 @@ drizzle/
 Table utama:
 
 - `projects`: metadata project dan instructions
-- `project_files`: metadata file dan storage key
+- `project_files`: metadata file, storage key, status ekstraksi, dan jumlah chunk terindeks
 - `project_file_chunks`: text chunks untuk retrieval
 - `conversations`: standalone atau project conversation
 - `messages`: user, assistant, system, dan tool state
@@ -349,10 +352,10 @@ Seluruh isi file tidak diinjeksi ke setiap request model. Tool hanya mengembalik
 /                                  Home composer
 /chat                              Chat room dan SSE response
 /projects                          Project dashboard
-/projects/mimin-coding-agent       Project overview dan knowledge
+/projects/:id                     Project overview dan knowledge
 ```
 
-Chat frontend menggunakan `src/lib/client/api.ts` untuk membuat conversation dan membaca SSE stream. Projects dashboard mencoba mengambil data dari API dan mempertahankan fallback visual jika backend belum dikonfigurasi.
+Chat frontend menggunakan `src/lib/client/api.ts` untuk membuat conversation dan membaca SSE stream. Halaman Projects menggunakan state API live yang terautentikasi dan menampilkan status loading, kesehatan ekstraksi, empty state, serta kegagalan secara eksplisit.
 
 ## Development commands
 

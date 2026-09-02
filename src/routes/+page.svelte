@@ -231,26 +231,29 @@
 		padding: clamp(64px, 15vh, 150px) 32px 80px;
 	}
 	.home-wrap h1 {
-		font-family: var(--font-display);
+		font-family: var(--font-body);
 		font-size: var(--text-3xl);
-		line-height: 1.06;
+		font-weight: 600;
+		line-height: 1.15;
 		letter-spacing: -0.03em;
+		color: var(--text-strong);
 		margin: 0 0 14px;
 	}
 	.workbench-label {
 		display: inline-flex;
 		margin-bottom: 12px;
-		color: var(--text-dim);
+		color: var(--text-muted);
 		font-size: var(--text-xs);
-		font-weight: 650;
-		letter-spacing: 0.13em;
+		font-weight: 600;
+		letter-spacing: 0.04em;
 		text-transform: uppercase;
 	}
 	.intro {
 		max-width: 500px;
 		color: var(--text-muted);
+		font-size: var(--text-base);
 		line-height: 1.6;
-		margin: 0 0 36px;
+		margin: 0 0 32px;
 	}
 	.setup-callout {
 		display: flex;
@@ -258,15 +261,18 @@
 		justify-content: space-between;
 		max-width: 640px;
 		margin: 0 0 16px;
-		padding: 11px 13px;
+		padding: 10px 14px;
 		color: var(--text-body);
-		background: var(--surface-3);
-		border-left: 2px solid var(--text-strong);
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: 8px;
 		font-size: var(--text-sm);
 		text-decoration: none;
+		transition: background 0.15s ease, border-color 0.15s ease;
 	}
 	.setup-callout:hover {
 		background: var(--surface-hover);
+		border-color: var(--border-strong);
 	}
 	.home-composer {
 		background: var(--surface);

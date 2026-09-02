@@ -508,15 +508,19 @@
 		padding-bottom: 28px;
 	}
 	.page-heading h1 {
-		margin: 0 0 7px;
-		font-family: var(--font-display);
-		font-size: 32px;
-		line-height: 1.1;
-		letter-spacing: -0.03em;
+		margin: 0 0 6px;
+		font-family: var(--font-body);
+		font-size: var(--text-2xl);
+		font-weight: 600;
+		line-height: 1.2;
+		letter-spacing: -0.025em;
+		color: var(--text-strong);
 	}
 	.page-heading p {
 		margin: 0;
 		color: var(--text-muted);
+		font-size: var(--text-sm);
+		line-height: 1.5;
 	}
 	.add-provider {
 		flex: 0 0 auto;
@@ -525,14 +529,16 @@
 	.modal select {
 		display: block;
 		width: 100%;
-		min-height: 44px;
+		min-height: 42px;
 		margin-top: 6px;
-		padding: 10px;
+		padding: 8px 11px;
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		outline: none;
 		background: var(--surface);
-		color: var(--text);
+		color: var(--text-strong);
+		font-family: var(--font-body);
+		font-size: var(--text-sm);
 	}
 	.modal select:focus {
 		border-color: var(--focus);
@@ -540,7 +546,7 @@
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
-		font-size: 13px;
+		font-size: var(--text-sm);
 		padding: 40px 0;
 		line-height: 1.5;
 	}
@@ -555,10 +561,10 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 18px;
-		padding: 17px 19px;
+		padding: 16px 18px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 12px;
+		border-radius: 10px;
 		transition: 0.18s ease;
 	}
 	.provider-card:hover {
@@ -573,11 +579,11 @@
 	.provider-icon {
 		display: grid;
 		place-items: center;
-		width: 35px;
-		height: 35px;
-		flex: 0 0 auto;
+		width: 36px;
+		height: 36px;
+		flex: 0 0 36px;
 		color: var(--text-muted);
-		background: var(--surface-3);
+		background: var(--surface-2);
 		border: 1px solid var(--border);
 		border-radius: 8px;
 	}
@@ -587,8 +593,11 @@
 		gap: 9px;
 	}
 	.provider-name strong {
-		font-size: var(--text-lg);
-		letter-spacing: -0.02em;
+		font-family: var(--font-body);
+		font-size: var(--text-base);
+		font-weight: 600;
+		letter-spacing: -0.015em;
+		color: var(--text-strong);
 	}
 	.badge {
 		color: var(--text-dim);

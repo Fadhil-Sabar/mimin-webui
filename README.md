@@ -23,7 +23,9 @@ Available:
 - Project knowledge chunking for basic text search
 - Stop generation with `AbortController` and Pi agent abort
 - Project and conversation CRUD
-- Projects dashboard and project overview pages on live API state (list, create, upload, delete, start chat)
+- Complete Projects UI for create, edit, delete, knowledge health, search, uploads, and project chats
+- Project instructions applied to every agent turn, with project knowledge enabled automatically
+- Persisted project-file extraction status, page/chunk counts, and errors
 - Per-message chat attachments with persisted metadata and conversation history context
 - Per-user provider API key settings with encrypted storage, masking, and env fallback
 - PostgreSQL migration and seed script
@@ -183,7 +185,7 @@ Main tables:
 - `verifications`: Better Auth verification records
 - `provider_settings`: encrypted per-user provider keys and base URLs
 - `projects`: project metadata and instructions, owned by a user
-- `project_files`: file metadata and storage keys
+- `project_files`: file metadata, storage keys, extraction health, and indexed chunk counts
 - `project_file_chunks`: text chunks for retrieval
 - `conversations`: standalone or project conversations, owned by a user
 - `messages`: user, assistant, system, and tool state
@@ -399,7 +401,7 @@ The full file is not injected into every model request. The tool returns only ch
 /settings                          Provider API key settings
 ```
 
-The chat frontend uses `src/lib/client/api.ts` to create conversations and read SSE streams. The projects dashboard attempts to load data from the API and keeps a visual fallback when the backend is not configured.
+The chat frontend uses `src/lib/client/api.ts` to create conversations and read SSE streams. Projects pages use authenticated live API state and surface loading, extraction-health, empty, and failure states explicitly.
 
 ## Development commands
 

@@ -5,6 +5,7 @@ import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
+import { getProjectConversationTools } from '$lib/server/ai/project-context';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -63,8 +64,18 @@ export const POST: RequestHandler = async (event) => {
 			return apiError('PROJECT_NOT_FOUND', 'Project not found.', 404);
 		const [conversation] = await db
 			.insert(schema.conversations)
-			.values({ ...parsed.data, model: targetModel, userId: user.id })
+			.values({
+				...parsed.data,
+				enabledTools: getProjectConversationTools(parsed.data.projectId, parsed.data.enabledTools),
+				model: targetModel,
+				userId: user.id
+			})
 			.returning();
+		if (parsed.data.projectId)
+			await db
+				.update(schema.projects)
+				.set({ updatedAt: new Date() })
+				.where(eq(schema.projects.id, parsed.data.projectId));
 		return json({ conversation }, { status: 201 });
 	} catch (error) {
 		return handleApiError(error);

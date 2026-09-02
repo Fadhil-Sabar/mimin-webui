@@ -1097,14 +1097,16 @@
 		border-bottom: 1px solid var(--border);
 	}
 	.chat-title h1 {
-		font-family: var(--font-display);
+		font-family: var(--font-body);
 		font-size: var(--text-xl);
-		line-height: 1.1;
+		font-weight: 600;
+		line-height: 1.25;
 		letter-spacing: -0.02em;
-		margin: 9px 0 5px;
+		color: var(--text-strong);
+		margin: 8px 0 4px;
 	}
 	.chat-title p {
-		color: var(--text-dim);
+		color: var(--text-muted);
 		font-size: var(--text-sm);
 		margin: 0;
 	}

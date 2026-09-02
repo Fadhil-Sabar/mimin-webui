@@ -9,4 +9,8 @@ describe('tool registry', () => {
 	it('exposes web tools with normalized metadata', () => {
 		expect(getTool('web_fetch')?.label).toBe('Web Fetch');
 	});
+
+	it('does not expose the unimplemented files tool', () => {
+		expect(getTool('files')).toBeUndefined();
+	});
 });

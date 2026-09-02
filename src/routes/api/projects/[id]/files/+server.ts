@@ -46,6 +46,7 @@ export const POST: RequestHandler = async (event) => {
 		const saved = await saveProjectFile(projectId, value);
 		savedStorageKey = saved.storageKey;
 		const extraction = await extractUploadedFile(value);
+		const chunks = chunkText(extraction.extractedText ?? '');
 		const [record] = await db
 			.insert(schema.projectFiles)
 			.values({
@@ -53,15 +54,22 @@ export const POST: RequestHandler = async (event) => {
 				filename: saved.filename,
 				mimeType: saved.mimeType,
 				sizeBytes: saved.sizeBytes,
-				storageKey: saved.storageKey
+				storageKey: saved.storageKey,
+				extractionStatus: extraction.extractionStatus,
+				pageCount: extraction.pageCount,
+				extractionError: extraction.extractionError,
+				chunkCount: chunks.length
 			})
 			.returning();
 		savedFileId = record.id;
-		const chunks = chunkText(extraction.extractedText ?? '');
 		if (chunks.length)
 			await db
 				.insert(schema.projectFileChunks)
 				.values(chunks.map((content) => ({ projectId, fileId: record.id, content })));
+		await db
+			.update(schema.projects)
+			.set({ updatedAt: new Date() })
+			.where(eq(schema.projects.id, projectId));
 		return json(
 			{
 				file: record,

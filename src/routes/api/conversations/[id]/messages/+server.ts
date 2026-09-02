@@ -87,6 +87,11 @@ export const POST: RequestHandler = async (event) => {
 			.insert(schema.messages)
 			.values({ conversationId, role: 'user', content: parsed.data.content })
 			.returning();
+		if (conversation.projectId)
+			await db
+				.update(schema.projects)
+				.set({ updatedAt: new Date() })
+				.where(eq(schema.projects.id, conversation.projectId));
 		messageIdForCleanup = userMessage.id;
 		const attachmentRecords = savedAttachments.length
 			? await db

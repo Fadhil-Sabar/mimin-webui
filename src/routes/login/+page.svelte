@@ -131,10 +131,12 @@
 	}
 	h1 {
 		margin: 0 0 5px;
-		font-family: var(--font-display);
+		font-family: var(--font-body);
 		font-size: var(--text-xl);
-		line-height: 1.1;
+		font-weight: 600;
+		line-height: 1.25;
 		letter-spacing: -0.02em;
+		color: var(--text-strong);
 	}
 	.subtitle {
 		margin: 0 0 24px;

@@ -108,6 +108,10 @@ export const projectFiles = pgTable(
 		mimeType: text('mime_type').notNull(),
 		sizeBytes: integer('size_bytes').notNull(),
 		storageKey: text('storage_key').notNull(),
+		extractionStatus: text('extraction_status').notNull().default('not_started'),
+		pageCount: integer('page_count'),
+		extractionError: text('extraction_error'),
+		chunkCount: integer('chunk_count').notNull().default(0),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => ({ projectIdx: index('project_files_project_idx').on(table.projectId) })

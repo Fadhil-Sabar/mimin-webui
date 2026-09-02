@@ -5,6 +5,7 @@ import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
+import { getProjectConversationTools } from '$lib/server/ai/project-context';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -79,7 +80,8 @@ export const PATCH: RequestHandler = async (event) => {
 		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
 		const id = event.params.id;
 		if (!id) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
-		if (!(await getOwnedConversation(id, user.id)))
+		const existingConversation = await getOwnedConversation(id, user.id);
+		if (!existingConversation)
 			return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		const body = await event.request.json();
 		const updateSchema = conversationInput
@@ -94,9 +96,21 @@ export const PATCH: RequestHandler = async (event) => {
 			return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
 		const [conversation] = await getDb()
 			.update(schema.conversations)
-			.set({ ...parsed.data, updatedAt: new Date() })
+			.set({
+				...parsed.data,
+				enabledTools:
+					parsed.data.enabledTools === undefined
+						? undefined
+						: getProjectConversationTools(existingConversation.projectId, parsed.data.enabledTools),
+				updatedAt: new Date()
+			})
 			.where(eq(schema.conversations.id, id))
 			.returning();
+		if (existingConversation.projectId)
+			await getDb()
+				.update(schema.projects)
+				.set({ updatedAt: new Date() })
+				.where(eq(schema.projects.id, existingConversation.projectId));
 		return json({ conversation });
 	} catch (error) {
 		return handleApiError(error);
@@ -108,13 +122,19 @@ export const DELETE: RequestHandler = async (event) => {
 		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
 		const id = event.params.id;
 		if (!id) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
-		if (!(await getOwnedConversation(id, user.id)))
+		const existingConversation = await getOwnedConversation(id, user.id);
+		if (!existingConversation)
 			return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		const deleted = await getDb()
 			.delete(schema.conversations)
 			.where(eq(schema.conversations.id, id))
 			.returning({ id: schema.conversations.id });
 		if (!deleted.length) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
+		if (existingConversation.projectId)
+			await getDb()
+				.update(schema.projects)
+				.set({ updatedAt: new Date() })
+				.where(eq(schema.projects.id, existingConversation.projectId));
 		return new Response(null, { status: 204 });
 	} catch (error) {
 		return handleApiError(error);
