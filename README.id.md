@@ -13,6 +13,7 @@ Sudah tersedia:
 - Project dan conversation yang tersimpan secara persistent
 - Discovery model live untuk provider OpenAI, Anthropic, dan Google yang dikonfigurasi
 - Tool registry ter-normalisasi
+- Bridge opsional Chrome/Chromium dan Firefox agar agent membuka tab dan mencari lewat Google/Scholar
 - `project_knowledge_search` untuk project conversation
 - Upload dan delete file project
 - Text extraction sederhana untuk `.txt`, `.md`, dan `.json`
@@ -132,6 +133,38 @@ npm run dev
 ```
 
 Buka `http://localhost:5173`.
+
+### Extension browser opsional
+
+Buka **Settings → Browser Extension**, aktifkan bridge, lalu pasang paket sesuai browser.
+Muat ulang Mimin di browser yang sama dan pastikan status **Connected**. Dari chat, misalnya,
+minta “Cari paper tentang agentic coding di Google Scholar.” Agent memakai `browser_search`
+atau `browser_open`; extension membuka tab nyata dan mengembalikan teks serta hasil
+Google/Scholar ke agent. Popup extension hanya menampilkan informasi koneksi.
+
+Fitur mati secara default dan diaktifkan per browser. Tool browser hanya tersedia untuk giliran
+chat yang terhubung. Extension membaca halaman Google/Scholar yang dibukanya, tanpa membaca
+tab lama atau riwayat browsing. Konten halaman dikirim ke server Mimin dan penyedia model yang
+dikonfigurasi. URL HTTP(S) publik lain bisa dibuka, tetapi isinya belum dibaca. Jika muncul CAPTCHA,
+selesaikan sendiri lalu minta agent mencoba lagi. Biarkan chat terbuka selama tool bekerja.
+
+Jika sebelumnya memasang popup Mimin Search, ganti/muat ulang extension dengan paket baru dan
+muat ulang Mimin. Untuk server selain lokal, isi `MIMIN_EXTENSION_ORIGINS` saat build dengan
+origin Mimin yang dipisahkan koma. Default: `http://localhost:5173` dan `http://127.0.0.1:5173`.
+
+Paket dibuat otomatis saat development dan production build. Paket juga dapat dibuat langsung:
+
+```bash
+npm run extension:build
+```
+
+Petunjuk instalasi lokal tersedia di [`browser-extension/README.md`](browser-extension/README.md).
+Untuk production, paket perlu ditandatangani dan didistribusikan melalui Chrome Web Store serta
+Mozilla Add-ons agar pengguna mendapat proses instalasi normal dan pembaruan otomatis.
+
+Perintah browser dikirim lewat stream chat dan hasilnya dikembalikan melalui callback sekali pakai
+yang memeriksa identitas pengguna. Permintaan tertunda disimpan di proses server; deployment
+multi-instance memerlukan sticky routing untuk chat dan hasil browser, atau broker bersama.
 
 Matikan database lokal dengan:
 

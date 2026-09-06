@@ -15,6 +15,7 @@
 		PanelLeft,
 		Play,
 		Plus,
+		Puzzle,
 		RotateCcw,
 		Search,
 		Settings,
@@ -298,6 +299,9 @@
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			<a class="nav-item active" href={resolve('/settings/web-search')}
 				><Globe size={16} /> Web Search</a
+			>
+			<a class="nav-item" href={resolve('/settings/browser-extension')}
+				><Puzzle size={16} /> Browser Extension</a
 			>
 			<RecentChats />
 		</div>

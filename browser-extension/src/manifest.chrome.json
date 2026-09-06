@@ -1,0 +1,22 @@
+{
+	"manifest_version": 3,
+	"name": "Mimin Browser Bridge",
+	"version": "0.2.0",
+	"description": "A small bridge that lets Mimin open and read Google or Google Scholar search tabs.",
+	"permissions": ["scripting", "storage"],
+	"host_permissions": ["https://www.google.com/*", "https://scholar.google.com/*"],
+	"action": {
+		"default_title": "Mimin Browser Bridge",
+		"default_popup": "popup.html"
+	},
+	"background": {
+		"service_worker": "background.chrome.js"
+	},
+	"content_scripts": [
+		{
+			"matches": ["http://localhost:5173/*", "http://127.0.0.1:5173/*"],
+			"js": ["config.js", "content.js"],
+			"run_at": "document_start"
+		}
+	]
+}

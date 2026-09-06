@@ -11,6 +11,7 @@ import {
 	runConversationTurn,
 	stopConversation
 } from '$lib/server/ai/agent.service';
+import { BROWSER_BRIDGE_HEADER } from '$lib/server/browser/bridge';
 import {
 	cleanupStoredFiles,
 	extractUploadedFile,
@@ -36,6 +37,7 @@ export const POST: RequestHandler = async (event) => {
 		conversationId = event.params.id;
 		if (!conversationId) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		const isMultipart = event.request.headers.get('content-type')?.includes('multipart/form-data');
+		const browserBridgeEnabled = event.request.headers.get(BROWSER_BRIDGE_HEADER) === '1';
 		let parsed: { data: { content: string; model?: string } };
 		let files: File[] = [];
 		if (isMultipart) {
@@ -184,7 +186,8 @@ export const POST: RequestHandler = async (event) => {
 					(event) => send(event.type, event),
 					user.id,
 					userMessage.id,
-					streamTurnToken
+					streamTurnToken,
+					browserBridgeEnabled
 				);
 				send('done', { type: 'done' });
 			} catch (error) {

@@ -9,6 +9,9 @@
 		category?: string;
 		enabled?: boolean;
 		projectOnly?: boolean;
+		readOnly?: boolean;
+		settingHint?: string;
+		settingHref?: string;
 	};
 
 	type Props = {
@@ -27,7 +30,10 @@
 	let placement = $state<'top' | 'bottom'>('top');
 	let maxHeight = $state<string | undefined>(undefined);
 
-	let enabledCount = $derived(enabledTools.length);
+	let enabledCount = $derived(
+		tools.filter((tool) => (tool.readOnly ? Boolean(tool.enabled) : enabledTools.includes(tool.name)))
+			.length
+	);
 
 	function updatePlacement() {
 		if (!trigger) return;
@@ -53,6 +59,8 @@
 	}
 
 	function toggleTool(name: string) {
+		const target = tools.find((tool) => tool.name === name);
+		if (target?.readOnly) return;
 		const isCurrentlyEnabled = enabledTools.includes(name);
 		void ontoggle?.(name, !isCurrentlyEnabled);
 	}
@@ -116,25 +124,56 @@
 			</div>
 			<div class="tool-list">
 				{#each tools as tool (tool.name)}
-					{@const isEnabled = enabledTools.includes(tool.name)}
-					<div
-						class="tool-item"
-						class:active={isEnabled}
-						onclick={() => toggleTool(tool.name)}
-						role="button"
-						tabindex="0"
-						onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleTool(tool.name)}
-					>
-						<div class="tool-info">
-							<div class="tool-name-row">
-								<strong>{tool.label}</strong>
+					{@const isReadOnly = Boolean(tool.readOnly)}
+					{@const isEnabled = isReadOnly ? Boolean(tool.enabled) : enabledTools.includes(tool.name)}
+					{#if isReadOnly}
+						<div class="tool-item readonly" class:active={isEnabled}>
+							<div class="tool-info">
+								<div class="tool-name-row">
+									<strong>{tool.label}</strong>
+									<span class="tool-status-badge" class:enabled={isEnabled}>
+										{isEnabled ? 'Enabled' : 'Disabled'}
+									</span>
+								</div>
+								<p class="tool-desc">{tool.description}</p>
+								<p class="tool-settings-info">
+									Can only be configured in <a
+										href={tool.settingHref ?? '/settings/browser-extension'}
+										onclick={(e) => e.stopPropagation()}
+									>
+										Settings &rsaquo; Browser Extension
+									</a>
+								</p>
 							</div>
-							<p class="tool-desc">{tool.description}</p>
+							<div
+								class="tool-switch readonly"
+								class:checked={isEnabled}
+								aria-hidden="true"
+								title="Can only be configured in Settings"
+							>
+								<div class="tool-switch-handle"></div>
+							</div>
 						</div>
-						<div class="tool-switch" class:checked={isEnabled} aria-hidden="true">
-							<div class="tool-switch-handle"></div>
+					{:else}
+						<div
+							class="tool-item"
+							class:active={isEnabled}
+							onclick={() => toggleTool(tool.name)}
+							role="button"
+							tabindex="0"
+							onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleTool(tool.name)}
+						>
+							<div class="tool-info">
+								<div class="tool-name-row">
+									<strong>{tool.label}</strong>
+								</div>
+								<p class="tool-desc">{tool.description}</p>
+							</div>
+							<div class="tool-switch" class:checked={isEnabled} aria-hidden="true">
+								<div class="tool-switch-handle"></div>
+							</div>
 						</div>
-					</div>
+					{/if}
 				{/each}
 				{#if tools.length === 0}
 					<div class="tool-empty">No tools available</div>
@@ -257,6 +296,12 @@
 	.tool-item:hover {
 		background: var(--surface-hover);
 	}
+	.tool-item.readonly {
+		cursor: default;
+	}
+	.tool-item.readonly:hover {
+		background: transparent;
+	}
 	.tool-info {
 		display: flex;
 		flex-direction: column;
@@ -264,16 +309,56 @@
 		min-width: 0;
 		flex: 1;
 	}
+	.tool-name-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
 	.tool-name-row strong {
 		font-size: var(--text-sm);
 		font-weight: 500;
 		color: var(--text);
+	}
+	.tool-status-badge {
+		display: inline-flex;
+		align-items: center;
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		padding: 1px 6px;
+		border-radius: 4px;
+		background: var(--surface-3);
+		color: var(--text-dim);
+		border: 1px solid var(--border);
+		line-height: 1.3;
+	}
+	.tool-status-badge.enabled {
+		background: rgba(34, 197, 94, 0.12);
+		color: var(--status-ok-text, #22c55e);
+		border-color: rgba(34, 197, 94, 0.25);
 	}
 	.tool-desc {
 		margin: 0;
 		font-size: var(--text-xs);
 		color: var(--text-dim);
 		line-height: 1.35;
+	}
+	.tool-settings-info {
+		margin: 3px 0 0;
+		font-size: var(--text-xs);
+		color: var(--text-muted);
+		line-height: 1.3;
+	}
+	.tool-settings-info a {
+		color: var(--text-strong);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		transition: color 0.15s ease;
+	}
+	.tool-settings-info a:hover {
+		color: var(--focus, #3b82f6);
 	}
 	.tool-switch {
 		position: relative;
@@ -290,6 +375,10 @@
 	.tool-switch.checked {
 		background: var(--accent-bg);
 		border-color: var(--accent-bg);
+	}
+	.tool-switch.readonly {
+		opacity: 0.55;
+		cursor: not-allowed;
 	}
 	.tool-switch-handle {
 		position: absolute;

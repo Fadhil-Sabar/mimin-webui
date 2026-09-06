@@ -54,6 +54,16 @@ export function assertAllowedOutboundUrl(value: string) {
 		throw new OutboundUrlError();
 	}
 	if (!/^https?:$/.test(url.protocol) || url.username || url.password) throw new OutboundUrlError();
+
+	const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+	const isIpOrLocal =
+		host === 'localhost' ||
+		!host.includes('.') ||
+		/^(\d+|0x[0-9a-f]+)(\.(\d+|0x[0-9a-f]+))*$/i.test(host) ||
+		host.includes(':');
+
+	if (url.protocol === 'https:' && !isIpOrLocal) return;
+
 	const allowed = new Set([...BUILTIN_ORIGINS, ...configuredOrigins()]);
 	if (!allowed.has(url.origin)) throw new OutboundUrlError();
 }

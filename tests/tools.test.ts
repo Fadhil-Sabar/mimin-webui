@@ -13,4 +13,12 @@ describe('tool registry', () => {
 	it('does not expose the unimplemented files tool', () => {
 		expect(getTool('files')).toBeUndefined();
 	});
+
+	it('exposes browser_search tool as read-only with settings reference', () => {
+		const tool = getTool('browser_search');
+		expect(tool).toBeDefined();
+		expect(tool?.label).toBe('Browser Search');
+		expect(tool?.readOnly).toBe(true);
+		expect(tool?.settingHref).toBe('/settings/browser-extension');
+	});
 });

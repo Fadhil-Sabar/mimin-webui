@@ -8,6 +8,7 @@ node_modules
 /.svelte-kit
 /build
 /data
+/static/extensions
 
 # OS
 .DS_Store
@@ -25,4 +26,3 @@ vite.config.ts.timestamp-*
 
 # Tooling
 .commandcode/
-

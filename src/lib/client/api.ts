@@ -1,3 +1,5 @@
+import { getBrowserBridgeStatus, handleBrowserRequest } from './browser-bridge';
+
 export type SseEvent = { type: string; [key: string]: unknown };
 
 /**
@@ -113,6 +115,7 @@ export async function streamMessage(
 	model?: string,
 	files: File[] = []
 ) {
+	const bridge = await getBrowserBridgeStatus(signal);
 	const body = files.length
 		? (() => {
 				const form = new FormData();
@@ -124,9 +127,11 @@ export async function streamMessage(
 		: JSON.stringify({ content, ...(model ? { model } : {}) });
 	const response = await fetch(`/api/conversations/${id}/messages`, {
 		method: 'POST',
-		headers: files.length
-			? { accept: 'text/event-stream' }
-			: { 'content-type': 'application/json', accept: 'text/event-stream' },
+		headers: {
+			...(!files.length ? { 'content-type': 'application/json' } : {}),
+			accept: 'text/event-stream',
+			...(bridge.connected ? { 'x-mimin-browser-bridge': '1' } : {})
+		},
 		body,
 		signal
 	});
@@ -137,21 +142,31 @@ export async function streamMessage(
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
 	let buffer = '';
-	while (true) {
-		const { value, done } = await reader.read();
-		if (done) break;
-		buffer += decoder.decode(value, { stream: true });
-		let boundary = buffer.indexOf('\n\n');
-		while (boundary !== -1) {
-			const block = buffer.slice(0, boundary);
-			buffer = buffer.slice(boundary + 2);
-			const data = block.split('\n').find((line) => line.startsWith('data: '));
-			if (data) onEvent(JSON.parse(data.slice(6)));
-			boundary = buffer.indexOf('\n\n');
-		}
+	async function dispatch(raw: string) {
+		const event = JSON.parse(raw) as SseEvent;
+		if (event.type === 'browser.request') await handleBrowserRequest(event, signal);
+		else onEvent(event);
 	}
-	if (buffer.trim()) {
-		const data = buffer.split('\n').find((line) => line.startsWith('data: '));
-		if (data) onEvent(JSON.parse(data.slice(6)));
+	try {
+		while (true) {
+			const { value, done } = await reader.read();
+			if (done) break;
+			buffer += decoder.decode(value, { stream: true });
+			let boundary = buffer.indexOf('\n\n');
+			while (boundary !== -1) {
+				const block = buffer.slice(0, boundary);
+				buffer = buffer.slice(boundary + 2);
+				const data = block.split('\n').find((line) => line.startsWith('data: '));
+				if (data) await dispatch(data.slice(6));
+				boundary = buffer.indexOf('\n\n');
+			}
+		}
+		if (buffer.trim()) {
+			const data = buffer.split('\n').find((line) => line.startsWith('data: '));
+			if (data) await dispatch(data.slice(6));
+		}
+	} finally {
+		await reader.cancel().catch(() => {});
+		reader.releaseLock();
 	}
 }

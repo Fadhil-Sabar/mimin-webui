@@ -15,30 +15,40 @@ describe('outbound endpoint policy', () => {
 		'http://[::1]/',
 		'http://[::ffff:127.0.0.1]/',
 		'http://169.254.169.254/latest/meta-data',
+		'https://169.254.169.254/latest/meta-data',
 		'http://2130706433/',
-		'https://user-controlled.example/search',
-		'https://api.openai.com.attacker.example/',
-		'https://api.openai.com:8443/v1',
 		'https://user:secret@api.openai.com/v1',
-		'file:///etc/passwd'
+		'file:///etc/passwd',
+		'http://unapproved.example/search'
 	])('refuses an unapproved or malformed endpoint: %s', (url) => {
 		expect(() => assertAllowedOutboundUrl(url)).toThrow('OUTBOUND_URL_NOT_ALLOWED');
 	});
 
-	it('permits built-in endpoints and only explicitly configured custom origins', () => {
-		vi.stubEnv('OUTBOUND_ALLOWED_ORIGINS', 'http://localhost:11434, https://gateway.example');
+	it('permits public HTTPS endpoints automatically', () => {
+		for (const url of [
+			'https://user-controlled.example/search',
+			'https://api.openai.com.attacker.example/',
+			'https://opencode.ai/zen/v1',
+			'https://gateway.example/v1'
+		]) {
+			expect(() => assertAllowedOutboundUrl(url)).not.toThrow();
+		}
+	});
+
+	it('permits built-in endpoints and explicitly configured custom HTTP origins', () => {
+		vi.stubEnv('OUTBOUND_ALLOWED_ORIGINS', 'http://localhost:11434, http://custom-http.example');
 		vi.stubEnv('SEARXNG_URL', 'http://localhost:8080/search');
 		for (const url of [
 			'https://api.openai.com/v1/models',
 			'http://localhost:11434/v1/models',
-			'https://gateway.example/v1',
+			'http://custom-http.example/v1',
 			'http://localhost:8080/search?q=test'
 		]) {
 			expect(() => assertAllowedOutboundUrl(url)).not.toThrow();
 		}
 		expect(() => assertAllowedOutboundUrl('http://localhost:11435/v1')).toThrow();
 		vi.stubEnv('OUTBOUND_ALLOWED_ORIGINS', '');
-		expect(() => assertAllowedOutboundUrl('https://gateway.example/v1')).toThrow();
+		expect(() => assertAllowedOutboundUrl('http://custom-http.example/v1')).toThrow();
 	});
 
 	it('blocks discovery before sending credentials and disables redirects on allowed requests', async () => {

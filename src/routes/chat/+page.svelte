@@ -22,6 +22,7 @@
 		PanelLeft,
 		Paperclip,
 		Plus,
+		Puzzle,
 		Search,
 		Settings,
 		Sparkles,
@@ -42,6 +43,7 @@
 	import Markdown from '$lib/components/Markdown.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
 	import { conversationsState, type ConversationSummary } from '$lib/client/conversations.svelte';
+	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
 
 	type Conversation = {
 		id: string;
@@ -112,6 +114,7 @@
 	let thinkingLevelsByModel = $state<Record<string, ThinkingLevel>>({});
 	let availableTools = $state<ToolOption[]>([]);
 	let toolsLoading = $state(true);
+	let browserBridgeEnabled = $state(false);
 	let abortController: AbortController | undefined;
 	let scrollEl: HTMLElement | undefined;
 	let userAtBottom = $state(true);
@@ -123,6 +126,46 @@
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 	let conversationLoadToken = 0;
 	let toolsLoadToken = 0;
+
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		browserBridgeEnabled = isBrowserBridgeEnabled();
+		const handleSync = () => {
+			browserBridgeEnabled = isBrowserBridgeEnabled();
+		};
+		window.addEventListener('storage', handleSync);
+		window.addEventListener('focus', handleSync);
+		return () => {
+			window.removeEventListener('storage', handleSync);
+			window.removeEventListener('focus', handleSync);
+		};
+	});
+
+	let displayTools = $derived.by(() => {
+		const tools = availableTools.map((tool) =>
+			tool.name === 'browser_search'
+				? {
+						...tool,
+						enabled: browserBridgeEnabled,
+						readOnly: true,
+						settingHref: '/settings/browser-extension'
+					}
+				: tool
+		);
+		if (!tools.some((t) => t.name === 'browser_search')) {
+			tools.push({
+				name: 'browser_search',
+				label: 'Browser Search',
+				description: 'Search Google or Google Scholar via browser extension.',
+				category: 'browser',
+				enabled: browserBridgeEnabled,
+				readOnly: true,
+				settingHint: 'Configure in Settings > Browser Extension',
+				settingHref: '/settings/browser-extension'
+			});
+		}
+		return tools;
+	});
 
 	let isNewConversationEmpty = $derived(messages.length === 0 && !running && !!activeConversation);
 
@@ -652,6 +695,8 @@
 
 	async function toggleTool(toolName: string, enable: boolean) {
 		if (!activeId || !activeConversation) return;
+		const toolObj = displayTools.find((t) => t.name === toolName);
+		if (toolObj?.readOnly) return;
 		const conversation = activeConversation;
 		const current = conversation.enabledTools ?? [];
 		const updated = enable
@@ -675,7 +720,6 @@
 				activeConversation = data.conversation;
 				conversations = conversations.map((c) => (c.id === activeId ? data.conversation : c));
 			}
-			const toolObj = availableTools.find((t) => t.name === toolName);
 			const label = toolObj?.label ?? toolName;
 			notify(enable ? `${label} enabled` : `${label} disabled`);
 		} catch (error) {
@@ -1038,6 +1082,9 @@
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
+			<a class="nav-item" href={resolve('/settings/browser-extension')}
+				><Puzzle size={16} /> Browser Extension</a
+			>
 			<RecentChats
 				{conversations}
 				{activeId}
@@ -1344,7 +1391,7 @@
 								{/each}
 							</select>
 							<ToolPicker
-								tools={availableTools}
+								tools={displayTools}
 								enabledTools={activeConversation?.enabledTools ?? []}
 								loading={toolsLoading}
 								disabled={running || !activeId}

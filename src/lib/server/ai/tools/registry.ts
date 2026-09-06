@@ -5,6 +5,9 @@ export interface AppTool {
 	category: string;
 	enabled: boolean;
 	projectOnly?: boolean;
+	readOnly?: boolean;
+	settingHint?: string;
+	settingHref?: string;
 }
 
 const tools: AppTool[] = [
@@ -21,6 +24,16 @@ const tools: AppTool[] = [
 		description: 'Fetch readable content from a URL.',
 		category: 'research',
 		enabled: true
+	},
+	{
+		name: 'browser_search',
+		label: 'Browser Search',
+		description: 'Search Google or Google Scholar via browser extension.',
+		category: 'browser',
+		enabled: false,
+		readOnly: true,
+		settingHint: 'Configure in Settings > Browser Extension',
+		settingHref: '/settings/browser-extension'
 	},
 	{
 		name: 'project_knowledge_search',

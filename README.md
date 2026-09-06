@@ -16,6 +16,7 @@ Available:
 - Live model discovery for configured OpenAI, Anthropic, and Google providers
 - Normalized tool registry
 - `web_search` with Tavily support and a free DuckDuckGo fallback
+- Optional Chrome/Chromium and Firefox bridge for agent-driven tabs and Google/Scholar research
 - `project_knowledge_search` for project conversations
 - Project file upload and deletion
 - Basic text extraction for `.txt`, `.md`, and `.json`
@@ -143,6 +144,39 @@ npm run dev
 ```
 
 Open `http://localhost:5173`.
+
+### Optional browser extension
+
+Open **Settings → Browser Extension**, enable the bridge, and install the package for your
+browser. Reload Mimin in that same browser and check for **Connected**. Ask in chat, for example,
+“Find papers about agentic coding on Google Scholar.” The agent calls `browser_search` or
+`browser_open`; the extension opens a real tab and sends Google/Scholar text and results back
+to the agent. Its popup is informational, not a separate search interface.
+
+The bridge is off by default and enabled per browser. Only a connected chat turn receives browser
+tools. It reads only Google/Scholar pages it opens, not existing tabs or browsing history. Page
+content is sent to your Mimin server and configured model provider. Other public HTTP(S) URLs
+can be opened, but their content is not read. CAPTCHA challenges require the user to complete
+them and retry. Keep the chat open while a browser tool runs.
+
+If you installed the earlier Mimin Search popup, replace/reload it with the new package and reload
+Mimin. For hosted instances, build with `MIMIN_EXTENSION_ORIGINS` set to the comma-separated
+exact Mimin origins. Default origins are `http://localhost:5173` and `http://127.0.0.1:5173`.
+
+The packages are generated automatically for development and production builds. You can also
+generate them directly:
+
+```bash
+npm run extension:build
+```
+
+For local installation details, see [`browser-extension/README.md`](browser-extension/README.md).
+Production releases should be signed and distributed through the Chrome Web Store and Mozilla
+Add-ons so users receive normal installation prompts and automatic updates.
+
+Browser commands travel over the chat SSE stream and results return through an authenticated,
+one-time callback. Pending requests live in the server process; multi-instance deployments need
+sticky routing for chat and result requests or a shared request broker.
 
 The seed script creates a default account:
 

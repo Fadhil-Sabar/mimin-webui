@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Mimin Browser Bridge</title>
+		<link rel="stylesheet" href="popup.css" />
+	</head>
+	<body>
+		<main>
+			<header>
+				<span class="mark" aria-hidden="true">m</span>
+				<div><strong>Mimin Browser Bridge</strong><small>Connection status</small></div>
+			</header>
+
+			<div class="status" role="status">
+				<span id="status-dot" class="dot" aria-hidden="true"></span>
+				<strong id="status-title">Checking connection…</strong>
+			</div>
+			<p id="status-detail">Checking whether Mimin can reach this extension.</p>
+
+			<section>
+				<h2>How it works</h2>
+				<p>
+					Mimin sends a request through this bridge. The bridge can open a new Google or Google
+					Scholar tab and return a limited page snapshot.
+				</p>
+			</section>
+
+			<section>
+				<h2>Allowed Mimin pages</h2>
+				<ul id="origins">
+					<li>Loading…</li>
+				</ul>
+			</section>
+
+			<p class="privacy">
+				No current tabs, browsing history, accounts, or page content are read from this popup.
+			</p>
+		</main>
+		<script type="module" src="popup.js"></script>
+	</body>
+</html>

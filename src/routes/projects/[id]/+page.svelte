@@ -14,6 +14,7 @@
 		PanelLeft,
 		Pencil,
 		Plus,
+		Puzzle,
 		Search,
 		Settings,
 		Sparkles,
@@ -448,6 +449,9 @@
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
+			<a class="nav-item" href={resolve('/settings/browser-extension')}
+				><Puzzle size={16} /> Browser Extension</a
+			>
 			{#if project}
 				<div class="nav-label projects-label">Knowledge files</div>
 				{#each files as file (file.id)}

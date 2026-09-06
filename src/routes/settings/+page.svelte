@@ -9,6 +9,7 @@
 		MessageSquare,
 		PanelLeft,
 		Plus,
+		Puzzle,
 		Settings,
 		Sparkles,
 		Trash2,
@@ -312,6 +313,9 @@
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item active" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
+			<a class="nav-item" href={resolve('/settings/browser-extension')}
+				><Puzzle size={16} /> Browser Extension</a
+			>
 			<RecentChats />
 		</div>
 		<div class="sidebar-bottom">
