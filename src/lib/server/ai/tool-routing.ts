@@ -9,6 +9,7 @@ export type ToolRouting = {
 	exposeWebSearch: boolean;
 	exposeBrowserSearch: boolean;
 	exposeBrowserOpen: boolean;
+	blockedReason?: 'browser_bridge_unavailable';
 };
 
 /**
@@ -28,6 +29,7 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 			);
 		if (!isScholarDefinitionalOnly) {
 			const hasScholarAction =
+				/^(?:google\s+scholar|scholar)$/i.test(text) ||
 				/\b(?:cari|search|find|lookup|look\s+up|query|research|temukan|buka)\b/i.test(text) ||
 				/\b(?:di|on|in|via|lewat|using|pakai|through)\s+(?:google\s+)?scholar\b/i.test(text) ||
 				/\b(?:google\s+)?scholar\s+(?:search|cari|query|for)\b/i.test(text) ||
@@ -48,6 +50,7 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 			);
 		if (!isGoogleDefinitionalOnly) {
 			const hasGoogleAction =
+				/^(?:google|google\s+search)$/i.test(text) ||
 				/\bgoogle\s+search\b/i.test(text) ||
 				/\b(?:cari|search|find|lookup|look\s+up|temukan|research)\b.*\b(?:di|on|in|via|lewat|using|pakai|through)\s+google\b/i.test(
 					text
@@ -84,7 +87,7 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 	if (hasBrowserOrTab) {
 		const hasExplicitPageOrTabAction =
 			/\b(?:buka|open)\s+(?:tab|halaman|page|url|link)\b/i.test(text) ||
-			/\b(?:buka|open|read|baca)\s+(?:ini\s+)?(?:di|in|lewat|via)\s+(?:browser|tab)\b/i.test(
+			/\b(?:buka|open|read|baca)\s+(?:this\s+|ini\s+)?(?:di|in|lewat|via)\s+(?:browser|tab)\b/i.test(
 				text
 			) ||
 			/\b(?:open|buka)\s+(?:this\s+)?(?:url|link|page|halaman)\s+(?:in|di|lewat)\s+(?:browser|tab)\b/i.test(
@@ -106,6 +109,7 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 /**
  * Gate tools deterministically for the current turn.
  * Avoids exposing both web_search and browser_search in the same turn.
+ * Never silently falls back from explicit browser intent to web_search.
  */
 export function resolveTurnToolGating(options: {
 	prompt: string;
@@ -115,12 +119,26 @@ export function resolveTurnToolGating(options: {
 	const browserIntent = detectBrowserIntent(options.prompt);
 
 	if (!options.browserBridgeEnabled) {
-		return {
-			browserIntent,
-			exposeWebSearch: options.hasWebSearch,
-			exposeBrowserSearch: false,
-			exposeBrowserOpen: false
-		};
+		switch (browserIntent.type) {
+			case 'google-search':
+			case 'scholar-search':
+			case 'browser-open':
+				return {
+					browserIntent,
+					exposeWebSearch: false,
+					exposeBrowserSearch: false,
+					exposeBrowserOpen: false,
+					blockedReason: 'browser_bridge_unavailable'
+				};
+			case 'none':
+			default:
+				return {
+					browserIntent,
+					exposeWebSearch: options.hasWebSearch,
+					exposeBrowserSearch: false,
+					exposeBrowserOpen: false
+				};
+		}
 	}
 
 	switch (browserIntent.type) {
@@ -147,5 +165,22 @@ export function resolveTurnToolGating(options: {
 				exposeBrowserSearch: false,
 				exposeBrowserOpen: false
 			};
+	}
+}
+
+/**
+ * Short per-turn routing instruction appended to the system prompt when explicit browser intent is present.
+ */
+export function getTurnRoutingInstruction(intent: BrowserIntent): string | null {
+	switch (intent.type) {
+		case 'google-search':
+			return 'The user explicitly requested Google Search. Use browser_search with engine="google". Do not substitute another search provider.';
+		case 'scholar-search':
+			return 'The user explicitly requested Google Scholar. Use browser_search with engine="scholar". Do not substitute another search provider.';
+		case 'browser-open':
+			return 'The user explicitly requested browser navigation. Use browser_open.';
+		case 'none':
+		default:
+			return null;
 	}
 }

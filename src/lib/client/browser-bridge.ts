@@ -67,30 +67,79 @@ export function requestBrowserBridge(
 	});
 }
 
-export async function getBrowserBridgeStatus(signal?: AbortSignal): Promise<{
+export const REQUIRED_BROWSER_EXTENSION_VERSION = '0.3.0';
+
+export function compareExtensionVersions(v1: string, v2: string): number {
+	const p1 = v1.split('.').map((s) => parseInt(s, 10) || 0);
+	const p2 = v2.split('.').map((s) => parseInt(s, 10) || 0);
+	const len = Math.max(p1.length, p2.length);
+	for (let i = 0; i < len; i++) {
+		const num1 = p1[i] ?? 0;
+		const num2 = p2[i] ?? 0;
+		if (num1 > num2) return 1;
+		if (num1 < num2) return -1;
+	}
+	return 0;
+}
+
+export function isExtensionVersionCompatible(installed?: string): boolean {
+	if (!installed) return false;
+	return compareExtensionVersions(installed, REQUIRED_BROWSER_EXTENSION_VERSION) >= 0;
+}
+
+export type BrowserBridgeStatusResult = {
 	connected: boolean;
+	updateRequired?: boolean;
 	message: string;
 	version?: string;
+	requiredVersion: string;
 	permissions?: {
 		google?: boolean;
 		publicWebsites?: boolean;
 	};
-}> {
-	if (!isBrowserBridgeEnabled()) return { connected: false, message: 'Disabled on this browser.' };
+};
+
+export async function getBrowserBridgeStatus(
+	signal?: AbortSignal
+): Promise<BrowserBridgeStatusResult> {
+	if (!isBrowserBridgeEnabled()) {
+		return {
+			connected: false,
+			updateRequired: false,
+			message: 'Disabled on this browser.',
+			requiredVersion: REQUIRED_BROWSER_EXTENSION_VERSION
+		};
+	}
 	try {
 		const res = (await requestBrowserBridge('ping', {}, signal)) as
 			| { version?: string; permissions?: { google?: boolean; publicWebsites?: boolean } }
 			| undefined;
+		const installedVersion = res?.version;
+		const isCompatible = isExtensionVersionCompatible(installedVersion);
+		if (!isCompatible) {
+			return {
+				connected: false,
+				updateRequired: true,
+				message: `Extension update required. Installed: ${installedVersion ?? 'unknown'}, Required: ${REQUIRED_BROWSER_EXTENSION_VERSION}.`,
+				version: installedVersion,
+				requiredVersion: REQUIRED_BROWSER_EXTENSION_VERSION,
+				permissions: res?.permissions
+			};
+		}
 		return {
 			connected: true,
+			updateRequired: false,
 			message: 'Connected. Mimin can open tabs from your chat.',
-			version: res?.version,
+			version: installedVersion,
+			requiredVersion: REQUIRED_BROWSER_EXTENSION_VERSION,
 			permissions: res?.permissions
 		};
 	} catch (error) {
 		return {
 			connected: false,
-			message: error instanceof Error ? error.message : 'Extension not connected.'
+			updateRequired: false,
+			message: error instanceof Error ? error.message : 'Extension not connected.',
+			requiredVersion: REQUIRED_BROWSER_EXTENSION_VERSION
 		};
 	}
 }

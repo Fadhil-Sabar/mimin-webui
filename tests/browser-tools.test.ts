@@ -175,4 +175,160 @@ describe('browser tools', () => {
 		expect(first.text).toContain('Browser tab opened at https://docs.example.com/');
 		expect(first.text).toContain('Page reading is unavailable: host_permission_required');
 	});
+
+	it('preserves tab continuity across browser_search and browser_open in the same conversation', async () => {
+		const convContext: BrowserBridgeContext = {
+			userId: 'user-tab-test',
+			conversationId: 'conv-tab-continuity',
+			turnToken: 'turn-1'
+		};
+
+		let capturedSearchEvent: BrowserBridgeEvent | null = null;
+		const searchTool = createBrowserSearchTool(convContext, (event) => {
+			capturedSearchEvent = event;
+			queueMicrotask(() => {
+				settleBrowserRequest(convContext.userId, event.requestId, event.token, true, {
+					url: 'https://www.google.com/search?q=rsc',
+					readable: true,
+					tabId: 123,
+					results: [
+						{ title: 'RSC', url: 'https://react.dev/rsc', snippet: 'React Server Components' }
+					]
+				});
+			});
+		});
+
+		await searchTool.execute(
+			'call-tab-1',
+			{ engine: 'google', query: 'rsc' },
+			new AbortController().signal
+		);
+		expect(capturedSearchEvent).toBeDefined();
+
+		// Next action in turn 2 of the same conversation: browser_open should propagate preferredTabId: 123
+		let capturedOpenEvent: BrowserBridgeEvent | null = null;
+		const openTool = createBrowserOpenTool({ ...convContext, turnToken: 'turn-2' }, (event) => {
+			capturedOpenEvent = event;
+			queueMicrotask(() => {
+				settleBrowserRequest(convContext.userId, event.requestId, event.token, true, {
+					url: 'https://react.dev/rsc',
+					readable: true,
+					tabId: 123,
+					text: 'RSC documentation'
+				});
+			});
+		});
+
+		await openTool.execute(
+			'call-tab-2',
+			{ url: 'https://react.dev/rsc' },
+			new AbortController().signal
+		);
+		expect(capturedOpenEvent).toBeDefined();
+		expect((capturedOpenEvent as unknown as BrowserBridgeEvent | null)?.args?.preferredTabId).toBe(
+			123
+		);
+
+		// Another turn: browser_search should also receive preferredTabId: 123
+		let capturedSearchEvent2: BrowserBridgeEvent | null = null;
+		const searchTool2 = createBrowserSearchTool(
+			{ ...convContext, turnToken: 'turn-3' },
+			(event) => {
+				capturedSearchEvent2 = event;
+				queueMicrotask(() => {
+					settleBrowserRequest(convContext.userId, event.requestId, event.token, true, {
+						url: 'https://www.google.com/search?q=nextjs',
+						readable: true,
+						tabId: 123,
+						results: []
+					});
+				});
+			}
+		);
+
+		await searchTool2.execute(
+			'call-tab-3',
+			{ engine: 'google', query: 'nextjs' },
+			new AbortController().signal
+		);
+		expect(capturedSearchEvent2).toBeDefined();
+		expect(
+			(capturedSearchEvent2 as unknown as BrowserBridgeEvent | null)?.args?.preferredTabId
+		).toBe(123);
+	});
+
+	it('isolates browser tabs between different conversations', async () => {
+		const contextA: BrowserBridgeContext = {
+			userId: 'user-shared',
+			conversationId: 'conv-A',
+			turnToken: 'turn-A'
+		};
+		const contextB: BrowserBridgeContext = {
+			userId: 'user-shared',
+			conversationId: 'conv-B',
+			turnToken: 'turn-B'
+		};
+
+		// Seed conv-A with tab 123
+		const toolA = createBrowserOpenTool(contextA, (event) => {
+			queueMicrotask(() => {
+				settleBrowserRequest(contextA.userId, event.requestId, event.token, true, {
+					url: 'https://site-a.com',
+					readable: true,
+					tabId: 123
+				});
+			});
+		});
+		await toolA.execute('call-A1', { url: 'https://site-a.com' }, new AbortController().signal);
+
+		// Seed conv-B with tab 456
+		const toolB = createBrowserOpenTool(contextB, (event) => {
+			queueMicrotask(() => {
+				settleBrowserRequest(contextB.userId, event.requestId, event.token, true, {
+					url: 'https://site-b.com',
+					readable: true,
+					tabId: 456
+				});
+			});
+		});
+		await toolB.execute('call-B1', { url: 'https://site-b.com' }, new AbortController().signal);
+
+		// Subsequent action in conv-A must use preferredTabId 123, not 456
+		let capturedA2: BrowserBridgeEvent | null = null;
+		const toolA2 = createBrowserOpenTool({ ...contextA, turnToken: 'turn-A2' }, (event) => {
+			capturedA2 = event;
+			queueMicrotask(() => {
+				settleBrowserRequest(contextA.userId, event.requestId, event.token, true, {
+					url: 'https://site-a.com/page2',
+					readable: true,
+					tabId: 123
+				});
+			});
+		});
+		await toolA2.execute(
+			'call-A2',
+			{ url: 'https://site-a.com/page2' },
+			new AbortController().signal
+		);
+		expect((capturedA2 as unknown as BrowserBridgeEvent | null)?.args?.preferredTabId).toBe(123);
+
+		// Subsequent action in conv-B must use preferredTabId 456, not 123
+		let capturedB2: BrowserBridgeEvent | null = null;
+		const toolB2 = createBrowserOpenTool({ ...contextB, turnToken: 'turn-B2' }, (event) => {
+			capturedB2 = event;
+			queueMicrotask(() => {
+				settleBrowserRequest(contextB.userId, event.requestId, event.token, true, {
+					url: 'https://site-b.com/page2',
+					readable: true,
+					tabId: 456
+				});
+			});
+		});
+		await toolB2.execute(
+			'call-B2',
+			{ url: 'https://site-b.com/page2' },
+			new AbortController().signal
+		);
+		expect((capturedB2 as unknown as BrowserBridgeEvent | null)?.args?.preferredTabId).toBe(456);
+	});
 });

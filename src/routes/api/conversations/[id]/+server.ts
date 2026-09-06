@@ -6,6 +6,7 @@ import { apiError, getOwnedConversation, handleApiError, requireUser } from '$li
 import { isModelAvailable } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
+import { clearBrowserSession } from '$lib/server/browser/bridge';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -144,6 +145,7 @@ export const DELETE: RequestHandler = async (event) => {
 			.where(eq(schema.conversations.id, id))
 			.returning({ id: schema.conversations.id });
 		if (!deleted.length) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
+		clearBrowserSession(user.id, id);
 		if (existingConversation.projectId)
 			await getDb()
 				.update(schema.projects)

@@ -33,6 +33,9 @@
 	let hydrated = $state(false);
 	let browser = $state<'firefox' | 'chromium'>('chromium');
 	let connected = $state(false);
+	let updateRequired = $state(false);
+	let installedVersion = $state<string | undefined>(undefined);
+	let requiredVersion = $state<string>('0.3.0');
 	let checking = $state(false);
 	let status = $state('Checking connection…');
 	let permissions = $state<{ google?: boolean; publicWebsites?: boolean } | undefined>(undefined);
@@ -58,7 +61,10 @@
 		checking = true;
 		const result = await getBrowserBridgeStatus();
 		connected = enabled && result.connected;
+		updateRequired = Boolean(enabled && result.updateRequired);
 		status = result.message;
+		installedVersion = result.version;
+		requiredVersion = result.requiredVersion;
 		permissions = result.permissions;
 		checking = false;
 	}
@@ -183,14 +189,16 @@
 				</button>
 			</section>
 			<div class="connection-row" role="status">
-				<span class="badge" class:ok={connected}
+				<span class="badge" class:ok={connected} class:warning={updateRequired}
 					>{checking
 						? 'Checking…'
 						: connected
 							? 'Connected'
-							: enabled
-								? 'Not connected'
-								: 'Disabled'}</span
+							: updateRequired
+								? 'Update required'
+								: enabled
+									? 'Not connected'
+									: 'Disabled'}</span
 				>
 				<span>{status}</span>
 				{#if enabled}<button class="button" onclick={checkConnection} disabled={checking}
@@ -199,14 +207,25 @@
 			</div>
 
 			{#if enabled}
-				{#if connected}
-					<div class="permissions-card">
-						<div class="title-row">
-							<strong>Extension Permissions</strong>
+				<div class="permissions-card">
+					<div class="title-row">
+						<strong>Browser Bridge</strong>
+						<span class="badge" class:ok={connected} class:warning={updateRequired}>
+							{connected ? 'Connected' : updateRequired ? 'Update required' : 'Not connected'}
+						</span>
+					</div>
+					<div class="perm-status-list">
+						<div class="perm-status-item">
+							<span>Installed version</span>
+							<span class="version-tag">{installedVersion ?? 'Not detected'}</span>
 						</div>
-						<div class="perm-status-list">
+						<div class="perm-status-item">
+							<span>Required version</span>
+							<span class="version-tag">{requiredVersion}</span>
+						</div>
+						{#if connected}
 							<div class="perm-status-item">
-								<span>Google / Google Scholar access</span>
+								<span>Google / Scholar access</span>
 								<span class="badge ok">Enabled</span>
 							</div>
 							<div class="perm-status-item">
@@ -217,14 +236,22 @@
 									<span class="badge">Not granted</span>
 								{/if}
 							</div>
-						</div>
+						{/if}
+					</div>
+					{#if updateRequired}
+						<p class="footnote-perm warning">
+							An updated extension package is required. Download and reload version <code
+								>{requiredVersion}</code
+							> below to restore browser bridge functionality.
+						</p>
+					{:else if connected}
 						<p class="footnote-perm">
 							To enable reading generic web links opened with <code>browser_open</code>, open the
 							Mimin Browser Bridge extension popup in your browser toolbar and click
 							<strong>Grant</strong>.
 						</p>
-					</div>
-				{/if}
+					{/if}
+				</div>
 
 				<div class="privacy-note">
 					<ShieldCheck size={18} />
@@ -409,6 +436,22 @@
 	}
 	.badge.ok {
 		color: var(--status-ok-text);
+	}
+	.badge.warning {
+		color: #eab308;
+		border-color: color-mix(in srgb, #eab308 35%, var(--border));
+	}
+	.footnote-perm.warning {
+		color: #eab308;
+	}
+	.version-tag {
+		font-family: var(--font-mono, monospace);
+		font-size: 11px;
+		color: var(--text-body);
+		background: var(--surface-2);
+		padding: 2px 6px;
+		border-radius: 4px;
+		border: 1px solid var(--border);
 	}
 	.switch {
 		display: flex;

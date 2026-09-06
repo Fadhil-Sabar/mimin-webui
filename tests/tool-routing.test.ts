@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { detectBrowserIntent, resolveTurnToolGating } from '../src/lib/server/ai/tool-routing';
+import {
+	detectBrowserIntent,
+	getTurnRoutingInstruction,
+	resolveTurnToolGating
+} from '../src/lib/server/ai/tool-routing';
 
 describe('detectBrowserIntent', () => {
 	it('classifies general research and search queries as none (default)', () => {
@@ -163,14 +167,17 @@ describe('resolveTurnToolGating', () => {
 		expect(gating.exposeBrowserOpen).toBe(true);
 	});
 
-	it('never exposes browser tools when browser bridge is unavailable', () => {
-		const inputs = [
+	it('blocks explicit browser intent and never falls back to web_search when bridge is unavailable', () => {
+		const blockedQueries = [
+			'cari di Google tentang OpenAI',
 			'cari di Google tentang WebMCP',
 			'cari paper ini di Google Scholar',
-			'buka https://example.com',
-			'cari berita terbaru OpenAI'
+			'cari di Google Scholar tentang LLM',
+			'buka https://example.com di browser',
+			'buka tab untuk halaman ini',
+			'search this on Google'
 		];
-		for (const prompt of inputs) {
+		for (const prompt of blockedQueries) {
 			const gating = resolveTurnToolGating({
 				prompt,
 				browserBridgeEnabled: false,
@@ -178,8 +185,18 @@ describe('resolveTurnToolGating', () => {
 			});
 			expect(gating.exposeBrowserSearch, `Prompt: "${prompt}"`).toBe(false);
 			expect(gating.exposeBrowserOpen, `Prompt: "${prompt}"`).toBe(false);
-			expect(gating.exposeWebSearch, `Prompt: "${prompt}"`).toBe(true);
+			expect(gating.exposeWebSearch, `Prompt: "${prompt}"`).toBe(false);
+			expect(gating.blockedReason, `Prompt: "${prompt}"`).toBe('browser_bridge_unavailable');
 		}
+
+		// Non-browser queries still expose web_search
+		const normalGating = resolveTurnToolGating({
+			prompt: 'cari berita terbaru OpenAI',
+			browserBridgeEnabled: false,
+			hasWebSearch: true
+		});
+		expect(normalGating.exposeWebSearch).toBe(true);
+		expect(normalGating.blockedReason).toBeUndefined();
 	});
 
 	it('respects hasWebSearch=false when web_search is disabled in conversation', () => {
@@ -191,5 +208,21 @@ describe('resolveTurnToolGating', () => {
 		expect(gating.exposeWebSearch).toBe(false);
 		expect(gating.exposeBrowserSearch).toBe(false);
 		expect(gating.exposeBrowserOpen).toBe(false);
+		expect(gating.blockedReason).toBeUndefined();
+	});
+});
+
+describe('getTurnRoutingInstruction', () => {
+	it('generates specific instructions for explicit browser intents', () => {
+		expect(getTurnRoutingInstruction({ type: 'google-search' })).toBe(
+			'The user explicitly requested Google Search. Use browser_search with engine="google". Do not substitute another search provider.'
+		);
+		expect(getTurnRoutingInstruction({ type: 'scholar-search' })).toBe(
+			'The user explicitly requested Google Scholar. Use browser_search with engine="scholar". Do not substitute another search provider.'
+		);
+		expect(getTurnRoutingInstruction({ type: 'browser-open' })).toBe(
+			'The user explicitly requested browser navigation. Use browser_open.'
+		);
+		expect(getTurnRoutingInstruction({ type: 'none' })).toBeNull();
 	});
 });

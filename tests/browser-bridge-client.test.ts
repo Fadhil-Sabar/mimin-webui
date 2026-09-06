@@ -61,7 +61,9 @@ describe('browser bridge client', () => {
 
 		expect(await getBrowserBridgeStatus()).toEqual({
 			connected: false,
-			message: 'Disabled on this browser.'
+			updateRequired: false,
+			message: 'Disabled on this browser.',
+			requiredVersion: '0.3.0'
 		});
 		await expect(requestBrowserBridge('ping')).rejects.toThrow('Browser bridge is disabled.');
 		expect(windowMock.postMessage).not.toHaveBeenCalled();
@@ -73,7 +75,9 @@ describe('browser bridge client', () => {
 
 		expect(await getBrowserBridgeStatus()).toEqual({
 			connected: false,
-			message: 'Disabled on this browser.'
+			updateRequired: false,
+			message: 'Disabled on this browser.',
+			requiredVersion: '0.3.0'
 		});
 		expect(windowMock.postMessage).not.toHaveBeenCalled();
 	});
@@ -86,7 +90,9 @@ describe('browser bridge client', () => {
 
 		expect(await statusPromise).toEqual({
 			connected: false,
-			message: 'Browser request canceled.'
+			updateRequired: false,
+			message: 'Browser request canceled.',
+			requiredVersion: '0.3.0'
 		});
 		expect(windowMock.postMessage).toHaveBeenCalledWith(
 			expect.objectContaining({ source: 'mimin-webui', action: 'ping' }),
@@ -199,7 +205,10 @@ describe('browser bridge client', () => {
 					source: 'mimin-extension',
 					id: message.id,
 					ok: true,
-					result: { url: 'https://chatgpt.com/share/example', title: 'Shared chat' }
+					result:
+						message.action === 'ping'
+							? { version: '0.3.0', permissions: { google: true, publicWebsites: true } }
+							: { url: 'https://chatgpt.com/share/example', title: 'Shared chat' }
 				})
 			);
 		});
@@ -255,5 +264,55 @@ describe('browser bridge client', () => {
 				headers: { 'content-type': 'application/json', accept: 'text/event-stream' }
 			})
 		);
+	});
+
+	it('detects outdated extension (installed 0.2.0, required 0.3.0) and marks update required', async () => {
+		setBrowserBridgeEnabled(true);
+		windowMock.postMessage.mockImplementation((message: { id: string; action: string }) => {
+			if (message.action !== 'ping') return;
+			queueMicrotask(() =>
+				windowMock.dispatchMessage({
+					source: 'mimin-extension',
+					id: message.id,
+					ok: true,
+					result: {
+						version: '0.2.0',
+						permissions: { google: true, publicWebsites: false }
+					}
+				})
+			);
+		});
+
+		const status = await getBrowserBridgeStatus();
+		expect(status.connected).toBe(false);
+		expect(status.updateRequired).toBe(true);
+		expect(status.version).toBe('0.2.0');
+		expect(status.requiredVersion).toBe('0.3.0');
+		expect(status.message).toContain('Extension update required');
+	});
+
+	it('accepts compatible extension (installed 0.3.0, required 0.3.0) as connected and usable', async () => {
+		setBrowserBridgeEnabled(true);
+		windowMock.postMessage.mockImplementation((message: { id: string; action: string }) => {
+			if (message.action !== 'ping') return;
+			queueMicrotask(() =>
+				windowMock.dispatchMessage({
+					source: 'mimin-extension',
+					id: message.id,
+					ok: true,
+					result: {
+						version: '0.3.0',
+						permissions: { google: true, publicWebsites: true }
+					}
+				})
+			);
+		});
+
+		const status = await getBrowserBridgeStatus();
+		expect(status.connected).toBe(true);
+		expect(status.updateRequired).toBe(false);
+		expect(status.version).toBe('0.3.0');
+		expect(status.requiredVersion).toBe('0.3.0');
+		expect(status.permissions?.publicWebsites).toBe(true);
 	});
 });

@@ -1,6 +1,6 @@
 (() => {
 	const extensionApi = globalThis.browser ?? globalThis.chrome;
-	const config = globalThis.MIMIN_EXTENSION_CONFIG ?? { version: '0.2.0', allowedOrigins: [] };
+	const config = globalThis.MIMIN_EXTENSION_CONFIG ?? { version: '0.3.0', allowedOrigins: [] };
 	const MAX_QUERY_LENGTH = 500;
 	const LOAD_TIMEOUT_MS = 15_000;
 	const SEARCH_ENGINES = Object.freeze({
@@ -8,6 +8,48 @@
 		scholar: 'https://scholar.google.com/scholar'
 	});
 	let lastTabId = null;
+	const ownedTabIds = new Set();
+
+	async function initOwnedTabs() {
+		const storage = extensionApi?.storage?.session ?? extensionApi?.storage?.local;
+		if (storage) {
+			try {
+				const stored = await apiCall(storage, 'get', 'miminOwnedTabIds');
+				if (Array.isArray(stored?.miminOwnedTabIds)) {
+					for (const id of stored.miminOwnedTabIds) ownedTabIds.add(id);
+				}
+			} catch {
+				// ignore
+			}
+		}
+	}
+	void initOwnedTabs();
+
+	async function markTabOwned(tabId) {
+		if (tabId == null) return;
+		ownedTabIds.add(tabId);
+		const storage = extensionApi?.storage?.session ?? extensionApi?.storage?.local;
+		if (storage) {
+			try {
+				await apiCall(storage, 'set', { miminOwnedTabIds: [...ownedTabIds] });
+			} catch {
+				// ignore
+			}
+		}
+	}
+
+	async function unmarkTabOwned(tabId) {
+		if (tabId == null) return;
+		ownedTabIds.delete(tabId);
+		const storage = extensionApi?.storage?.session ?? extensionApi?.storage?.local;
+		if (storage) {
+			try {
+				await apiCall(storage, 'set', { miminOwnedTabIds: [...ownedTabIds] });
+			} catch {
+				// ignore
+			}
+		}
+	}
 
 	async function persistTabId(tabId) {
 		lastTabId = tabId;
@@ -29,27 +71,44 @@
 
 	if (extensionApi?.tabs?.onRemoved?.addListener) {
 		extensionApi.tabs.onRemoved.addListener((closedTabId) => {
+			void unmarkTabOwned(closedTabId);
 			if (closedTabId === lastTabId) {
 				void persistTabId(null);
 			}
 		});
 	}
 
-	async function findReusableTab() {
+	async function findReusableTab(preferredTabId) {
+		// 1. Check preferredTabId supplied by Mimin
+		if (preferredTabId != null) {
+			try {
+				const tab = await apiCall(extensionApi.tabs, 'get', preferredTabId);
+				if (tab?.id && ownedTabIds.has(tab.id)) {
+					return tab;
+				}
+			} catch {
+				// preferred tab is gone
+			}
+		}
+
+		// 2. Fallback to existing lastTabId if owned
 		if (lastTabId !== null) {
 			try {
 				const existing = await apiCall(extensionApi.tabs, 'get', lastTabId);
-				if (existing?.id) return existing;
+				if (existing?.id && ownedTabIds.has(existing.id)) {
+					return existing;
+				}
 			} catch {
 				lastTabId = null;
 			}
 		}
 
+		// 3. Fallback to storage lastTabId if owned
 		const storage = extensionApi?.storage?.session ?? extensionApi?.storage?.local;
 		if (storage) {
 			try {
 				const stored = await apiCall(storage, 'get', 'lastTabId');
-				if (stored?.lastTabId) {
+				if (stored?.lastTabId && ownedTabIds.has(stored.lastTabId)) {
 					const existing = await apiCall(extensionApi.tabs, 'get', stored.lastTabId);
 					if (existing?.id) {
 						lastTabId = existing.id;
@@ -61,23 +120,7 @@
 			}
 		}
 
-		if (extensionApi?.tabs?.query) {
-			try {
-				const candidates = await apiCall(extensionApi.tabs, 'query', {
-					url: ['https://www.google.com/*', 'https://scholar.google.com/*']
-				});
-				if (Array.isArray(candidates) && candidates.length > 0) {
-					const picked = candidates[candidates.length - 1];
-					if (picked?.id) {
-						lastTabId = picked.id;
-						return picked;
-					}
-				}
-			} catch {
-				// ignore
-			}
-		}
-
+		// Never hijack arbitrary user tabs via broad tabs.query
 		return null;
 	}
 
@@ -487,7 +530,7 @@
 		let isNewTab = false;
 
 		if (reuse) {
-			const existing = await findReusableTab();
+			const existing = await findReusableTab(options.preferredTabId);
 			if (existing?.id) {
 				try {
 					const updateProps = { url };
@@ -495,6 +538,7 @@
 					const isSameUrl = existing.url === url;
 					tab = await apiCall(extensionApi.tabs, 'update', existing.id, updateProps);
 					await persistTabId(existing.id);
+					await markTabOwned(existing.id);
 					if (isSameUrl) {
 						await apiCall(extensionApi.tabs, 'reload', existing.id).catch(() => {});
 					}
@@ -509,6 +553,7 @@
 			tab = await apiCall(extensionApi.tabs, 'create', { url, active });
 			if (!tab?.id) throw new Error('The browser did not return the new tab id.');
 			await persistTabId(tab.id);
+			await markTabOwned(tab.id);
 			isNewTab = true;
 		}
 
@@ -585,6 +630,7 @@
 				const url = buildSearchUrl(args.engine, args.query ?? '');
 				return successResponse(
 					await openTab(url, {
+						preferredTabId: args.preferredTabId,
 						active: Boolean(args.active),
 						autoClose: Boolean(args.autoClose)
 					})
@@ -594,6 +640,7 @@
 				const url = validatePublicUrl(args.url);
 				return successResponse(
 					await openTab(url, {
+						preferredTabId: args.preferredTabId,
 						active: Boolean(args.active),
 						autoClose: Boolean(args.autoClose)
 					})

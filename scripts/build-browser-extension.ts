@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, 'browser-extension', 'src');
 const output = join(root, 'static', 'extensions');
-const version = '0.2.0';
+const version = '0.3.0';
 const defaultOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 const sharedFiles = [
 	'popup.html',

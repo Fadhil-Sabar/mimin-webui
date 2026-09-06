@@ -4,9 +4,13 @@ import {
 	browserPageResultSchema,
 	browserResultSchema,
 	cancelBrowserRequests,
+	clearBrowserSession,
+	clearStaleBrowserSessions,
+	getBrowserSession,
 	isBrowserBridgeAbortError,
 	pendingBrowserRequestCount,
 	requestBrowserAction,
+	setBrowserSession,
 	settleBrowserRequest
 } from '../src/lib/server/browser/bridge';
 
@@ -159,5 +163,31 @@ describe('browser bridge result schema', () => {
 			browserResultSchema.safeParse({ ...base, ok: false, error: 'tab blocked' }).success
 		).toBe(true);
 		expect(browserResultSchema.safeParse({ ...base, ok: false }).success).toBe(false);
+	});
+});
+
+describe('conversation browser sessions', () => {
+	it('manages conversation tab sessions and survives turn cancellations', () => {
+		setBrowserSession('user-1', 'conv-1', 999);
+		expect(getBrowserSession('user-1', 'conv-1')?.tabId).toBe(999);
+
+		// cancelBrowserRequests does not delete the conversation session
+		cancelBrowserRequests('conv-1', 'turn-1');
+		expect(getBrowserSession('user-1', 'conv-1')?.tabId).toBe(999);
+
+		// explicit clear removes it
+		clearBrowserSession('user-1', 'conv-1');
+		expect(getBrowserSession('user-1', 'conv-1')).toBeUndefined();
+	});
+
+	it('cleans up expired sessions via TTL', () => {
+		setBrowserSession('user-1', 'conv-expired', 111);
+		const session = getBrowserSession('user-1', 'conv-expired');
+		expect(session).toBeDefined();
+
+		// Simulate passage of time
+		if (session) session.updatedAt = Date.now() - (60 * 60 * 1000 + 1000);
+		clearStaleBrowserSessions();
+		expect(getBrowserSession('user-1', 'conv-expired')).toBeUndefined();
 	});
 });

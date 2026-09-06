@@ -117,7 +117,7 @@ async function loadStatus() {
 		if (!response?.ok) throw new Error(response?.error ?? 'Bridge is unavailable.');
 		statusDot.classList.add('connected');
 		statusTitle.textContent = 'Bridge is ready';
-		statusDetail.textContent = `Mimin extension v${response.result?.version ?? '0.2.0'} is listening for requests.`;
+		statusDetail.textContent = `Mimin extension v${response.result?.version ?? '0.3.0'} is listening for requests.`;
 		renderOrigins(response.result?.allowedOrigins);
 	} catch (error) {
 		statusDot.classList.add('error');

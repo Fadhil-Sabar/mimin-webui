@@ -88,6 +88,58 @@ type PendingRequest = BrowserBridgeContext & {
 
 const pendingRequests = new Map<string, PendingRequest>();
 
+export type BrowserSession = {
+	tabId: string | number;
+	updatedAt: number;
+};
+
+export const BROWSER_SESSION_TTL_MS = 60 * 60 * 1000;
+const browserSessions = new Map<string, BrowserSession>();
+
+export function browserSessionKey(context: { userId: string; conversationId: string }): string {
+	return `${context.userId}:${context.conversationId}`;
+}
+
+export function getBrowserSession(
+	userId: string,
+	conversationId: string
+): BrowserSession | undefined {
+	const key = `${userId}:${conversationId}`;
+	const session = browserSessions.get(key);
+	if (!session) return undefined;
+	if (Date.now() - session.updatedAt > BROWSER_SESSION_TTL_MS) {
+		browserSessions.delete(key);
+		return undefined;
+	}
+	return session;
+}
+
+export function setBrowserSession(
+	userId: string,
+	conversationId: string,
+	tabId: string | number
+): void {
+	const key = `${userId}:${conversationId}`;
+	browserSessions.set(key, {
+		tabId,
+		updatedAt: Date.now()
+	});
+}
+
+export function clearBrowserSession(userId: string, conversationId: string): void {
+	const key = `${userId}:${conversationId}`;
+	browserSessions.delete(key);
+}
+
+export function clearStaleBrowserSessions(): void {
+	const now = Date.now();
+	for (const [key, session] of browserSessions.entries()) {
+		if (now - session.updatedAt > BROWSER_SESSION_TTL_MS) {
+			browserSessions.delete(key);
+		}
+	}
+}
+
 const httpUrlSchema = z
 	.string()
 	.url()
@@ -167,6 +219,12 @@ export function requestBrowserAction(
 	const requestId = randomUUID();
 	const token = randomUUID();
 
+	const session = getBrowserSession(context.userId, context.conversationId);
+	const browserArgs: Record<string, unknown> = {
+		...args,
+		...(session?.tabId !== undefined ? { preferredTabId: session.tabId } : {})
+	};
+
 	return new Promise<BrowserPageResult>((resolve, reject) => {
 		const timer = setTimeout(() => {
 			const request = pendingRequests.get(requestId);
@@ -179,10 +237,16 @@ export function requestBrowserAction(
 			action,
 			resolve: (result) => {
 				clearPending(request);
+				if (result.tabId !== undefined) {
+					setBrowserSession(request.userId, request.conversationId, result.tabId);
+				}
 				resolve(result);
 			},
 			reject: (error) => {
 				clearPending(request);
+				if (error && /INVALID_TAB|TAB_CLOSED|TAB_NOT_FOUND/.test(error.message)) {
+					clearBrowserSession(request.userId, request.conversationId);
+				}
 				reject(error);
 			},
 			timer
@@ -198,16 +262,22 @@ export function requestBrowserAction(
 			request.resolve = (result) => {
 				removeAbortListener();
 				clearPending(request);
+				if (result.tabId !== undefined) {
+					setBrowserSession(request.userId, request.conversationId, result.tabId);
+				}
 				resolve(result);
 			};
 			request.reject = (error) => {
 				removeAbortListener();
 				clearPending(request);
+				if (error && /INVALID_TAB|TAB_CLOSED|TAB_NOT_FOUND/.test(error.message)) {
+					clearBrowserSession(request.userId, request.conversationId);
+				}
 				reject(error);
 			};
 		}
 		try {
-			emit({ type: 'browser.request', requestId, token, action, args });
+			emit({ type: 'browser.request', requestId, token, action, args: browserArgs });
 		} catch (error) {
 			const current = pendingRequests.get(requestId);
 			if (current)
