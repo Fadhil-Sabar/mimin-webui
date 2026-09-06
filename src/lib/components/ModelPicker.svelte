@@ -64,19 +64,49 @@
 			models: providerModels
 		}));
 	});
+	function fuzzyMatch(text: string, query: string): number | null {
+		const lower = text.toLowerCase();
+		// Fast path: exact substring match gets highest score
+		if (lower.includes(query)) return 10000 - lower.indexOf(query);
+
+		let score = 0;
+		let qi = 0;
+		let prevMatchIdx = -2;
+		for (let i = 0; i < lower.length && qi < query.length; i++) {
+			if (lower[i] === query[qi]) {
+				score += 1;
+				// Consecutive character bonus
+				if (i === prevMatchIdx + 1) score += 5;
+				// Start-of-word bonus (after separator or at position 0)
+				if (i === 0 || /[\s\-_./]/.test(lower[i - 1])) score += 3;
+				prevMatchIdx = i;
+				qi++;
+			}
+		}
+		// All query chars must be found in order
+		return qi === query.length ? score : null;
+	}
+
+	function bestFuzzyScore(model: ModelOption, query: string, groupLabel: string): number | null {
+		const scores = [
+			fuzzyMatch(model.name, query),
+			fuzzyMatch(model.id, query),
+			fuzzyMatch(groupLabel, query)
+		].filter((s): s is number => s !== null);
+		return scores.length > 0 ? Math.max(...scores) : null;
+	}
+
 	let filteredGroups = $derived.by(() => {
 		const q = search.trim().toLowerCase();
 		if (!q) return groups;
 		return groups
-			.map((group) => ({
-				...group,
-				models: group.models.filter(
-					(m) =>
-						m.name.toLowerCase().includes(q) ||
-						m.id.toLowerCase().includes(q) ||
-						group.label.toLowerCase().includes(q)
-				)
-			}))
+			.map((group) => {
+				const scored = group.models
+					.map((m) => ({ model: m, score: bestFuzzyScore(m, q, group.label) }))
+					.filter((entry): entry is { model: ModelOption; score: number } => entry.score !== null)
+					.sort((a, b) => b.score - a.score);
+				return { ...group, models: scored.map((s) => s.model) };
+			})
 			.filter((group) => group.models.length > 0);
 	});
 

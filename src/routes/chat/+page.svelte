@@ -8,7 +8,9 @@
 		extractSseErrorMessage,
 		stopConversation,
 		streamMessage,
-		updateConversation
+		streamRetry,
+		updateConversation,
+		type SseEvent
 	} from '$lib/client/api';
 	import {
 		ArrowUp,
@@ -24,6 +26,7 @@
 		Paperclip,
 		Plus,
 		Puzzle,
+		RotateCcw,
 		Search,
 		Settings,
 		Sparkles,
@@ -107,6 +110,19 @@
 	let activeConversation = $state<Conversation | null>(null);
 	let messages = $state<ChatMessage[]>([]);
 	let liveError = $state('');
+	let lastFailedSubmission = $state<{
+		conversationId: string;
+		content: string;
+		files: File[];
+	} | null>(null);
+	const canRetry = $derived(
+		!running &&
+			Boolean(
+				liveError ||
+				(messages.length > 0 && messages[messages.length - 1]?.role === 'user') ||
+				(lastFailedSubmission && lastFailedSubmission.conversationId === activeId)
+			)
+	);
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
 	let modelLoadError = $state('');
@@ -144,7 +160,7 @@
 
 	let displayTools = $derived.by(() => {
 		const tools = availableTools.map((tool) =>
-			tool.name === 'browser_search'
+			tool.name === 'browser_search' || tool.name === 'browser_open'
 				? {
 						...tool,
 						enabled: browserBridgeEnabled,
@@ -776,6 +792,171 @@
 		pendingAttachments = pendingAttachments.filter((_, itemIndex) => itemIndex !== index);
 	}
 
+	function handleStreamEvent(event: SseEvent) {
+		if (event.type === 'message.start') {
+			if (event.role === 'assistant') {
+				const msgId = String(event.messageId);
+				const existing = messages.find((m) => m.id === msgId);
+				if (!existing) {
+					messages = [
+						...messages,
+						{
+							id: msgId,
+							role: 'assistant',
+							content: '',
+							createdAt:
+								typeof event.createdAt === 'string' ? event.createdAt : new Date().toISOString(),
+							toolCalls: [],
+							isStreaming: true
+						}
+					];
+				}
+			}
+		} else if (event.type === 'thinking.delta') {
+			const msgId = String(event.messageId);
+			const delta = String(event.delta ?? '');
+			let found = false;
+			messages = messages.map((msg) => {
+				if (msg.id !== msgId) return msg;
+				found = true;
+				let currentThinking = thinkingText(msg.content);
+				let currentText = contentText(msg.content);
+				currentThinking += delta;
+				return {
+					...msg,
+					content: [
+						{ type: 'thinking', thinking: currentThinking },
+						...(currentText ? [{ type: 'text', text: currentText }] : [])
+					],
+					isStreaming: true
+				};
+			});
+			if (!found) {
+				messages = [
+					...messages,
+					{
+						id: msgId,
+						role: 'assistant',
+						content: [{ type: 'thinking', thinking: delta }],
+						createdAt: new Date().toISOString(),
+						toolCalls: [],
+						isStreaming: true
+					}
+				];
+			}
+		} else if (event.type === 'message.delta') {
+			const msgId = String(event.messageId);
+			const delta = String(event.delta ?? '');
+			let found = false;
+			messages = messages.map((msg) => {
+				if (msg.id !== msgId) return msg;
+				found = true;
+				let currentThinking = thinkingText(msg.content);
+				let currentText = contentText(msg.content);
+				currentText += delta;
+				return {
+					...msg,
+					content: currentThinking
+						? [
+								{ type: 'thinking', thinking: currentThinking },
+								{ type: 'text', text: currentText }
+							]
+						: currentText,
+					isStreaming: true
+				};
+			});
+			if (!found) {
+				messages = [
+					...messages,
+					{
+						id: msgId,
+						role: 'assistant',
+						content: delta,
+						createdAt: new Date().toISOString(),
+						toolCalls: [],
+						isStreaming: true
+					}
+				];
+			}
+		} else if (event.type === 'tool.start') {
+			const msgId = event.messageId ? String(event.messageId) : undefined;
+			const toolCallId = String(event.toolCallId);
+			const toolName = String(event.tool ?? event.label ?? 'tool');
+			const input = event.input;
+			const newCall: ToolCall = {
+				toolCallId,
+				toolName,
+				input,
+				status: 'running',
+				startedAt: new Date().toISOString()
+			};
+			let targetMsgId = msgId;
+			if (!targetMsgId) {
+				const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+				targetMsgId = lastAssistant?.id;
+			}
+			if (targetMsgId) {
+				messages = messages.map((msg) => {
+					if (msg.id !== targetMsgId) return msg;
+					const currentCalls = msg.toolCalls ? [...msg.toolCalls] : [];
+					const idx = currentCalls.findIndex((c) => c.toolCallId === toolCallId);
+					if (idx >= 0) {
+						currentCalls[idx] = { ...currentCalls[idx], ...newCall };
+					} else {
+						currentCalls.push(newCall);
+					}
+					return { ...msg, toolCalls: currentCalls };
+				});
+			}
+		} else if (event.type === 'tool.update') {
+			const toolCallId = String(event.toolCallId);
+			messages = messages.map((msg) => {
+				if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
+				return {
+					...msg,
+					toolCalls: msg.toolCalls.map((c) =>
+						c.toolCallId === toolCallId ? { ...c, output: event.update } : c
+					)
+				};
+			});
+		} else if (event.type === 'tool.end') {
+			const toolCallId = String(event.toolCallId);
+			const status = event.status === 'failed' ? 'failed' : 'completed';
+			const result = event.result;
+			messages = messages.map((msg) => {
+				if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
+				return {
+					...msg,
+					toolCalls: msg.toolCalls.map((c) =>
+						c.toolCallId === toolCallId
+							? {
+									...c,
+									status,
+									output: result,
+									completedAt: new Date().toISOString()
+								}
+							: c
+					)
+				};
+			});
+		} else if (event.type === 'message.end') {
+			lastFailedSubmission = null;
+			const msgId = String(event.messageId);
+			messages = messages.map((msg) =>
+				msg.id === msgId
+					? {
+							...msg,
+							isStreaming: false,
+							content: event.content !== undefined ? event.content : msg.content
+						}
+					: msg
+			);
+		} else if (event.type === 'error') {
+			liveError = extractSseErrorMessage(event.error);
+			messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
+		}
+	}
+
 	async function sendMessage() {
 		if (running) return;
 		const content = message.trim();
@@ -784,6 +965,11 @@
 			return;
 		}
 		const filesToSend = pendingAttachments;
+		lastFailedSubmission = {
+			conversationId: activeId,
+			content,
+			files: filesToSend
+		};
 		conversationLoadToken += 1;
 		running = true;
 		liveError = '';
@@ -816,169 +1002,7 @@
 				(event) => {
 					if (activeId !== streamConversationId || abortController !== streamAbortController)
 						return;
-					if (event.type === 'message.start') {
-						if (event.role === 'assistant') {
-							const msgId = String(event.messageId);
-							const existing = messages.find((m) => m.id === msgId);
-							if (!existing) {
-								messages = [
-									...messages,
-									{
-										id: msgId,
-										role: 'assistant',
-										content: '',
-										createdAt:
-											typeof event.createdAt === 'string'
-												? event.createdAt
-												: new Date().toISOString(),
-										toolCalls: [],
-										isStreaming: true
-									}
-								];
-							}
-						}
-					} else if (event.type === 'thinking.delta') {
-						const msgId = String(event.messageId);
-						const delta = String(event.delta ?? '');
-						let found = false;
-						messages = messages.map((msg) => {
-							if (msg.id !== msgId) return msg;
-							found = true;
-							let currentThinking = thinkingText(msg.content);
-							let currentText = contentText(msg.content);
-							currentThinking += delta;
-							return {
-								...msg,
-								content: [
-									{ type: 'thinking', thinking: currentThinking },
-									...(currentText ? [{ type: 'text', text: currentText }] : [])
-								],
-								isStreaming: true
-							};
-						});
-						if (!found) {
-							messages = [
-								...messages,
-								{
-									id: msgId,
-									role: 'assistant',
-									content: [{ type: 'thinking', thinking: delta }],
-									createdAt: new Date().toISOString(),
-									toolCalls: [],
-									isStreaming: true
-								}
-							];
-						}
-					} else if (event.type === 'message.delta') {
-						const msgId = String(event.messageId);
-						const delta = String(event.delta ?? '');
-						let found = false;
-						messages = messages.map((msg) => {
-							if (msg.id !== msgId) return msg;
-							found = true;
-							let currentThinking = thinkingText(msg.content);
-							let currentText = contentText(msg.content);
-							currentText += delta;
-							return {
-								...msg,
-								content: currentThinking
-									? [
-											{ type: 'thinking', thinking: currentThinking },
-											{ type: 'text', text: currentText }
-										]
-									: currentText,
-								isStreaming: true
-							};
-						});
-						if (!found) {
-							messages = [
-								...messages,
-								{
-									id: msgId,
-									role: 'assistant',
-									content: delta,
-									createdAt: new Date().toISOString(),
-									toolCalls: [],
-									isStreaming: true
-								}
-							];
-						}
-					} else if (event.type === 'tool.start') {
-						const msgId = event.messageId ? String(event.messageId) : undefined;
-						const toolCallId = String(event.toolCallId);
-						const toolName = String(event.tool ?? event.label ?? 'tool');
-						const input = event.input;
-						const newCall: ToolCall = {
-							toolCallId,
-							toolName,
-							input,
-							status: 'running',
-							startedAt: new Date().toISOString()
-						};
-						let targetMsgId = msgId;
-						if (!targetMsgId) {
-							const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
-							targetMsgId = lastAssistant?.id;
-						}
-						if (targetMsgId) {
-							messages = messages.map((msg) => {
-								if (msg.id !== targetMsgId) return msg;
-								const currentCalls = msg.toolCalls ? [...msg.toolCalls] : [];
-								const idx = currentCalls.findIndex((c) => c.toolCallId === toolCallId);
-								if (idx >= 0) {
-									currentCalls[idx] = { ...currentCalls[idx], ...newCall };
-								} else {
-									currentCalls.push(newCall);
-								}
-								return { ...msg, toolCalls: currentCalls };
-							});
-						}
-					} else if (event.type === 'tool.update') {
-						const toolCallId = String(event.toolCallId);
-						messages = messages.map((msg) => {
-							if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
-							return {
-								...msg,
-								toolCalls: msg.toolCalls.map((c) =>
-									c.toolCallId === toolCallId ? { ...c, output: event.update } : c
-								)
-							};
-						});
-					} else if (event.type === 'tool.end') {
-						const toolCallId = String(event.toolCallId);
-						const status = event.status === 'failed' ? 'failed' : 'completed';
-						const result = event.result;
-						messages = messages.map((msg) => {
-							if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
-							return {
-								...msg,
-								toolCalls: msg.toolCalls.map((c) =>
-									c.toolCallId === toolCallId
-										? {
-												...c,
-												status,
-												output: result,
-												completedAt: new Date().toISOString()
-											}
-										: c
-								)
-							};
-						});
-					} else if (event.type === 'message.end') {
-						const msgId = String(event.messageId);
-						messages = messages.map((msg) =>
-							msg.id === msgId
-								? {
-										...msg,
-										isStreaming: false,
-										content: event.content !== undefined ? event.content : msg.content
-									}
-								: msg
-						);
-					} else if (event.type === 'error') {
-						liveError = extractSseErrorMessage(event.error);
-						messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
-					}
+					handleStreamEvent(event);
 				},
 				abortController.signal,
 				activeConversation?.model,
@@ -988,7 +1012,71 @@
 			if (activeId !== streamConversationId || abortController !== streamAbortController) return;
 			if ((error as Error).name !== 'AbortError') {
 				pendingAttachments = filesToSend;
-				notify(error instanceof Error ? error.message : 'Agent error');
+				const errMsg = error instanceof Error ? error.message : 'Agent error';
+				liveError = errMsg;
+				notify(errMsg);
+			}
+		} finally {
+			if (activeId === streamConversationId && abortController === streamAbortController) {
+				messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
+				const completedLoadToken = conversationLoadToken;
+				await loadConversations();
+				if (
+					activeId === streamConversationId &&
+					abortController === streamAbortController &&
+					completedLoadToken === conversationLoadToken
+				)
+					await loadConversation(streamConversationId, false, true).catch(() => {});
+				if (abortController === streamAbortController) {
+					abortController = undefined;
+					running = false;
+				}
+			}
+		}
+	}
+
+	async function retryLastMessage() {
+		if (running || !activeId) return;
+		const streamConversationId = activeId;
+		const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
+		if (lastUserIdx === -1) {
+			if (lastFailedSubmission && lastFailedSubmission.conversationId === activeId) {
+				message = lastFailedSubmission.content;
+				pendingAttachments = lastFailedSubmission.files;
+				await sendMessage();
+				return;
+			}
+			notify('No message to retry');
+			return;
+		}
+
+		// Strip any trailing assistant messages locally
+		messages = messages.slice(0, lastUserIdx + 1);
+
+		conversationLoadToken += 1;
+		running = true;
+		liveError = '';
+		userAtBottom = true;
+		abortController = new AbortController();
+		const streamAbortController = abortController;
+
+		try {
+			await streamRetry(
+				activeId,
+				(event) => {
+					if (activeId !== streamConversationId || abortController !== streamAbortController)
+						return;
+					handleStreamEvent(event);
+				},
+				abortController.signal,
+				activeConversation?.model
+			);
+		} catch (error) {
+			if (activeId !== streamConversationId || abortController !== streamAbortController) return;
+			if ((error as Error).name !== 'AbortError') {
+				const errMsg = error instanceof Error ? error.message : 'Agent error';
+				liveError = errMsg;
+				notify(errMsg);
 			}
 		} finally {
 			if (activeId === streamConversationId && abortController === streamAbortController) {
@@ -1177,6 +1265,19 @@
 							{/if}
 							<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
 						</div>
+						{#if msg.role === 'user' && i === messages.length - 1 && canRetry}
+							<button
+								type="button"
+								class="message-retry-btn"
+								onclick={retryLastMessage}
+								disabled={running}
+								title="Retry last message"
+								aria-label="Retry last message"
+							>
+								<RotateCcw size={11} aria-hidden="true" />
+								<span>Retry</span>
+							</button>
+						{/if}
 						{#if msg.role === 'assistant' && msg.isStreaming}
 							<span class="live-tag">
 								{#if msg.toolCalls?.some((t) => t.status === 'running')}
@@ -1318,7 +1419,25 @@
 				</article>
 			{/each}
 			{#if liveError}
-				<div class="inline-error" role="alert"><strong>Agent error</strong> {liveError}</div>
+				<div class="inline-error" role="alert">
+					<div class="inline-error-content">
+						<strong>Agent error</strong>
+						<span class="inline-error-text">{liveError}</span>
+					</div>
+					{#if canRetry}
+						<button
+							type="button"
+							class="inline-error-retry"
+							onclick={retryLastMessage}
+							disabled={running}
+							title="Retry last message"
+							aria-label="Retry last message"
+						>
+							<RotateCcw size={13} aria-hidden="true" />
+							<span>Retry</span>
+						</button>
+					{/if}
+				</div>
 			{/if}
 			<div class="composer-container">
 				<div class="chat-composer">
@@ -1612,6 +1731,10 @@
 		white-space: pre-wrap;
 	}
 	.inline-error {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
 		background: rgba(141, 47, 38, 0.09);
 		border: 1px solid rgba(141, 47, 38, 0.35);
 		color: var(--danger-text);
@@ -1620,10 +1743,63 @@
 		margin: 18px 0 0;
 		font-size: var(--text-sm);
 	}
+	.inline-error-content {
+		min-width: 0;
+		flex: 1;
+	}
 	.inline-error strong {
 		display: block;
 		font-size: var(--text-sm);
 		margin-bottom: 2px;
+	}
+	.inline-error-text {
+		word-break: break-word;
+	}
+	.inline-error-retry {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+		padding: 6px 12px;
+		font-size: var(--text-xs);
+		font-weight: 500;
+		color: var(--danger-text);
+		background: rgba(141, 47, 38, 0.12);
+		border: 1px solid rgba(141, 47, 38, 0.4);
+		border-radius: 5px;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+	.inline-error-retry:hover:not(:disabled) {
+		background: rgba(141, 47, 38, 0.22);
+		border-color: rgba(141, 47, 38, 0.6);
+	}
+	.inline-error-retry:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.message-retry-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-top: 4px;
+		padding: 2px 7px;
+		font-size: var(--text-xs);
+		color: var(--text-muted);
+		background: var(--surface-subtle);
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+	.message-retry-btn:hover:not(:disabled) {
+		color: var(--text);
+		border-color: var(--border-hover);
+		background: var(--surface-hover);
+	}
+	.message-retry-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 	.thinking-block {
 		margin-bottom: 10px;

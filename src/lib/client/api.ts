@@ -139,7 +139,39 @@ export async function streamMessage(
 		throw new Error(
 			(await response.json().catch(() => null))?.error?.message ?? 'Could not send message'
 		);
-	const reader = response.body.getReader();
+	await consumeSseStream(response.body, onEvent, signal);
+}
+
+export async function streamRetry(
+	id: string,
+	onEvent: (event: SseEvent) => void,
+	signal?: AbortSignal,
+	model?: string
+) {
+	const bridge = await getBrowserBridgeStatus(signal);
+	const response = await fetch(`/api/conversations/${id}/retry`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			accept: 'text/event-stream',
+			...(bridge.connected ? { 'x-mimin-browser-bridge': '1' } : {})
+		},
+		body: JSON.stringify({ ...(model ? { model } : {}) }),
+		signal
+	});
+	if (!response.ok || !response.body)
+		throw new Error(
+			(await response.json().catch(() => null))?.error?.message ?? 'Could not retry message'
+		);
+	await consumeSseStream(response.body, onEvent, signal);
+}
+
+async function consumeSseStream(
+	stream: ReadableStream<Uint8Array>,
+	onEvent: (event: SseEvent) => void,
+	signal?: AbortSignal
+) {
+	const reader = stream.getReader();
 	const decoder = new TextDecoder();
 	let buffer = '';
 	async function dispatch(raw: string) {

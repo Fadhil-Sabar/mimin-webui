@@ -23,6 +23,9 @@ export const attachmentMessageInput = z.object({
 	content: z.string().trim().max(100000).default(''),
 	model: z.string().trim().max(200).optional()
 });
+export const retryMessageInput = z.object({
+	model: z.string().trim().max(200).optional()
+});
 export const providerSettingsInput = z.object({
 	apiKey: z.string().trim().min(1).max(400).nullable().optional(),
 	baseUrl: z
