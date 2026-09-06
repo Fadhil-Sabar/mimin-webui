@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 beforeAll(() => {
 	process.env.PROVIDER_KEY_ENCRYPTION_SECRET = 'test-secret-for-merge-tests';
+	process.env.OUTBOUND_ALLOWED_ORIGINS = 'https://gateway.example.com';
 });
 
 const { encryptSecret, saveProviderCredential } =

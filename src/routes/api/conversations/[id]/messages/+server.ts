@@ -1,10 +1,16 @@
 import type { RequestHandler } from '@sveltejs/kit';
+import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
 import { attachmentMessageInput, messageInput } from '$lib/server/validation';
-import { runConversationTurn, stopConversation } from '$lib/server/ai/agent.service';
+import {
+	beginConversationTurn,
+	releaseConversationTurn,
+	runConversationTurn,
+	stopConversation
+} from '$lib/server/ai/agent.service';
 import {
 	cleanupStoredFiles,
 	extractUploadedFile,
@@ -22,10 +28,12 @@ function sse(event: string, data: unknown) {
 export const POST: RequestHandler = async (event) => {
 	const uploadedKeys: string[] = [];
 	let messageIdForCleanup: string | undefined;
+	let conversationId: string | undefined;
+	let turnToken: string | undefined;
 	try {
 		const user = await requireUser(event);
 		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
-		const conversationId = event.params.id;
+		conversationId = event.params.id;
 		if (!conversationId) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		const isMultipart = event.request.headers.get('content-type')?.includes('multipart/form-data');
 		let parsed: { data: { content: string; model?: string } };
@@ -59,6 +67,13 @@ export const POST: RequestHandler = async (event) => {
 		const db = getDb();
 		const conversation = await getOwnedConversation(conversationId, user.id);
 		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
+		turnToken = randomUUID();
+		if (!beginConversationTurn(conversationId, turnToken))
+			return apiError(
+				'CONVERSATION_BUSY',
+				'This conversation is already generating a response.',
+				409
+			);
 
 		let modelToUse = parsed.data.model ?? conversation.model;
 		if (!(await isModelAvailable(user.id, modelToUse))) {
@@ -72,6 +87,7 @@ export const POST: RequestHandler = async (event) => {
 					.set({ model: modelToUse, updatedAt: new Date() })
 					.where(eq(schema.conversations.id, conversationId));
 			} else {
+				releaseConversationTurn(conversationId, turnToken);
 				return apiError('MODEL_NOT_AVAILABLE', 'No configured models are available.');
 			}
 		}
@@ -87,12 +103,12 @@ export const POST: RequestHandler = async (event) => {
 			.insert(schema.messages)
 			.values({ conversationId, role: 'user', content: parsed.data.content })
 			.returning();
+		messageIdForCleanup = userMessage.id;
 		if (conversation.projectId)
 			await db
 				.update(schema.projects)
 				.set({ updatedAt: new Date() })
 				.where(eq(schema.projects.id, conversation.projectId));
-		messageIdForCleanup = userMessage.id;
 		const attachmentRecords = savedAttachments.length
 			? await db
 					.insert(schema.messageAttachments)
@@ -119,6 +135,8 @@ export const POST: RequestHandler = async (event) => {
 					updatedAt: new Date()
 				})
 				.where(eq(schema.conversations.id, conversationId));
+		const streamConversationId = conversationId;
+		const streamTurnToken = turnToken;
 
 		const encoder = new TextEncoder();
 		let controller: ReadableStreamDefaultController<Uint8Array> | undefined;
@@ -128,7 +146,7 @@ export const POST: RequestHandler = async (event) => {
 			},
 			cancel() {
 				controller = undefined;
-				stopConversation(conversationId);
+				stopConversation(streamConversationId, streamTurnToken);
 			}
 		});
 		const send = (event: string, data: unknown) => {
@@ -161,11 +179,12 @@ export const POST: RequestHandler = async (event) => {
 				});
 				await runConversationTurn(
 					conversationId,
-					parsed.data.model,
+					modelToUse,
 					parsed.data.content,
 					(event) => send(event.type, event),
 					user.id,
-					userMessage.id
+					userMessage.id,
+					streamTurnToken
 				);
 				send('done', { type: 'done' });
 			} catch (error) {
@@ -190,6 +209,7 @@ export const POST: RequestHandler = async (event) => {
 													: 'The agent could not complete this turn.';
 				send('error', { type: 'error', error: { code, message } });
 			} finally {
+				releaseConversationTurn(conversationId, turnToken);
 				close();
 			}
 		})();
@@ -202,6 +222,7 @@ export const POST: RequestHandler = async (event) => {
 			}
 		});
 	} catch (error) {
+		if (conversationId && turnToken) releaseConversationTurn(conversationId, turnToken);
 		if (uploadedKeys.length) await cleanupStoredFiles(uploadedKeys);
 		if (messageIdForCleanup)
 			await getDb()

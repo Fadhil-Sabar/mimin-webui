@@ -257,6 +257,28 @@ curl -X DELETE http://localhost:5173/api/providers/openai
 
 The provider settings page lives at `/settings`.
 
+Custom provider and search endpoints must be approved by the server operator using
+`OUTBOUND_ALLOWED_ORIGINS`. Set a comma-separated list of exact origins (scheme,
+hostname, and port), for example:
+
+```env
+OUTBOUND_ALLOWED_ORIGINS=http://localhost:11434,https://gateway.example.com
+```
+
+The built-in OpenAI, Anthropic, Google, Tavily, DuckDuckGo, and default SearXNG
+origins are already permitted. Origins configured through `SEARXNG_URL` or
+`WEB_SEARCH_URL` are also permitted, including local services. Custom public
+endpoints need approval just like local endpoints; existing saved custom endpoints
+must be added before they can be used. Only approve services you trust: approval
+permits requests to paths on that origin. Search and model discovery reject
+redirects and URLs containing embedded credentials. Discovery only reuses a saved
+provider key for its configured origin.
+
+Overlapping message requests in one conversation return `409 CONVERSATION_BUSY`
+without creating another message. Turn reservations and Stop currently operate
+within one application process; a deployment with multiple server processes needs
+shared coordination before enabling concurrent instances.
+
 ### Projects
 
 ```text

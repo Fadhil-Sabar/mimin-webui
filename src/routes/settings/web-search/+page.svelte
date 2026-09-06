@@ -8,6 +8,7 @@
 		EyeOff,
 		FolderKanban,
 		Globe,
+		KeyRound,
 		Loader2,
 		LogOut,
 		MessageSquare,
@@ -18,11 +19,13 @@
 		Search,
 		Settings,
 		Sparkles,
-		User
+		User,
+		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
+	import RecentChats from '$lib/components/RecentChats.svelte';
 
 	type SearchProviderType = 'tavily' | 'searxng' | 'duckduckgo' | 'custom';
 
@@ -33,18 +36,25 @@
 		fromUser: boolean;
 		configured: boolean;
 		envConfigured: boolean;
+		apiKeyFromUser: boolean;
+		searchUrlFromUser: boolean;
+		apiKeyEnvConfigured: boolean;
+		searchUrlEnvConfigured: boolean;
 	};
 
 	type TestResult = {
 		answer: string | null;
 		sources: Array<{ title: string; url: string; snippet: string }>;
 	};
+	type EditingField = 'apiKey' | 'searchUrl' | null;
 
-	let user = $state<{ name: string; role?: string | null } | null>(null);
+	let { data } = $props();
+	let user = $derived(data.user);
 	let loading = $state(true);
 	let saving = $state(false);
 	let testing = $state(false);
 	let showApiKey = $state(false);
+	let editingField = $state<EditingField>(null);
 	let notification = $state<string | null>(null);
 
 	let currentSettings = $state<WebSearchSettingsState>({
@@ -53,7 +63,11 @@
 		provider: 'tavily',
 		fromUser: false,
 		configured: false,
-		envConfigured: false
+		envConfigured: false,
+		apiKeyFromUser: false,
+		searchUrlFromUser: false,
+		apiKeyEnvConfigured: false,
+		searchUrlEnvConfigured: false
 	});
 
 	// Form draft fields
@@ -71,15 +85,6 @@
 		setTimeout(() => {
 			if (notification === text) notification = null;
 		}, 4000);
-	}
-
-	async function loadUser() {
-		try {
-			const session = await authClient.getSession();
-			user = session?.data?.user ?? null;
-		} catch {
-			user = null;
-		}
 	}
 
 	async function loadSettings() {
@@ -102,23 +107,10 @@
 	async function saveSettings() {
 		saving = true;
 		try {
-			const payload: {
-				provider: SearchProviderType;
-				apiKey?: string | null;
-				searchUrl?: string | null;
-			} = {
-				provider: draftProvider,
-				searchUrl: draftSearchUrl.trim() || null
-			};
-
-			if (draftApiKey.trim()) {
-				payload.apiKey = draftApiKey.trim();
-			}
-
 			const res = await fetch('/api/settings/web-search', {
 				method: 'PUT',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify(payload)
+				body: JSON.stringify({ provider: draftProvider })
 			});
 
 			const data = await res.json();
@@ -127,10 +119,79 @@
 			}
 
 			currentSettings = data.settings;
-			draftApiKey = '';
-			notify('Web search settings saved successfully');
+			notify('Search provider saved');
+		} catch (err) {
+			notify(err instanceof Error ? err.message : 'Could not save search provider');
+		} finally {
+			saving = false;
+		}
+	}
+
+	function openFieldEditor(field: Exclude<EditingField, null>) {
+		editingField = field;
+		showApiKey = false;
+		if (field === 'apiKey') draftApiKey = '';
+		if (field === 'searchUrl') draftSearchUrl = currentSettings.searchUrl ?? '';
+	}
+
+	async function saveField() {
+		if (!editingField) return;
+		const field = editingField;
+		const value = field === 'apiKey' ? draftApiKey.trim() : draftSearchUrl.trim();
+		if (!value) {
+			notify(
+				field === 'apiKey'
+					? 'Enter an API key or remove the saved key'
+					: 'Enter an endpoint URL or remove the saved endpoint'
+			);
+			return;
+		}
+
+		saving = true;
+		try {
+			const payload = field === 'apiKey' ? { apiKey: value } : { searchUrl: value };
+			const res = await fetch('/api/settings/web-search', {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				throw new Error(data.error?.message ?? data.message ?? 'Failed to save settings');
+			}
+			currentSettings = data.settings;
+			if (field === 'apiKey') draftApiKey = '';
+			editingField = null;
+			notify(field === 'apiKey' ? 'Search API key saved' : 'Search endpoint saved');
 		} catch (err) {
 			notify(err instanceof Error ? err.message : 'Could not save search settings');
+		} finally {
+			saving = false;
+		}
+	}
+
+	async function removeField(field: Exclude<EditingField, null>) {
+		const label = field === 'apiKey' ? 'API key' : 'search endpoint';
+		if (!confirm(`Remove the saved ${label}?`)) return;
+		saving = true;
+		try {
+			const payload = field === 'apiKey' ? { apiKey: null } : { searchUrl: null };
+			const res = await fetch('/api/settings/web-search', {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				throw new Error(data.error?.message ?? data.message ?? 'Failed to remove setting');
+			}
+			currentSettings = data.settings;
+			if (field === 'apiKey') draftApiKey = '';
+			if (field === 'searchUrl') draftSearchUrl = '';
+			editingField = null;
+			notify(`${field === 'apiKey' ? 'Search API key' : 'Search endpoint'} removed`);
+		} catch (err) {
+			notify(err instanceof Error ? err.message : `Could not remove ${label}`);
 		} finally {
 			saving = false;
 		}
@@ -192,7 +253,6 @@
 	}
 
 	onMount(() => {
-		loadUser();
 		loadSettings();
 	});
 </script>
@@ -239,6 +299,7 @@
 			<a class="nav-item active" href={resolve('/settings/web-search')}
 				><Globe size={16} /> Web Search</a
 			>
+			<RecentChats />
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">
@@ -300,9 +361,9 @@
 						<div class="status-title-row">
 							<strong>Active Search Provider</strong>
 							{#if currentSettings.fromUser}
-								<span class="badge ok">User Key Active</span>
+								<span class="badge ok">User settings active</span>
 							{:else if currentSettings.envConfigured}
-								<span class="badge ok">Server Env Active</span>
+								<span class="badge ok">Server defaults active</span>
 							{:else}
 								<span class="badge">DuckDuckGo Fallback</span>
 							{/if}
@@ -310,11 +371,11 @@
 						<div class="status-details">
 							<span>Engine: <b class="capitalize">{currentSettings.provider}</b></span>
 							<span>•</span>
-							{#if currentSettings.fromUser}
+							{#if currentSettings.apiKeyFromUser}
 								<span
 									>Key: <code class="mono-badge">{currentSettings.apiKey}</code> (encrypted)</span
 								>
-							{:else if currentSettings.envConfigured}
+							{:else if currentSettings.apiKeyEnvConfigured}
 								<span>Key: <code class="mono-badge">WEB_SEARCH_API_KEY</code> (server)</span>
 							{:else}
 								<span>No API key set (public fallback)</span>
@@ -391,72 +452,13 @@
 						</div>
 					</div>
 
-					<!-- API Key Field -->
-					<div class="form-section">
-						<label for="search-api-key" class="field-label">
-							<span>Search API Key</span>
-							{#if draftProvider === 'duckduckgo'}
-								<span class="field-hint optional">(Optional for DuckDuckGo)</span>
-							{:else}
-								<span class="field-hint">(Tavily API key or custom bearer token)</span>
-							{/if}
-						</label>
-
-						<div class="input-with-button">
-							<input
-								id="search-api-key"
-								type={showApiKey ? 'text' : 'password'}
-								bind:value={draftApiKey}
-								placeholder={currentSettings.fromUser
-									? `Configured (${currentSettings.apiKey}) - enter new key to replace`
-									: 'tvly-... or leave blank to use server default'}
-								autocomplete="off"
-								spellcheck="false"
-							/>
-							<button
-								type="button"
-								class="toggle-eye-btn"
-								onclick={() => (showApiKey = !showApiKey)}
-								title={showApiKey ? 'Hide key' : 'Show key'}
-								aria-label={showApiKey ? 'Hide key' : 'Show key'}
-							>
-								{#if showApiKey}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
-							</button>
-						</div>
-						<p class="field-help">
-							Stored securely with AES-256-GCM encryption. If left blank, Mimin falls back to the
-							server environment's <code class="mono">WEB_SEARCH_API_KEY</code>.
-						</p>
-					</div>
-
-					<!-- Custom Search URL Field -->
-					<div class="form-section">
-						<label for="search-url" class="field-label">
-							<span>Custom Search Endpoint / URL</span>
-							<span class="field-hint optional">(Optional)</span>
-						</label>
-						<input
-							id="search-url"
-							type="text"
-							bind:value={draftSearchUrl}
-							placeholder={draftProvider === 'searxng'
-								? 'https://searxng.example.com/search'
-								: 'https://api.tavily.com/search or custom proxy URL'}
-							autocomplete="off"
-						/>
-						<p class="field-help">
-							Override the default search endpoint URL. Supports custom Tavily proxies, SearXNG
-							endpoints, or GET URLs with <code class="mono">&#123;query&#125;</code>.
-						</p>
-					</div>
-
 					<!-- Action Buttons -->
 					<div class="form-actions">
 						<button type="submit" class="button primary" disabled={saving}>
 							{#if saving}
 								<Loader2 size={16} class="spin" /> Saving...
 							{:else}
-								<Check size={16} /> Save settings
+								<Check size={16} /> Save provider
 							{/if}
 						</button>
 
@@ -467,6 +469,207 @@
 						{/if}
 					</div>
 				</form>
+
+				<!-- Independent connection settings -->
+				<div class="connection-list">
+					<article class="connection-card">
+						<div class="connection-main">
+							<span class="connection-icon"><KeyRound size={16} /></span>
+							<div class="connection-info">
+								<div class="connection-name">
+									<strong>Search API Key</strong>
+									{#if currentSettings.apiKeyFromUser}
+										<span class="badge ok">Connected</span>
+									{:else if currentSettings.apiKeyEnvConfigured}
+										<span class="badge">Server default</span>
+									{:else}
+										<span class="badge">Not connected</span>
+									{/if}
+								</div>
+								<p>Optional for DuckDuckGo; used as a Tavily or custom bearer token.</p>
+								<details class="connection-meta">
+									<summary>Connection details</summary>
+									{#if currentSettings.apiKeyFromUser}
+										<span class="mono dim">{currentSettings.apiKey} · encrypted</span>
+									{:else if currentSettings.apiKeyEnvConfigured}
+										<span class="mono dim">Fallback: server WEB_SEARCH_API_KEY</span>
+									{:else}
+										<span class="mono dim">No key configured</span>
+									{/if}
+								</details>
+							</div>
+						</div>
+						<div class="connection-actions">
+							{#if currentSettings.apiKeyFromUser}
+								<button
+									class="button primary"
+									type="button"
+									onclick={() => openFieldEditor('apiKey')}>Manage</button
+								>
+							{:else}
+								<button
+									class="button primary"
+									type="button"
+									onclick={() => openFieldEditor('apiKey')}>Connect</button
+								>
+							{/if}
+						</div>
+					</article>
+
+					<article class="connection-card">
+						<div class="connection-main">
+							<span class="connection-icon"><Globe size={16} /></span>
+							<div class="connection-info">
+								<div class="connection-name">
+									<strong>Custom Search Endpoint / URL</strong>
+									{#if currentSettings.searchUrlFromUser}
+										<span class="badge ok">Connected</span>
+									{:else if currentSettings.searchUrlEnvConfigured}
+										<span class="badge">Server default</span>
+									{:else}
+										<span class="badge">Not configured</span>
+									{/if}
+								</div>
+								<p>
+									Override the default endpoint with a Tavily proxy, SearXNG server, or URL
+									template.
+								</p>
+								<details class="connection-meta">
+									<summary>Connection details</summary>
+									{#if currentSettings.searchUrl}
+										<span class="mono dim base-url">{currentSettings.searchUrl}</span>
+									{:else}
+										<span class="mono dim">Uses the provider default</span>
+									{/if}
+								</details>
+							</div>
+						</div>
+						<div class="connection-actions">
+							{#if currentSettings.searchUrlFromUser}
+								<button
+									class="button primary"
+									type="button"
+									onclick={() => openFieldEditor('searchUrl')}>Manage</button
+								>
+							{:else}
+								<button
+									class="button primary"
+									type="button"
+									onclick={() => openFieldEditor('searchUrl')}>Connect</button
+								>
+							{/if}
+						</div>
+					</article>
+				</div>
+
+				{#if editingField}
+					<div
+						class="modal-backdrop"
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="search-connection-dialog-title"
+						tabindex="-1"
+						onclick={(event) => event.target === event.currentTarget && (editingField = null)}
+						onkeydown={(event) => event.key === 'Escape' && (editingField = null)}
+					>
+						<form
+							class="modal search-connection-modal"
+							onsubmit={(event) => {
+								event.preventDefault();
+								saveField();
+							}}
+						>
+							<div class="modal-head">
+								<div>
+									<h2 id="search-connection-dialog-title">
+										{editingField === 'apiKey'
+											? currentSettings.apiKeyFromUser
+												? 'Manage search API key'
+												: 'Connect search API key'
+											: currentSettings.searchUrlFromUser
+												? 'Manage search endpoint'
+												: 'Connect search endpoint'}
+									</h2>
+									<p class="modal-description">
+										{editingField === 'apiKey'
+											? 'Add a key for the selected search provider. It is encrypted before storage.'
+											: 'Add a custom endpoint without changing your selected search provider.'}
+									</p>
+								</div>
+								<button
+									type="button"
+									class="icon-button"
+									aria-label="Close"
+									title="Close dialog"
+									onclick={() => (editingField = null)}><X size={18} /></button
+								>
+							</div>
+
+							{#if editingField === 'apiKey'}
+								<label for="search-api-key-modal">Search API key</label>
+								<div class="input-with-button">
+									<input
+										id="search-api-key-modal"
+										type={showApiKey ? 'text' : 'password'}
+										bind:value={draftApiKey}
+										placeholder={currentSettings.apiKeyFromUser
+											? `Configured (${currentSettings.apiKey}) - enter new key to replace`
+											: currentSettings.apiKeyEnvConfigured
+												? 'Server default configured - enter a key to override'
+												: 'tvly-...'}
+										autocomplete="off"
+										spellcheck="false"
+									/>
+									<button
+										type="button"
+										class="toggle-eye-btn"
+										onclick={() => (showApiKey = !showApiKey)}
+										title={showApiKey ? 'Hide key' : 'Show key'}
+										aria-label={showApiKey ? 'Hide key' : 'Show key'}
+									>
+										{#if showApiKey}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
+									</button>
+								</div>
+								<p class="field-help">
+									Stored securely with AES-256-GCM encryption. Blank values keep the existing key.
+								</p>
+							{:else}
+								<label for="search-url-modal">Custom search endpoint / URL</label>
+								<input
+									id="search-url-modal"
+									type="url"
+									bind:value={draftSearchUrl}
+									placeholder={draftProvider === 'searxng'
+										? 'https://searxng.example.com/search'
+										: 'https://api.tavily.com/search or custom proxy URL'}
+									autocomplete="off"
+								/>
+								<p class="field-help">
+									Supports custom Tavily proxies, SearXNG endpoints, or GET URLs with
+									<code class="mono">&#123;query&#125;</code>.
+								</p>
+							{/if}
+
+							<div class="modal-actions">
+								{#if (editingField === 'apiKey' && currentSettings.apiKeyFromUser) || (editingField === 'searchUrl' && currentSettings.searchUrlFromUser)}
+									<button
+										type="button"
+										class="button danger remove-connection"
+										onclick={() => removeField(editingField!)}
+										disabled={saving}>Remove</button
+									>
+								{/if}
+								<button type="button" class="button" onclick={() => (editingField = null)}
+									>Cancel</button
+								>
+								<button type="submit" class="button primary" disabled={saving}>
+									{#if saving}<Loader2 size={15} class="spin" /> Saving...{:else}<Check size={15} /> Save
+										connection{/if}
+								</button>
+							</div>
+						</form>
+					</div>
+				{/if}
 
 				<!-- Live Search Test Box -->
 				<div class="test-card">
@@ -558,6 +761,8 @@
 		</div>
 	</main>
 </div>
+
+<svelte:window onkeydown={(event) => event.key === 'Escape' && (editingField = null)} />
 
 <style>
 	.page-wrap {
@@ -664,10 +869,97 @@
 		border: 1px solid var(--border);
 		border-radius: 10px;
 		padding: 24px;
-		margin-bottom: 32px;
+		margin-bottom: 16px;
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
+	}
+	.connection-list {
+		display: flex;
+		flex-direction: column;
+		gap: 11px;
+		margin-bottom: 32px;
+	}
+	.connection-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+		padding: 16px 18px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+		transition: 0.18s ease;
+	}
+	.connection-card:hover {
+		border-color: var(--text-dim);
+	}
+	.connection-main {
+		display: flex;
+		align-items: flex-start;
+		gap: 14px;
+		min-width: 0;
+	}
+	.connection-icon {
+		display: grid;
+		place-items: center;
+		width: 36px;
+		height: 36px;
+		flex: 0 0 36px;
+		color: var(--text-muted);
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+	}
+	.connection-info {
+		min-width: 0;
+	}
+	.connection-name {
+		display: flex;
+		align-items: center;
+		gap: 9px;
+	}
+	.connection-name strong {
+		font-size: var(--text-base);
+		font-weight: 600;
+		letter-spacing: -0.015em;
+		color: var(--text-strong);
+	}
+	.connection-info p {
+		margin: 5px 0 8px;
+		color: var(--text-muted);
+		font-size: var(--text-sm);
+	}
+	.connection-meta {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 10px;
+	}
+	.connection-meta summary {
+		width: 100%;
+		color: var(--text-dim);
+		cursor: pointer;
+		font-size: var(--text-xs);
+		list-style: none;
+	}
+	.connection-meta summary::-webkit-details-marker {
+		display: none;
+	}
+	.connection-meta summary::before {
+		content: '+';
+		display: inline-block;
+		width: 12px;
+		color: var(--text-faint);
+	}
+	.connection-meta[open] summary::before {
+		content: '−';
+	}
+	.connection-actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex: 0 0 auto;
 	}
 	.form-section {
 		display: flex;
@@ -743,28 +1035,20 @@
 		font-weight: 500;
 	}
 
-	.field-label {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: var(--text-sm);
-		font-weight: 500;
-		color: var(--text-strong);
-		margin-bottom: 8px;
-	}
-	.field-hint {
-		font-size: var(--text-xs);
-		color: var(--text-muted);
-		font-weight: 400;
-	}
-	.field-hint.optional {
-		color: var(--text-faint);
-	}
 	.field-help {
 		font-size: var(--text-xs);
 		color: var(--text-dim);
 		margin: 6px 0 0;
 		line-height: 1.4;
+	}
+	.modal-description {
+		margin: -10px 0 0;
+		color: var(--text-muted);
+		font-size: var(--text-sm);
+		line-height: 1.45;
+	}
+	.remove-connection {
+		margin-right: auto;
 	}
 
 	.input-with-button {
@@ -976,6 +1260,19 @@
 		}
 		to {
 			transform: rotate(360deg);
+		}
+	}
+	@media (max-width: 700px) {
+		.connection-card {
+			flex-direction: column;
+			align-items: stretch;
+		}
+		.connection-actions {
+			justify-content: flex-end;
+		}
+		.connection-actions .button {
+			justify-content: center;
+			width: 100%;
 		}
 	}
 </style>

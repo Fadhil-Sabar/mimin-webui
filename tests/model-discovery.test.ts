@@ -189,6 +189,7 @@ describe('model discovery', () => {
 	});
 
 	it('fetches custom provider models from endpoint', async () => {
+		process.env.OUTBOUND_ALLOWED_ORIGINS = 'https://api.commandcode.ai';
 		const fetcher = vi.fn(
 			async () =>
 				new Response(

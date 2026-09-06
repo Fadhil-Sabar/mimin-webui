@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import { and, eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { getDb, schema } from '$lib/server/db/client';
+import { assertAllowedOutboundUrl } from '../outbound';
 
 const scrypt = promisify(scryptCb) as (
 	password: string,
@@ -191,6 +192,7 @@ export async function saveProviderCredential(
 	provider: string,
 	input: { apiKey?: string | null; baseUrl?: string | null; customConfig?: CustomProviderConfig }
 ): Promise<void> {
+	if (input.baseUrl) assertAllowedOutboundUrl(input.baseUrl);
 	// Undefined preserves the stored value; null explicitly clears it. This way
 	// a base-URL-only edit does not wipe a saved key.
 	const db = getDb();

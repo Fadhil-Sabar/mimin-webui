@@ -2,6 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { getDb, schema } from '$lib/server/db/client';
 import { decryptSecret, encryptSecret, maskKey } from './provider-settings.service';
+import { assertAllowedOutboundUrl } from '../outbound';
 
 export type SearchProviderType = 'tavily' | 'searxng' | 'duckduckgo' | 'custom';
 
@@ -12,6 +13,10 @@ export interface WebSearchSettings {
 	fromUser: boolean;
 	configured: boolean;
 	envConfigured: boolean;
+	apiKeyFromUser: boolean;
+	searchUrlFromUser: boolean;
+	apiKeyEnvConfigured: boolean;
+	searchUrlEnvConfigured: boolean;
 }
 
 export interface WebSearchSettingsDTO {
@@ -21,6 +26,10 @@ export interface WebSearchSettingsDTO {
 	fromUser: boolean;
 	configured: boolean;
 	envConfigured: boolean;
+	apiKeyFromUser: boolean;
+	searchUrlFromUser: boolean;
+	apiKeyEnvConfigured: boolean;
+	searchUrlEnvConfigured: boolean;
 }
 
 function getEnv(name: string): string | undefined {
@@ -62,7 +71,11 @@ export async function getWebSearchSettings(userId: string): Promise<WebSearchSet
 	}
 
 	const effectiveApiKey = userApiKey ?? envKey ?? null;
-	const fromUser = Boolean(row && (userApiKey || row.baseUrl));
+	const apiKeyFromUser = Boolean(row && userApiKey);
+	const searchUrlFromUser = Boolean(row?.baseUrl);
+	const apiKeyEnvConfigured = Boolean(envKey);
+	const searchUrlEnvConfigured = Boolean(envSearchUrl);
+	const fromUser = apiKeyFromUser || searchUrlFromUser;
 	const configured = Boolean(
 		effectiveApiKey || effectiveSearchUrl || effectiveProvider === 'duckduckgo'
 	);
@@ -73,7 +86,11 @@ export async function getWebSearchSettings(userId: string): Promise<WebSearchSet
 		provider: effectiveProvider,
 		fromUser,
 		configured,
-		envConfigured: Boolean(envKey || envSearchUrl)
+		envConfigured: apiKeyEnvConfigured || searchUrlEnvConfigured,
+		apiKeyFromUser,
+		searchUrlFromUser,
+		apiKeyEnvConfigured,
+		searchUrlEnvConfigured
 	};
 }
 
@@ -85,6 +102,7 @@ export async function saveWebSearchSettings(
 		provider?: SearchProviderType | null;
 	}
 ): Promise<void> {
+	if (input.searchUrl) assertAllowedOutboundUrl(input.searchUrl);
 	const db = getDb();
 	const existing = await db
 		.select({

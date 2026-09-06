@@ -13,10 +13,23 @@ export const GET: RequestHandler = async (event) => {
 		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
 		const db = getDb();
 		const projectId = event.url.searchParams.get('projectId');
+		const baseQuery = db
+			.select({
+				id: schema.conversations.id,
+				userId: schema.conversations.userId,
+				projectId: schema.conversations.projectId,
+				title: schema.conversations.title,
+				model: schema.conversations.model,
+				enabledTools: schema.conversations.enabledTools,
+				createdAt: schema.conversations.createdAt,
+				updatedAt: schema.conversations.updatedAt,
+				projectName: schema.projects.name
+			})
+			.from(schema.conversations)
+			.leftJoin(schema.projects, eq(schema.conversations.projectId, schema.projects.id));
+
 		const rows = projectId
-			? await db
-					.select()
-					.from(schema.conversations)
+			? await baseQuery
 					.where(
 						and(
 							eq(schema.conversations.userId, user.id),
@@ -24,9 +37,7 @@ export const GET: RequestHandler = async (event) => {
 						)
 					)
 					.orderBy(desc(schema.conversations.updatedAt))
-			: await db
-					.select()
-					.from(schema.conversations)
+			: await baseQuery
 					.where(eq(schema.conversations.userId, user.id))
 					.orderBy(desc(schema.conversations.updatedAt));
 		return json({ conversations: rows });
@@ -60,8 +71,12 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		const db = getDb();
-		if (parsed.data.projectId && !(await getOwnedProject(parsed.data.projectId, user.id)))
-			return apiError('PROJECT_NOT_FOUND', 'Project not found.', 404);
+		let projectName: string | null = null;
+		if (parsed.data.projectId) {
+			const ownedProject = await getOwnedProject(parsed.data.projectId, user.id);
+			if (!ownedProject) return apiError('PROJECT_NOT_FOUND', 'Project not found.', 404);
+			projectName = ownedProject.name;
+		}
 		const [conversation] = await db
 			.insert(schema.conversations)
 			.values({
@@ -76,7 +91,7 @@ export const POST: RequestHandler = async (event) => {
 				.update(schema.projects)
 				.set({ updatedAt: new Date() })
 				.where(eq(schema.projects.id, parsed.data.projectId));
-		return json({ conversation }, { status: 201 });
+		return json({ conversation: { ...conversation, projectName } }, { status: 201 });
 	} catch (error) {
 		return handleApiError(error);
 	}

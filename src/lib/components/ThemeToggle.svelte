@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { Moon, Sun } from '@lucide/svelte';
 
-	let theme = $state<'light' | 'dark'>('light');
+	let theme = $state<'light' | 'dark'>(
+		typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark'
+			? 'dark'
+			: 'light'
+	);
 
 	$effect(() => {
 		// The inline script in app.html has already applied the persisted/system

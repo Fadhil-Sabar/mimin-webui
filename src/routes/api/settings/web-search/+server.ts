@@ -8,6 +8,7 @@ import {
 	saveWebSearchSettings
 } from '$lib/server/ai/web-search-settings.service';
 import { webSearchSettingsInput } from '$lib/server/validation';
+import { assertAllowedOutboundUrl } from '$lib/server/outbound';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -21,7 +22,11 @@ export const GET: RequestHandler = async (event) => {
 				provider: settings.provider,
 				fromUser: settings.fromUser,
 				configured: settings.configured,
-				envConfigured: settings.envConfigured
+				envConfigured: settings.envConfigured,
+				apiKeyFromUser: settings.apiKeyFromUser,
+				searchUrlFromUser: settings.searchUrlFromUser,
+				apiKeyEnvConfigured: settings.apiKeyEnvConfigured,
+				searchUrlEnvConfigured: settings.searchUrlEnvConfigured
 			}
 		});
 	} catch (error) {
@@ -39,6 +44,7 @@ export const PUT: RequestHandler = async (event) => {
 			return apiError('INVALID_INPUT', issue);
 		}
 
+		if (parsed.data.searchUrl) assertAllowedOutboundUrl(parsed.data.searchUrl);
 		await saveWebSearchSettings(user.id, {
 			apiKey: parsed.data.apiKey,
 			searchUrl: parsed.data.searchUrl,
@@ -53,7 +59,11 @@ export const PUT: RequestHandler = async (event) => {
 				provider: updated.provider,
 				fromUser: updated.fromUser,
 				configured: updated.configured,
-				envConfigured: updated.envConfigured
+				envConfigured: updated.envConfigured,
+				apiKeyFromUser: updated.apiKeyFromUser,
+				searchUrlFromUser: updated.searchUrlFromUser,
+				apiKeyEnvConfigured: updated.apiKeyEnvConfigured,
+				searchUrlEnvConfigured: updated.searchUrlEnvConfigured
 			}
 		});
 	} catch (error) {
@@ -74,7 +84,11 @@ export const DELETE: RequestHandler = async (event) => {
 				provider: fallback.provider,
 				fromUser: fallback.fromUser,
 				configured: fallback.configured,
-				envConfigured: fallback.envConfigured
+				envConfigured: fallback.envConfigured,
+				apiKeyFromUser: fallback.apiKeyFromUser,
+				searchUrlFromUser: fallback.searchUrlFromUser,
+				apiKeyEnvConfigured: fallback.apiKeyEnvConfigured,
+				searchUrlEnvConfigured: fallback.searchUrlEnvConfigured
 			}
 		});
 	} catch (error) {

@@ -1,11 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { apiError, handleApiError, requireUser } from '$lib/server/api';
-import { fetchCustomProviderModels } from '$lib/server/ai/model-discovery';
+import { fetchCustomProviderModels, modelListUrl } from '$lib/server/ai/model-discovery';
 import {
 	getProviderCredential,
+	isProviderId,
 	type CustomProviderProtocol
 } from '$lib/server/ai/provider-settings.service';
+import { outboundOrigin } from '$lib/server/outbound';
 import { z } from 'zod';
 
 const discoverInput = z.object({
@@ -46,7 +48,11 @@ export const POST: RequestHandler = async (event) => {
 		let apiKey = parsed.data.apiKey?.trim() || null;
 		if (!apiKey && parsed.data.provider) {
 			const credential = await getProviderCredential(user.id, parsed.data.provider);
-			apiKey = credential.apiKey;
+			const credentialUrl =
+				credential.baseUrl ??
+				(isProviderId(parsed.data.provider) ? modelListUrl(parsed.data.provider) : null);
+			if (credentialUrl && outboundOrigin(credentialUrl) === outboundOrigin(parsed.data.baseUrl))
+				apiKey = credential.apiKey;
 		}
 
 		const models = await fetchCustomProviderModels(

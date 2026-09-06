@@ -20,6 +20,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
+	import RecentChats from '$lib/components/RecentChats.svelte';
 
 	type Project = {
 		id: string;
@@ -39,7 +40,8 @@
 	let newDescription = $state('');
 	let newInstructions = $state('');
 	let creating = $state(false);
-	let user = $state<{ name: string; role?: string | null } | null>(null);
+	let { data } = $props();
+	let user = $derived(data.user);
 	let loading = $state(true);
 	let projects = $state<Project[]>([]);
 	let filteredProjects = $derived(
@@ -65,12 +67,6 @@
 	}
 
 	onMount(async () => {
-		try {
-			const sessionResponse = await authClient.getSession();
-			if (sessionResponse.data) user = sessionResponse.data.user ?? null;
-		} catch {
-			/* ignore */
-		}
 		try {
 			await loadProjects();
 		} catch (error) {
@@ -160,14 +156,7 @@
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
-			{#if projects.length > 0}
-				<div class="nav-label projects-label">Your projects</div>
-				{#each projects as project (project.id)}
-					<a class="project-item" href={resolve(`/projects/${project.id}`)}
-						><span class="project-dot"></span>{project.name}</a
-					>
-				{/each}
-			{/if}
+			<RecentChats />
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">

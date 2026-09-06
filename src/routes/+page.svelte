@@ -17,9 +17,11 @@
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
+	import RecentChats from '$lib/components/RecentChats.svelte';
 	let prompt = $state('');
 	let toast = $state('');
-	let user = $state<{ name: string; role?: string | null } | null>(null);
+	let { data } = $props();
+	let user = $derived(data.user);
 	let conversations = $state<{ id: string; title: string }[]>([]);
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
@@ -100,12 +102,6 @@
 	}
 
 	onMount(async () => {
-		try {
-			const sessionResponse = await authClient.getSession();
-			if (sessionResponse.data) user = sessionResponse.data.user ?? null;
-		} catch {
-			/* ignore */
-		}
 		await loadModels();
 		try {
 			const response = await fetch('/api/conversations');
@@ -160,14 +156,7 @@
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
-			{#if conversations.length > 0}
-				<div class="nav-label projects-label">Recent chats</div>
-				{#each conversations as conversation (conversation.id)}
-					<a class="project-item" href={resolve(`/chat?id=${encodeURIComponent(conversation.id)}`)}
-						><span class="project-dot"></span>{conversation.title}</a
-					>
-				{/each}
-			{/if}
+			<RecentChats />
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">

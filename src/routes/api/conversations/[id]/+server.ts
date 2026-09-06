@@ -120,7 +120,12 @@ export const PATCH: RequestHandler = async (event) => {
 				.update(schema.projects)
 				.set({ updatedAt: new Date() })
 				.where(eq(schema.projects.id, existingConversation.projectId));
-		return json({ conversation });
+		return json({
+			conversation: {
+				...conversation,
+				projectName: existingConversation.projectName ?? null
+			}
+		});
 	} catch (error) {
 		return handleApiError(error);
 	}

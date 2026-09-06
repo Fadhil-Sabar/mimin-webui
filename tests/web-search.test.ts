@@ -6,6 +6,7 @@ afterEach(() => {
 	delete process.env.WEB_SEARCH_API_KEY;
 	delete process.env.SEARXNG_URL;
 	delete process.env.WEB_SEARCH_URL;
+	delete process.env.OUTBOUND_ALLOWED_ORIGINS;
 });
 
 describe('web search', () => {
@@ -62,6 +63,7 @@ describe('web search', () => {
 	});
 
 	it('supports a custom Tavily endpoint and custom user API key', async () => {
+		process.env.OUTBOUND_ALLOWED_ORIGINS = 'https://my-proxy.internal';
 		const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
 			new Response(
 				JSON.stringify({
@@ -98,7 +100,21 @@ describe('web search', () => {
 		]);
 	});
 
+	it('rejects private user-selected endpoints', async () => {
+		const fetchMock = vi
+			.spyOn(globalThis, 'fetch')
+			.mockRejectedValue(new Error('Unexpected fetch'));
+		await expect(
+			searchWeb({ query: 'internal probe' }, undefined, {
+				provider: 'custom',
+				searchUrl: 'http://127.0.0.1:8080/search'
+			})
+		).rejects.toThrow('OUTBOUND_URL_NOT_ALLOWED');
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it('supports SearXNG search endpoints', async () => {
+		process.env.OUTBOUND_ALLOWED_ORIGINS = 'https://searx.example.com';
 		const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
 			new Response(
 				JSON.stringify({

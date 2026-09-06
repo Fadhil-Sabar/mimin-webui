@@ -17,6 +17,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
+	import RecentChats from '$lib/components/RecentChats.svelte';
 
 	type ManagedUser = {
 		id: string;
@@ -39,7 +40,8 @@
 	let email = $state('');
 	let password = $state('');
 	let role = $state<'user' | 'admin'>('user');
-	let user = $state<{ name: string; role?: string | null } | null>(null);
+	let { data } = $props();
+	let user = $derived(data.user);
 
 	function messageFrom(errorValue: unknown, fallback: string) {
 		return errorValue && typeof errorValue === 'object' && 'message' in errorValue
@@ -116,12 +118,6 @@
 	}
 
 	onMount(async () => {
-		try {
-			const sessionResponse = await authClient.getSession();
-			if (sessionResponse.data) user = sessionResponse.data.user ?? null;
-		} catch {
-			/* ignore */
-		}
 		await loadUsers();
 	});
 	let pageCount = $derived(Math.max(1, Math.ceil(total / pageSize)));
@@ -165,6 +161,7 @@
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
+			<RecentChats />
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">

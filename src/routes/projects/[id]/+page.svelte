@@ -25,6 +25,7 @@
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
+	import RecentChats from '$lib/components/RecentChats.svelte';
 
 	type Project = {
 		id: string;
@@ -56,7 +57,8 @@
 		updateConversations?: boolean;
 	};
 
-	let user = $state<{ name: string; role?: string | null } | null>(null);
+	let { data } = $props();
+	let user = $derived(data.user);
 	let project = $state<Project | null>(null);
 	let files = $state<ProjectFile[]>([]);
 	let conversations = $state<Conversation[]>([]);
@@ -219,14 +221,7 @@
 			});
 	});
 
-	onMount(async () => {
-		try {
-			const sessionResponse = await authClient.getSession();
-			if (sessionResponse.data) user = sessionResponse.data.user ?? null;
-		} catch {
-			/* ignore */
-		}
-	});
+	onMount(async () => {});
 
 	function openEdit() {
 		if (!project) return;
@@ -463,6 +458,7 @@
 				{#if files.length === 0}<span class="project-item file-item muted-item">No files yet</span
 					>{/if}
 			{/if}
+			<RecentChats />
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">

@@ -1,4 +1,5 @@
 import type { CustomProviderProtocol } from './provider-settings.service';
+import { assertAllowedOutboundUrl } from '../outbound';
 
 export type DiscoverableProvider = 'openai' | 'anthropic' | 'google';
 
@@ -131,9 +132,11 @@ export async function fetchProviderModels(
 				if (provider === 'google') url = addQuery(url, { pageSize: '1000' });
 				if (provider === 'anthropic') url = addQuery(url, { limit: '1000' });
 			}
+			assertAllowedOutboundUrl(url);
 			const response = await fetcher(url, {
 				method: 'GET',
 				headers: requestHeaders(provider, apiKey),
+				redirect: 'error',
 				signal: controller.signal
 			});
 			if (!response.ok) throw new Error(`${provider} model list returned ${response.status}`);
@@ -308,9 +311,11 @@ export async function fetchCustomProviderModels(
 		} else if (protocol === 'anthropic-messages') {
 			url = addQuery(url, { limit: '1000' });
 		}
+		assertAllowedOutboundUrl(url);
 		const response = await fetcher(url, {
 			method: 'GET',
 			headers: customRequestHeaders(protocol, apiKey),
+			redirect: 'error',
 			signal: controller.signal
 		});
 		if (!response.ok) {

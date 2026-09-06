@@ -21,13 +21,11 @@
 		MessageSquare,
 		PanelLeft,
 		Paperclip,
-		Pencil,
 		Plus,
 		Search,
 		Settings,
 		Sparkles,
 		Square,
-		Trash2,
 		User,
 		UserRound,
 		Wrench,
@@ -42,6 +40,8 @@
 	} from '$lib/components/ModelPicker.svelte';
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
+	import RecentChats from '$lib/components/RecentChats.svelte';
+	import { conversationsState, type ConversationSummary } from '$lib/client/conversations.svelte';
 
 	type Conversation = {
 		id: string;
@@ -51,6 +51,7 @@
 		createdAt: string;
 		updatedAt: string;
 		projectId: string | null;
+		projectName?: string | null;
 	};
 	type ToolCall = {
 		id?: string;
@@ -85,8 +86,20 @@
 	let message = $state('');
 	let toast = $state('');
 	let busy = $state(true);
-	let user = $state<{ name: string; role?: string | null } | null>(null);
-	let conversations = $state<Conversation[]>([]);
+	let { data } = $props();
+	let user = $derived(data.user);
+	let conversations = $state<Conversation[]>(
+		conversationsState.items.map((conversation) => ({
+			id: conversation.id,
+			title: conversation.title,
+			model: conversation.model ?? 'openai/gpt-4o-mini',
+			enabledTools: ['web_search'],
+			createdAt: conversation.createdAt ?? new Date().toISOString(),
+			updatedAt: conversation.updatedAt ?? new Date().toISOString(),
+			projectId: conversation.projectId,
+			projectName: conversation.projectName
+		}))
+	);
 	let activeId = $state('');
 	let activeConversation = $state<Conversation | null>(null);
 	let messages = $state<ChatMessage[]>([]);
@@ -104,10 +117,12 @@
 	let userAtBottom = $state(true);
 	let editingId = $state<string | null>(null);
 	let editingTitle = $state('');
-	let deletingConversation = $state<Conversation | null>(null);
+	let deletingConversation = $state<ConversationSummary | null>(null);
 	let deleteLoading = $state(false);
 	let pendingAttachments = $state<File[]>([]);
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
+	let conversationLoadToken = 0;
+	let toolsLoadToken = 0;
 
 	let isNewConversationEmpty = $derived(messages.length === 0 && !running && !!activeConversation);
 
@@ -311,23 +326,27 @@
 			if (!response.ok) throw new Error('Could not load conversations');
 			const data = await response.json();
 			conversations = data.conversations ?? [];
+			conversationsState.setItems(conversations);
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not load conversations');
 		}
 	}
 
 	async function loadTools(projectId?: string | null) {
+		const requestToken = ++toolsLoadToken;
+		toolsLoading = true;
 		try {
 			const url = projectId ? `/api/tools?projectId=${projectId}` : '/api/tools';
 			const response = await fetch(url);
-			if (response.ok) {
+			if (response.ok && requestToken === toolsLoadToken) {
 				const data = await response.json();
+				if (requestToken !== toolsLoadToken) return;
 				availableTools = data.tools ?? [];
 			}
 		} catch {
 			/* ignore */
 		} finally {
-			toolsLoading = false;
+			if (requestToken === toolsLoadToken) toolsLoading = false;
 		}
 	}
 
@@ -377,7 +396,17 @@
 	}
 
 	async function loadConversation(id: string, replaceUrl = false, preserveLiveState = false) {
-		if (id !== activeId) pendingAttachments = [];
+		const loadToken = ++conversationLoadToken;
+		const switching = id !== activeId;
+		if (switching) {
+			pendingAttachments = [];
+			abortController?.abort();
+			abortController = undefined;
+			running = false;
+			messages = [];
+			availableTools = [];
+			toolsLoadToken += 1;
+		}
 		activeId = id;
 		activeConversation = conversations.find((c) => c.id === id) ?? null;
 		if (!preserveLiveState) {
@@ -388,14 +417,15 @@
 			const response = await fetch(`/api/conversations/${id}`);
 			if (!response.ok) throw new Error('Could not load conversation');
 			const data = await response.json();
+			if (loadToken !== conversationLoadToken || activeId !== id) return;
 			activeConversation = data.conversation ?? activeConversation;
 			messages = (data.messages ?? []).filter(
 				(m: ChatMessage) => m.role === 'user' || m.role === 'assistant'
 			);
-			if (activeConversation?.projectId) {
-				void loadTools(activeConversation.projectId);
-			}
+			if (activeConversation?.projectId) void loadTools(activeConversation.projectId);
+			else void loadTools(null);
 		} catch (error) {
+			if (loadToken !== conversationLoadToken || activeId !== id) return;
 			notify(error instanceof Error ? error.message : 'Could not load conversation');
 			throw error;
 		}
@@ -414,12 +444,7 @@
 		}
 	}
 
-	function focusInput(node: HTMLInputElement) {
-		node.focus();
-		node.select();
-	}
-
-	function startRename(conversation: Conversation) {
+	function startRename(conversation: ConversationSummary) {
 		editingId = conversation.id;
 		editingTitle = conversation.title;
 	}
@@ -438,6 +463,7 @@
 		try {
 			const updated = await updateConversation(id, { title: newTitle });
 			conversations = conversations.map((c) => (c.id === id ? { ...c, title: updated.title } : c));
+			conversationsState.updateTitle(id, updated.title);
 			if (activeConversation && activeConversation.id === id) {
 				activeConversation = { ...activeConversation, title: updated.title };
 			}
@@ -448,7 +474,7 @@
 		}
 	}
 
-	function promptDelete(conversation: Conversation) {
+	function promptDelete(conversation: ConversationSummary) {
 		deletingConversation = conversation;
 	}
 
@@ -463,6 +489,7 @@
 		try {
 			await deleteConversation(id);
 			conversations = conversations.filter((c) => c.id !== id);
+			conversationsState.remove(id);
 			notify('Conversation deleted');
 			const wasActive = activeId === id;
 			deletingConversation = null;
@@ -495,12 +522,6 @@
 	}
 
 	onMount(async () => {
-		try {
-			const response = await authClient.getSession();
-			if (response.data) user = response.data.user ?? null;
-		} catch {
-			/* ignore */
-		}
 		await Promise.all([loadModels(), loadConversations(), loadTools(), loadThinkingPreferences()]);
 		const params = new URL(window.location.href).searchParams;
 		const requested = params.get('id');
@@ -672,12 +693,14 @@
 	}
 
 	async function sendMessage() {
+		if (running) return;
 		const content = message.trim();
 		if ((!content && pendingAttachments.length === 0) || !activeId) {
 			notify(!activeId ? 'No active conversation' : 'Type a message or attach a file first');
 			return;
 		}
 		const filesToSend = pendingAttachments;
+		conversationLoadToken += 1;
 		running = true;
 		liveError = '';
 		message = '';
@@ -700,11 +723,15 @@
 			}
 		];
 		abortController = new AbortController();
+		const streamConversationId = activeId;
+		const streamAbortController = abortController;
 		try {
 			await streamMessage(
 				activeId,
 				content,
 				(event) => {
+					if (activeId !== streamConversationId || abortController !== streamAbortController)
+						return;
 					if (event.type === 'message.start') {
 						if (event.role === 'assistant') {
 							const msgId = String(event.messageId);
@@ -874,24 +901,39 @@
 				filesToSend
 			);
 		} catch (error) {
-			if ((error as Error).name !== 'AbortError') pendingAttachments = filesToSend;
-			if ((error as Error).name !== 'AbortError')
+			if (activeId !== streamConversationId || abortController !== streamAbortController) return;
+			if ((error as Error).name !== 'AbortError') {
+				pendingAttachments = filesToSend;
 				notify(error instanceof Error ? error.message : 'Agent error');
+			}
 		} finally {
-			running = false;
-			abortController = undefined;
-			messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
-			await loadConversations();
-			if (activeId) await loadConversation(activeId, false, true);
+			if (activeId === streamConversationId && abortController === streamAbortController) {
+				messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
+				const completedLoadToken = conversationLoadToken;
+				await loadConversations();
+				if (
+					activeId === streamConversationId &&
+					abortController === streamAbortController &&
+					completedLoadToken === conversationLoadToken
+				)
+					await loadConversation(streamConversationId, false, true).catch(() => {});
+				if (abortController === streamAbortController) {
+					abortController = undefined;
+					running = false;
+				}
+			}
 		}
 	}
 
 	async function stopMessage() {
-		if (activeId) await stopConversation(activeId).catch(() => {});
-		abortController?.abort();
-		running = false;
-		messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
-		notify('Generation stopped');
+		const stoppingId = activeId;
+		const stoppingController = abortController;
+		stoppingController?.abort();
+		if (stoppingId) await stopConversation(stoppingId).catch(() => {});
+		if (activeId === stoppingId && (!abortController || abortController === stoppingController)) {
+			messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
+			notify('Generation stopped');
+		}
 	}
 
 	function onKeydown(event: KeyboardEvent) {
@@ -957,85 +999,17 @@
 			<div class="nav-label projects-label">Preferences</div>
 			<a class="nav-item" href={resolve('/settings')}><Settings size={16} /> Models</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
-			{#if conversations.length > 0}
-				<div class="nav-label projects-label">Recent chats</div>
-				{#each conversations as conversation (conversation.id)}
-					<div class="recent-chat-item" class:active-project={conversation.id === activeId}>
-						{#if editingId === conversation.id}
-							<form
-								class="inline-rename-form"
-								onsubmit={(e) => {
-									e.preventDefault();
-									saveRename(conversation.id);
-								}}
-							>
-								<input
-									type="text"
-									class="inline-rename-input"
-									bind:value={editingTitle}
-									onkeydown={(e) => {
-										if (e.key === 'Escape') cancelRename();
-									}}
-									use:focusInput
-								/>
-								<button
-									type="submit"
-									class="item-action-btn check"
-									title="Save"
-									aria-label="Save title"
-								>
-									<Check size={13} />
-								</button>
-								<button
-									type="button"
-									class="item-action-btn cancel"
-									onclick={cancelRename}
-									title="Cancel"
-									aria-label="Cancel rename"
-								>
-									<X size={13} />
-								</button>
-							</form>
-						{:else}
-							<button
-								class="project-item-btn"
-								onclick={() => {
-									sidebar.closeMobile();
-									loadConversation(conversation.id);
-								}}
-								title={conversation.title}
-							>
-								<span class="project-dot"></span>
-								<span class="chat-item-title">{conversation.title}</span>
-							</button>
-							<div class="chat-item-actions">
-								<button
-									class="item-action-btn"
-									title="Rename chat"
-									aria-label="Rename chat"
-									onclick={(e) => {
-										e.stopPropagation();
-										startRename(conversation);
-									}}
-								>
-									<Pencil size={13} />
-								</button>
-								<button
-									class="item-action-btn danger"
-									title="Delete chat"
-									aria-label="Delete chat"
-									onclick={(e) => {
-										e.stopPropagation();
-										promptDelete(conversation);
-									}}
-								>
-									<Trash2 size={13} />
-								</button>
-							</div>
-						{/if}
-					</div>
-				{/each}
-			{/if}
+			<RecentChats
+				{conversations}
+				{activeId}
+				onSelectChat={loadConversation}
+				onStartRename={startRename}
+				onPromptDelete={promptDelete}
+				{editingId}
+				bind:editingTitle
+				onSaveRename={saveRename}
+				onCancelRename={cancelRename}
+			/>
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">
@@ -1391,107 +1365,6 @@
 		cursor: not-allowed;
 		transform: none;
 		box-shadow: none;
-	}
-	.recent-chat-item {
-		display: flex;
-		align-items: center;
-		position: relative;
-		width: 100%;
-		min-height: 32px;
-		border-radius: 6px;
-		transition: background 0.16s ease;
-	}
-	.recent-chat-item:hover {
-		background: color-mix(in srgb, var(--surface-hover) 75%, transparent);
-	}
-	.recent-chat-item.active-project {
-		background: var(--surface-hover);
-	}
-	.project-item-btn {
-		display: flex;
-		align-items: center;
-		gap: 9px;
-		flex: 1 1 auto;
-		min-width: 0;
-		min-height: 32px;
-		color: var(--text-dim);
-		padding: 6px 4px 6px 10px;
-		background: transparent;
-		border: 0;
-		text-align: left;
-		border-radius: 6px;
-		font-size: var(--text-sm);
-	}
-	.recent-chat-item.active-project .project-item-btn {
-		color: var(--text-strong);
-		font-weight: 550;
-	}
-	.recent-chat-item.active-project .project-dot {
-		background: var(--text-strong);
-	}
-	.chat-item-title {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		flex: 1 1 auto;
-		min-width: 0;
-	}
-	.chat-item-actions {
-		display: flex;
-		align-items: center;
-		gap: 2px;
-		padding-right: 4px;
-		opacity: 0;
-		transition: opacity 0.15s ease;
-		flex-shrink: 0;
-	}
-	.recent-chat-item:hover .chat-item-actions,
-	.recent-chat-item:focus-within .chat-item-actions {
-		opacity: 1;
-	}
-	.item-action-btn {
-		display: grid;
-		place-items: center;
-		width: 22px;
-		height: 22px;
-		border: 0;
-		border-radius: 4px;
-		background: transparent;
-		color: var(--text-muted);
-		padding: 0;
-		transition:
-			color 0.15s ease,
-			background 0.15s ease;
-	}
-	.item-action-btn:hover {
-		color: var(--text-strong);
-		background: var(--surface-3);
-	}
-	.item-action-btn.danger:hover {
-		color: var(--danger-text);
-		background: color-mix(in srgb, var(--danger-text) 12%, transparent);
-	}
-	.inline-rename-form {
-		display: flex;
-		align-items: center;
-		gap: 3px;
-		width: 100%;
-		padding: 3px 6px;
-	}
-	.inline-rename-input {
-		flex: 1 1 auto;
-		min-width: 0;
-		height: 26px;
-		padding: 2px 6px;
-		font-size: var(--text-xs);
-		color: var(--text);
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 4px;
-		outline: none;
-	}
-	.inline-rename-input:focus {
-		border-color: var(--focus);
 	}
 	.modal-text {
 		margin: 0 0 16px;
