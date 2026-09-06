@@ -140,6 +140,22 @@
 			};
 
 			try {
+				const result = namespace?.[method]?.(...args);
+				if (result && typeof result.then === 'function') {
+					result.then(
+						(value) => finish(value),
+						(error) => finish(null, error)
+					);
+					return;
+				} else if (result !== undefined) {
+					finish(result);
+					return;
+				}
+			} catch {
+				// fall through to callback pattern
+			}
+
+			try {
 				const result = namespace?.[method]?.(...args, callback);
 				if (result && typeof result.then === 'function')
 					result.then(
@@ -147,18 +163,8 @@
 						(error) => finish(null, error)
 					);
 				else if (result !== undefined) finish(result);
-			} catch (firstError) {
-				try {
-					const result = namespace?.[method]?.(...args);
-					if (result && typeof result.then === 'function')
-						result.then(
-							(value) => finish(value),
-							(error) => finish(null, error)
-						);
-					else finish(result);
-				} catch (secondError) {
-					finish(null, secondError ?? firstError);
-				}
+			} catch (secondError) {
+				finish(null, secondError);
 			}
 		});
 	}

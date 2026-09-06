@@ -22,24 +22,31 @@
 			};
 
 			try {
+				const result = extensionApi?.runtime?.sendMessage(message);
+				if (result && typeof result.then === 'function') {
+					result.then(
+						(value) => finish(value),
+						(error) => finish(null, error)
+					);
+					return;
+				} else if (result !== undefined) {
+					finish(result);
+					return;
+				}
+			} catch {
+				// fall through to callback pattern
+			}
+
+			try {
 				const result = extensionApi?.runtime?.sendMessage(message, callback);
 				if (result && typeof result.then === 'function')
 					result.then(
 						(value) => finish(value),
 						(error) => finish(null, error)
 					);
-			} catch (firstError) {
-				try {
-					const result = extensionApi?.runtime?.sendMessage(message);
-					if (result && typeof result.then === 'function')
-						result.then(
-							(value) => finish(value),
-							(error) => finish(null, error)
-						);
-					else finish(result);
-				} catch (secondError) {
-					finish(null, secondError ?? firstError);
-				}
+				else if (result !== undefined) finish(result);
+			} catch (secondError) {
+				finish(null, secondError);
 			}
 		});
 	}

@@ -121,8 +121,16 @@ async function buildTarget(target: 'chrome' | 'firefox') {
 		content_scripts?: Array<{ matches?: string[] }>;
 	};
 	manifest.version = version;
-	if (manifest.content_scripts?.[0])
-		manifest.content_scripts[0].matches = allowedOrigins.map((origin) => `${origin}/*`);
+	if (manifest.content_scripts?.[0]) {
+		const patterns = allowedOrigins.map((origin) => {
+			if (target === 'firefox') {
+				const url = new URL(origin);
+				return `${url.protocol}//${url.hostname}/*`;
+			}
+			return `${origin}/*`;
+		});
+		manifest.content_scripts[0].matches = [...new Set(patterns)];
+	}
 	await writeFile(join(targetDirectory, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
 	const files = await Promise.all(
