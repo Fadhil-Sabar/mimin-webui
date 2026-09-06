@@ -35,6 +35,7 @@
 	let connected = $state(false);
 	let checking = $state(false);
 	let status = $state('Checking connection…');
+	let permissions = $state<{ google?: boolean; publicWebsites?: boolean } | undefined>(undefined);
 
 	onMount(() => {
 		enabled = isBrowserBridgeEnabled();
@@ -58,6 +59,7 @@
 		const result = await getBrowserBridgeStatus();
 		connected = enabled && result.connected;
 		status = result.message;
+		permissions = result.permissions;
 		checking = false;
 	}
 
@@ -150,7 +152,10 @@
 				<span class="hero-icon"><Puzzle size={23} /></span>
 				<div>
 					<h1>Mimin Browser Bridge</h1>
-					<p>Let Mimin open tabs and search Google or Google Scholar directly from your chat.</p>
+					<p>
+						Let Mimin open tabs, search Google or Google Scholar, and read public web pages directly
+						from your chat.
+					</p>
 				</div>
 			</div>
 
@@ -161,8 +166,8 @@
 						<span class="badge">Optional</span>
 					</div>
 					<p>
-						When enabled and connected, Mimin can open tabs and send Google or Scholar page content
-						back to your chat and configured AI provider to answer your request.
+						When enabled and connected, Mimin can open tabs and read search results or public web
+						pages back to your chat and configured AI provider to answer your request.
 					</p>
 				</div>
 				<button
@@ -194,15 +199,45 @@
 			</div>
 
 			{#if enabled}
+				{#if connected}
+					<div class="permissions-card">
+						<div class="title-row">
+							<strong>Extension Permissions</strong>
+						</div>
+						<div class="perm-status-list">
+							<div class="perm-status-item">
+								<span>Google / Google Scholar access</span>
+								<span class="badge ok">Enabled</span>
+							</div>
+							<div class="perm-status-item">
+								<span>Public website reading</span>
+								{#if permissions?.publicWebsites}
+									<span class="badge ok">Enabled</span>
+								{:else}
+									<span class="badge">Not granted</span>
+								{/if}
+							</div>
+						</div>
+						<p class="footnote-perm">
+							To enable reading generic web links opened with <code>browser_open</code>, open the
+							Mimin Browser Bridge extension popup in your browser toolbar and click
+							<strong>Grant</strong>.
+						</p>
+					</div>
+				{/if}
+
 				<div class="privacy-note">
 					<ShieldCheck size={18} />
 					<div>
-						<strong>Use it from your Mimin chat</strong>
+						<strong>Search & Browser Tools</strong>
 						<p>
-							Try “Cari paper tentang agentic coding di Google Scholar” or “Buka
-							https://scholar.google.com”. Mimin opens a new tab and reads Google/Scholar results.
-							Other websites can be opened, but their contents are not read. Existing tabs and
-							browser history are not accessed.
+							<strong>Web Search</strong> is the default server-side research tool for general
+							queries.
+							<strong>Browser Search</strong> is only exposed when you explicitly ask to search
+							Google or Google Scholar.
+							<strong>Browser Open</strong> opens a specific public URL in your browser and reads its
+							snapshot if public website reading permission is granted. Existing tabs, cookies, and browsing
+							history are never accessed.
 						</p>
 					</div>
 				</div>
@@ -319,6 +354,30 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 10px;
+	}
+	.permissions-card {
+		margin: 16px 0;
+		padding: 16px 18px;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+	}
+	.perm-status-list {
+		display: grid;
+		gap: 8px;
+		margin-top: 10px;
+	}
+	.perm-status-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		font-size: var(--text-sm);
+		color: var(--text-strong);
+	}
+	.footnote-perm {
+		margin-top: 10px;
+		font-size: var(--text-xs);
+		color: var(--text-muted);
 	}
 	.title-row,
 	.card-title {

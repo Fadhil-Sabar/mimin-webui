@@ -19,7 +19,11 @@ function createWindowMock() {
 		removeEventListener: vi.fn((_type: string, listener: Listener) => listeners.delete(listener)),
 		postMessage: vi.fn(),
 		dispatchMessage(data: unknown, origin = location.origin, source?: unknown) {
-			const event = { data, origin, source: source === undefined ? windowMock : source } as MessageEvent;
+			const event = {
+				data,
+				origin,
+				source: source === undefined ? windowMock : source
+			} as MessageEvent;
 			for (const listener of [...listeners]) listener(event);
 		}
 	};
@@ -208,8 +212,7 @@ describe('browser bridge client', () => {
 						token,
 						action: 'browser_open',
 						args: { url: 'https://chatgpt.com/share/example' }
-					})}\n\n` +
-						`event: done\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
+					})}\n\n` + `event: done\ndata: ${JSON.stringify({ type: 'done' })}\n\n`,
 					{ status: 200, headers: { 'content-type': 'text/event-stream' } }
 				)
 			)
@@ -221,11 +224,11 @@ describe('browser bridge client', () => {
 		expect(fetch).toHaveBeenCalledTimes(2);
 		expect(vi.mocked(fetch).mock.calls[0][1]).toEqual(
 			expect.objectContaining({
-			headers: expect.objectContaining({
-				'x-mimin-browser-bridge': '1',
-				accept: 'text/event-stream'
+				headers: expect.objectContaining({
+					'x-mimin-browser-bridge': '1',
+					accept: 'text/event-stream'
+				})
 			})
-		})
 		);
 		const [, resultInit] = vi.mocked(fetch).mock.calls[1];
 		expect(JSON.parse(String((resultInit as RequestInit).body))).toMatchObject({

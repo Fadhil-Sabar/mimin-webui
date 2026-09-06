@@ -36,6 +36,16 @@ const tools: AppTool[] = [
 		settingHref: '/settings/browser-extension'
 	},
 	{
+		name: 'browser_open',
+		label: 'Browser Open',
+		description: 'Open and read a public webpage via browser extension.',
+		category: 'browser',
+		enabled: false,
+		readOnly: true,
+		settingHint: 'Configure in Settings > Browser Extension',
+		settingHref: '/settings/browser-extension'
+	},
+	{
 		name: 'project_knowledge_search',
 		label: 'Project Knowledge',
 		description: 'Search files attached to the active project.',

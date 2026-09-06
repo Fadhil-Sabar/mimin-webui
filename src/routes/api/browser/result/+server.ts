@@ -1,9 +1,6 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { apiError, handleApiError, requireUser } from '$lib/server/api';
-import {
-	browserResultSchema,
-	settleBrowserRequest
-} from '$lib/server/browser/bridge';
+import { browserResultSchema, settleBrowserRequest } from '$lib/server/browser/bridge';
 
 export const POST: RequestHandler = async (event) => {
 	try {
@@ -26,7 +23,11 @@ export const POST: RequestHandler = async (event) => {
 			parsed.data.error
 		);
 		if (!accepted)
-			return apiError('BROWSER_REQUEST_NOT_FOUND', 'The browser request is expired or invalid.', 404);
+			return apiError(
+				'BROWSER_REQUEST_NOT_FOUND',
+				'The browser request is expired or invalid.',
+				404
+			);
 
 		return new Response(JSON.stringify({ accepted: true }), {
 			status: 200,

@@ -93,7 +93,8 @@ describe('browser tools', () => {
 			new AbortController().signal
 		);
 		expect(capturedEvent).toBeDefined();
-		expect((capturedEvent as any)?.args?.engine).toBe('scholar');
+		const eventArgs = (capturedEvent as BrowserBridgeEvent | null)?.args;
+		expect(eventArgs && 'engine' in eventArgs ? eventArgs.engine : null).toBe('scholar');
 		const first = result.content[0];
 		if (first.type !== 'text') throw new Error('Expected text content');
 		expect(first.text).toContain('Untrusted browser search results');
@@ -137,5 +138,41 @@ describe('browser tools', () => {
 		await expect(
 			tool.execute('call-6', { url: 'https://example.com' }, new AbortController().signal)
 		).rejects.toThrow(/BROWSER_BRIDGE_CANCELED/);
+	});
+
+	it('has updated explicit tool descriptions', () => {
+		const openTool = createBrowserOpenTool(context, () => {});
+		const searchTool = createBrowserSearchTool(context, () => {});
+
+		expect(openTool.description).toBe(
+			"Open and read a public HTTP/HTTPS webpage through the user's browser. Requires browser-extension host permission for the destination website."
+		);
+		expect(searchTool.description).toBe(
+			"Search Google or Google Scholar through the user's browser. Only available when the user's request explicitly targets Google or Google Scholar."
+		);
+	});
+
+	it('formats unreadable snapshot when host permission is required', async () => {
+		const tool = createBrowserOpenTool(context, (event) => {
+			queueMicrotask(() => {
+				settleBrowserRequest(context.userId, event.requestId, event.token, true, {
+					url: 'https://docs.example.com/',
+					readable: false,
+					reason: 'host_permission_required',
+					title: '',
+					links: []
+				});
+			});
+		});
+
+		const result = await tool.execute(
+			'call-7',
+			{ url: 'https://docs.example.com/' },
+			new AbortController().signal
+		);
+		const first = result.content[0];
+		if (first.type !== 'text') throw new Error('Expected text content');
+		expect(first.text).toContain('Browser tab opened at https://docs.example.com/');
+		expect(first.text).toContain('Page reading is unavailable: host_permission_required');
 	});
 });

@@ -21,4 +21,12 @@ describe('tool registry', () => {
 		expect(tool?.readOnly).toBe(true);
 		expect(tool?.settingHref).toBe('/settings/browser-extension');
 	});
+
+	it('exposes browser_open tool as read-only with settings reference', () => {
+		const tool = getTool('browser_open');
+		expect(tool).toBeDefined();
+		expect(tool?.label).toBe('Browser Open');
+		expect(tool?.readOnly).toBe(true);
+		expect(tool?.settingHref).toBe('/settings/browser-extension');
+	});
 });

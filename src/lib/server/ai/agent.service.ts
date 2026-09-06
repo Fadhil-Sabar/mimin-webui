@@ -20,6 +20,7 @@ import {
 	type BrowserBridgeEvent
 } from '../browser/bridge';
 import { createBrowserOpenTool, createBrowserSearchTool } from './tools/browser.tool';
+import { resolveTurnToolGating } from './tool-routing';
 
 export type AppEvent = { type: string; [key: string]: unknown };
 export const WEB_SEARCH_FAILURE_NOTICE =
@@ -261,12 +262,17 @@ export async function runConversationTurn(
 		conversation.enabledTools
 	);
 	const searchSettings = effectiveUserId ? await getWebSearchSettings(effectiveUserId) : undefined;
+	const toolGating = resolveTurnToolGating({
+		prompt,
+		browserBridgeEnabled: Boolean(browserBridgeEnabled && effectiveUserId),
+		hasWebSearch: enabledTools.includes('web_search')
+	});
 	const tools = [
-		...(enabledTools.includes('web_search') ? [createWebSearchTool(searchSettings)] : []),
+		...(toolGating.exposeWebSearch ? [createWebSearchTool(searchSettings)] : []),
 		...(conversation.projectId && enabledTools.includes('project_knowledge_search')
 			? [createProjectKnowledgeTool(conversation.projectId)]
 			: []),
-		...(browserBridgeEnabled && effectiveUserId
+		...(toolGating.exposeBrowserOpen && effectiveUserId
 			? [
 					createBrowserOpenTool(
 						{
@@ -275,7 +281,11 @@ export async function runConversationTurn(
 							turnToken
 						} satisfies BrowserBridgeContext,
 						(event: BrowserBridgeEvent) => emit(event)
-					),
+					)
+				]
+			: []),
+		...(toolGating.exposeBrowserSearch && effectiveUserId
+			? [
 					createBrowserSearchTool(
 						{
 							userId: effectiveUserId,

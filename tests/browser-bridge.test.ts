@@ -25,7 +25,8 @@ const pageResult = {
 
 afterEach(() => {
 	vi.useRealTimers();
-	if (pendingBrowserRequestCount() > 0) cancelBrowserRequests(context.conversationId, context.turnToken);
+	if (pendingBrowserRequestCount() > 0)
+		cancelBrowserRequests(context.conversationId, context.turnToken);
 });
 
 describe('browser bridge broker', () => {
@@ -53,22 +54,22 @@ describe('browser bridge broker', () => {
 		expect(event.token).toMatch(/^[0-9a-f-]{36}$/);
 		expect(pendingBrowserRequestCount()).toBe(1);
 
-		expect(settleBrowserRequest('another-user', event.requestId, event.token, true, pageResult)).toBe(
-			false
-		);
-		expect(settleBrowserRequest(context.userId, event.requestId, 'wrong-token', true, pageResult)).toBe(
-			false
-		);
+		expect(
+			settleBrowserRequest('another-user', event.requestId, event.token, true, pageResult)
+		).toBe(false);
+		expect(
+			settleBrowserRequest(context.userId, event.requestId, 'wrong-token', true, pageResult)
+		).toBe(false);
 		expect(pendingBrowserRequestCount()).toBe(1);
 
-		expect(settleBrowserRequest(context.userId, event.requestId, event.token, true, pageResult)).toBe(
-			true
-		);
+		expect(
+			settleBrowserRequest(context.userId, event.requestId, event.token, true, pageResult)
+		).toBe(true);
 		await expect(pending).resolves.toEqual(pageResult);
 		expect(pendingBrowserRequestCount()).toBe(0);
-		expect(settleBrowserRequest(context.userId, event.requestId, event.token, true, pageResult)).toBe(
-			false
-		);
+		expect(
+			settleBrowserRequest(context.userId, event.requestId, event.token, true, pageResult)
+		).toBe(false);
 	});
 
 	it('rejects when dispatch fails and removes the pending request', async () => {
@@ -105,7 +106,13 @@ describe('browser bridge broker', () => {
 		const emit = vi.fn();
 
 		await expect(
-			requestBrowserAction(context, 'browser_open', { url: pageResult.url }, emit, controller.signal)
+			requestBrowserAction(
+				context,
+				'browser_open',
+				{ url: pageResult.url },
+				emit,
+				controller.signal
+			)
 		).rejects.toThrow('BROWSER_BRIDGE_CANCELED');
 		expect(emit).not.toHaveBeenCalled();
 		expect(pendingBrowserRequestCount()).toBe(0);
@@ -113,7 +120,12 @@ describe('browser bridge broker', () => {
 
 	it('times out an unanswered request and identifies timeout as an abort-style bridge error', async () => {
 		vi.useFakeTimers();
-		const pending = requestBrowserAction(context, 'browser_open', { url: pageResult.url }, () => {});
+		const pending = requestBrowserAction(
+			context,
+			'browser_open',
+			{ url: pageResult.url },
+			() => {}
+		);
 
 		vi.advanceTimersByTime(BROWSER_BRIDGE_TIMEOUT_MS);
 		await expect(pending).rejects.toThrow('BROWSER_BRIDGE_TIMEOUT');
@@ -139,9 +151,13 @@ describe('browser bridge result schema', () => {
 			requestId: '6a9d510f-bbc4-83ec-bd10-2c0767c67d92',
 			token: '6a9d510f-bbc4-83ec-bd10-2c0767c67d92'
 		};
-		expect(browserResultSchema.safeParse({ ...base, ok: true, result: pageResult }).success).toBe(true);
+		expect(browserResultSchema.safeParse({ ...base, ok: true, result: pageResult }).success).toBe(
+			true
+		);
 		expect(browserResultSchema.safeParse({ ...base, ok: true }).success).toBe(false);
-		expect(browserResultSchema.safeParse({ ...base, ok: false, error: 'tab blocked' }).success).toBe(true);
+		expect(
+			browserResultSchema.safeParse({ ...base, ok: false, error: 'tab blocked' }).success
+		).toBe(true);
 		expect(browserResultSchema.safeParse({ ...base, ok: false }).success).toBe(false);
 	});
 });

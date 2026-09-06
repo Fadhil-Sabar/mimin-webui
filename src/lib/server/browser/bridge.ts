@@ -53,7 +53,10 @@ export function assertPublicHttpUrl(value: string) {
 	}
 	if (!['http:', 'https:'].includes(parsed.protocol)) throw browserError('INVALID_URL');
 	if (parsed.username || parsed.password) throw browserError('INVALID_URL');
-	const hostname = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+	const hostname = parsed.hostname
+		.toLowerCase()
+		.replace(/^\[|\]$/g, '')
+		.replace(/\.$/, '');
 	const privateHost =
 		hostname === 'localhost' ||
 		hostname.endsWith('.localhost') ||
@@ -125,7 +128,7 @@ export const browserResultSchema = z
 		error: z.string().trim().max(1_000).optional()
 	})
 	.strict()
-	.refine((value) => value.ok ? Boolean(value.result) : Boolean(value.error), {
+	.refine((value) => (value.ok ? Boolean(value.result) : Boolean(value.error)), {
 		message: 'A successful browser result needs result data; a failed result needs an error.'
 	});
 
@@ -208,10 +211,7 @@ export function requestBrowserAction(
 		} catch (error) {
 			const current = pendingRequests.get(requestId);
 			if (current)
-				rejectPending(
-					current,
-					error instanceof Error ? error : browserError('DISPATCH_FAILED')
-				);
+				rejectPending(current, error instanceof Error ? error : browserError('DISPATCH_FAILED'));
 		}
 	});
 }
@@ -246,5 +246,8 @@ export function pendingBrowserRequestCount() {
 }
 
 export function isBrowserBridgeAbortError(error: unknown) {
-	return isAbortError(error) || (error instanceof Error && /BROWSER_BRIDGE_(CANCELED|TIMEOUT)/.test(error.message));
+	return (
+		isAbortError(error) ||
+		(error instanceof Error && /BROWSER_BRIDGE_(CANCELED|TIMEOUT)/.test(error.message))
+	);
 }

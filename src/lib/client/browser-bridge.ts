@@ -67,11 +67,26 @@ export function requestBrowserBridge(
 	});
 }
 
-export async function getBrowserBridgeStatus(signal?: AbortSignal) {
+export async function getBrowserBridgeStatus(signal?: AbortSignal): Promise<{
+	connected: boolean;
+	message: string;
+	version?: string;
+	permissions?: {
+		google?: boolean;
+		publicWebsites?: boolean;
+	};
+}> {
 	if (!isBrowserBridgeEnabled()) return { connected: false, message: 'Disabled on this browser.' };
 	try {
-		await requestBrowserBridge('ping', {}, signal);
-		return { connected: true, message: 'Connected. Mimin can open tabs from your chat.' };
+		const res = (await requestBrowserBridge('ping', {}, signal)) as
+			| { version?: string; permissions?: { google?: boolean; publicWebsites?: boolean } }
+			| undefined;
+		return {
+			connected: true,
+			message: 'Connected. Mimin can open tabs from your chat.',
+			version: res?.version,
+			permissions: res?.permissions
+		};
 	} catch (error) {
 		return {
 			connected: false,

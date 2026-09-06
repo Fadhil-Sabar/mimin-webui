@@ -89,9 +89,9 @@ describe('citations parsing and fallback sources', () => {
 				'https://en.wikipedia.org/wiki/GPT-6_Astra'
 			)
 		).toBe('GPT 6 Astra');
-		expect(
-			extractCleanTitle('https://en.wikipedia.org/wiki/GPT-6_Astra', 'Explicit Title')
-		).toBe('Explicit Title');
+		expect(extractCleanTitle('https://en.wikipedia.org/wiki/GPT-6_Astra', 'Explicit Title')).toBe(
+			'Explicit Title'
+		);
 	});
 
 	it('pre-populates fallback sources when no URLs are present in markdown', () => {
@@ -147,4 +147,3 @@ describe('citations parsing and fallback sources', () => {
 		expect(sourcesMap.get(1)?.title).toBe('Updated Source');
 	});
 });
-

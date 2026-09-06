@@ -37,6 +37,7 @@ describe('Mimin Search browser extension', () => {
 			'https://www.google.com/*',
 			'https://scholar.google.com/*'
 		]);
+		expect(manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
 	});
 
 	it('declares that the Firefox build collects only website content', async () => {
@@ -49,5 +50,38 @@ describe('Mimin Search browser extension', () => {
 		expect(manifest.browser_specific_settings.gecko.data_collection_permissions.required).toEqual([
 			'websiteContent'
 		]);
+	});
+
+	it('handles permission state checks correctly', async () => {
+		let grantedOrigins: string[] = [];
+		const mockPermissionsApi = {
+			contains: async (details: { origins?: string[] }) => {
+				const check = details.origins ?? [];
+				return check.every((o) => grantedOrigins.includes(o));
+			},
+			request: async (details: { origins?: string[] }) => {
+				grantedOrigins = [...new Set([...grantedOrigins, ...(details.origins ?? [])])];
+				return true;
+			},
+			remove: async (details: { origins?: string[] }) => {
+				const toRemove = new Set(details.origins ?? []);
+				grantedOrigins = grantedOrigins.filter((o) => !toRemove.has(o));
+				return true;
+			}
+		};
+
+		expect(await mockPermissionsApi.contains({ origins: ['http://*/*', 'https://*/*'] })).toBe(
+			false
+		);
+
+		await mockPermissionsApi.request({ origins: ['http://*/*', 'https://*/*'] });
+		expect(await mockPermissionsApi.contains({ origins: ['http://*/*', 'https://*/*'] })).toBe(
+			true
+		);
+
+		await mockPermissionsApi.remove({ origins: ['http://*/*', 'https://*/*'] });
+		expect(await mockPermissionsApi.contains({ origins: ['http://*/*', 'https://*/*'] })).toBe(
+			false
+		);
 	});
 });

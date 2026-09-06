@@ -146,12 +146,15 @@
 
 	function buildSearchUrl(engine, query) {
 		const resolvedEngine = engine === 'google_scholar' ? 'scholar' : engine;
-		if (!Object.hasOwn(SEARCH_ENGINES, resolvedEngine)) throw new Error('Unsupported search engine.');
+		if (!Object.hasOwn(SEARCH_ENGINES, resolvedEngine))
+			throw new Error('Unsupported search engine.');
 		if (typeof query !== 'string' || query.length > MAX_QUERY_LENGTH)
 			throw new Error('Search query is invalid or too long.');
 		const normalizedQuery = query.trim();
 		if (!normalizedQuery)
-			return resolvedEngine === 'scholar' ? 'https://scholar.google.com/' : 'https://www.google.com/';
+			return resolvedEngine === 'scholar'
+				? 'https://scholar.google.com/'
+				: 'https://www.google.com/';
 		const url = new URL(SEARCH_ENGINES[resolvedEngine]);
 		url.searchParams.set('q', normalizedQuery);
 		return url.toString();
@@ -169,7 +172,10 @@
 	}
 
 	function isPrivateHost(hostname) {
-		const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+		const host = hostname
+			.toLowerCase()
+			.replace(/^\[|\]$/g, '')
+			.replace(/\.$/, '');
 		if (
 			host === 'localhost' ||
 			host.endsWith('.localhost') ||
@@ -177,7 +183,16 @@
 			host.endsWith('.internal')
 		)
 			return true;
-		if (host === '::1' || host === '0.0.0.0' || host === '::') return true;
+		if (
+			host === '::1' ||
+			host === '0.0.0.0' ||
+			host === '::' ||
+			/^::ffff:(?:127\.|10\.|192\.168\.|169\.254\.)/i.test(host) ||
+			/^::ffff:172\.(1[6-9]|2\d|3[0-1])\./i.test(host) ||
+			/^(fc|fd)[0-9a-f]{2}:/i.test(host) ||
+			/^fe8[0-9a-f]:/i.test(host)
+		)
+			return true;
 		const octets = host.split('.').map(Number);
 		if (
 			octets.length !== 4 ||
@@ -208,6 +223,36 @@
 		if (url.username || url.password) throw new Error('URLs with credentials cannot be opened.');
 		if (isPrivateHost(url.hostname)) throw new Error('Private or local URLs cannot be opened.');
 		return url.toString();
+	}
+
+	async function hasHostPermission(url) {
+		if (isReadableGoogleUrl(url)) return true;
+		if (!extensionApi?.permissions?.contains) return false;
+		try {
+			const origin = new URL(url).origin;
+			const hasOrigin = await apiCall(extensionApi.permissions, 'contains', {
+				origins: [`${origin}/*`]
+			}).catch(() => false);
+			if (hasOrigin) return true;
+			const hasAll = await apiCall(extensionApi.permissions, 'contains', {
+				origins: ['http://*/*', 'https://*/*']
+			}).catch(() => false);
+			return Boolean(hasAll);
+		} catch {
+			return false;
+		}
+	}
+
+	async function checkPublicWebsitePermission() {
+		if (!extensionApi?.permissions?.contains) return false;
+		try {
+			const hasAll = await apiCall(extensionApi.permissions, 'contains', {
+				origins: ['http://*/*', 'https://*/*']
+			}).catch(() => false);
+			return Boolean(hasAll);
+		} catch {
+			return false;
+		}
 	}
 
 	function waitForTabLoad(tabId, isNewTab = true) {
@@ -249,18 +294,31 @@
 		});
 	}
 
-	function pageSnapshot() {
+	function googleSearchSnapshot() {
 		const normalize = (value, limit) => (value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
-		const limitUrl = (value) => value.slice(0, 4_000);
+		const limitUrl = (value) => (value ?? '').slice(0, 4_000);
 		const links = [];
 		const seenLinks = new Set();
 		for (const anchor of document.querySelectorAll('a[href]')) {
-			const url = anchor.href;
-			const title = normalize(anchor.textContent, 240);
-			if (!/^https?:$/i.test(new URL(url, location.href).protocol) || !title || seenLinks.has(url))
+			const raw = anchor.getAttribute('href');
+			if (!raw) continue;
+			let resolved;
+			try {
+				resolved = new URL(raw, location.href).href;
+			} catch {
 				continue;
-			seenLinks.add(url);
-			links.push({ title, url: limitUrl(url) });
+			}
+			let parsed;
+			try {
+				parsed = new URL(resolved);
+			} catch {
+				continue;
+			}
+			if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+			const title = normalize(anchor.textContent, 240);
+			if (!title || seenLinks.has(resolved)) continue;
+			seenLinks.add(resolved);
+			links.push({ title, url: limitUrl(resolved) });
 			if (links.length >= 100) break;
 		}
 
@@ -269,18 +327,25 @@
 		for (const root of document.querySelectorAll('.MjjYud, .g, .gs_ri')) {
 			const anchor = root.querySelector('h3 a[href], h3.gs_rt a[href], a[href]');
 			const title = normalize(anchor?.textContent, 300);
-			const url = anchor?.href;
+			const rawUrl = anchor?.getAttribute('href');
+			if (!rawUrl || !title) continue;
+			let resolvedUrl;
+			try {
+				resolvedUrl = new URL(rawUrl, location.href).href;
+			} catch {
+				continue;
+			}
+			if (seenResults.has(resolvedUrl)) continue;
+			seenResults.add(resolvedUrl);
 			const snippet = normalize(
 				root.querySelector('.VwiC3b, .gs_rs, [data-sncf]')?.textContent,
 				4_000
 			);
-			if (!url || !title || seenResults.has(url)) continue;
-			seenResults.add(url);
-			results.push({ title, url: limitUrl(url), snippet });
+			results.push({ title, url: limitUrl(resolvedUrl), snippet });
 			if (results.length >= 100) break;
 		}
 
-		const text = normalize(document.body?.innerText, 12_000);
+		const text = normalize(document.body?.innerText, 20_000);
 		const lowered = `${location.href} ${document.title} ${text}`.toLowerCase();
 		return {
 			url: limitUrl(location.href),
@@ -292,40 +357,130 @@
 		};
 	}
 
-	async function readSnapshot(tabId, fallbackUrl) {
-		let tab;
-		try {
-			tab = await apiCall(extensionApi.tabs, 'get', tabId);
-		} catch {
-			tab = null;
+	function genericPageSnapshot() {
+		const normalize = (value, limit) => (value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
+		const limitUrl = (value) => (value ?? '').slice(0, 4_000);
+
+		const IGNORED_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'TEMPLATE']);
+
+		function extractCleanText(rootNode, limit) {
+			if (!rootNode) return '';
+			if (typeof document.createTreeWalker === 'function') {
+				const NodeFilterConst = globalThis.NodeFilter ?? {
+					SHOW_ELEMENT: 1,
+					SHOW_TEXT: 4,
+					FILTER_ACCEPT: 1,
+					FILTER_REJECT: 2,
+					FILTER_SKIP: 3
+				};
+				const walker = document.createTreeWalker(
+					rootNode,
+					NodeFilterConst.SHOW_ELEMENT | NodeFilterConst.SHOW_TEXT,
+					{
+						acceptNode(node) {
+							if (node.nodeType === 1 /* Node.ELEMENT_NODE */) {
+								const tagName = (node.tagName || '').toUpperCase();
+								if (IGNORED_TAGS.has(tagName)) {
+									return NodeFilterConst.FILTER_REJECT;
+								}
+								return NodeFilterConst.FILTER_SKIP;
+							}
+							if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+								const val = node.nodeValue;
+								if (!val || !val.trim()) return NodeFilterConst.FILTER_SKIP;
+								return NodeFilterConst.FILTER_ACCEPT;
+							}
+							return NodeFilterConst.FILTER_SKIP;
+						}
+					}
+				);
+				const chunks = [];
+				let accumulated = 0;
+				let currentNode;
+				while ((currentNode = walker.nextNode())) {
+					const str = (currentNode.nodeValue || '').replace(/\s+/g, ' ');
+					if (str.trim()) {
+						chunks.push(str.trim());
+						accumulated += str.length + 1;
+						if (accumulated >= limit * 2) break;
+					}
+				}
+				return chunks.join(' ').replace(/\s+/g, ' ').trim().slice(0, limit);
+			}
+			return normalize(rootNode.innerText ?? rootNode.textContent, limit);
 		}
-		const currentUrl = tab?.url || fallbackUrl;
-		if (!isReadableGoogleUrl(currentUrl))
-			return {
-				url: currentUrl.slice(0, 4_000),
-				title: '',
-				text: '',
-				links: [],
-				results: [],
-				readable: false,
-				reason: 'Only Google and Google Scholar pages can be read.',
-				tabId
-			};
+
+		const contentRoot = document.querySelector('article, main, [role="main"]');
+		let text = '';
+		if (contentRoot) {
+			text = extractCleanText(contentRoot, 20_000);
+		}
+		if (!text && document.body) {
+			text = extractCleanText(document.body, 20_000);
+		}
+
+		const links = [];
+		const seenLinks = new Set();
+		for (const anchor of document.querySelectorAll('a[href]')) {
+			const raw = anchor.getAttribute('href');
+			if (!raw) continue;
+			let resolved;
+			try {
+				resolved = new URL(raw, location.href).href;
+			} catch {
+				continue;
+			}
+			let parsed;
+			try {
+				parsed = new URL(resolved);
+			} catch {
+				continue;
+			}
+			if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+			const title = normalize(anchor.textContent, 240);
+			if (!title || seenLinks.has(resolved)) continue;
+			seenLinks.add(resolved);
+			links.push({ title, url: limitUrl(resolved) });
+			if (links.length >= 100) break;
+		}
+
+		const lowered = `${location.href} ${document.title} ${text}`.toLowerCase();
+		return {
+			url: limitUrl(location.href),
+			title: normalize(document.title, 300),
+			text,
+			links,
+			results: [],
+			captcha:
+				/captcha|unusual traffic|not a robot|verify you are human|turnstile|cloudflare\s+ray/i.test(
+					lowered
+				)
+		};
+	}
+
+	async function readSnapshot(tabId, finalUrl, isGoogle) {
+		const snapshotFunc = isGoogle ? googleSearchSnapshot : genericPageSnapshot;
 		const executions = await apiCall(extensionApi.scripting, 'executeScript', {
 			target: { tabId },
-			func: pageSnapshot
+			func: snapshotFunc
 		});
 		const snapshot = executions?.[0]?.result;
 		if (!snapshot || typeof snapshot !== 'object')
-			throw new Error('The Google page did not return a readable snapshot.');
+			throw new Error(
+				isGoogle
+					? 'The Google page did not return a readable snapshot.'
+					: 'The webpage did not return a readable snapshot.'
+			);
 		if (snapshot.captcha)
 			throw new Error(
-				'Google returned a CAPTCHA or unusual-traffic page; Mimin will not bypass it.'
+				isGoogle
+					? 'Google returned a CAPTCHA or unusual-traffic page; Mimin will not bypass it.'
+					: 'The page returned a CAPTCHA or bot detection challenge; Mimin will not bypass it.'
 			);
 		return { ...snapshot, readable: true, tabId };
 	}
 
-	async function openTab(url, readAllowed, options = {}) {
+	async function openTab(url, options = {}) {
 		const active = Boolean(options.active);
 		const reuse = options.reuse ?? true;
 		let tab = null;
@@ -358,18 +513,47 @@
 		}
 
 		await waitForTabLoad(tab.id, isNewTab);
-		const snapshot = readAllowed
-			? await readSnapshot(tab.id, url)
-			: {
-					url: url.slice(0, 4_000),
-					title: '',
-					text: '',
-					links: [],
-					results: [],
-					readable: false,
-					reason: 'The tab was opened, but reading is limited to Google and Google Scholar.',
-					tabId: tab.id
-				};
+
+		// Read final tab URL after navigation/redirects complete
+		let currentTab;
+		try {
+			currentTab = await apiCall(extensionApi.tabs, 'get', tab.id);
+		} catch {
+			currentTab = null;
+		}
+		const finalUrl = currentTab?.url || url;
+
+		// Validate final URL to ensure it remains an allowed public HTTP/HTTPS URL
+		let validatedFinalUrl;
+		try {
+			validatedFinalUrl = validatePublicUrl(finalUrl);
+		} catch (err) {
+			throw new Error(
+				`Redirected to disallowed URL: ${err instanceof Error ? err.message : 'Disallowed URL'}`,
+				{ cause: err }
+			);
+		}
+
+		// Verify host permission for the final origin
+		const isGoogle = isReadableGoogleUrl(validatedFinalUrl);
+		const hasPermission = isGoogle || (await hasHostPermission(validatedFinalUrl));
+
+		let snapshot;
+		if (!hasPermission) {
+			snapshot = {
+				url: validatedFinalUrl.slice(0, 4_000),
+				title: (currentTab?.title ?? '').slice(0, 300),
+				text: '',
+				links: [],
+				results: [],
+				readable: false,
+				reason: 'host_permission_required',
+				tabId: tab.id
+			};
+		} else {
+			snapshot = await readSnapshot(tab.id, validatedFinalUrl, isGoogle);
+		}
+
 		if (options.autoClose) {
 			try {
 				await apiCall(extensionApi.tabs, 'remove', tab.id);
@@ -390,11 +574,17 @@
 		const args = request.args && typeof request.args === 'object' ? request.args : {};
 
 		try {
-			if (request.action === 'ping') return successResponse({ version: config.version });
+			if (request.action === 'ping') {
+				const publicWebsites = await checkPublicWebsitePermission();
+				return successResponse({
+					version: config.version,
+					permissions: { google: true, publicWebsites }
+				});
+			}
 			if (request.action === 'browser_search') {
 				const url = buildSearchUrl(args.engine, args.query ?? '');
 				return successResponse(
-					await openTab(url, true, {
+					await openTab(url, {
 						active: Boolean(args.active),
 						autoClose: Boolean(args.autoClose)
 					})
@@ -403,7 +593,7 @@
 			if (request.action === 'browser_open') {
 				const url = validatePublicUrl(args.url);
 				return successResponse(
-					await openTab(url, isReadableGoogleUrl(url), {
+					await openTab(url, {
 						active: Boolean(args.active),
 						autoClose: Boolean(args.autoClose)
 					})
@@ -417,10 +607,17 @@
 
 	extensionApi.runtime.onMessage.addListener((message, sender, sendResponse) => {
 		if (message?.type === 'mimin:status') {
-			sendResponse(
-				successResponse({ version: config.version, allowedOrigins: config.allowedOrigins })
-			);
-			return false;
+			void (async () => {
+				const publicWebsites = await checkPublicWebsitePermission();
+				sendResponse(
+					successResponse({
+						version: config.version,
+						allowedOrigins: config.allowedOrigins,
+						permissions: { google: true, publicWebsites }
+					})
+				);
+			})();
+			return true;
 		}
 		if (message?.type !== 'mimin:request') return false;
 		void handleRequest(message.request, sender).then(sendResponse);

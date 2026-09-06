@@ -136,21 +136,19 @@ Buka `http://localhost:5173`.
 
 ### Extension browser opsional
 
-Buka **Settings → Browser Extension**, aktifkan bridge, lalu pasang paket sesuai browser.
-Muat ulang Mimin di browser yang sama dan pastikan status **Connected**. Dari chat, misalnya,
-minta “Cari paper tentang agentic coding di Google Scholar.” Agent memakai `browser_search`
-atau `browser_open`; extension membuka tab nyata dan mengembalikan teks serta hasil
-Google/Scholar ke agent. Popup extension hanya menampilkan informasi koneksi.
+Buka **Settings → Browser Extension**, aktifkan bridge, lalu pasang paket sesuai browser. Muat ulang Mimin di browser yang sama dan pastikan status **Connected**.
 
-Fitur mati secara default dan diaktifkan per browser. Tool browser hanya tersedia untuk giliran
-chat yang terhubung. Extension membaca halaman Google/Scholar yang dibukanya, tanpa membaca
-tab lama atau riwayat browsing. Konten halaman dikirim ke server Mimin dan penyedia model yang
-dikonfigurasi. URL HTTP(S) publik lain bisa dibuka, tetapi isinya belum dibaca. Jika muncul CAPTCHA,
-selesaikan sendiri lalu minta agent mencoba lagi. Biarkan chat terbuka selama tool bekerja.
+Mimin membedakan tiga kapabilitas pencarian dan browsing:
 
-Jika sebelumnya memasang popup Mimin Search, ganti/muat ulang extension dengan paket baru dan
-muat ulang Mimin. Untuk server selain lokal, isi `MIMIN_EXTENSION_ORIGINS` saat build dengan
-origin Mimin yang dipisahkan koma. Default: `http://localhost:5173` dan `http://127.0.0.1:5173`.
+- **Web Search (`web_search`)**: Provider riset server-side default (Tavily dengan fallback DuckDuckGo). Permintaan riset umum (misalnya “cari berita terbaru OpenAI” atau “research agentic coding benchmark”) otomatis diarahkan ke `web_search` tanpa membuka browser.
+- **Browser Search (`browser_search`)**: Pencarian Google atau Google Scholar melalui browser asli pengguna. Hanya aktif jika permintaan secara eksplisit menyebut Google atau Scholar (misalnya “cari di Google tentang WebMCP” atau “cari paper ini di Google Scholar”). Mengembalikan hasil pencarian terstruktur.
+- **Browser Open (`browser_open`)**: Membuka dan membaca halaman web publik HTTP/HTTPS melalui browser (misalnya “buka https://example.com” atau meninjau hasil pencarian). Membaca website umum memerlukan izin baca website publik yang diberikan pengguna di popup extension.
+
+Gating tool deterministik per-turn memastikan model tidak menerima dua tool pencarian yang saling tumpang tindih. Ketika intent browser terdeteksi, `web_search` disembunyikan untuk giliran tersebut dan tool browser ditampilkan.
+
+Fitur mati secara default dan diaktifkan per browser. Tool browser hanya tersedia untuk giliran chat yang terhubung. Secara default, extension memiliki host permissions untuk Google dan Google Scholar. Untuk membaca website publik lainnya, pengguna dapat memberikan izin opsional melalui popup extension pada bagian **Public website reading**. Jika izin belum diberikan, `browser_open` menavigasi ke halaman tetapi mengembalikan `{ readable: false, reason: "host_permission_required" }` tanpa membaca konten halaman. Tab yang sudah ada, riwayat browsing, serta alamat lokal/jaringan privat tetap terlindungi dan tidak pernah diakses. Jika muncul CAPTCHA, selesaikan sendiri; Mimin tidak mencoba membypass CAPTCHA. Biarkan chat terbuka selama tool bekerja.
+
+Jika sebelumnya memasang popup Mimin Search, ganti/muat ulang extension dengan paket baru dan muat ulang Mimin. Untuk server selain lokal, isi `MIMIN_EXTENSION_ORIGINS` saat build dengan origin Mimin yang dipisahkan koma. Default: `http://localhost:5173` dan `http://127.0.0.1:5173`.
 
 Paket dibuat otomatis saat development dan production build. Paket juga dapat dibuat langsung:
 

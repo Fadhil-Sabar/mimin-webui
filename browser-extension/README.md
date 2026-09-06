@@ -1,8 +1,20 @@
 # Mimin Browser Bridge extension
 
-Mimin Browser Bridge is an optional Manifest V3 extension for Chromium browsers and Firefox. It connects an enabled Mimin web app to a new browser tab: the app can ask it to open a public URL or search Google/Google Scholar, and it receives a bounded snapshot only for `www.google.com` and `scholar.google.com`.
+Mimin Browser Bridge is an optional Manifest V3 extension for Chromium browsers and Firefox. It connects an enabled Mimin web app to real browser tabs: the app can ask it to search Google/Google Scholar or open and read public HTTP/HTTPS web pages.
 
-The bridge accepts requests from the exact origins configured at build time. It does not inspect existing tabs, browsing history, accounts, or arbitrary websites. `browser_open` returns `readable: false` for public sites outside Google and Google Scholar.
+The bridge distinguishes three search and browsing capabilities:
+
+- **Web Search**: default server-side research via search providers (Tavily with DuckDuckGo fallback). Handled entirely on the server without touching the browser.
+- **Browser Search**: explicit Google or Google Scholar search through the user's real browser. Only available when the user explicitly requests Google or Scholar. Returns structured results (`title`, `url`, `snippet`).
+- **Browser Open**: opens and reads a specific public HTTP/HTTPS webpage through the user's real browser. Returns clean, bounded page content (`title`, `text`, `links`).
+
+## Host permissions and privacy
+
+- **Default host permissions**: `https://www.google.com/*` and `https://scholar.google.com/*`.
+- **Optional host permissions**: `http://*/*` and `https://*/*` for reading generic public websites.
+- **User-controlled grant**: Website reading is not enabled silently. The user must explicitly click **Grant** under **Public website reading** in the extension popup.
+- If public website reading permission has not been granted, `browser_open` navigates to the page but returns `{ readable: false, reason: "host_permission_required" }`.
+- The bridge accepts requests only from the exact origins configured at build time (`MIMIN_EXTENSION_ORIGINS`). It does not inspect existing tabs, browsing history, accounts, private network hosts, or local addresses.
 
 The page protocol is:
 
@@ -18,7 +30,7 @@ window.postMessage(
 );
 ```
 
-Replies use `{ source: 'mimin-extension', id, ok, result, error }`. A successful Google or Google Scholar response contains `url`, `title`, `text`, `links`, `results`, `readable: true`, and `tabId`. An external page contains the same base fields with `readable: false` and a reason.
+Replies use `{ source: 'mimin-extension', id, ok, result, error }`. A successful response contains `url`, `title`, `text`, `links`, `readable: true`, and `tabId` (along with structured `results` for Google / Google Scholar). If website reading permission is missing or reading fails, `readable: false` is returned with a machine-readable `reason`.
 
 ## Build packages
 

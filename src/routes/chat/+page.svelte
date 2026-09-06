@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import {
 		createConversation,
@@ -265,7 +266,7 @@
 		if (!target || target.role !== 'assistant') return [];
 
 		const collected: Array<{ title: string; url: string; snippet?: string }> = [];
-		const seenUrls = new Set<string>();
+		const seenUrls = new SvelteSet<string>();
 
 		function addFromToolCalls(toolCalls?: ToolCall[]) {
 			if (!toolCalls) return;

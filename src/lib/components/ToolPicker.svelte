@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { resolve } from '$app/paths';
 	import { ChevronDown, Wrench } from '@lucide/svelte';
 
 	export type ToolOption = {
@@ -31,8 +32,9 @@
 	let maxHeight = $state<string | undefined>(undefined);
 
 	let enabledCount = $derived(
-		tools.filter((tool) => (tool.readOnly ? Boolean(tool.enabled) : enabledTools.includes(tool.name)))
-			.length
+		tools.filter((tool) =>
+			tool.readOnly ? Boolean(tool.enabled) : enabledTools.includes(tool.name)
+		).length
 	);
 
 	function updatePlacement() {
@@ -138,7 +140,9 @@
 								<p class="tool-desc">{tool.description}</p>
 								<p class="tool-settings-info">
 									Can only be configured in <a
-										href={tool.settingHref ?? '/settings/browser-extension'}
+										href={tool.settingHref === '/settings/web-search'
+											? resolve('/settings/web-search')
+											: resolve('/settings/browser-extension')}
 										onclick={(e) => e.stopPropagation()}
 									>
 										Settings &rsaquo; Browser Extension

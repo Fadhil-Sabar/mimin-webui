@@ -23,8 +23,31 @@
 				<h2>How it works</h2>
 				<p>
 					Mimin sends a request through this bridge. The bridge can open a new Google or Google
-					Scholar tab and return a limited page snapshot.
+					Scholar tab and read public web pages when permission is granted.
 				</p>
+			</section>
+
+			<section>
+				<h2>Permissions</h2>
+				<div class="perm-row">
+					<div class="perm-info">
+						<strong>Google / Scholar access</strong>
+						<small>Search and read Google / Scholar results</small>
+					</div>
+					<span class="badge ok">Enabled</span>
+				</div>
+				<div class="perm-row">
+					<div class="perm-info">
+						<strong>Public website reading</strong>
+						<small id="public-perm-desc"
+							>Allow reading public websites opened with browser_open</small
+						>
+					</div>
+					<div class="perm-actions">
+						<span id="public-perm-badge" class="badge">Not granted</span>
+						<button id="public-perm-btn" class="btn" type="button">Grant</button>
+					</div>
+				</div>
 			</section>
 
 			<section>
