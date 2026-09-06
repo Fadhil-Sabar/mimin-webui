@@ -100,6 +100,13 @@ describe('browser tools', () => {
 		expect(first.text).toContain('Untrusted browser search results');
 		expect(first.text).toContain('Attention is all you need');
 		expect(first.text).toContain('https://arxiv.org/abs/1706.03762');
+		expect((result.details as { sources?: unknown[] })?.sources).toEqual([
+			{
+				title: 'Attention is all you need',
+				url: 'https://arxiv.org/abs/1706.03762',
+				snippet: 'The dominant sequence transduction models...'
+			}
+		]);
 	});
 
 	it('maps timeout errors to an instructional bridge-unavailable message', async () => {

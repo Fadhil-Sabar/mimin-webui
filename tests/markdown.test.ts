@@ -146,4 +146,41 @@ describe('citations parsing and fallback sources', () => {
 		expect(sourcesMap.get(1)?.url).toBe('https://updated.com/1');
 		expect(sourcesMap.get(1)?.title).toBe('Updated Source');
 	});
+
+	it('parses sources with emoji prefixes and preserves trailing conversational text', () => {
+		const raw = `Here is information about Gemini.
+
+## Overview
+Gemini 3.8 Flash is fast.
+
+## Sources
+- 📄 [Model Card — Google DeepMind](https://deepmind.google/models/model-cards/gemini-3-8-flash/)
+- 📄 [API Docs — Google AI for Developers](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash)
+- 📝 [Introducing Gemini 3.8 Flash & Flash Cyber](https://blog.google/innovation-and-ai/models-and-research/gemini-models/3-8-flash-and-3-8-flash-cyber/)
+- 📰 [Release Analysis & Pricing](https://artificialanalysis.ai/models/releases/gemini-3-8-flash)
+- 📰 [In Google Antigravity](https://antigravity.google/blog/gemini-3-8-flash-in-google-antigravity)
+
+Want me to dig deeper into any specific aspect — pricing or benchmarks?`;
+
+		const { cleanedMarkdown, sources } = parseCitationsAndSources(raw);
+
+		expect(sources).toHaveLength(5);
+		expect(sources[0].url).toBe('https://deepmind.google/models/model-cards/gemini-3-8-flash/');
+		expect(sources[0].title).toBe('Model Card — Google DeepMind');
+		expect(sources[1].url).toBe('https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash');
+		expect(sources[1].title).toBe('API Docs — Google AI for Developers');
+
+		// Trailing conversation prompt is preserved
+		expect(cleanedMarkdown).toContain('Want me to dig deeper into any specific aspect');
+		expect(cleanedMarkdown).not.toContain('## Sources');
+	});
+
+	it('collects inline markdown links into sources list', () => {
+		const text =
+			'Check out [DeepMind](https://deepmind.google) and [Google AI](https://ai.google.dev).';
+		const { sources } = parseCitationsAndSources(text);
+
+		expect(sources).toHaveLength(2);
+		expect(sources.map((s) => s.url)).toEqual(['https://deepmind.google', 'https://ai.google.dev']);
+	});
 });

@@ -10,6 +10,7 @@ export type DiscoveredModel = {
 	maxTokens?: number;
 	reasoning?: boolean;
 	vision?: boolean;
+	isFree?: boolean;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -283,13 +284,26 @@ export function parseCustomProviderModelList(
 					? true
 					: undefined;
 
+		const pricing = asObject(item.pricing);
+		const isFreeByPricing =
+			pricing !== null &&
+			(pricing.prompt === '0' || pricing.prompt === 0) &&
+			(pricing.completion === '0' || pricing.completion === 0);
+		const isFree =
+			id.toLowerCase().includes(':free') ||
+			id.toLowerCase().endsWith('/free') ||
+			/\bfree\b/i.test(id) ||
+			(rawName ? /\bfree\b/i.test(rawName) : false) ||
+			isFreeByPricing;
+
 		models.push({
 			id,
 			name,
 			contextWindow,
 			maxTokens,
 			reasoning,
-			vision
+			vision,
+			...(isFree ? { isFree: true } : {})
 		});
 	}
 	return models;

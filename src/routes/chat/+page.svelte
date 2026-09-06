@@ -247,13 +247,31 @@
 		if (!toolCall.output || typeof toolCall.output !== 'object') return [];
 		const output = toolCall.output as Record<string, unknown>;
 		const details = output.details as Record<string, unknown> | undefined;
-		if (details && Array.isArray(details.sources)) {
-			return details.sources as Array<{
-				title: string;
-				url?: string;
-				page?: number | null;
-				type?: string;
-			}>;
+		if (details) {
+			if (Array.isArray(details.sources)) {
+				return details.sources as Array<{
+					title: string;
+					url?: string;
+					page?: number | null;
+					type?: string;
+				}>;
+			}
+			if (Array.isArray(details.results)) {
+				return details.results as Array<{
+					title: string;
+					url?: string;
+					page?: number | null;
+					type?: string;
+				}>;
+			}
+			if (details.url && typeof details.url === 'string') {
+				return [
+					{
+						title: typeof details.title === 'string' && details.title ? details.title : details.url,
+						url: details.url
+					}
+				];
+			}
 		}
 		return [];
 	}
@@ -266,11 +284,14 @@
 			}
 			return 'Search completed';
 		}
-		if (toolCall.toolName === 'web_search') {
+		if (toolCall.toolName === 'web_search' || toolCall.toolName === 'browser_search') {
 			if (sources.length > 0) {
 				return `${sources.length} source${sources.length === 1 ? '' : 's'} found`;
 			}
 			return 'Search completed';
+		}
+		if (toolCall.toolName === 'browser_open') {
+			return 'Page opened';
 		}
 		return 'Completed';
 	}

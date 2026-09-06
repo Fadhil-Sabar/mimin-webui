@@ -10,6 +10,7 @@
 		PanelLeft,
 		Plus,
 		Puzzle,
+		Search,
 		Settings,
 		Sparkles,
 		Trash2,
@@ -43,7 +44,24 @@
 	type CustomConfig = {
 		name: string;
 		protocol: Protocol;
-		models: Array<{ id: string; name?: string }>;
+		models: Array<{
+			id: string;
+			name?: string;
+			contextWindow?: number;
+			maxTokens?: number;
+			reasoning?: boolean;
+			vision?: boolean;
+		}>;
+	};
+	type ModelItem = {
+		id: string;
+		name?: string;
+		contextWindow?: number;
+		maxTokens?: number;
+		reasoning?: boolean;
+		vision?: boolean;
+		isFree?: boolean;
+		checked: boolean;
 	};
 	const PROTOCOLS: Array<{ id: Protocol; name: string; description: string }> = [
 		{ id: 'openai-completions', name: 'OpenAI compatible', description: 'Chat Completions API' },
@@ -90,6 +108,18 @@
 	let draftModels = $state('');
 	let creatingCustom = $state(false);
 	let discovering = $state(false);
+	let modelsList = $state<ModelItem[]>([]);
+	let modelFilter = $state('');
+	let manualModelId = $state('');
+	let textEditMode = $state(false);
+
+	let checkedCount = $derived(modelsList.filter((m) => m.checked).length);
+	let totalCount = $derived(modelsList.length);
+	let filteredModels = $derived.by(() => {
+		const q = modelFilter.trim().toLowerCase();
+		if (!q) return modelsList;
+		return modelsList.filter((m) => matchesFilter(m, q));
+	});
 
 	function notify(message: string) {
 		toast = message;
@@ -146,6 +176,23 @@
 		}
 	});
 
+	function isModelFree(model: { id: string; name?: string; isFree?: boolean }) {
+		if (model.isFree === true) return true;
+		const lowerId = model.id.toLowerCase();
+		const lowerName = (model.name ?? '').toLowerCase();
+		return (
+			lowerId.includes(':free') ||
+			lowerId.endsWith('/free') ||
+			/\bfree\b/i.test(lowerId) ||
+			/\bfree\b/i.test(lowerName)
+		);
+	}
+
+	function matchesFilter(model: ModelItem, query: string) {
+		const q = query.toLowerCase();
+		return model.id.toLowerCase().includes(q) || (model.name?.toLowerCase().includes(q) ?? false);
+	}
+
 	function openEditor(provider: string) {
 		creatingCustom = false;
 		editing = provider;
@@ -154,7 +201,21 @@
 		draftBaseUrl = current?.baseUrl ?? '';
 		draftName = current?.customConfig?.name ?? '';
 		draftProtocol = current?.customConfig?.protocol ?? 'openai-completions';
-		draftModels = current?.customConfig?.models.map((model) => model.id).join('\n') ?? '';
+		modelFilter = '';
+		manualModelId = '';
+		textEditMode = false;
+		const existingModels = current?.customConfig?.models ?? [];
+		modelsList = existingModels.map((m) => ({
+			id: m.id,
+			name: m.name,
+			contextWindow: m.contextWindow,
+			maxTokens: m.maxTokens,
+			reasoning: m.reasoning,
+			vision: m.vision,
+			isFree: isModelFree(m),
+			checked: true
+		}));
+		draftModels = modelsList.map((m) => m.id).join('\n');
 	}
 
 	function openCustomEditor() {
@@ -165,6 +226,95 @@
 		draftName = '';
 		draftProtocol = 'openai-completions';
 		draftModels = '';
+		modelsList = [];
+		modelFilter = '';
+		manualModelId = '';
+		textEditMode = false;
+	}
+
+	function reverseSelection() {
+		const q = modelFilter.trim().toLowerCase();
+		modelsList = modelsList.map((m) => {
+			if (q && !matchesFilter(m, q)) return m;
+			return { ...m, checked: !m.checked };
+		});
+	}
+
+	function selectAll() {
+		const q = modelFilter.trim().toLowerCase();
+		modelsList = modelsList.map((m) => {
+			if (q && !matchesFilter(m, q)) return m;
+			return { ...m, checked: true };
+		});
+	}
+
+	function selectNone() {
+		const q = modelFilter.trim().toLowerCase();
+		modelsList = modelsList.map((m) => {
+			if (q && !matchesFilter(m, q)) return m;
+			return { ...m, checked: false };
+		});
+	}
+
+	function selectFree() {
+		const q = modelFilter.trim().toLowerCase();
+		let count = 0;
+		modelsList = modelsList.map((m) => {
+			if (q && !matchesFilter(m, q)) return m;
+			const free = isModelFree(m);
+			if (free) count++;
+			return { ...m, checked: free };
+		});
+		if (count === 0) {
+			notify('No free models found');
+		} else {
+			notify(`Selected ${count} free model${count === 1 ? '' : 's'}`);
+		}
+	}
+
+	function addManualModel() {
+		const trimmed = manualModelId.trim();
+		if (!trimmed) return;
+		if (modelsList.some((m) => m.id === trimmed)) {
+			notify('Model ID already in list');
+			return;
+		}
+		modelsList = [
+			...modelsList,
+			{
+				id: trimmed,
+				isFree: isModelFree({ id: trimmed }),
+				checked: true
+			}
+		];
+		manualModelId = '';
+	}
+
+	function removeModel(id: string) {
+		modelsList = modelsList.filter((m) => m.id !== id);
+	}
+
+	function toggleTextMode() {
+		if (textEditMode) {
+			const lines = draftModels
+				.split(/[\n,]/)
+				.map((s) => s.trim())
+				.filter(Boolean);
+			const existingMap = new Map(modelsList.map((m) => [m.id, m]));
+			modelsList = lines.map((id) => {
+				const existing = existingMap.get(id);
+				return existing
+					? { ...existing, checked: true }
+					: { id, isFree: isModelFree({ id }), checked: true };
+			});
+			textEditMode = false;
+		} else {
+			draftModels = modelsList
+				.filter((m) => m.checked)
+				.map((m) => m.id)
+				.join('\n');
+			textEditMode = true;
+		}
 	}
 
 	async function discoverModels() {
@@ -192,7 +342,35 @@
 			if (!data.models || data.models.length === 0) {
 				notify('No models found at endpoint');
 			} else {
-				draftModels = data.models.map((m: { id: string }) => m.id).join('\n');
+				const existingChecked = new Set(modelsList.filter((m) => m.checked).map((m) => m.id));
+				const hadExisting = existingChecked.size > 0;
+				const discovered: Array<{
+					id: string;
+					name?: string;
+					contextWindow?: number;
+					maxTokens?: number;
+					reasoning?: boolean;
+					vision?: boolean;
+					isFree?: boolean;
+				}> = data.models;
+
+				const discoveredIds = new Set(discovered.map((m) => m.id));
+				const manualRetained = modelsList.filter((m) => !discoveredIds.has(m.id) && m.checked);
+
+				modelsList = [
+					...discovered.map((m) => ({
+						id: m.id,
+						name: m.name,
+						contextWindow: m.contextWindow,
+						maxTokens: m.maxTokens,
+						reasoning: m.reasoning,
+						vision: m.vision,
+						isFree: isModelFree(m),
+						checked: hadExisting ? existingChecked.has(m.id) : true
+					})),
+					...manualRetained
+				];
+				textEditMode = false;
 				notify(`Retrieved ${data.models.length} model${data.models.length === 1 ? '' : 's'}`);
 			}
 		} catch (error) {
@@ -219,22 +397,52 @@
 			if (draftBaseUrl.trim()) body.baseUrl = draftBaseUrl.trim();
 			else if (current?.baseUrl) body.baseUrl = null;
 			if (isCustom) {
-				const modelIds = [
-					...new Set(
-						draftModels
-							.split(/[\n,]/)
-							.map((id) => id.trim())
-							.filter(Boolean)
-					)
-				];
 				if (!draftName.trim() || !draftBaseUrl.trim()) {
 					notify('Enter a provider name and base URL');
 					return;
 				}
+
+				let finalModels: Array<{
+					id: string;
+					name?: string;
+					contextWindow?: number;
+					maxTokens?: number;
+					reasoning?: boolean;
+					vision?: boolean;
+				}>;
+
+				if (textEditMode) {
+					const modelIds = [
+						...new Set(
+							draftModels
+								.split(/[\n,]/)
+								.map((id) => id.trim())
+								.filter(Boolean)
+						)
+					];
+					finalModels = modelIds.map((id) => ({ id }));
+				} else if (modelsList.length > 0) {
+					const checkedModels = modelsList.filter((m) => m.checked);
+					if (checkedModels.length === 0) {
+						notify('Select at least one model to enable');
+						return;
+					}
+					finalModels = checkedModels.map((m) => ({
+						id: m.id,
+						...(m.name ? { name: m.name } : {}),
+						...(m.contextWindow ? { contextWindow: m.contextWindow } : {}),
+						...(m.maxTokens ? { maxTokens: m.maxTokens } : {}),
+						...(typeof m.reasoning === 'boolean' ? { reasoning: m.reasoning } : {}),
+						...(typeof m.vision === 'boolean' ? { vision: m.vision } : {})
+					}));
+				} else {
+					finalModels = [];
+				}
+
 				body.customConfig = {
 					name: draftName.trim(),
 					protocol: draftProtocol,
-					models: modelIds.map((id) => ({ id }))
+					models: finalModels
 				};
 			}
 			const response = await fetch(
@@ -486,23 +694,163 @@
 				<input type="password" bind:value={draftKey} placeholder="sk-..." autocomplete="off" />
 			</label>
 			{#if creatingCustom || providers.find((p) => p.provider === editing)?.customConfig}
-				<div class="models-label-row">
-					<span class="field-title"
-						>Model IDs <span class="optional">auto-retrieved if blank</span></span
-					>
-					<button
-						type="button"
-						class="fetch-models-btn"
-						onclick={discoverModels}
-						disabled={discovering}
-					>
-						{discovering ? 'Fetching...' : 'Fetch models'}
-					</button>
+				<div class="models-section">
+					<div class="models-label-row">
+						<div class="models-title-wrap">
+							<span class="field-title">Model IDs</span>
+							{#if modelsList.length > 0}
+								<span class="models-count-badge">
+									{checkedCount} of {totalCount} shown
+								</span>
+							{:else}
+								<span class="optional">auto-retrieved if blank</span>
+							{/if}
+						</div>
+						<div class="models-header-actions">
+							{#if modelsList.length > 0}
+								<button type="button" class="text-mode-btn" onclick={toggleTextMode}>
+									{textEditMode ? 'Show list' : 'Raw text'}
+								</button>
+							{/if}
+							<button
+								type="button"
+								class="fetch-models-btn"
+								onclick={discoverModels}
+								disabled={discovering}
+							>
+								{discovering ? 'Fetching...' : 'Fetch models'}
+							</button>
+						</div>
+					</div>
+
+					{#if textEditMode}
+						<textarea
+							bind:value={draftModels}
+							rows="5"
+							placeholder="Leave blank to retrieve automatically, or enter one per line"></textarea>
+					{:else}
+						{#if modelsList.length > 0}
+							<div class="models-toolbar">
+								<div class="btn-group-selection">
+									<button
+										type="button"
+										class="filter-btn"
+										onclick={reverseSelection}
+										title="Invert selection"
+									>
+										Reverse
+									</button>
+									<button
+										type="button"
+										class="filter-btn"
+										onclick={selectAll}
+										title="Select all models"
+									>
+										All
+									</button>
+									<button
+										type="button"
+										class="filter-btn"
+										onclick={selectNone}
+										title="Deselect all models"
+									>
+										None
+									</button>
+									<button
+										type="button"
+										class="filter-btn free-btn"
+										onclick={selectFree}
+										title="Select free models"
+									>
+										Free
+									</button>
+								</div>
+								<div class="models-search-box">
+									<Search size={13} />
+									<input type="text" bind:value={modelFilter} placeholder="Filter..." />
+									{#if modelFilter}
+										<button
+											type="button"
+											class="clear-search-btn"
+											onclick={() => (modelFilter = '')}
+											title="Clear filter"
+										>
+											<X size={12} />
+										</button>
+									{/if}
+								</div>
+							</div>
+
+							<div class="models-list-box" role="group" aria-label="Available models">
+								{#each filteredModels as model (model.id)}
+									<label class="model-row" class:unchecked={!model.checked}>
+										<input
+											type="checkbox"
+											bind:checked={model.checked}
+											class="model-row-checkbox"
+										/>
+										<div class="model-row-content">
+											<div class="model-row-main">
+												<span class="model-row-id mono">{model.id}</span>
+												{#if isModelFree(model)}
+													<span class="model-badge-free">Free</span>
+												{/if}
+												{#if model.contextWindow}
+													<span class="model-badge-meta"
+														>{Math.round(model.contextWindow / 1000)}k</span
+													>
+												{/if}
+											</div>
+											{#if model.name && model.name !== model.id}
+												<span class="model-row-name">{model.name}</span>
+											{/if}
+										</div>
+										<button
+											type="button"
+											class="model-remove-btn"
+											onclick={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+												removeModel(model.id);
+											}}
+											title="Remove model"
+											aria-label="Remove model"
+										>
+											<Trash2 size={13} />
+										</button>
+									</label>
+								{/each}
+								{#if filteredModels.length === 0}
+									<div class="models-empty-filter">No models match "{modelFilter}"</div>
+								{/if}
+							</div>
+						{:else}
+							<div class="models-empty-state">
+								<p>
+									No models loaded yet. Click <strong>Fetch models</strong> above to load models from
+									the endpoint, or add one below.
+								</p>
+							</div>
+						{/if}
+
+						<div class="model-add-row">
+							<input
+								type="text"
+								bind:value={manualModelId}
+								placeholder="Add model ID manually (e.g. meta-llama/llama-3.3-70b-instruct:free)"
+								onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addManualModel())}
+							/>
+							<button
+								type="button"
+								class="button add-model-btn"
+								onclick={addManualModel}
+								disabled={!manualModelId.trim()}
+							>
+								<Plus size={14} /> Add
+							</button>
+						</div>
+					{/if}
 				</div>
-				<textarea
-					bind:value={draftModels}
-					rows="4"
-					placeholder="Leave blank to retrieve automatically, or enter one per line"></textarea>
 			{/if}
 			<div class="modal-actions">
 				<button type="button" class="button" onclick={() => (editing = null)}>Cancel</button>
@@ -733,16 +1081,60 @@
 		font-weight: 400;
 		margin-left: 4px;
 	}
+	.modal {
+		width: min(540px, 100%);
+		max-height: 90vh;
+		overflow-y: auto;
+	}
+	.models-section {
+		margin-top: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
 	.models-label-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-top: 14px;
+		gap: 10px;
+		margin-top: 4px;
 		margin-bottom: 2px;
+	}
+	.models-title-wrap {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
 	}
 	.field-title {
 		font-size: var(--text-sm);
 		font-weight: 500;
+		color: var(--text);
+	}
+	.models-count-badge {
+		font-size: var(--text-xs);
+		color: var(--text-muted);
+		background: var(--surface-2);
+		padding: 2px 7px;
+		border-radius: 12px;
+		border: 1px solid var(--border);
+	}
+	.models-header-actions {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.text-mode-btn {
+		background: transparent;
+		border: none;
+		color: var(--text-muted);
+		font-size: var(--text-xs);
+		cursor: pointer;
+		padding: 3px 6px;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.text-mode-btn:hover {
 		color: var(--text);
 	}
 	.fetch-models-btn {
@@ -762,6 +1154,226 @@
 	.fetch-models-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+	.models-toolbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		margin-top: 4px;
+		flex-wrap: wrap;
+	}
+	.btn-group-selection {
+		display: inline-flex;
+		align-items: center;
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		overflow: hidden;
+	}
+	.filter-btn {
+		background: transparent;
+		border: none;
+		border-right: 1px solid var(--border);
+		color: var(--text-body);
+		font-size: var(--text-xs);
+		font-weight: 500;
+		padding: 5px 9px;
+		cursor: pointer;
+		transition:
+			background 0.15s ease,
+			color 0.15s ease;
+	}
+	.filter-btn:last-child {
+		border-right: none;
+	}
+	.filter-btn:hover {
+		background: var(--surface-hover);
+		color: var(--text-strong);
+	}
+	.filter-btn.free-btn {
+		color: var(--status-ok-text);
+	}
+	.filter-btn.free-btn:hover {
+		background: color-mix(in srgb, var(--status-ok-dot) 15%, transparent);
+	}
+	.models-search-box {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: var(--surface);
+		border: 1px solid var(--input-border);
+		border-radius: 6px;
+		padding: 3px 8px;
+		flex: 1;
+		min-width: 120px;
+		max-width: 190px;
+		color: var(--text-muted);
+	}
+	.models-search-box input {
+		width: 100%;
+		border: none;
+		outline: none;
+		background: transparent;
+		color: var(--text);
+		font-size: var(--text-xs);
+		padding: 0;
+		min-height: auto;
+		margin: 0;
+	}
+	.clear-search-btn {
+		background: transparent;
+		border: none;
+		color: var(--text-dim);
+		cursor: pointer;
+		padding: 0;
+		display: flex;
+		align-items: center;
+	}
+	.clear-search-btn:hover {
+		color: var(--text);
+	}
+	.models-list-box {
+		max-height: 220px;
+		overflow-y: auto;
+		border: 1px solid var(--input-border);
+		border-radius: 6px;
+		background: var(--surface);
+		display: flex;
+		flex-direction: column;
+	}
+	.model-row {
+		display: flex;
+		align-items: center;
+		gap: 9px;
+		padding: 7px 10px;
+		border-bottom: 1px solid var(--border);
+		cursor: pointer;
+		transition: background 0.12s ease;
+		user-select: none;
+	}
+	.model-row:last-child {
+		border-bottom: none;
+	}
+	.model-row:hover {
+		background: var(--surface-hover);
+	}
+	.model-row.unchecked {
+		opacity: 0.55;
+	}
+	.model-row-checkbox {
+		width: 15px;
+		height: 15px;
+		min-height: 15px;
+		margin: 0;
+		cursor: pointer;
+		flex-shrink: 0;
+		accent-color: var(--accent-bg);
+	}
+	.model-row-content {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+	}
+	.model-row-main {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-wrap: wrap;
+	}
+	.model-row-id {
+		font-size: var(--text-xs);
+		color: var(--text-strong);
+		word-break: break-all;
+	}
+	.model-row-name {
+		font-size: 11px;
+		color: var(--text-dim);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.model-badge-free {
+		font-size: 10px;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		padding: 1px 5px;
+		border-radius: 4px;
+		color: var(--status-ok-text);
+		background: color-mix(in srgb, var(--status-ok-dot) 15%, transparent);
+		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 30%, transparent);
+		line-height: 1.2;
+	}
+	.model-badge-meta {
+		font-size: 10px;
+		padding: 1px 5px;
+		border-radius: 4px;
+		color: var(--text-dim);
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		line-height: 1.2;
+	}
+	.model-remove-btn {
+		background: transparent;
+		border: none;
+		color: var(--text-dim);
+		cursor: pointer;
+		padding: 4px;
+		border-radius: 4px;
+		opacity: 0;
+		transition:
+			opacity 0.15s ease,
+			color 0.15s ease;
+		display: flex;
+		align-items: center;
+	}
+	.model-row:hover .model-remove-btn {
+		opacity: 0.8;
+	}
+	.model-remove-btn:hover {
+		opacity: 1;
+		color: var(--danger-text);
+	}
+	.models-empty-state {
+		border: 1px dashed var(--border);
+		border-radius: 6px;
+		padding: 18px 14px;
+		text-align: center;
+		background: var(--surface-2);
+	}
+	.models-empty-state p {
+		margin: 0;
+		font-size: var(--text-xs);
+		color: var(--text-muted);
+		line-height: 1.5;
+	}
+	.models-empty-filter {
+		padding: 16px;
+		text-align: center;
+		font-size: var(--text-xs);
+		color: var(--text-dim);
+	}
+	.model-add-row {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 2px;
+	}
+	.model-add-row input {
+		flex: 1;
+		min-height: 34px;
+		padding: 6px 10px;
+		font-size: var(--text-xs);
+		margin: 0;
+	}
+	.add-model-btn {
+		min-height: 34px;
+		padding: 6px 12px;
+		font-size: var(--text-xs);
+		flex-shrink: 0;
 	}
 	@media (max-width: 700px) {
 		.page-heading {

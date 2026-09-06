@@ -29,6 +29,11 @@ export function extractCleanTitle(url: string, explicitTitle?: string): string {
 		explicitTitle !== url &&
 		!/^https?:\/\//i.test(explicitTitle)
 	) {
+		const stripped = explicitTitle
+			.replace(/^[\p{Emoji}\u2000-\u3300\s—–:-]+/u, '')
+			.replace(/[*_~`]/g, '')
+			.trim();
+		if (stripped) return stripped;
 		return explicitTitle.trim();
 	}
 	try {
@@ -85,7 +90,7 @@ export function parseCitationsAndSources(
 					existing.domain = domain;
 					existing.faviconUrl = faviconUrl;
 				}
-				if (title && title.trim()) {
+				if (cleanTitle && cleanTitle !== existing.title) {
 					existing.title = cleanTitle;
 				}
 				return existing;
@@ -105,7 +110,12 @@ export function parseCitationsAndSources(
 
 		// Find if url already exists in sourcesList
 		const existing = sourcesList.find((s) => s.url === trimmedUrl);
-		if (existing) return existing;
+		if (existing) {
+			if (cleanTitle && cleanTitle !== existing.title && cleanTitle !== existing.domain) {
+				existing.title = cleanTitle;
+			}
+			return existing;
+		}
 
 		const idx = nextIndex++;
 		const item: SourceItem = {
@@ -130,76 +140,78 @@ export function parseCitationsAndSources(
 
 	let text = rawMarkdown;
 
-	// 1. Detect and parse trailing Sources/References section
-	const sourcesSectionRegex =
-		/(?:\n{1,3}|^)(?:#{1,6}\s+|(?:\*\*|__)?)(?:Sources|References|Citations|Source|Reference|Sumber|Referensi)(?:\*\*|__)?(?::)?\s*\n([\s\S]+)$/i;
+	// 1. Detect and parse Sources/References section (even if followed by conversational text)
+	const headerRegex =
+		/(?:^|\n)(#{1,6}\s+|(?:\*\*|__)?)(?:Sources|References|Citations|Source|Reference|Sumber|Referensi)(?:\*\*|__)?(?::)?\s*(?:\n|$)/i;
 
-	const sectionMatch = text.match(sourcesSectionRegex);
-	if (sectionMatch && sectionMatch.index !== undefined) {
-		const sectionContent = sectionMatch[1];
-		const sectionLines = sectionContent.split('\n');
+	const headerMatch = text.match(headerRegex);
+	if (headerMatch && headerMatch.index !== undefined) {
+		const headerStartIndex = headerMatch.index === 0 ? 0 : headerMatch.index + 1;
+		const afterHeaderIndex = headerStartIndex + headerMatch[0].trimStart().length;
+		const textAfterHeader = text.slice(afterHeaderIndex);
+		const lines = textAfterHeader.split('\n');
 
-		for (const line of sectionLines) {
+		let consumedChars = 0;
+		let sourcesFoundInSection = 0;
+		let endOfSectionIndex = afterHeaderIndex;
+
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i];
 			const trimmed = line.trim();
-			if (!trimmed) continue;
 
-			// Match [1] [Title](https://...) or - [1] [Title](url)
-			const matchLinkWithIdx = trimmed.match(
-				/^(?:[-*]\s*)?\[(\d+)\][:.]?\s*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i
-			);
-			if (matchLinkWithIdx) {
-				addSource(parseInt(matchLinkWithIdx[1], 10), matchLinkWithIdx[3], matchLinkWithIdx[2]);
+			if (!trimmed) {
+				consumedChars += line.length + 1;
 				continue;
 			}
 
-			// Match [1] https://... (optional title after)
-			const matchUrlWithIdx = trimmed.match(
-				/^(?:[-*]\s*)?\[(\d+)\][:.]?\s*(https?:\/\/[^\s)]+)(?:\s+[-–—]\s+([^\n]+)|\s+\(([^)]+)\))?/i
-			);
-			if (matchUrlWithIdx) {
-				const title = matchUrlWithIdx[3] || matchUrlWithIdx[4];
-				addSource(parseInt(matchUrlWithIdx[1], 10), matchUrlWithIdx[2], title);
-				continue;
+			// If line starts another markdown heading, stop immediately
+			if (/^#{1,6}\s+/.test(trimmed)) {
+				break;
 			}
 
-			// Match 1. [Title](url)
-			const matchNumListLink = trimmed.match(/^(\d+)\.\s*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i);
-			if (matchNumListLink) {
-				addSource(parseInt(matchNumListLink[1], 10), matchNumListLink[3], matchNumListLink[2]);
-				continue;
-			}
+			// Check if line looks like a source item
+			const linkMatch = trimmed.match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i);
+			const bareUrlMatch = trimmed.match(/(https?:\/\/[^\s)]+)/i);
 
-			// Match 1. https://...
-			const matchNumListUrl = trimmed.match(/^(\d+)\.\s*(https?:\/\/[^\s)]+)/i);
-			if (matchNumListUrl) {
-				addSource(parseInt(matchNumListUrl[1], 10), matchNumListUrl[2]);
-				continue;
-			}
+			if (linkMatch || bareUrlMatch) {
+				const matchIndex = linkMatch ? linkMatch.index! : bareUrlMatch!.index!;
+				const prefix = trimmed.slice(0, matchIndex);
+				let index: number | null = null;
+				const idxMatch = prefix.match(/(?:^|[-*•\s])(?:\[(\d+)\]|(\d+)[.:)]|\((\d+)\))/);
+				if (idxMatch) {
+					index = parseInt(idxMatch[1] || idxMatch[2] || idxMatch[3], 10);
+				}
 
-			// Match - [Title](url)
-			const matchBulletLink = trimmed.match(/^[-*]\s*\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i);
-			if (matchBulletLink) {
-				addSource(null, matchBulletLink[2], matchBulletLink[1]);
-				continue;
-			}
+				if (linkMatch) {
+					addSource(index, linkMatch[2], linkMatch[1]);
+				} else if (bareUrlMatch) {
+					const url = bareUrlMatch[1];
+					const withoutUrl = trimmed
+						.replace(url, '')
+						.replace(/(?:^|[-*•\s])(?:\[(\d+)\]|(\d+)[.:)]|\((\d+)\))/, '')
+						.replace(/^[-*•:\s—–]+|[-*•:\s—–]+$/g, '')
+						.trim();
+					addSource(index, url, withoutUrl || undefined);
+				}
 
-			// Match - https://...
-			const matchBulletUrl = trimmed.match(/^[-*]\s*(https?:\/\/[^\s)]+)/i);
-			if (matchBulletUrl) {
-				addSource(null, matchBulletUrl[1]);
-				continue;
-			}
-
-			// Match bare https://...
-			const matchBareUrl = trimmed.match(/^(https?:\/\/[^\s)]+)/i);
-			if (matchBareUrl) {
-				addSource(null, matchBareUrl[1]);
-				continue;
+				sourcesFoundInSection++;
+				consumedChars += line.length + 1;
+				endOfSectionIndex = afterHeaderIndex + consumedChars;
+			} else {
+				// Not a source line; stop consuming lines
+				break;
 			}
 		}
 
-		// Strip the sources section from the main text
-		text = text.slice(0, sectionMatch.index).trimEnd();
+		if (sourcesFoundInSection > 0) {
+			const beforeSection = text.slice(0, headerStartIndex).trimEnd();
+			const afterSection = text.slice(endOfSectionIndex).trimStart();
+			text = beforeSection
+				? afterSection
+					? `${beforeSection}\n\n${afterSection}`
+					: beforeSection
+				: afterSection;
+		}
 	}
 
 	// 2. Parse markdown footnote definitions e.g. [1]: https://...
@@ -216,11 +228,11 @@ export function parseCitationsAndSources(
 	while ((linkMatch = inlineLinkRegex.exec(text)) !== null) {
 		const linkText = linkMatch[1].trim();
 		const linkUrl = linkMatch[2].trim();
-		const numMatch = linkText.match(/^(\d+)$/);
+		const numMatch = linkText.match(/^\[?\^?(\d+)\]?$/);
 		if (numMatch) {
 			addSource(parseInt(numMatch[1], 10), linkUrl);
-		} else if (linkText.match(/^\^(\d+)$/)) {
-			addSource(parseInt(linkText.slice(1), 10), linkUrl);
+		} else {
+			addSource(null, linkUrl, linkText);
 		}
 	}
 

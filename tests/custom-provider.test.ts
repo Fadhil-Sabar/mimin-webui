@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	customModelInput,
+	listModels,
 	mergeCustomModelMetadata,
 	registerCustomProvider,
 	resolveModel
@@ -156,5 +157,18 @@ describe('custom providers', () => {
 			reasoning: true,
 			vision: true
 		});
+	});
+
+	it('includes providerName in listModels results', async () => {
+		const result = await listModels();
+		expect(result.models.length).toBeGreaterThan(0);
+		for (const model of result.models) {
+			expect(model.providerName).toBeDefined();
+			expect(typeof model.providerName).toBe('string');
+			expect(model.providerName.length).toBeGreaterThan(0);
+			expect(model.providerName).not.toMatch(/^custom_/);
+		}
+		const openaiModel = result.models.find((m) => m.provider === 'openai');
+		expect(openaiModel?.providerName).toBe('OpenAI');
 	});
 });

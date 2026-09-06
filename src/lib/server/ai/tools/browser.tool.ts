@@ -67,7 +67,7 @@ function resultText(result: BrowserPageResult, action: 'open' | 'search') {
 	return [
 		`Untrusted browser search results from ${result.url}:`,
 		...rows.map((row, index) => `[${index + 1}] ${row.title}\nURL: ${row.url}\n${row.snippet}`),
-		'Use these results as reference material and verify important claims before relying on them.'
+		'Use these results as reference material and verify important claims before relying on them. Ground your statements with inline citations (e.g. [1], [2] or [1](url)) corresponding to the result indices above.'
 	].join('\n\n');
 }
 
@@ -100,9 +100,19 @@ export function createBrowserOpenTool(
 			const url = assertPublicHttpUrl(params.url);
 			try {
 				const result = await requestBrowserAction(context, 'browser_open', { url }, emit, signal);
+				const sources = [
+					{
+						title: result.title || result.url,
+						url: result.url,
+						snippet: result.text ? result.text.slice(0, 500) : ''
+					}
+				];
 				return {
 					content: [{ type: 'text', text: resultText(result, 'open') }],
-					details: result
+					details: {
+						...result,
+						sources
+					}
 				};
 			} catch (error) {
 				throw browserToolError(error);
@@ -133,9 +143,26 @@ export function createBrowserSearchTool(
 					emit,
 					signal
 				);
+				const sources =
+					result.results && result.results.length > 0
+						? result.results.map((r) => ({
+								title: r.title,
+								url: r.url,
+								snippet: r.snippet
+							}))
+						: result.links && result.links.length > 0
+							? result.links.map((l) => ({
+									title: l.title,
+									url: l.url,
+									snippet: ''
+								}))
+							: [];
 				return {
 					content: [{ type: 'text', text: resultText(result, 'search') }],
-					details: result
+					details: {
+						...result,
+						sources
+					}
 				};
 			} catch (error) {
 				throw browserToolError(error);

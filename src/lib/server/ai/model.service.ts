@@ -75,9 +75,16 @@ export function isProviderConfigured(provider: string) {
 	return isProviderId(provider) && Boolean(providerKeyFromEnv(provider));
 }
 
+const PROVIDER_NAMES: Record<DiscoverableProvider, string> = {
+	openai: 'OpenAI',
+	anthropic: 'Anthropic',
+	google: 'Google'
+};
+
 export interface AppModel {
 	id: string;
 	provider: string;
+	providerName: string;
 	name: string;
 	description?: string;
 	contextWindow?: number;
@@ -374,11 +381,13 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 
 	for (const { provider, credential, loaded } of loadedProviders) {
 		if (loaded.error) errors.push({ provider, message: loaded.error });
+		const providerName = PROVIDER_NAMES[provider] ?? provider;
 
 		for (const model of loaded.models) {
 			models.push({
 				id: model.id,
 				provider: model.provider,
+				providerName,
 				name: model.name,
 				contextWindow: model.contextWindow,
 				capabilities: {
@@ -398,6 +407,7 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 		registerCustomProvider(credential);
 		const config = credential.customConfig;
 		if (!config || !credential.baseUrl) continue;
+		const providerName = config.name?.trim() || 'Custom Provider';
 
 		let providerModels: RuntimeModel[] = [
 			...getRegistry().getModels(credential.provider)
@@ -425,15 +435,29 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 				if (discovered.length > 0) {
 					const baseUrl = credential.baseUrl.replace(/\/+$/, '');
 					const configuredById = new Map(config.models.map((model) => [model.id, model]));
-					providerModels = discovered.map((d) =>
-						customRuntimeModel(
-							config.protocol,
-							credential.provider,
-							baseUrl,
-							d,
-							configuredById.get(d.id)
-						)
-					);
+					if (config.models.length > 0) {
+						const discoveredById = new Map(discovered.map((d) => [d.id, d]));
+						providerModels = config.models.map((configured) => {
+							const live = discoveredById.get(configured.id) ?? configured;
+							return customRuntimeModel(
+								config.protocol,
+								credential.provider,
+								baseUrl,
+								live,
+								configured
+							);
+						});
+					} else {
+						providerModels = discovered.map((d) =>
+							customRuntimeModel(
+								config.protocol,
+								credential.provider,
+								baseUrl,
+								d,
+								configuredById.get(d.id)
+							)
+						);
+					}
 					liveModelCache.set(cacheKey, {
 						models: providerModels,
 						expiresAt: Date.now() + LIVE_MODEL_CACHE_TTL
@@ -449,6 +473,7 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 			models.push({
 				id: model.id,
 				provider: credential.provider,
+				providerName,
 				name: model.name,
 				contextWindow: model.contextWindow,
 				capabilities: {

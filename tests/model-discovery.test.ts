@@ -234,4 +234,36 @@ describe('model discovery', () => {
 			})
 		);
 	});
+
+	it('detects free models based on id, name, and zero pricing', () => {
+		const payload = {
+			data: [
+				{
+					id: 'meta-llama/llama-3.3-70b-instruct:free',
+					name: 'Llama 3.3 70B Instruct (free)'
+				},
+				{
+					id: 'deepseek/deepseek-r1:free'
+				},
+				{
+					id: 'paid-gateway/gpt-4o',
+					name: 'GPT-4o',
+					pricing: { prompt: '0.005', completion: '0.015' }
+				},
+				{
+					id: 'community/free-router-model',
+					name: 'Community Model',
+					pricing: { prompt: '0', completion: '0' }
+				}
+			]
+		};
+
+		const parsed = parseCustomProviderModelList('openai-completions', payload);
+		expect(parsed.find((m) => m.id === 'meta-llama/llama-3.3-70b-instruct:free')?.isFree).toBe(
+			true
+		);
+		expect(parsed.find((m) => m.id === 'deepseek/deepseek-r1:free')?.isFree).toBe(true);
+		expect(parsed.find((m) => m.id === 'paid-gateway/gpt-4o')?.isFree).toBeUndefined();
+		expect(parsed.find((m) => m.id === 'community/free-router-model')?.isFree).toBe(true);
+	});
 });

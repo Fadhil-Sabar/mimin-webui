@@ -8,6 +8,7 @@
 	export type ModelOption = {
 		id: string;
 		provider: string;
+		providerName?: string;
 		name: string;
 		configured: boolean;
 		userConfigured: boolean;
@@ -60,7 +61,10 @@
 		}
 		return [...grouped.entries()].map(([provider, providerModels]) => ({
 			provider,
-			label: providerNames[provider] ?? provider,
+			label:
+				providerModels.find((m) => m.providerName)?.providerName ??
+				providerNames[provider] ??
+				(provider.startsWith('custom_') ? 'Custom Provider' : provider),
 			models: providerModels
 		}));
 	});
@@ -91,6 +95,7 @@
 		const scores = [
 			fuzzyMatch(model.name, query),
 			fuzzyMatch(model.id, query),
+			fuzzyMatch(model.providerName ?? '', query),
 			fuzzyMatch(groupLabel, query)
 		].filter((s): s is number => s !== null);
 		return scores.length > 0 ? Math.max(...scores) : null;
