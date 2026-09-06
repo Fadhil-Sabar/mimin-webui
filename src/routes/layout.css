@@ -406,14 +406,25 @@ svg {
 	display: flex;
 	align-items: center;
 	gap: 2px;
+	position: absolute;
+	right: 0;
+	top: 50%;
+	transform: translateY(-50%);
+	padding-left: 14px;
 	padding-right: 4px;
+	background: linear-gradient(
+		to right,
+		transparent,
+		color-mix(in srgb, var(--surface-hover) 75%, var(--surface)) 14px
+	);
 	opacity: 0;
+	pointer-events: none;
 	transition: opacity 0.15s ease;
-	flex-shrink: 0;
 }
 .recent-chat-item:hover .chat-item-actions,
 .recent-chat-item:focus-within .chat-item-actions {
 	opacity: 1;
+	pointer-events: auto;
 }
 .item-action-btn {
 	display: grid;

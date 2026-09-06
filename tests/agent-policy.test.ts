@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	AGENT_SYSTEM_PROMPT,
+	getToolFailurePolicy,
 	beginConversationTurn,
 	isConversationTurnCanceled,
 	releaseConversationTurn,
@@ -17,6 +18,17 @@ describe('agent tool-use policy', () => {
 		expect(AGENT_SYSTEM_PROMPT).toMatch(
 			/when project_knowledge_search is available, use it before answering questions about the active project/i
 		);
+	});
+
+	it('terminates a failed web search with explicit model-facing guidance', () => {
+		const policy = getToolFailurePolicy('web_search', true);
+		expect(policy?.terminate).toBe(true);
+		expect(policy?.content[0]).toMatchObject({
+			type: 'text',
+			text: expect.stringMatching(/failed|could not be reached/i)
+		});
+		expect(getToolFailurePolicy('web_search', false)).toBeUndefined();
+		expect(getToolFailurePolicy('project_knowledge_search', true)).toBeUndefined();
 	});
 
 	it('reserves one turn per conversation and releases only its own token', () => {

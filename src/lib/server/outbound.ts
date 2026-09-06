@@ -4,9 +4,16 @@ const BUILTIN_ORIGINS = new Set([
 	'https://api.openai.com',
 	'https://api.anthropic.com',
 	'https://generativelanguage.googleapis.com',
+	'https://api.deepseek.com',
+	'https://api.commandcode.ai',
 	'https://api.tavily.com',
 	'https://html.duckduckgo.com',
-	'https://searx.be'
+	'https://duckduckgo.com',
+	'https://lite.duckduckgo.com',
+	'https://searx.be',
+	'https://cloudflare-dns.com',
+	'https://dns.google',
+	'https://en.wikipedia.org'
 ]);
 
 export class OutboundUrlError extends Error {

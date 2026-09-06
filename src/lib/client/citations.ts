@@ -46,7 +46,10 @@ export function extractCleanTitle(url: string, explicitTitle?: string): string {
 	}
 }
 
-export function parseCitationsAndSources(rawMarkdown: string): {
+export function parseCitationsAndSources(
+	rawMarkdown: string,
+	fallbackSources?: Array<{ title?: string; url?: string; snippet?: string } | SourceItem>
+): {
 	cleanedMarkdown: string;
 	sources: SourceItem[];
 	sourcesMap: Map<number, SourceItem>;
@@ -77,7 +80,12 @@ export function parseCitationsAndSources(rawMarkdown: string): {
 		if (index !== null && index > 0) {
 			const existing = sourcesMap.get(index);
 			if (existing) {
-				if (title && (!existing.title || existing.title === existing.domain)) {
+				if (trimmedUrl && trimmedUrl !== existing.url) {
+					existing.url = trimmedUrl;
+					existing.domain = domain;
+					existing.faviconUrl = faviconUrl;
+				}
+				if (title && title.trim()) {
 					existing.title = cleanTitle;
 				}
 				return existing;
@@ -110,6 +118,14 @@ export function parseCitationsAndSources(rawMarkdown: string): {
 		sourcesMap.set(idx, item);
 		sourcesList.push(item);
 		return item;
+	}
+
+	if (fallbackSources && fallbackSources.length > 0) {
+		fallbackSources.forEach((s, i) => {
+			if (s && s.url) {
+				addSource(i + 1, s.url, s.title);
+			}
+		});
 	}
 
 	let text = rawMarkdown;

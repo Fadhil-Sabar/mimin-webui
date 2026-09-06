@@ -197,4 +197,39 @@ describe('web search', () => {
 			{ title: 'Fallback result', url: 'https://fallback.com/', snippet: '' }
 		]);
 	});
+
+	it('falls back to Wikipedia if DuckDuckGo fails or returns empty results', async () => {
+		const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			const str = String(url);
+			if (str.includes('duckduckgo.com') || str.includes('dns')) {
+				throw new Error('Network failure');
+			}
+			if (str.includes('wikipedia.org')) {
+				return new Response(
+					JSON.stringify({
+						query: {
+							search: [
+								{
+									title: 'TypeScript Programming',
+									snippet: 'TypeScript is a strongly typed programming language'
+								}
+							]
+						}
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			}
+			throw new Error('Unexpected URL: ' + str);
+		});
+
+		const result = await searchWeb({ query: 'TypeScript Programming' });
+		expect(fetchMock).toHaveBeenCalled();
+		expect(result.sources).toEqual([
+			{
+				title: 'TypeScript Programming',
+				url: 'https://en.wikipedia.org/wiki/TypeScript_Programming',
+				snippet: 'TypeScript is a strongly typed programming language'
+			}
+		]);
+	});
 });

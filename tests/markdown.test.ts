@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { Marked } from 'marked';
 import { highlightCode, escapeHtml } from '$lib/client/highlighter';
+import {
+	parseCitationsAndSources,
+	extractDomain,
+	extractCleanTitle,
+	renderCitationPillHtml
+} from '$lib/client/citations';
 
 function createMarkdownParser() {
 	return new Marked({
@@ -68,3 +74,77 @@ describe('markdown parser and syntax highlighter', () => {
 		expect(html).toContain('<li>item 1</li>');
 	});
 });
+
+describe('citations parsing and fallback sources', () => {
+	it('extracts domain correctly from urls', () => {
+		expect(extractDomain('https://en.wikipedia.org/wiki/GPT-6_Astra')).toBe('en.wikipedia.org');
+		expect(extractDomain('https://www.google.com/search?q=test')).toBe('google.com');
+	});
+
+	it('extracts clean title from url path if title missing or matching url', () => {
+		expect(extractCleanTitle('https://en.wikipedia.org/wiki/GPT-6_Astra')).toBe('GPT 6 Astra');
+		expect(
+			extractCleanTitle(
+				'https://en.wikipedia.org/wiki/GPT-6_Astra',
+				'https://en.wikipedia.org/wiki/GPT-6_Astra'
+			)
+		).toBe('GPT 6 Astra');
+		expect(
+			extractCleanTitle('https://en.wikipedia.org/wiki/GPT-6_Astra', 'Explicit Title')
+		).toBe('Explicit Title');
+	});
+
+	it('pre-populates fallback sources when no URLs are present in markdown', () => {
+		const fallback = [
+			{ title: 'GPT-6 Astra', url: 'https://en.wikipedia.org/wiki/GPT-6_Astra' },
+			{ title: 'ChatGPT', url: 'https://en.wikipedia.org/wiki/ChatGPT' }
+		];
+
+		const text = 'GPT-6 Astra is a large language model [1]. Another tool is ChatGPT [2].';
+		const { sources, sourcesMap } = parseCitationsAndSources(text, fallback);
+
+		expect(sources).toHaveLength(2);
+		expect(sourcesMap.get(1)).toMatchObject({
+			index: 1,
+			title: 'GPT-6 Astra',
+			url: 'https://en.wikipedia.org/wiki/GPT-6_Astra',
+			domain: 'en.wikipedia.org'
+		});
+		expect(sourcesMap.get(2)).toMatchObject({
+			index: 2,
+			title: 'ChatGPT',
+			url: 'https://en.wikipedia.org/wiki/ChatGPT',
+			domain: 'en.wikipedia.org'
+		});
+	});
+
+	it('renders citation pill with real url and hover card', () => {
+		const html = renderCitationPillHtml(
+			1,
+			'https://en.wikipedia.org/wiki/GPT-6_Astra',
+			'en.wikipedia.org',
+			'GPT-6 Astra',
+			'https://www.google.com/s2/favicons?domain=en.wikipedia.org&sz=32'
+		);
+
+		expect(html).toContain('href="https://en.wikipedia.org/wiki/GPT-6_Astra"');
+		expect(html).toContain('en.wikipedia.org');
+		expect(html).toContain('GPT-6 Astra');
+		expect(html).toContain('class="citation-pill"');
+		expect(html).toContain('class="citation-hover-card"');
+	});
+
+	it('updates fallback sources if markdown specifies explicit citations or sources section', () => {
+		const fallback = [
+			{ title: 'Fallback 1', url: 'https://fallback.com/1' },
+			{ title: 'Fallback 2', url: 'https://fallback.com/2' }
+		];
+
+		const text = `Here is info [1].\n\n## Sources\n[1] [Updated Source](https://updated.com/1)`;
+		const { sourcesMap } = parseCitationsAndSources(text, fallback);
+
+		expect(sourcesMap.get(1)?.url).toBe('https://updated.com/1');
+		expect(sourcesMap.get(1)?.title).toBe('Updated Source');
+	});
+});
+

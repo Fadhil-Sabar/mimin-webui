@@ -12,9 +12,10 @@
 	interface Props {
 		content: string;
 		class?: string;
+		sources?: Array<{ title?: string; url: string; snippet?: string } | SourceItem>;
 	}
 
-	let { content = '', class: className = '' }: Props = $props();
+	let { content = '', class: className = '', sources: externalSources = [] }: Props = $props();
 	let showSources = $state(false);
 
 	let processed = $derived.by(() => {
@@ -22,7 +23,7 @@
 			return { html: '', sources: [] as SourceItem[] };
 		}
 
-		const { cleanedMarkdown, sources } = parseCitationsAndSources(content);
+		const { cleanedMarkdown, sources } = parseCitationsAndSources(content, externalSources);
 		const sourcesMap: Record<number, SourceItem> = {};
 		for (const src of sources) {
 			sourcesMap[src.index] = src;
@@ -36,29 +37,44 @@
 					name: 'citation',
 					level: 'inline',
 					start(src: string) {
-						return src.match(/\[\^?(\d+)\]/)?.index;
+						return src.match(/\[\^?\d+(?:[\s,;]+\^?\d+)*\](?!\()/)?.index;
 					},
 					tokenizer(src: string) {
-						const rule = /^\[\^?(\d+)\]/;
+						const rule = /^\[\^?(\d+(?:[\s,;]+\^?\d+)*)\](?!\()/;
 						const match = rule.exec(src);
 						if (match) {
-							const index = parseInt(match[1], 10);
+							const raw = match[0];
+							const indices = Array.from(
+								new Set(
+									match[1]
+										.split(/[\s,;]+/)
+										.map((s) => parseInt(s.replace(/^\^/, ''), 10))
+										.filter((n) => !isNaN(n))
+								)
+							);
 							return {
 								type: 'citation',
-								raw: match[0],
-								index
+								raw,
+								indices
 							};
 						}
 					},
 					renderer(token: Tokens.Generic) {
-						const index = Number(token.index);
-						const source = sourcesMap[index];
-						const url = source ? source.url : '#';
-						const domain = source ? source.domain : '';
-						const title = source ? source.title : `Source [${index}]`;
-						const favicon = source ? source.faviconUrl : '';
+						const indices: number[] = Array.isArray(token.indices)
+							? token.indices
+							: [Number(token.index || 1)];
 
-						return renderCitationPillHtml(index, url, domain, title, favicon);
+						return indices
+							.map((index) => {
+								const source = sourcesMap[index];
+								const url = source ? source.url : '#';
+								const domain = source ? source.domain : '';
+								const title = source ? source.title : `Source [${index}]`;
+								const favicon = source ? source.faviconUrl : '';
+
+								return renderCitationPillHtml(index, url, domain, title, favicon);
+							})
+							.join('');
 					}
 				}
 			],

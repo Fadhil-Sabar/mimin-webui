@@ -215,6 +215,45 @@
 		return 'Completed';
 	}
 
+	function getTurnSources(
+		msgIndex: number
+	): Array<{ title: string; url: string; snippet?: string }> {
+		const target = messages[msgIndex];
+		if (!target || target.role !== 'assistant') return [];
+
+		const collected: Array<{ title: string; url: string; snippet?: string }> = [];
+		const seenUrls = new Set<string>();
+
+		function addFromToolCalls(toolCalls?: ToolCall[]) {
+			if (!toolCalls) return;
+			for (const tc of toolCalls) {
+				const sources = getToolSourceList(tc);
+				for (const s of sources) {
+					if (s.url && /^https?:\/\//i.test(s.url) && !seenUrls.has(s.url)) {
+						seenUrls.add(s.url);
+						collected.push({
+							title: s.title || s.url,
+							url: s.url,
+							snippet: ''
+						});
+					}
+				}
+			}
+		}
+
+		// 1. Check tool calls directly on this message
+		addFromToolCalls(target.toolCalls);
+
+		// 2. Scan preceding assistant messages in the current turn
+		for (let idx = msgIndex - 1; idx >= 0; idx--) {
+			const prev = messages[idx];
+			if (prev.role !== 'assistant') break;
+			addFromToolCalls(prev.toolCalls);
+		}
+
+		return collected;
+	}
+
 	let activeAgentActivity = $derived.by(() => {
 		if (!running) return '';
 		for (let i = messages.length - 1; i >= 0; i--) {
@@ -1073,37 +1112,39 @@
 			{:else if messages.length === 0}
 				<div class="empty-state">Ask something to start a conversation.</div>
 			{/if}
-			{#each messages as msg (msg.id)}
+			{#each messages as msg, i (msg.id)}
 				<article
 					class="message"
 					class:assistant-message={msg.role === 'assistant'}
 					aria-label={`${msg.role === 'user' ? 'Your' : 'Mimin'} message`}
 				>
 					<div class="message-label">
-						{#if msg.role === 'user'}
-							<UserRound size={14} aria-hidden="true" />
-							<span>YOU</span>
-						{:else}
-							<Bot size={14} aria-hidden="true" />
-							<span>MIMIN</span>
-							{#if msg.isStreaming}
-								<span class="live-tag">
-									{#if msg.toolCalls?.some((t) => t.status === 'running')}
-										{formatToolLabel(
-											msg.toolCalls.find((t) => t.status === 'running')!.toolName,
-											msg.toolCalls.find((t) => t.status === 'running')!.input
-										).action.toLowerCase()}
-									{:else if thinkingText(msg.content) && !contentText(msg.content)}
-										thinking...
-									{:else if contentText(msg.content)}
-										responding...
-									{:else}
-										working...
-									{/if}
-								</span>
+						<div class="message-label-header">
+							{#if msg.role === 'user'}
+								<UserRound size={14} aria-hidden="true" />
+								<span>YOU</span>
+							{:else}
+								<Bot size={14} aria-hidden="true" />
+								<span>MIMIN</span>
 							{/if}
+							<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
+						</div>
+						{#if msg.role === 'assistant' && msg.isStreaming}
+							<span class="live-tag">
+								{#if msg.toolCalls?.some((t) => t.status === 'running')}
+									{formatToolLabel(
+										msg.toolCalls.find((t) => t.status === 'running')!.toolName,
+										msg.toolCalls.find((t) => t.status === 'running')!.input
+									).action.toLowerCase()}
+								{:else if thinkingText(msg.content) && !contentText(msg.content)}
+									thinking...
+								{:else if contentText(msg.content)}
+									responding...
+								{:else}
+									working...
+								{/if}
+							</span>
 						{/if}
-						<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
 					</div>
 					<div class="message-body">
 						{#if msg.attachments?.length}
@@ -1138,7 +1179,7 @@
 						{/if}
 						{#if contentText(msg.content)}
 							{#if msg.role === 'assistant'}
-								<Markdown content={contentText(msg.content)} />
+								<Markdown content={contentText(msg.content)} sources={getTurnSources(i)} />
 							{:else}
 								<p>{contentText(msg.content)}</p>
 							{/if}
@@ -1446,12 +1487,19 @@
 	}
 	.message-label {
 		display: flex;
-		align-items: center;
-		gap: 6px;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 3px;
 		color: var(--text-dim);
 		font-size: var(--text-xs);
-		white-space: nowrap;
 		flex-shrink: 0;
+		min-width: 0;
+	}
+	.message-label-header {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		white-space: nowrap;
 	}
 	.message-label time {
 		color: var(--text-faint);
@@ -1753,8 +1801,9 @@
 	.live-tag {
 		font-size: var(--text-xs);
 		color: var(--text-dim);
-		margin-left: 6px;
 		font-style: italic;
+		line-height: 1.35;
+		word-break: break-word;
 	}
 	.thinking {
 		display: inline-flex;
