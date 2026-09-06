@@ -1,11 +1,12 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
+import { extractMessageText, extractSnippet } from '$lib/server/conversations';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -13,6 +14,7 @@ export const GET: RequestHandler = async (event) => {
 		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
 		const db = getDb();
 		const projectId = event.url.searchParams.get('projectId');
+		const q = event.url.searchParams.get('q')?.trim();
 		const baseQuery = db
 			.select({
 				id: schema.conversations.id,
@@ -28,19 +30,75 @@ export const GET: RequestHandler = async (event) => {
 			.from(schema.conversations)
 			.leftJoin(schema.projects, eq(schema.conversations.projectId, schema.projects.id));
 
-		const rows = projectId
-			? await baseQuery
-					.where(
-						and(
-							eq(schema.conversations.userId, user.id),
-							eq(schema.conversations.projectId, projectId)
+		if (!q) {
+			const rows = projectId
+				? await baseQuery
+						.where(
+							and(
+								eq(schema.conversations.userId, user.id),
+								eq(schema.conversations.projectId, projectId)
+							)
 						)
-					)
-					.orderBy(desc(schema.conversations.updatedAt))
-			: await baseQuery
-					.where(eq(schema.conversations.userId, user.id))
-					.orderBy(desc(schema.conversations.updatedAt));
-		return json({ conversations: rows });
+						.orderBy(desc(schema.conversations.updatedAt))
+				: await baseQuery
+						.where(eq(schema.conversations.userId, user.id))
+						.orderBy(desc(schema.conversations.updatedAt));
+			return json({ conversations: rows });
+		}
+
+		const escapedQ = q.replace(/[%_\\]/g, '\\$&');
+		const matchingMessages = await db
+			.select({
+				conversationId: schema.messages.conversationId,
+				content: schema.messages.content,
+				createdAt: schema.messages.createdAt
+			})
+			.from(schema.messages)
+			.innerJoin(schema.conversations, eq(schema.messages.conversationId, schema.conversations.id))
+			.where(
+				and(
+					eq(schema.conversations.userId, user.id),
+					projectId ? eq(schema.conversations.projectId, projectId) : undefined,
+					sql`${schema.messages.content}::text ILIKE ${`%${escapedQ}%`}`
+				)
+			)
+			.orderBy(desc(schema.messages.createdAt))
+			.limit(100);
+
+		const messageSnippets = new Map<string, string>();
+		const messageConversationIds: string[] = [];
+		for (const msg of matchingMessages) {
+			if (!messageSnippets.has(msg.conversationId)) {
+				const plainText = extractMessageText(msg.content);
+				const snippet = extractSnippet(plainText, q);
+				messageSnippets.set(msg.conversationId, snippet);
+				messageConversationIds.push(msg.conversationId);
+			}
+		}
+
+		const titleFilter = ilike(schema.conversations.title, `%${escapedQ}%`);
+		const projectFilter = ilike(schema.projects.name, `%${escapedQ}%`);
+		const matchFilter =
+			messageConversationIds.length > 0
+				? or(titleFilter, projectFilter, inArray(schema.conversations.id, messageConversationIds))
+				: or(titleFilter, projectFilter);
+
+		const rows = await baseQuery
+			.where(
+				and(
+					eq(schema.conversations.userId, user.id),
+					projectId ? eq(schema.conversations.projectId, projectId) : undefined,
+					matchFilter
+				)
+			)
+			.orderBy(desc(schema.conversations.updatedAt));
+
+		const conversationsWithSnippets = rows.map((conv) => ({
+			...conv,
+			snippet: messageSnippets.get(conv.id) ?? null
+		}));
+
+		return json({ conversations: conversationsWithSnippets });
 	} catch (error) {
 		return handleApiError(error);
 	}

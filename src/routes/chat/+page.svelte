@@ -46,7 +46,11 @@
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
-	import { conversationsState, type ConversationSummary } from '$lib/client/conversations.svelte';
+	import {
+		conversationSearch,
+		conversationsState,
+		type ConversationSummary
+	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
 
 	type Conversation = {
@@ -629,6 +633,14 @@
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
+		if (
+			(event.metaKey || event.ctrlKey) &&
+			(event.key.toLowerCase() === 'o' || (event.shiftKey && event.key.toLowerCase() === 'f'))
+		) {
+			event.preventDefault();
+			conversationSearch.toggle();
+			return;
+		}
 		if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
 			event.preventDefault();
 			if (!isNewConversationEmpty && !running) {
@@ -636,40 +648,59 @@
 			}
 		}
 		if (event.key === 'Escape') {
+			if (conversationSearch.isOpen) {
+				conversationSearch.close();
+				return;
+			}
 			if (deletingConversation) cancelDelete();
 			if (editingId) cancelRename();
 		}
 	}
 
-	onMount(async () => {
-		await Promise.all([loadModels(), loadConversations(), loadTools(), loadThinkingPreferences()]);
-		const params = new URL(window.location.href).searchParams;
-		const requested = params.get('id');
-		const pendingPrompt = params.get('prompt');
-		const isNew = params.get('new') === '1';
+	onMount(() => {
+		conversationSearch.registerSelectHandler((id) => {
+			void loadConversation(id);
+		});
 
-		if (requested) {
-			try {
-				await loadConversation(requested, true);
-			} catch {
-				if (conversations.length > 0) {
-					await loadConversation(conversations[0].id, true);
-				} else {
-					await startNewConversation(true);
+		void (async () => {
+			await Promise.all([
+				loadModels(),
+				loadConversations(),
+				loadTools(),
+				loadThinkingPreferences()
+			]);
+			const params = new URL(window.location.href).searchParams;
+			const requested = params.get('id');
+			const pendingPrompt = params.get('prompt');
+			const isNew = params.get('new') === '1';
+
+			if (requested) {
+				try {
+					await loadConversation(requested, true);
+				} catch {
+					if (conversations.length > 0) {
+						await loadConversation(conversations[0].id, true);
+					} else {
+						await startNewConversation(true);
+					}
 				}
+			} else if (isNew) {
+				await startNewConversation(true);
+			} else if (conversations.length > 0) {
+				await loadConversation(conversations[0].id, true);
+			} else {
+				await startNewConversation(true);
 			}
-		} else if (isNew) {
-			await startNewConversation(true);
-		} else if (conversations.length > 0) {
-			await loadConversation(conversations[0].id, true);
-		} else {
-			await startNewConversation(true);
-		}
-		busy = false;
-		if (pendingPrompt) {
-			message = pendingPrompt;
-			await sendMessage();
-		}
+			busy = false;
+			if (pendingPrompt) {
+				message = pendingPrompt;
+				await sendMessage();
+			}
+		})();
+
+		return () => {
+			conversationSearch.unregisterSelectHandler();
+		};
 	});
 
 	async function selectModel(model: string) {
@@ -1239,8 +1270,8 @@
 				<button
 					class="icon-button"
 					aria-label="Search conversations"
-					title="Search conversations"
-					onclick={() => notify('Search opened')}><Search size={17} /></button
+					title="Search conversations (⌘O)"
+					onclick={() => conversationSearch.open()}><Search size={17} /></button
 				>
 				<ThemeToggle />
 			</div>

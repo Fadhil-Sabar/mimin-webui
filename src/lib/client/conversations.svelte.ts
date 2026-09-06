@@ -6,6 +6,7 @@ export type ConversationSummary = {
 	projectName?: string | null;
 	createdAt?: string;
 	updatedAt?: string;
+	snippet?: string | null;
 };
 
 class ConversationsState {
@@ -56,3 +57,48 @@ class ConversationsState {
 }
 
 export const conversationsState = new ConversationsState();
+
+class ConversationSearchState {
+	isOpen = $state(false);
+	query = $state('');
+	private selectHandler: ((id: string) => void) | null = null;
+
+	open(initialQuery = '') {
+		this.query = initialQuery;
+		this.isOpen = true;
+	}
+
+	close() {
+		this.isOpen = false;
+		this.query = '';
+	}
+
+	toggle() {
+		if (this.isOpen) {
+			this.close();
+		} else {
+			this.open();
+		}
+	}
+
+	registerSelectHandler(handler: (id: string) => void) {
+		this.selectHandler = handler;
+	}
+
+	unregisterSelectHandler() {
+		this.selectHandler = null;
+	}
+
+	async handleSelect(id: string) {
+		this.close();
+		if (this.selectHandler) {
+			this.selectHandler(id);
+		} else {
+			const { goto } = await import('$app/navigation');
+			const { resolve } = await import('$app/paths');
+			void goto(resolve(`/chat?id=${encodeURIComponent(id)}`));
+		}
+	}
+}
+
+export const conversationSearch = new ConversationSearchState();

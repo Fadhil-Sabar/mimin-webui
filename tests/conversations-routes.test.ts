@@ -30,6 +30,14 @@ const testState = vi.hoisted(() => ({
 			updatedAt: new Date(),
 			projectName: null
 		}
+	],
+	messages: [
+		{
+			id: 'msg-1',
+			conversationId: 'conv-1',
+			content: 'Can you show me how to configure PostgreSQL pooling?',
+			createdAt: new Date()
+		}
 	]
 }));
 
@@ -69,6 +77,13 @@ vi.mock('$lib/server/db/client', () => {
 					where: vi.fn(() => ({
 						orderBy: vi.fn(async () => testState.conversations)
 					}))
+				})),
+				innerJoin: vi.fn(() => ({
+					where: vi.fn(() => ({
+						orderBy: vi.fn(() => ({
+							limit: vi.fn(async () => testState.messages)
+						}))
+					}))
 				}))
 			}))
 		})),
@@ -102,6 +117,13 @@ vi.mock('$lib/server/db/client', () => {
 				id: 'id',
 				name: 'name',
 				userId: 'user_id'
+			},
+			messages: {
+				id: 'id',
+				conversationId: 'conversation_id',
+				role: 'role',
+				content: 'content',
+				createdAt: 'created_at'
 			}
 		}
 	};
@@ -132,6 +154,18 @@ describe('conversations API endpoints', () => {
 			id: 'conv-2',
 			projectName: null
 		});
+	});
+
+	it('GET /api/conversations?q=... performs search and attaches message snippets', async () => {
+		const event = {
+			url: new URL('http://localhost/api/conversations?q=PostgreSQL')
+		} as unknown as RequestEvent;
+
+		const response = await GET(event);
+		expect(response.status).toBe(200);
+		const body = await response.json();
+		expect(body.conversations).toBeDefined();
+		expect(body.conversations[0].snippet).toContain('PostgreSQL');
 	});
 
 	it('POST /api/conversations attaches projectName when creating a project conversation', async () => {

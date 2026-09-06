@@ -3,8 +3,12 @@
 	import { resolve } from '$app/paths';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { deleteConversation, updateConversation } from '$lib/client/api';
-	import { conversationsState, type ConversationSummary } from '$lib/client/conversations.svelte';
-	import { Check, Pencil, Trash2, X } from '@lucide/svelte';
+	import {
+		conversationSearch,
+		conversationsState,
+		type ConversationSummary
+	} from '$lib/client/conversations.svelte';
+	import { Check, Pencil, Search, Trash2, X } from '@lucide/svelte';
 
 	let {
 		conversations,
@@ -145,7 +149,18 @@
 </script>
 
 {#if displayConversations.length > 0}
-	<div class="nav-label projects-label">Recent chats</div>
+	<div class="recent-chats-header">
+		<span class="nav-label projects-label">Recent chats</span>
+		<button
+			type="button"
+			class="nav-label-action"
+			title="Search conversations (⌘O)"
+			aria-label="Search conversations"
+			onclick={() => conversationSearch.open()}
+		>
+			<Search size={13} />
+		</button>
+	</div>
 	{#each displayConversations as conversation (conversation.id)}
 		<div class="recent-chat-item" class:active-project={conversation.id === activeId}>
 			{#if effectiveEditingId === conversation.id}
@@ -288,6 +303,31 @@
 {#if localStatus}<div class="toast" role="status" aria-live="polite">{localStatus}</div>{/if}
 
 <style>
+	.recent-chats-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding-right: 6px;
+	}
+	.nav-label-action {
+		background: transparent;
+		border: 0;
+		color: var(--text-faint);
+		cursor: pointer;
+		padding: 4px;
+		border-radius: 4px;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		transition:
+			color 0.15s ease,
+			background-color 0.15s ease;
+		margin-top: 14px;
+	}
+	.nav-label-action:hover {
+		color: var(--text-strong);
+		background: var(--surface-subtle);
+	}
 	.modal-text {
 		margin: 0 0 16px;
 		color: var(--text-body);

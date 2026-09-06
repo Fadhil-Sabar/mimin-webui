@@ -107,6 +107,23 @@ export async function deleteConversation(id: string) {
 		);
 }
 
+export async function searchConversations(
+	query: string,
+	projectId?: string | null,
+	signal?: AbortSignal
+) {
+	const params = new URLSearchParams({ q: query });
+	if (projectId) params.set('projectId', projectId);
+	const response = await fetch(`/api/conversations?${params.toString()}`, { signal });
+	if (!response.ok) {
+		throw new Error(
+			(await response.json().catch(() => null))?.error?.message ?? 'Could not search conversations'
+		);
+	}
+	const data = await response.json();
+	return (data.conversations ?? []) as import('./conversations.svelte').ConversationSummary[];
+}
+
 export async function streamMessage(
 	id: string,
 	content: string,
