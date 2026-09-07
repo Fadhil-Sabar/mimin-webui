@@ -40,7 +40,6 @@ Not yet available:
 - Provider adapter for web fetch
 - Semantic embeddings and pgvector
 - Full citation persistence from tool results to assistant messages
-- Explicit production deployment adapter
 
 ## Architecture
 
@@ -110,6 +109,32 @@ Route handlers validate input and orchestrate services. Agents are not construct
 - `PROVIDER_KEY_ENCRYPTION_SECRET` to encrypt user-saved provider keys at rest
 
 Bun is compatible with the source code. The repository currently uses npm and a package lockfile for reproducible setup.
+
+## Self-hosting with Docker
+
+To self-host the entire stack (PostgreSQL + Mimin WebUI) using Docker Compose:
+
+1. Copy `.env.example` to `.env` and set your provider keys and secrets:
+   ```bash
+   cp .env.example .env
+   ```
+2. Start the full application:
+   ```bash
+   docker compose up -d --build
+   ```
+   The container automatically waits for PostgreSQL, applies schema migrations, and provisions the default admin account.
+3. Open `http://localhost:3000` (or `http://localhost:<PORT>` if `PORT` or `HOST_PORT` is customized).
+   Default login:
+   ```text
+   email:    admin@mimin.local
+   password: admin123
+   ```
+   (Set `SEED_PASSWORD` in `.env` to override the initial password).
+4. Stop the services:
+   ```bash
+   docker compose down
+   ```
+   Persistent data is stored in the `mimin-postgres` (database) and `mimin-data` (file uploads) Docker volumes.
 
 ## Local setup
 

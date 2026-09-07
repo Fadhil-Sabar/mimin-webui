@@ -1,17 +1,58 @@
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: mimin
-      POSTGRES_PASSWORD: mimin
-      POSTGRES_DB: mimin
+      POSTGRES_USER: ${POSTGRES_USER:-mimin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mimin}
+      POSTGRES_DB: ${POSTGRES_DB:-mimin}
     ports:
-      - '5432:5432'
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - mimin-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-mimin} -d ${POSTGRES_DB:-mimin}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '${HOST_PORT:-${PORT:-3000}}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - DATABASE_URL=${DOCKER_DATABASE_URL:-postgres://${POSTGRES_USER:-mimin}:${POSTGRES_PASSWORD:-mimin}@postgres:5432/${POSTGRES_DB:-mimin}}
+      - PORT=3000
+      - HOST=0.0.0.0
+      - ORIGIN=${ORIGIN:-${BETTER_AUTH_URL:-http://localhost:${HOST_PORT:-${PORT:-3000}}}}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL:-http://localhost:${HOST_PORT:-${PORT:-3000}}}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - WEB_SEARCH_API_KEY=${WEB_SEARCH_API_KEY}
+      - SEARXNG_URL=${SEARXNG_URL}
+      - OUTBOUND_ALLOWED_ORIGINS=${OUTBOUND_ALLOWED_ORIGINS}
+      - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
+      - STORAGE_PATH=${STORAGE_PATH:-/app/data/uploads}
+      - PROVIDER_KEY_ENCRYPTION_SECRET=${PROVIDER_KEY_ENCRYPTION_SECRET}
+      - SEED_PASSWORD=${SEED_PASSWORD:-admin123}
+      - AUTO_MIGRATE=${AUTO_MIGRATE:-true}
+      - AUTO_SEED=${AUTO_SEED:-true}
+    volumes:
+      - mimin-data:/app/data
 
   # Optional local SearXNG search engine instance.
-  # Uncomment this service and set SEARXNG_URL=http://localhost:8080/search in .env to auto-point web searches to SearXNG.
+  # Uncomment this service and set SEARXNG_URL=http://searxng:8080/search to auto-point web searches to SearXNG.
   # searxng:
   #   image: searxng/searxng:latest
   #   container_name: mimin-searxng
@@ -26,3 +67,4 @@ services:
 
 volumes:
   mimin-postgres:
+  mimin-data:

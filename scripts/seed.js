@@ -1,21 +1,21 @@
+import 'dotenv/config';
 import postgres from 'postgres';
 import { randomBytes, scrypt as scryptCb } from 'node:crypto';
 import { promisify } from 'node:util';
 
-const scrypt = promisify(scryptCb) as (
-	password: string,
-	salt: Buffer,
-	keylen: number
-) => Promise<Buffer>;
+const scrypt = promisify(scryptCb);
 
 const url = process.env.DATABASE_URL;
-if (!url) throw new Error('DATABASE_URL is required');
+if (!url) {
+	console.error('DATABASE_URL is required');
+	process.exit(1);
+}
 const sql = postgres(url);
 
 const DEFAULT_EMAIL = 'admin@mimin.local';
 const DEFAULT_PASSWORD = process.env.SEED_PASSWORD || 'admin123';
 
-async function hashPassword(password: string) {
+async function hashPassword(password) {
 	const salt = randomBytes(16);
 	const derived = await scrypt(password, salt, 64);
 	return `scrypt:${salt.toString('hex')}:${derived.toString('hex')}`;

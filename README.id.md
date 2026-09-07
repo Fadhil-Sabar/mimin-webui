@@ -36,7 +36,6 @@ Belum tersedia:
 - Provider adapter untuk web search dan web fetch
 - Semantic embeddings dan pgvector
 - Persistence citation penuh dari tool result ke assistant message
-- Production deployment adapter eksplisit
 
 ## Arsitektur
 
@@ -101,6 +100,32 @@ Route handler bertugas melakukan validasi dan orkestrasi service. Agent tidak di
 - `PROVIDER_KEY_ENCRYPTION_SECRET` untuk mengenkripsi provider key milik pengguna
 
 Bun kompatibel dengan source code. Repository saat ini menggunakan npm dan lockfile agar setup reproducible.
+
+## Self-hosting dengan Docker
+
+Untuk melakukan self-host seluruh sistem (PostgreSQL + Mimin WebUI) menggunakan Docker Compose:
+
+1. Salin `.env.example` ke `.env` dan konfigurasikan API key provider serta secret:
+   ```bash
+   cp .env.example .env
+   ```
+2. Jalankan seluruh aplikasi:
+   ```bash
+   docker compose up -d --build
+   ```
+   Container akan otomatis menunggu kesiapan PostgreSQL, menerapkan migrasi database, dan membuat akun admin default.
+3. Buka `http://localhost:3000` (atau port yang disesuaikan pada `PORT` / `HOST_PORT`).
+   Login default:
+   ```text
+   email:    admin@mimin.local
+   password: admin123
+   ```
+   (Atur `SEED_PASSWORD` di `.env` jika ingin mengubah password awal).
+4. Menghentikan service:
+   ```bash
+   docker compose down
+   ```
+   Data tersimpan secara persisten di Docker volume `mimin-postgres` (database) dan `mimin-data` (file upload).
 
 ## Setup lokal
 
