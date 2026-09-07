@@ -5,6 +5,7 @@ import {
 	modelPreferenceInput,
 	projectInput,
 	providerSettingsInput,
+	userInstructionsInput,
 	webSearchSettingsInput
 } from '../src/lib/server/validation';
 
@@ -73,6 +74,16 @@ describe('request validation', () => {
 				thinkingLevel: 'extreme'
 			}).success
 		).toBe(false);
+	});
+	it('trims user instructions and enforces the character limit', () => {
+		expect(userInstructionsInput.parse({ instructions: '  Keep answers concise.  ' })).toEqual({
+			instructions: 'Keep answers concise.'
+		});
+		expect(userInstructionsInput.safeParse({ instructions: '' }).success).toBe(true);
+		expect(userInstructionsInput.safeParse({ instructions: 'x'.repeat(10000) }).success).toBe(true);
+		expect(userInstructionsInput.safeParse({ instructions: 'x'.repeat(10001) }).success).toBe(
+			false
+		);
 	});
 	it('accepts every supported custom provider protocol', () => {
 		for (const protocol of [

@@ -155,6 +155,14 @@ export const modelPreferences = pgTable(
 	})
 );
 
+export const userInstructions = pgTable('user_instructions', {
+	userId: uuid('user_id')
+		.primaryKey()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	instructions: text('instructions').notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
 export const messages = pgTable(
 	'messages',
 	{

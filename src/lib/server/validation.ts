@@ -14,6 +14,9 @@ export const modelPreferenceInput = z.object({
 	model: z.string().trim().min(1).max(200),
 	thinkingLevel: z.enum(['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'])
 });
+export const userInstructionsInput = z.object({
+	instructions: z.string().trim().max(10000)
+});
 export const messageInput = z.object({
 	content: z.string().trim().min(1).max(100000),
 	model: z.string().trim().max(200).optional(),

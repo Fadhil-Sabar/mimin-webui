@@ -9,6 +9,7 @@ import { getWebSearchSettings } from './web-search-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
 import { createWebSearchTool } from './tools/web-search.tool';
 import { getModelThinkingPreference } from './model-preferences.service';
+import { buildUserSystemPrompt, getUserInstructions } from './user-instructions.service';
 import { readStoredFile } from '$lib/server/files/storage';
 import { buildAttachmentContext } from '$lib/server/files/attachment-context';
 import { buildPdfVisionFallback } from '$lib/server/files/pdf-vision';
@@ -235,6 +236,7 @@ export async function runConversationTurn(
 					)
 				)
 		: [];
+	const userInstructions = effectiveUserId ? await getUserInstructions(effectiveUserId) : null;
 	const attachmentRows = await db
 		.select({
 			messageId: schema.messageAttachments.messageId,
@@ -352,7 +354,8 @@ export async function runConversationTurn(
 	];
 	let pendingToolFailureNotice: string | null = null;
 	const routingInstruction = getTurnRoutingInstruction(toolGating.browserIntent);
-	let systemPrompt = buildProjectSystemPrompt(AGENT_SYSTEM_PROMPT, project?.instructions);
+	let systemPrompt = buildUserSystemPrompt(AGENT_SYSTEM_PROMPT, userInstructions);
+	systemPrompt = buildProjectSystemPrompt(systemPrompt, project?.instructions);
 	if (routingInstruction) {
 		systemPrompt = `${systemPrompt}\n\n${routingInstruction}`;
 	}
