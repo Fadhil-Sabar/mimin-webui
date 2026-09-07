@@ -184,3 +184,49 @@ Want me to dig deeper into any specific aspect — pricing or benchmarks?`;
 		expect(sources.map((s) => s.url)).toEqual(['https://deepmind.google', 'https://ai.google.dev']);
 	});
 });
+
+describe('unwrapMarkdownDocument and parseMarkdownSegments', () => {
+	it('does not unwrap simple markdown code snippets', async () => {
+		const { unwrapMarkdownDocument } = await import('$lib/client/markdown');
+		const snippet = '```markdown\n*just italic*\n```';
+		expect(unwrapMarkdownDocument(snippet)).toBe(snippet);
+	});
+
+	it('unwraps outer document markdown blocks with headings', async () => {
+		const { unwrapMarkdownDocument } = await import('$lib/client/markdown');
+		const doc = '```markdown\n# PRD Document\nSome details\n```';
+		expect(unwrapMarkdownDocument(doc)).toBe('# PRD Document\nSome details');
+	});
+
+	it('unwraps outer markdown fences enclosing inner code blocks and mermaid diagrams', async () => {
+		const { unwrapMarkdownDocument, parseMarkdownSegments } = await import('$lib/client/markdown');
+		const input = [
+			'Here is the architecture:',
+			'```markdown',
+			'# System Spec',
+			'## Project Structure',
+			'```',
+			'src/',
+			'```',
+			'## System Architecture',
+			'```mermaid',
+			'flowchart TB',
+			'  Client --> Server',
+			'```',
+			'## Conclusion',
+			'```',
+			'Hope this helps!'
+		].join('\n');
+
+		const unwrapped = unwrapMarkdownDocument(input);
+		expect(unwrapped).not.toContain('```markdown');
+		expect(unwrapped).toContain('```mermaid\nflowchart TB\n  Client --> Server\n```');
+		expect(unwrapped).toContain('Hope this helps!');
+
+		const parser = createMarkdownParser();
+		const segments = parseMarkdownSegments(input, parser);
+		expect(segments.some((s) => s.type === 'mermaid')).toBe(true);
+		const mermaidSeg = segments.find((s) => s.type === 'mermaid');
+		expect(mermaidSeg?.code).toContain('flowchart TB');
+	});
+});
