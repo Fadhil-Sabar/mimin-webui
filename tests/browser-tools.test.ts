@@ -155,7 +155,7 @@ describe('browser tools', () => {
 			"Open and read a public HTTP/HTTPS webpage through the user's browser. Requires browser-extension host permission for the destination website."
 		);
 		expect(searchTool.description).toBe(
-			"Search Google or Google Scholar through the user's browser. Only available when the user's request explicitly targets Google or Google Scholar."
+			"Search Google or Google Scholar through the user's browser. Use only when the user's request explicitly targets Google or Google Scholar, or clearly continues such a browser task."
 		);
 	});
 

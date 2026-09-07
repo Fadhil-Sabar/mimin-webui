@@ -16,7 +16,6 @@ import { buildProjectSystemPrompt, getProjectConversationTools } from './project
 import { assertAllowedOutboundUrl } from '../outbound';
 import {
 	cancelBrowserRequests,
-	getBrowserSession,
 	type BrowserBridgeContext,
 	type BrowserBridgeEvent
 } from '../browser/bridge';
@@ -27,7 +26,12 @@ import {
 } from './question-broker';
 import { createBrowserOpenTool, createBrowserSearchTool } from './tools/browser.tool';
 import { createAskQuestionTool } from './tools/question.tool';
-import { getTurnRoutingInstruction, resolveTurnToolGating } from './tool-routing';
+import {
+	getPendingBrowserAction,
+	getPendingBrowserActionInstruction,
+	getTurnRoutingInstruction,
+	resolveTurnToolGating
+} from './tool-routing';
 
 export type AppEvent = { type: string; [key: string]: unknown };
 export const WEB_SEARCH_FAILURE_NOTICE =
@@ -272,6 +276,7 @@ export async function runConversationTurn(
 		.select({
 			toolName: schema.toolCalls.toolName,
 			input: schema.toolCalls.input,
+			output: schema.toolCalls.output,
 			status: schema.toolCalls.status
 		})
 		.from(schema.toolCalls)
@@ -280,31 +285,13 @@ export async function runConversationTurn(
 		.orderBy(desc(schema.toolCalls.startedAt))
 		.limit(5);
 
-	const hasActiveBrowserSession = effectiveUserId
-		? Boolean(getBrowserSession(effectiveUserId, conversationId))
-		: false;
-
-	const lastAssistantMsg = [...history].reverse().find((m) => m.role === 'assistant');
-	const lastAssistantText = lastAssistantMsg
-		? typeof lastAssistantMsg.content === 'string'
-			? lastAssistantMsg.content
-			: Array.isArray(lastAssistantMsg.content)
-				? lastAssistantMsg.content
-						.filter((c) => c && typeof c === 'object' && 'text' in c)
-						.map((c) => (c as { text: string }).text)
-						.join('\n')
-				: ''
-		: '';
-
 	const searchSettings = effectiveUserId ? await getWebSearchSettings(effectiveUserId) : undefined;
 	const toolGating = resolveTurnToolGating({
 		prompt,
 		browserBridgeEnabled: Boolean(browserBridgeEnabled && effectiveUserId),
-		hasWebSearch: enabledTools.includes('web_search'),
-		hasActiveBrowserSession,
-		recentToolCalls,
-		lastAssistantText
+		hasWebSearch: enabledTools.includes('web_search')
 	});
+	const pendingBrowserAction = getPendingBrowserAction(recentToolCalls);
 
 	if (process.env.NODE_ENV !== 'production') {
 		console.debug('[tool-routing]', {
@@ -368,12 +355,12 @@ export async function runConversationTurn(
 	let systemPrompt = buildProjectSystemPrompt(AGENT_SYSTEM_PROMPT, project?.instructions);
 	if (routingInstruction) {
 		systemPrompt = `${systemPrompt}\n\n${routingInstruction}`;
-	} else if (
-		!toolGating.exposeBrowserSearch &&
-		!toolGating.exposeBrowserOpen &&
-		recentToolCalls.some((t) => t.toolName === 'browser_search' || t.toolName === 'browser_open')
-	) {
-		systemPrompt = `${systemPrompt}\n\nBrowser tools (browser_search, browser_open) are not active in this turn. Use web_search for search needs. Do not call browser_search or browser_open.`;
+	}
+	if (pendingBrowserAction) {
+		systemPrompt = `${systemPrompt}\n\n${getPendingBrowserActionInstruction(pendingBrowserAction)}`;
+		if (!toolGating.exposeBrowserOpen) {
+			systemPrompt = `${systemPrompt} Browser tools are not available in this request because the browser bridge is not connected. Do not substitute another tool for the pending action; explain that the bridge still is not detected.`;
+		}
 	}
 	const agent = new Agent({
 		initialState: {

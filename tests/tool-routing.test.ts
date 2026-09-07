@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	detectBrowserIntent,
+	getPendingBrowserAction,
+	getPendingBrowserActionInstruction,
 	getTurnRoutingInstruction,
 	resolveTurnToolGating
 } from '../src/lib/server/ai/tool-routing';
@@ -116,15 +118,15 @@ describe('detectBrowserIntent', () => {
 });
 
 describe('resolveTurnToolGating', () => {
-	it('exposes web_search and hides browser tools for generic research when bridge is enabled', () => {
+	it('exposes all connected search capabilities for generic research', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'cari berita terbaru OpenAI',
 			browserBridgeEnabled: true,
 			hasWebSearch: true
 		});
 		expect(gating.exposeWebSearch).toBe(true);
-		expect(gating.exposeBrowserSearch).toBe(false);
-		expect(gating.exposeBrowserOpen).toBe(false);
+		expect(gating.exposeBrowserSearch).toBe(true);
+		expect(gating.exposeBrowserOpen).toBe(true);
 	});
 
 	it('keeps generic academic queries on web_search', () => {
@@ -134,8 +136,8 @@ describe('resolveTurnToolGating', () => {
 			hasWebSearch: true
 		});
 		expect(gating.exposeWebSearch).toBe(true);
-		expect(gating.exposeBrowserSearch).toBe(false);
-		expect(gating.exposeBrowserOpen).toBe(false);
+		expect(gating.exposeBrowserSearch).toBe(true);
+		expect(gating.exposeBrowserOpen).toBe(true);
 	});
 
 	it('exposes browser_search and browser_open and hides web_search for explicit Google search', () => {
@@ -160,14 +162,14 @@ describe('resolveTurnToolGating', () => {
 		expect(gating.exposeBrowserOpen).toBe(true);
 	});
 
-	it('exposes browser_open and hides browser_search and web_search for explicit browser navigation', () => {
+	it('exposes connected browser tools and hides web_search for explicit browser navigation', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'buka https://example.com',
 			browserBridgeEnabled: true,
 			hasWebSearch: true
 		});
 		expect(gating.exposeWebSearch).toBe(false);
-		expect(gating.exposeBrowserSearch).toBe(false);
+		expect(gating.exposeBrowserSearch).toBe(true);
 		expect(gating.exposeBrowserOpen).toBe(true);
 	});
 
@@ -215,60 +217,115 @@ describe('resolveTurnToolGating', () => {
 		expect(gating.blockedReason).toBeUndefined();
 	});
 
-	it('preserves scholar-search and browser_open for follow-up prompts in an active scholar session', () => {
+	it('keeps connected browser tools available for natural follow-up prompts', () => {
 		const gating = resolveTurnToolGating({
-			prompt: 'yes, dig it all',
+			prompt: 'i already enabled it',
 			browserBridgeEnabled: true,
-			hasWebSearch: true,
-			hasActiveBrowserSession: true,
-			recentToolCalls: [{ toolName: 'browser_search', input: { engine: 'scholar' } }]
+			hasWebSearch: true
 		});
-		expect(gating.exposeWebSearch).toBe(false);
+		expect(gating.exposeWebSearch).toBe(true);
 		expect(gating.exposeBrowserSearch).toBe(true);
 		expect(gating.exposeBrowserOpen).toBe(true);
-		expect(gating.browserIntent).toEqual({ type: 'scholar-search' });
+		expect(gating.browserIntent).toEqual({ type: 'none' });
 	});
 
-	it('preserves google-search and browser_open for follow-up prompts in an active google session', () => {
+	it('does not need keyword routing to expose browser capabilities', () => {
 		const gating = resolveTurnToolGating({
-			prompt: 'dig deeper into the first result',
+			prompt: 'coba lagi sekarang',
 			browserBridgeEnabled: true,
-			hasWebSearch: true,
-			hasActiveBrowserSession: true,
-			recentToolCalls: [{ toolName: 'browser_search', input: { engine: 'google' } }]
+			hasWebSearch: true
 		});
-		expect(gating.exposeWebSearch).toBe(false);
+		expect(gating.exposeWebSearch).toBe(true);
 		expect(gating.exposeBrowserSearch).toBe(true);
 		expect(gating.exposeBrowserOpen).toBe(true);
-		expect(gating.browserIntent).toEqual({ type: 'google-search' });
+		expect(gating.browserIntent).toEqual({ type: 'none' });
 	});
 
 	it('switches to web_search when user explicitly asks for web search even in active browser session', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'cari di web saja tentang benchmark lain',
 			browserBridgeEnabled: true,
-			hasWebSearch: true,
-			hasActiveBrowserSession: true,
-			recentToolCalls: [{ toolName: 'browser_search', input: { engine: 'scholar' } }]
+			hasWebSearch: true
 		});
 		expect(gating.exposeWebSearch).toBe(true);
-		expect(gating.exposeBrowserSearch).toBe(false);
-		expect(gating.exposeBrowserOpen).toBe(false);
+		expect(gating.exposeBrowserSearch).toBe(true);
+		expect(gating.exposeBrowserOpen).toBe(true);
 		expect(gating.browserIntent).toEqual({ type: 'none' });
 	});
 
-	it('blocks continuation turn when bridge is unavailable', () => {
+	it('uses capability state rather than follow-up wording when bridge is unavailable', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'yes, dig it all',
 			browserBridgeEnabled: false,
-			hasWebSearch: true,
-			hasActiveBrowserSession: true,
-			recentToolCalls: [{ toolName: 'browser_search', input: { engine: 'scholar' } }]
+			hasWebSearch: true
 		});
 		expect(gating.exposeBrowserSearch).toBe(false);
 		expect(gating.exposeBrowserOpen).toBe(false);
-		expect(gating.exposeWebSearch).toBe(false);
-		expect(gating.blockedReason).toBe('browser_bridge_unavailable');
+		expect(gating.exposeWebSearch).toBe(true);
+		expect(gating.blockedReason).toBeUndefined();
+	});
+});
+
+describe('pending browser actions', () => {
+	it('recovers an unreadable browser action without inspecting follow-up wording', () => {
+		const action = getPendingBrowserAction([
+			{
+				toolName: 'browser_open',
+				status: 'completed',
+				input: { url: 'https://fedoraproject.org/start/' },
+				output: {
+					details: {
+						url: 'https://fedoraproject.org/start/',
+						readable: false,
+						reason: 'host_permission_required'
+					}
+				}
+			}
+		]);
+
+		expect(action).toEqual({
+			toolName: 'browser_open',
+			input: { url: 'https://fedoraproject.org/start/' },
+			reason: 'host_permission_required'
+		});
+		expect(getPendingBrowserActionInstruction(action!)).toContain(
+			'browser_open {"url":"https://fedoraproject.org/start/"}'
+		);
+	});
+
+	it('does not mark successful browser reads as pending', () => {
+		expect(
+			getPendingBrowserAction([
+				{
+					toolName: 'browser_open',
+					input: { url: 'https://example.com' },
+					output: { details: { readable: true, url: 'https://example.com' } }
+				}
+			])
+		).toBeNull();
+	});
+
+	it('does not revive an older permission failure after a successful retry', () => {
+		expect(
+			getPendingBrowserAction([
+				{
+					toolName: 'browser_open',
+					input: { url: 'https://example.com' },
+					output: { details: { readable: true, url: 'https://example.com' } }
+				},
+				{
+					toolName: 'browser_open',
+					input: { url: 'https://example.com' },
+					output: {
+						details: {
+							readable: false,
+							reason: 'host_permission_required',
+							url: 'https://example.com'
+						}
+					}
+				}
+			])
+		).toBeNull();
 	});
 });
 

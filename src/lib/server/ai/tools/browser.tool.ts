@@ -129,7 +129,7 @@ export function createBrowserSearchTool(
 		name: 'browser_search',
 		label: 'Search in browser',
 		description:
-			"Search Google or Google Scholar through the user's browser. Only available when the user's request explicitly targets Google or Google Scholar.",
+			"Search Google or Google Scholar through the user's browser. Use only when the user's request explicitly targets Google or Google Scholar, or clearly continues such a browser task.",
 		parameters: searchParameters,
 		execute: async (_toolCallId, params, signal) => {
 			const engine = params.engine === 'google_scholar' ? 'scholar' : params.engine;
