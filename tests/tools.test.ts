@@ -29,4 +29,12 @@ describe('tool registry', () => {
 		expect(tool?.readOnly).toBe(true);
 		expect(tool?.settingHref).toBe('/settings/browser-extension');
 	});
+
+	it('exposes ask_question tool in registry', () => {
+		const tool = getTool('ask_question');
+		expect(tool).toBeDefined();
+		expect(tool?.label).toBe('Ask Question');
+		expect(tool?.category).toBe('interaction');
+		expect(tool?.enabled).toBe(true);
+	});
 });

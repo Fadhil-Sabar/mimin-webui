@@ -103,7 +103,11 @@ describe('detectBrowserIntent', () => {
 			'navigate to https://vite.dev',
 			'buka di browser: https://docs.python.org',
 			'baca artikel di https://example.com/blog',
-			'https://example.org'
+			'https://example.org',
+			'open paper 1',
+			'buka link pertama',
+			'read this page',
+			'baca artikel ini'
 		];
 		for (const q of queries) {
 			expect(detectBrowserIntent(q), `Query: "${q}"`).toEqual({ type: 'browser-open' });
@@ -209,6 +213,62 @@ describe('resolveTurnToolGating', () => {
 		expect(gating.exposeBrowserSearch).toBe(false);
 		expect(gating.exposeBrowserOpen).toBe(false);
 		expect(gating.blockedReason).toBeUndefined();
+	});
+
+	it('preserves scholar-search and browser_open for follow-up prompts in an active scholar session', () => {
+		const gating = resolveTurnToolGating({
+			prompt: 'yes, dig it all',
+			browserBridgeEnabled: true,
+			hasWebSearch: true,
+			hasActiveBrowserSession: true,
+			recentToolCalls: [{ toolName: 'browser_search', input: { engine: 'scholar' } }]
+		});
+		expect(gating.exposeWebSearch).toBe(false);
+		expect(gating.exposeBrowserSearch).toBe(true);
+		expect(gating.exposeBrowserOpen).toBe(true);
+		expect(gating.browserIntent).toEqual({ type: 'scholar-search' });
+	});
+
+	it('preserves google-search and browser_open for follow-up prompts in an active google session', () => {
+		const gating = resolveTurnToolGating({
+			prompt: 'dig deeper into the first result',
+			browserBridgeEnabled: true,
+			hasWebSearch: true,
+			hasActiveBrowserSession: true,
+			recentToolCalls: [{ toolName: 'browser_search', input: { engine: 'google' } }]
+		});
+		expect(gating.exposeWebSearch).toBe(false);
+		expect(gating.exposeBrowserSearch).toBe(true);
+		expect(gating.exposeBrowserOpen).toBe(true);
+		expect(gating.browserIntent).toEqual({ type: 'google-search' });
+	});
+
+	it('switches to web_search when user explicitly asks for web search even in active browser session', () => {
+		const gating = resolveTurnToolGating({
+			prompt: 'cari di web saja tentang benchmark lain',
+			browserBridgeEnabled: true,
+			hasWebSearch: true,
+			hasActiveBrowserSession: true,
+			recentToolCalls: [{ toolName: 'browser_search', input: { engine: 'scholar' } }]
+		});
+		expect(gating.exposeWebSearch).toBe(true);
+		expect(gating.exposeBrowserSearch).toBe(false);
+		expect(gating.exposeBrowserOpen).toBe(false);
+		expect(gating.browserIntent).toEqual({ type: 'none' });
+	});
+
+	it('blocks continuation turn when bridge is unavailable', () => {
+		const gating = resolveTurnToolGating({
+			prompt: 'yes, dig it all',
+			browserBridgeEnabled: false,
+			hasWebSearch: true,
+			hasActiveBrowserSession: true,
+			recentToolCalls: [{ toolName: 'browser_search', input: { engine: 'scholar' } }]
+		});
+		expect(gating.exposeBrowserSearch).toBe(false);
+		expect(gating.exposeBrowserOpen).toBe(false);
+		expect(gating.exposeWebSearch).toBe(false);
+		expect(gating.blockedReason).toBe('browser_bridge_unavailable');
 	});
 });
 

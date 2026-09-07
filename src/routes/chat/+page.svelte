@@ -44,6 +44,8 @@
 		type ThinkingLevel
 	} from '$lib/components/ModelPicker.svelte';
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
+	import QuestionCard from '$lib/components/QuestionCard.svelte';
+	import { answerQuestion } from '$lib/client/api';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
 	import {
@@ -103,7 +105,7 @@
 			id: conversation.id,
 			title: conversation.title,
 			model: conversation.model ?? 'openai/gpt-4o-mini',
-			enabledTools: ['web_search'],
+			enabledTools: ['web_search', 'ask_question'],
 			createdAt: conversation.createdAt ?? new Date().toISOString(),
 			updatedAt: conversation.updatedAt ?? new Date().toISOString(),
 			projectId: conversation.projectId,
@@ -238,6 +240,16 @@
 				query
 			};
 		}
+		if (toolName === 'ask_question') {
+			const qs = Array.isArray(rawInput.questions) ? rawInput.questions : [];
+			const qText =
+				qs[0]?.question || (typeof rawInput.question === 'string' ? rawInput.question : undefined);
+			return {
+				label: 'Ask Question',
+				action: 'Waiting for your response...',
+				query: qText
+			};
+		}
 		return {
 			label: toolName,
 			action: query ? `Running ${toolName} for "${query}"` : `Running ${toolName}...`,
@@ -296,6 +308,19 @@
 		}
 		if (toolCall.toolName === 'browser_open') {
 			return 'Page opened';
+		}
+		if (toolCall.toolName === 'ask_question') {
+			const output =
+				toolCall.output && typeof toolCall.output === 'object'
+					? (toolCall.output as Record<string, unknown>)
+					: {};
+			const details =
+				output.details && typeof output.details === 'object'
+					? (output.details as Record<string, unknown>)
+					: undefined;
+			if (details?.skipped) return 'Skipped';
+			if (details?.answers && Array.isArray(details.answers)) return 'Answered';
+			return 'Completed';
 		}
 		return 'Completed';
 	}
@@ -560,7 +585,10 @@
 		pendingAttachments = [];
 		try {
 			const model = defaultModel();
-			const conversation = await createConversation(model ? { model } : {});
+			const conversation = await createConversation({
+				model: model ?? undefined,
+				enabledTools: ['web_search', 'ask_question']
+			});
 			await loadConversations();
 			await loadConversation(conversation.id, false);
 		} catch (error) {
@@ -842,6 +870,14 @@
 
 	function removeAttachment(index: number) {
 		pendingAttachments = pendingAttachments.filter((_, itemIndex) => itemIndex !== index);
+	}
+
+	async function handleQuestionSubmit(
+		toolCallId: string | undefined,
+		payload: { answers: Array<Record<string, unknown>>; skipped?: boolean }
+	) {
+		if (!activeId || !toolCallId) return;
+		await answerQuestion(activeId, toolCallId, payload.answers, payload.skipped);
 	}
 
 	function handleStreamEvent(event: SseEvent) {
@@ -1390,80 +1426,89 @@
 						{#if msg.toolCalls && msg.toolCalls.length > 0}
 							<div class="tool-calls-container" aria-label="Tool executions">
 								{#each msg.toolCalls as toolCall (toolCall.toolCallId || toolCall.id || toolCall.toolName)}
-									{@const toolMeta = formatToolLabel(toolCall.toolName, toolCall.input)}
-									<details
-										class="tool-call-card"
-										class:tool-running={toolCall.status === 'running'}
-										class:tool-failed={toolCall.status === 'failed'}
-									>
-										<summary class="tool-call-summary">
-											<div class="tool-call-icon">
-												{#if toolCall.toolName === 'project_knowledge_search'}
-													<FolderKanban size={13} />
-												{:else if toolCall.toolName === 'web_search'}
-													<Globe size={13} />
-												{:else}
-													<Wrench size={13} />
-												{/if}
-											</div>
-											<div class="tool-call-info">
-												<span class="tool-call-label">{toolMeta.label}</span>
-												{#if toolMeta.query}
-													<span class="tool-call-query">"{toolMeta.query}"</span>
-												{/if}
-											</div>
-											<div class="tool-call-status">
-												{#if toolCall.status === 'running'}
-													<span class="tool-status-badge running">
-														<span class="pulse-dot"></span> Running...
-													</span>
-												{:else if toolCall.status === 'failed'}
-													<span class="tool-status-badge failed">Failed</span>
-												{:else}
-													<span class="tool-status-badge completed">
-														<Check size={11} />
-														{getToolResultSummary(toolCall)}
-													</span>
-												{/if}
-												<ChevronDown size={12} class="tool-chevron" />
-											</div>
-										</summary>
-										<div class="tool-call-details">
-											{#if toolCall.input}
-												<div class="tool-detail-section">
-													<span class="tool-detail-heading">Input Parameters</span>
-													<pre class="tool-json">{JSON.stringify(toolCall.input, null, 2)}</pre>
-												</div>
-											{/if}
-											{#if toolCall.output}
-												<div class="tool-detail-section">
-													<span class="tool-detail-heading">Result</span>
-													{#if getToolSourceList(toolCall).length > 0}
-														<div class="tool-source-chips">
-															{#each getToolSourceList(toolCall) as src (src.title + src.url + src.page)}
-																<div class="tool-source-chip">
-																	{#if src.type === 'project_file'}
-																		<FileText size={12} />
-																		<span>{src.title}{src.page ? ` (p. ${src.page})` : ''}</span>
-																	{:else}
-																		<Globe size={12} />
-																		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-																		<a href={src.url} target="_blank" rel="noopener noreferrer"
-																			>{src.title || src.url}</a
-																		>
-																	{/if}
-																</div>
-															{/each}
-														</div>
+									{#if toolCall.toolName === 'ask_question'}
+										<QuestionCard
+											{toolCall}
+											active={toolCall.status === 'running'}
+											disabled={!running}
+											onsubmit={(payload) => handleQuestionSubmit(toolCall.toolCallId, payload)}
+										/>
+									{:else}
+										{@const toolMeta = formatToolLabel(toolCall.toolName, toolCall.input)}
+										<details
+											class="tool-call-card"
+											class:tool-running={toolCall.status === 'running'}
+											class:tool-failed={toolCall.status === 'failed'}
+										>
+											<summary class="tool-call-summary">
+												<div class="tool-call-icon">
+													{#if toolCall.toolName === 'project_knowledge_search'}
+														<FolderKanban size={13} />
+													{:else if toolCall.toolName === 'web_search'}
+														<Globe size={13} />
 													{:else}
-														<pre class="tool-json">{typeof toolCall.output === 'string'
-																? toolCall.output
-																: JSON.stringify(toolCall.output, null, 2)}</pre>
+														<Wrench size={13} />
 													{/if}
 												</div>
-											{/if}
-										</div>
-									</details>
+												<div class="tool-call-info">
+													<span class="tool-call-label">{toolMeta.label}</span>
+													{#if toolMeta.query}
+														<span class="tool-call-query">"{toolMeta.query}"</span>
+													{/if}
+												</div>
+												<div class="tool-call-status">
+													{#if toolCall.status === 'running'}
+														<span class="tool-status-badge running">
+															<span class="pulse-dot"></span> Running...
+														</span>
+													{:else if toolCall.status === 'failed'}
+														<span class="tool-status-badge failed">Failed</span>
+													{:else}
+														<span class="tool-status-badge completed">
+															<Check size={11} />
+															{getToolResultSummary(toolCall)}
+														</span>
+													{/if}
+													<ChevronDown size={12} class="tool-chevron" />
+												</div>
+											</summary>
+											<div class="tool-call-details">
+												{#if toolCall.input}
+													<div class="tool-detail-section">
+														<span class="tool-detail-heading">Input Parameters</span>
+														<pre class="tool-json">{JSON.stringify(toolCall.input, null, 2)}</pre>
+													</div>
+												{/if}
+												{#if toolCall.output}
+													<div class="tool-detail-section">
+														<span class="tool-detail-heading">Result</span>
+														{#if getToolSourceList(toolCall).length > 0}
+															<div class="tool-source-chips">
+																{#each getToolSourceList(toolCall) as src (src.title + src.url + src.page)}
+																	<div class="tool-source-chip">
+																		{#if src.type === 'project_file'}
+																			<FileText size={12} />
+																			<span>{src.title}{src.page ? ` (p. ${src.page})` : ''}</span>
+																		{:else}
+																			<Globe size={12} />
+																			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+																			<a href={src.url} target="_blank" rel="noopener noreferrer"
+																				>{src.title || src.url}</a
+																			>
+																		{/if}
+																	</div>
+																{/each}
+															</div>
+														{:else}
+															<pre class="tool-json">{typeof toolCall.output === 'string'
+																	? toolCall.output
+																	: JSON.stringify(toolCall.output, null, 2)}</pre>
+														{/if}
+													</div>
+												{/if}
+											</div>
+										</details>
+									{/if}
 								{/each}
 							</div>
 						{/if}

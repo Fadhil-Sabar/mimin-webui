@@ -219,3 +219,26 @@ async function consumeSseStream(
 		reader.releaseLock();
 	}
 }
+
+export async function answerQuestion(
+	conversationId: string,
+	requestId: string,
+	answers: Array<{
+		questionIndex?: number;
+		question?: string;
+		selected?: string[];
+		custom?: string;
+	}>,
+	skipped = false
+) {
+	const response = await fetch(`/api/conversations/${conversationId}/question`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ requestId, answers, skipped })
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to submit answer');
+	}
+	return (await response.json()) as { ok: boolean };
+}

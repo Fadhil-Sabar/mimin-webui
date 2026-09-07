@@ -26,6 +26,14 @@ const tools: AppTool[] = [
 		enabled: true
 	},
 	{
+		name: 'ask_question',
+		label: 'Ask Question',
+		description:
+			'Ask clarifying questions or present options to the user when uncertain about requirements or decisions.',
+		category: 'interaction',
+		enabled: true
+	},
+	{
 		name: 'browser_search',
 		label: 'Browser Search',
 		description: 'Search Google or Google Scholar via browser extension.',

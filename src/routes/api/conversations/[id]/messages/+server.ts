@@ -170,6 +170,10 @@ export const POST: RequestHandler = async (event) => {
 			}
 		};
 
+		const heartbeatTimer = setInterval(() => {
+			send('ping', { type: 'ping' });
+		}, 15_000);
+
 		void (async () => {
 			try {
 				send('message.start', {
@@ -214,6 +218,7 @@ export const POST: RequestHandler = async (event) => {
 														: 'The agent could not complete this turn.';
 				send('error', { type: 'error', error: { code, message } });
 			} finally {
+				clearInterval(heartbeatTimer);
 				releaseConversationTurn(conversationId, turnToken);
 				close();
 			}

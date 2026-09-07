@@ -103,6 +103,108 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 		}
 	}
 
+	// Direct open/read action targeting a URL, link, page, paper, or article
+	const hasDirectPageAction =
+		/\b(?:buka|open|read|baca|visit|kunjungi|fetch)\s+(?:this\s+|ini\s+)?(?:page|halaman|link|tautan|url|paper|artikel|article|jurnal)\b/i.test(
+			text
+		) ||
+		/\b(?:page|halaman|link|tautan|url|paper|artikel|article|jurnal)\s+(?:ini\s+)?(?:buka|open|read|baca)\b/i.test(
+			text
+		);
+	if (hasDirectPageAction) {
+		return { type: 'browser-open' };
+	}
+
+	return { type: 'none' };
+}
+
+export type TurnToolGatingOptions = {
+	prompt: string;
+	browserBridgeEnabled: boolean;
+	hasWebSearch: boolean;
+	hasActiveBrowserSession?: boolean;
+	previousIntent?: BrowserIntent;
+	recentToolCalls?: Array<{ toolName: string; input?: unknown; status?: string }>;
+	lastAssistantText?: string;
+};
+
+/**
+ * Detect whether the prompt is a follow-up or continuation in an active browser session.
+ */
+export function detectBrowserContinuation(
+	prompt: string,
+	options: {
+		hasActiveBrowserSession?: boolean;
+		previousIntent?: BrowserIntent;
+		recentToolCalls?: Array<{ toolName: string; input?: unknown; status?: string }>;
+		lastAssistantText?: string;
+	}
+): BrowserIntent {
+	const text = prompt.trim();
+	if (!text) return { type: 'none' };
+
+	const hasPreviousBrowserContext =
+		Boolean(options.hasActiveBrowserSession) ||
+		Boolean(options.previousIntent && options.previousIntent.type !== 'none') ||
+		Boolean(
+			options.recentToolCalls?.some(
+				(t) => t.toolName === 'browser_search' || t.toolName === 'browser_open'
+			)
+		);
+
+	if (!hasPreviousBrowserContext) {
+		return { type: 'none' };
+	}
+
+	// Determine the inherited intent from previous turns
+	let inheritedIntent: BrowserIntent = { type: 'none' };
+	if (options.previousIntent && options.previousIntent.type !== 'none') {
+		inheritedIntent = options.previousIntent;
+	} else if (options.recentToolCalls && options.recentToolCalls.length > 0) {
+		const lastBrowserCall = options.recentToolCalls.find(
+			(t) => t.toolName === 'browser_search' || t.toolName === 'browser_open'
+		);
+		if (lastBrowserCall?.toolName === 'browser_search') {
+			const engine =
+				lastBrowserCall.input &&
+				typeof lastBrowserCall.input === 'object' &&
+				'engine' in lastBrowserCall.input
+					? (lastBrowserCall.input as { engine: string }).engine
+					: undefined;
+			inheritedIntent =
+				engine === 'scholar' ? { type: 'scholar-search' } : { type: 'google-search' };
+		} else if (lastBrowserCall?.toolName === 'browser_open') {
+			inheritedIntent = { type: 'browser-open' };
+		}
+	}
+
+	if (inheritedIntent.type === 'none') {
+		return { type: 'none' };
+	}
+
+	// Reject if prompt explicitly requests a web search
+	const isExplicitWebSearch =
+		/\b(?:cari\s+(?:di|lewat|pakai)\s+web|search\s+(?:the\s+)?web|web\s+search)\b/i.test(text);
+	if (isExplicitWebSearch) {
+		return { type: 'none' };
+	}
+
+	// 1. Check for affirmations, continuation, and deep-dive verbs
+	const isAffirmationOrContinuation =
+		/\b(?:yes|yep|yeah|sure|ok|okay|oke|ya|iya|boleh|silakan|lanjut|lanjutkan|continue|go\s+ahead|do\s+it|please\s+do|all|semua|dig(?:\s+it|\s+deeper)?|deep(?:er)?|detail(?:nya)?|more|explore|ringkas|summarize|jelaskan|explain|fetch)\b/i.test(
+			text
+		);
+
+	// 2. Check for references to papers, links, articles, or indexed items
+	const hasReference =
+		/\b(?:paper|jurnal|penelitian|studi|artikel|article|link|tautan|url|hasil|result|nomor|nomor\s*\d+|#?\d+|pertama|kedua|ketiga|keempat|kelima|first|second|third|fourth|fifth|top\s*\d+|terbaik|terbaru)\b/i.test(
+			text
+		);
+
+	if (isAffirmationOrContinuation || hasReference) {
+		return inheritedIntent;
+	}
+
 	return { type: 'none' };
 }
 
@@ -111,12 +213,15 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
  * Avoids exposing both web_search and browser_search in the same turn.
  * Never silently falls back from explicit browser intent to web_search.
  */
-export function resolveTurnToolGating(options: {
-	prompt: string;
-	browserBridgeEnabled: boolean;
-	hasWebSearch: boolean;
-}): ToolRouting {
-	const browserIntent = detectBrowserIntent(options.prompt);
+export function resolveTurnToolGating(options: TurnToolGatingOptions): ToolRouting {
+	let browserIntent = detectBrowserIntent(options.prompt);
+
+	if (browserIntent.type === 'none') {
+		const continuation = detectBrowserContinuation(options.prompt, options);
+		if (continuation.type !== 'none') {
+			browserIntent = continuation;
+		}
+	}
 
 	if (!options.browserBridgeEnabled) {
 		switch (browserIntent.type) {
