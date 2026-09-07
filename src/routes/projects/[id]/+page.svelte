@@ -27,6 +27,7 @@
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import { getLastUsedModel, setLastUsedModel } from '$lib/client/conversations.svelte';
 
 	type Project = {
 		id: string;
@@ -355,13 +356,20 @@
 
 	async function startChat() {
 		try {
+			const lastModel = getLastUsedModel();
 			const response = await fetch('/api/conversations', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ projectId })
+				body: JSON.stringify({
+					projectId,
+					...(lastModel ? { model: lastModel } : {})
+				})
 			});
 			if (!response.ok) throw new Error('Could not start chat');
 			const conversation = (await response.json()).conversation;
+			if (conversation.model) {
+				setLastUsedModel(conversation.model);
+			}
 			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}`;
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not start chat');
@@ -451,6 +459,7 @@
 			<a class="nav-item" href={resolve('/settings/instructions')}
 				><FileText size={16} /> Instructions</a
 			>
+			<a class="nav-item" href={resolve('/skills')}><Sparkles size={16} /> Skills</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
 			<a class="nav-item" href={resolve('/settings/browser-extension')}
 				><Puzzle size={16} /> Browser Extension</a
@@ -566,6 +575,23 @@
 					<button class="button" onclick={openEdit}
 						>{project.instructions ? 'Update instructions' : 'Add instructions'}</button
 					>
+				</section>
+				<section class="skills-band" aria-labelledby="project-skills-heading">
+					<div class="skills-band-icon"><Sparkles size={17} /></div>
+					<div class="skills-band-content">
+						<span id="project-skills-heading" class="instructions-band-title">Project skills</span>
+						<p>Keep reusable workflows close to the context they belong to.</p>
+					</div>
+					<div class="skills-band-actions">
+						<a class="button" href={resolve(`/skills?projectId=${encodeURIComponent(projectId)}`)}
+							>Manage skills</a
+						>
+						<a
+							class="button primary"
+							href={resolve(`/skills?projectId=${encodeURIComponent(projectId)}&create=1`)}
+							><Plus size={14} /> New skill</a
+						>
+					</div>
 				</section>
 
 				<section class="section-block">
@@ -981,6 +1007,43 @@
 		white-space: pre-wrap;
 	}
 	.instructions-band .button {
+		flex: 0 0 auto;
+	}
+	.skills-band {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-top: 10px;
+		padding: 13px 15px;
+		background: var(--surface-subtle);
+		border: 1px solid var(--border);
+		border-radius: 8px;
+	}
+	.skills-band-icon {
+		display: grid;
+		place-items: center;
+		width: 31px;
+		height: 31px;
+		flex: 0 0 31px;
+		color: var(--text-body);
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: 7px;
+	}
+	.skills-band-content {
+		min-width: 0;
+		flex: 1;
+	}
+	.skills-band-content p {
+		margin: 3px 0 0;
+		color: var(--text-muted);
+		font-size: var(--text-xs);
+		line-height: 1.4;
+	}
+	.skills-band-actions {
+		display: flex;
+		align-items: center;
+		gap: 7px;
 		flex: 0 0 auto;
 	}
 	.upload-summary {
@@ -1472,6 +1535,17 @@
 		.instructions-band .button {
 			justify-content: center;
 			width: 100%;
+		}
+		.skills-band {
+			align-items: flex-start;
+			flex-wrap: wrap;
+		}
+		.skills-band-actions {
+			width: 100%;
+			padding-left: 43px;
+		}
+		.skills-band-actions .button {
+			flex: 1;
 		}
 		.file-row {
 			grid-template-columns: 32px minmax(0, 1fr) 28px;

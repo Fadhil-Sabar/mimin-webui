@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
 import { messageInput } from '$lib/server/validation';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
+import { toPublicConversation } from '$lib/server/skill-runtime';
 export const PATCH: RequestHandler = async (event) => {
 	try {
 		const user = await requireUser(event);
@@ -35,7 +36,7 @@ export const PATCH: RequestHandler = async (event) => {
 				.update(schema.projects)
 				.set({ updatedAt: new Date() })
 				.where(eq(schema.projects.id, existingConversation.projectId));
-		return json({ conversation });
+		return json({ conversation: toPublicConversation(conversation) });
 	} catch (error) {
 		return handleApiError(error);
 	}

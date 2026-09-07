@@ -144,6 +144,7 @@
 			<a class="nav-item active" href={resolve('/settings/instructions')}
 				><FileText size={16} /> Instructions</a
 			>
+			<a class="nav-item" href={resolve('/skills')}><Sparkles size={16} /> Skills</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
 			<a class="nav-item" href={resolve('/settings/browser-extension')}
 				><Puzzle size={16} /> Browser Extension</a

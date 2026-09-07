@@ -377,6 +377,19 @@ Supported initial formats:
 
 The maximum file size is 25 MB. Filenames are sanitized and path traversal is rejected.
 
+### Skills
+
+Use **Skills** in the navigation to create reusable personal or project skills with instructions, configurable tool presets, and up to 12 trigger phrases. Personal skills work in any chat; project skills work only in that project. The Chat skill picker activates a skill for future turns and replaces the selected tools with its preset, while keeping project knowledge enabled. Tools can still be changed manually; removing a skill leaves the current tools selected.
+
+Draft suggestions match trigger phrases locally and require confirmation. Accepting a suggestion activates the skill without sending the draft. Dismissed suggestions stay hidden until the draft is cleared or submitted. Editing or deleting a skill does not change saved conversation or message snapshots; selecting it again applies its latest version. Retries use the original turn's skill instructions.
+
+- `GET /api/skills`: list owned skills; optional `projectId` includes personal skills and that project's skills.
+- `POST /api/skills`: create a skill with `name`, `description`, `instructions`, `projectId`, `enabledTools`, and `triggerPhrases`.
+- `GET/PATCH/DELETE /api/skills/[id]`: read, update, or delete an owned skill.
+- Conversation create/update accepts `skillId`: omit to preserve, pass an ID to activate, or pass `null` to remove.
+
+Apply the new `0011` migration with `npm run db:migrate` before using Skills on an existing database.
+
 ### Conversations
 
 ```text

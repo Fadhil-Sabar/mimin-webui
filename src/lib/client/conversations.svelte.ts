@@ -1,4 +1,7 @@
+import type { SkillSummary } from '$lib/skills';
+
 export type ConversationSummary = {
+	activeSkill?: SkillSummary | null;
 	id: string;
 	title: string;
 	model?: string;
@@ -8,6 +11,52 @@ export type ConversationSummary = {
 	updatedAt?: string;
 	snippet?: string | null;
 };
+
+export const LAST_USED_MODEL_STORAGE_KEY = 'mimin_last_used_model';
+
+export function getLastUsedModel(): string | null {
+	if (typeof window === 'undefined') return null;
+	try {
+		return localStorage.getItem(LAST_USED_MODEL_STORAGE_KEY);
+	} catch {
+		return null;
+	}
+}
+
+export function setLastUsedModel(model: string | null | undefined) {
+	if (typeof window === 'undefined' || !model) return;
+	try {
+		localStorage.setItem(LAST_USED_MODEL_STORAGE_KEY, model);
+	} catch {
+		/* ignore */
+	}
+}
+
+export function resolveInitialModel(
+	configuredModels: { provider: string; id: string }[],
+	preferredCandidate?: string | null,
+	fallbackConversations?: { model?: string }[]
+): string | undefined {
+	if (!configuredModels || configuredModels.length === 0) return undefined;
+
+	const candidates = [
+		preferredCandidate,
+		getLastUsedModel(),
+		fallbackConversations?.[0]?.model,
+		conversationsState.items[0]?.model,
+		'openai/gpt-4o-mini'
+	].filter(Boolean) as string[];
+
+	for (const candidate of candidates) {
+		const matched = configuredModels.find(
+			(model) => `${model.provider}/${model.id}` === candidate
+		);
+		if (matched) return `${matched.provider}/${matched.id}`;
+	}
+
+	const fallback = configuredModels[0];
+	return `${fallback.provider}/${fallback.id}`;
+}
 
 class ConversationsState {
 	items = $state<ConversationSummary[]>([]);
@@ -24,6 +73,9 @@ class ConversationsState {
 				const data = await res.json();
 				this.items = data.conversations ?? [];
 				this.loaded = true;
+				if (!getLastUsedModel() && this.items[0]?.model) {
+					setLastUsedModel(this.items[0].model);
+				}
 			}
 		} catch (error) {
 			console.error('Failed to load conversations:', error);
@@ -35,6 +87,9 @@ class ConversationsState {
 	setItems(items: ConversationSummary[]) {
 		this.items = items;
 		this.loaded = true;
+		if (!getLastUsedModel() && items[0]?.model) {
+			setLastUsedModel(items[0].model);
+		}
 	}
 
 	addOrUpdate(conversation: ConversationSummary) {
@@ -43,6 +98,9 @@ class ConversationsState {
 			this.items[idx] = { ...this.items[idx], ...conversation };
 		} else {
 			this.items.unshift(conversation);
+		}
+		if (conversation.model) {
+			setLastUsedModel(conversation.model);
 		}
 	}
 

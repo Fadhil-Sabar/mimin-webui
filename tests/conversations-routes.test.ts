@@ -73,6 +73,11 @@ vi.mock('$lib/server/db/client', () => {
 	const mockDb = {
 		select: vi.fn(() => ({
 			from: vi.fn(() => ({
+				where: vi.fn(() => ({
+					orderBy: vi.fn(() => ({
+						limit: vi.fn(async () => [testState.conversations[0]])
+					}))
+				})),
 				leftJoin: vi.fn(() => ({
 					where: vi.fn(() => ({
 						orderBy: vi.fn(async () => testState.conversations)
@@ -186,7 +191,38 @@ describe('conversations API endpoints', () => {
 		expect(body.conversation).toMatchObject({
 			title: 'New chat in project',
 			projectId: '11111111-1111-4111-8111-111111111111',
-			projectName: 'project a'
+			projectName: 'project a',
+			model: 'openai/gpt-4o-mini'
 		});
+	});
+
+	it('POST /api/conversations selects the last used model when no model is explicitly provided', async () => {
+		testState.conversations[0].model = 'anthropic/claude-3-5-sonnet';
+		const modelService = await import('$lib/server/ai/model.service');
+		vi.mocked(modelService.listAvailableModels).mockResolvedValueOnce([
+			{ provider: 'openai', id: 'gpt-4o-mini' } as any,
+			{ provider: 'anthropic', id: 'claude-3-5-sonnet' } as any
+		]);
+
+		const event = {
+			request: new Request('http://localhost/api/conversations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					title: 'New chat'
+				})
+			})
+		} as unknown as RequestEvent;
+
+		const response = await POST(event);
+		expect(response.status).toBe(201);
+		const body = await response.json();
+		expect(body.conversation).toMatchObject({
+			title: 'New chat',
+			model: 'anthropic/claude-3-5-sonnet'
+		});
+
+		// restore testState
+		testState.conversations[0].model = 'openai/gpt-4o-mini';
 	});
 });

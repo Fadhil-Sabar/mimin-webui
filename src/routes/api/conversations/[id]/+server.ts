@@ -7,6 +7,12 @@ import { isModelAvailable } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
 import { clearBrowserSession } from '$lib/server/browser/bridge';
+import {
+	resolveConversationSkill,
+	skillActivationFields,
+	toPublicConversation,
+	toPublicMessage
+} from '$lib/server/skill-runtime';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -72,9 +78,11 @@ export const GET: RequestHandler = async (event) => {
 			attachmentsByMessage.set(attachment.messageId, current);
 		}
 		return json({
-			conversation,
+			conversation: {
+				...toPublicConversation(conversation)
+			},
 			messages: rows.map((row) => ({
-				...row,
+				...toPublicMessage(row),
 				attachments: attachmentsByMessage.get(row.id) ?? [],
 				toolCalls: toolCallsByMessage.get(row.id) ?? []
 			})),
@@ -95,23 +103,63 @@ export const PATCH: RequestHandler = async (event) => {
 			return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		const body = await event.request.json();
 		const updateSchema = conversationInput
-			.pick({ title: true, model: true, enabledTools: true })
+			.pick({ title: true, model: true, enabledTools: true, skillId: true })
 			.extend({
 				model: conversationInput.shape.model.removeDefault().optional(),
-				enabledTools: conversationInput.shape.enabledTools.removeDefault().optional()
+				enabledTools: conversationInput.shape.enabledTools.removeDefault().optional(),
+				skillId: conversationInput.shape.skillId.optional()
 			});
 		const parsed = updateSchema.safeParse(body);
-		if (!parsed.success) return apiError('INVALID_INPUT', 'Invalid conversation payload.');
+		if (!parsed.success) {
+			if (
+				typeof body === 'object' &&
+				body !== null &&
+				Object.prototype.hasOwnProperty.call(body, 'skillId')
+			)
+				return apiError('INVALID_SKILL', 'Invalid skill.');
+			return apiError('INVALID_INPUT', 'Invalid conversation payload.');
+		}
 		if (parsed.data.model && !(await isModelAvailable(user.id, parsed.data.model)))
 			return apiError('MODEL_NOT_AVAILABLE', 'Selected model is not available.');
+
+		const hasSkillChange = Object.prototype.hasOwnProperty.call(body, 'skillId');
+		let skillFields: ReturnType<typeof skillActivationFields> | undefined;
+		let enabledTools = parsed.data.enabledTools;
+		if (hasSkillChange) {
+			if (parsed.data.skillId === null || parsed.data.skillId === undefined) {
+				skillFields = skillActivationFields(null);
+			} else {
+				const resolvedSkill = await resolveConversationSkill(
+					parsed.data.skillId,
+					user.id,
+					existingConversation.projectId
+				);
+				if ('error' in resolvedSkill) {
+					return apiError(
+						resolvedSkill.error,
+						resolvedSkill.error === 'SKILL_NOT_FOUND'
+							? 'Skill not found.'
+							: 'Skill is not valid for this project.',
+						resolvedSkill.error === 'SKILL_NOT_FOUND' ? 404 : 400
+					);
+				}
+				skillFields = skillActivationFields(resolvedSkill.skill);
+				enabledTools = getProjectConversationTools(
+					existingConversation.projectId,
+					skillFields.activeSkillSnapshot?.enabledTools ?? []
+				);
+			}
+		}
 		const [conversation] = await getDb()
 			.update(schema.conversations)
 			.set({
-				...parsed.data,
+				...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
+				...(parsed.data.model !== undefined ? { model: parsed.data.model } : {}),
 				enabledTools:
-					parsed.data.enabledTools === undefined
+					enabledTools === undefined
 						? undefined
-						: getProjectConversationTools(existingConversation.projectId, parsed.data.enabledTools),
+						: getProjectConversationTools(existingConversation.projectId, enabledTools),
+				...(skillFields ?? {}),
 				updatedAt: new Date()
 			})
 			.where(eq(schema.conversations.id, id))
@@ -123,7 +171,7 @@ export const PATCH: RequestHandler = async (event) => {
 				.where(eq(schema.projects.id, existingConversation.projectId));
 		return json({
 			conversation: {
-				...conversation,
+				...toPublicConversation(conversation),
 				projectName: existingConversation.projectName ?? null
 			}
 		});

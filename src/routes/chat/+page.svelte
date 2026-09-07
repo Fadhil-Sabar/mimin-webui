@@ -33,6 +33,7 @@
 		Square,
 		User,
 		UserRound,
+		WandSparkles,
 		Wrench,
 		X
 	} from '@lucide/svelte';
@@ -44,6 +45,13 @@
 		type ThinkingLevel
 	} from '$lib/components/ModelPicker.svelte';
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
+	import SkillPicker from '$lib/components/SkillPicker.svelte';
+	import {
+		isSkillSuggestionDismissed,
+		matchSkillSuggestion,
+		type Skill,
+		type SkillSummary
+	} from '$lib/skills';
 	import QuestionCard from '$lib/components/QuestionCard.svelte';
 	import { answerQuestion } from '$lib/client/api';
 	import Markdown from '$lib/components/Markdown.svelte';
@@ -51,11 +59,15 @@
 	import {
 		conversationSearch,
 		conversationsState,
+		getLastUsedModel,
+		resolveInitialModel,
+		setLastUsedModel,
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
 
 	type Conversation = {
+		activeSkill?: SkillSummary | null;
 		id: string;
 		title: string;
 		model: string;
@@ -76,6 +88,7 @@
 		completedAt?: string | null;
 	};
 	type ChatMessage = {
+		skill?: SkillSummary | null;
 		id: string;
 		role: 'user' | 'assistant';
 		content: unknown;
@@ -103,9 +116,10 @@
 	let conversations = $state<Conversation[]>(
 		conversationsState.items.map((conversation) => ({
 			id: conversation.id,
+			activeSkill: conversation.activeSkill ?? null,
 			title: conversation.title,
 			model: conversation.model ?? 'openai/gpt-4o-mini',
-			enabledTools: ['web_search', 'ask_question'],
+			enabledTools: ['web_search', 'ask_question', 'create_skill'],
 			createdAt: conversation.createdAt ?? new Date().toISOString(),
 			updatedAt: conversation.updatedAt ?? new Date().toISOString(),
 			projectId: conversation.projectId,
@@ -137,6 +151,81 @@
 	let thinkingLevelsByModel = $state<Record<string, ThinkingLevel>>({});
 	let availableTools = $state<ToolOption[]>([]);
 	let toolsLoading = $state(true);
+	let skills = $state<Skill[]>([]);
+	let skillsLoading = $state(false);
+	let skillSaving = $state(false);
+	let toolsSaving = $state(false);
+	let suggestionDismissed = $state(false);
+	let suggestion = $state<SkillSummary | null>(null);
+	let skillsLoadToken = 0;
+	let eligibleSkills = $derived(
+		skills.filter((skill) => !skill.projectId || skill.projectId === activeConversation?.projectId)
+	);
+	$effect(() => {
+		const draft = message;
+		const candidates = eligibleSkills;
+		const projectId = activeConversation?.projectId ?? null;
+		const selectedId = activeConversation?.activeSkill?.id ?? null;
+		suggestionDismissed = isSkillSuggestionDismissed(draft, suggestionDismissed);
+		const dismissed = suggestionDismissed;
+		suggestion = null;
+		const timer = setTimeout(() => {
+			if (!dismissed) suggestion = matchSkillSuggestion(draft, candidates, projectId, selectedId);
+		}, 250);
+		return () => clearTimeout(timer);
+	});
+
+	async function loadSkills() {
+		const token = ++skillsLoadToken;
+		skillsLoading = true;
+		try {
+			const response = await fetch('/api/skills');
+			if (!response.ok) throw new Error('Could not load skills');
+			const result = await response.json();
+			if (token === skillsLoadToken) skills = result.skills ?? [];
+		} catch (error) {
+			if (token === skillsLoadToken)
+				notify(error instanceof Error ? error.message : 'Could not load skills');
+		} finally {
+			if (token === skillsLoadToken) skillsLoading = false;
+		}
+	}
+
+	async function selectSkill(skillId: string | null) {
+		if (!activeId || conversationLoading || skillSaving || toolsSaving || modelSaving) return;
+		const id = activeId;
+		const navigationToken = conversationNavigationToken;
+		skillSaving = true;
+		try {
+			const response = await fetch(`/api/conversations/${id}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ skillId })
+			});
+			const result = await response.json();
+			if (!response.ok) throw new Error(result.error?.message ?? 'Could not select skill');
+			conversations = conversations.map((conversation) =>
+				conversation.id === id ? result.conversation : conversation
+			);
+			conversationsState.addOrUpdate(result.conversation);
+			if (activeId === id && navigationToken === conversationNavigationToken) {
+				conversationLoadToken += 1;
+				conversationLoading = false;
+				activeConversation = result.conversation;
+				notify('Applies to future replies.');
+			}
+		} catch (error) {
+			if (activeId === id)
+				notify(error instanceof Error ? error.message : 'Could not select skill');
+		} finally {
+			skillSaving = false;
+		}
+	}
+
+	async function toggleSkill(skillId: string, enabled: boolean) {
+		await selectSkill(enabled ? skillId : null);
+	}
+
 	let browserBridgeEnabled = $state(false);
 	let abortController: AbortController | undefined;
 	let scrollEl: HTMLElement | undefined;
@@ -148,6 +237,8 @@
 	let pendingAttachments = $state<File[]>([]);
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 	let conversationLoadToken = 0;
+	let conversationNavigationToken = 0;
+	let conversationLoading = $state(false);
 	let toolsLoadToken = 0;
 
 	$effect(() => {
@@ -158,9 +249,12 @@
 		};
 		window.addEventListener('storage', handleSync);
 		window.addEventListener('focus', handleSync);
+		void loadSkills();
+		window.addEventListener('focus', loadSkills);
 		return () => {
 			window.removeEventListener('storage', handleSync);
 			window.removeEventListener('focus', handleSync);
+			window.removeEventListener('focus', loadSkills);
 		};
 	});
 
@@ -250,6 +344,14 @@
 				query: qText
 			};
 		}
+		if (toolName === 'create_skill') {
+			const skillName = typeof rawInput.name === 'string' ? rawInput.name : undefined;
+			return {
+				label: 'Create Skill',
+				action: skillName ? `Creating skill "${skillName}"...` : 'Creating skill...',
+				query: skillName
+			};
+		}
 		return {
 			label: toolName,
 			action: query ? `Running ${toolName} for "${query}"` : `Running ${toolName}...`,
@@ -321,6 +423,19 @@
 			if (details?.skipped) return 'Skipped';
 			if (details?.answers && Array.isArray(details.answers)) return 'Answered';
 			return 'Completed';
+		}
+		if (toolCall.toolName === 'create_skill') {
+			const output =
+				toolCall.output && typeof toolCall.output === 'object'
+					? (toolCall.output as Record<string, unknown>)
+					: {};
+			const details =
+				output.details && typeof output.details === 'object'
+					? (output.details as Record<string, unknown>)
+					: undefined;
+			const skill = details?.skill as Record<string, unknown> | undefined;
+			if (skill?.name) return `Created "${skill.name}"`;
+			return 'Skill created';
 		}
 		return 'Completed';
 	}
@@ -464,9 +579,7 @@
 	}
 
 	function defaultModel() {
-		const preferred = configuredModels.find((model) => modelRef(model) === 'openai/gpt-4o-mini');
-		const selected = preferred ?? configuredModels[0];
-		return selected ? modelRef(selected) : undefined;
+		return resolveInitialModel(configuredModels, activeConversation?.model, conversations);
 	}
 
 	async function loadConversations() {
@@ -476,6 +589,9 @@
 			const data = await response.json();
 			conversations = data.conversations ?? [];
 			conversationsState.setItems(conversations);
+			if (!getLastUsedModel() && conversations[0]?.model) {
+				setLastUsedModel(conversations[0].model);
+			}
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not load conversations');
 		}
@@ -546,8 +662,10 @@
 
 	async function loadConversation(id: string, replaceUrl = false, preserveLiveState = false) {
 		const loadToken = ++conversationLoadToken;
+		conversationLoading = true;
 		const switching = id !== activeId;
 		if (switching) {
+			conversationNavigationToken += 1;
 			pendingAttachments = [];
 			abortController?.abort();
 			abortController = undefined;
@@ -568,6 +686,9 @@
 			const data = await response.json();
 			if (loadToken !== conversationLoadToken || activeId !== id) return;
 			activeConversation = data.conversation ?? activeConversation;
+			if (activeConversation?.model) {
+				setLastUsedModel(activeConversation.model);
+			}
 			messages = (data.messages ?? []).filter(
 				(m: ChatMessage) => m.role === 'user' || m.role === 'assistant'
 			);
@@ -577,6 +698,8 @@
 			if (loadToken !== conversationLoadToken || activeId !== id) return;
 			notify(error instanceof Error ? error.message : 'Could not load conversation');
 			throw error;
+		} finally {
+			if (loadToken === conversationLoadToken) conversationLoading = false;
 		}
 	}
 
@@ -587,8 +710,11 @@
 			const model = defaultModel();
 			const conversation = await createConversation({
 				model: model ?? undefined,
-				enabledTools: ['web_search', 'ask_question']
+				enabledTools: ['web_search', 'ask_question', 'create_skill']
 			});
+			if (conversation.model) {
+				setLastUsedModel(conversation.model);
+			}
 			await loadConversations();
 			await loadConversation(conversation.id, false);
 		} catch (error) {
@@ -732,10 +858,19 @@
 	});
 
 	async function selectModel(model: string) {
-		if (!activeId || model === activeConversation?.model) return;
+		if (
+			!activeId ||
+			skillSaving ||
+			toolsSaving ||
+			modelSaving ||
+			model === activeConversation?.model
+		)
+			return;
+		const id = activeId;
+		const loadToken = conversationLoadToken;
 		modelSaving = true;
 		try {
-			const response = await fetch(`/api/conversations/${activeId}`, {
+			const response = await fetch(`/api/conversations/${id}`, {
 				method: 'PATCH',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ model })
@@ -745,10 +880,12 @@
 					(await response.json().catch(() => null))?.error?.message ?? 'Could not select model'
 				);
 			const data = await response.json();
-			activeConversation = data.conversation;
+			if (activeId === id && loadToken === conversationLoadToken)
+				activeConversation = data.conversation;
 			conversations = conversations.map((conversation) =>
-				conversation.id === activeId ? data.conversation : conversation
+				conversation.id === id ? data.conversation : conversation
 			);
+			setLastUsedModel(model);
 			notify('Model selected');
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not select model');
@@ -791,9 +928,12 @@
 	}
 
 	async function toggleTool(toolName: string, enable: boolean) {
-		if (!activeId || !activeConversation) return;
+		if (!activeId || !activeConversation || skillSaving || toolsSaving || modelSaving) return;
+		const id = activeId;
+		const loadToken = conversationLoadToken;
 		const toolObj = displayTools.find((t) => t.name === toolName);
 		if (toolObj?.readOnly) return;
+		toolsSaving = true;
 		const conversation = activeConversation;
 		const current = conversation.enabledTools ?? [];
 		const updated = enable
@@ -801,12 +941,10 @@
 			: current.filter((t) => t !== toolName);
 
 		activeConversation = { ...conversation, enabledTools: updated };
-		conversations = conversations.map((c) =>
-			c.id === activeId ? { ...c, enabledTools: updated } : c
-		);
+		conversations = conversations.map((c) => (c.id === id ? { ...c, enabledTools: updated } : c));
 
 		try {
-			const response = await fetch(`/api/conversations/${activeId}`, {
+			const response = await fetch(`/api/conversations/${id}`, {
 				method: 'PATCH',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify({ enabledTools: updated })
@@ -814,20 +952,28 @@
 			if (!response.ok) throw new Error('Could not update tools');
 			const data = await response.json();
 			if (data.conversation) {
-				activeConversation = data.conversation;
-				conversations = conversations.map((c) => (c.id === activeId ? data.conversation : c));
+				if (activeId === id && loadToken === conversationLoadToken)
+					activeConversation = data.conversation;
+				conversations = conversations.map((c) => (c.id === id ? data.conversation : c));
 			}
 			const label = toolObj?.label ?? toolName;
 			notify(enable ? `${label} enabled` : `${label} disabled`);
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not update tools');
-			if (activeConversation) {
+			if (activeConversation && activeId === id && loadToken === conversationLoadToken) {
 				activeConversation = { ...activeConversation, enabledTools: current };
 			}
-			conversations = conversations.map((c) =>
-				c.id === activeId ? { ...c, enabledTools: current } : c
-			);
+			conversations = conversations.map((c) => (c.id === id ? { ...c, enabledTools: current } : c));
+		} finally {
+			toolsSaving = false;
 		}
+	}
+
+	function messageSkill(index: number): SkillSummary | null {
+		for (let i = index; i >= 0; i--) {
+			if (messages[i].role === 'user') return messages[i].skill ?? null;
+		}
+		return null;
 	}
 
 	function formatTime(iso: string) {
@@ -882,7 +1028,19 @@
 
 	function handleStreamEvent(event: SseEvent) {
 		if (event.type === 'message.start') {
-			if (event.role === 'assistant') {
+			if (event.role === 'user') {
+				const index = messages.findLastIndex((item) => item.role === 'user');
+				if (index >= 0)
+					messages = messages.map((item, i) =>
+						i === index
+							? {
+									...item,
+									id: String(event.messageId),
+									skill: (event.skill as SkillSummary | null) ?? null
+								}
+							: item
+					);
+			} else if (event.role === 'assistant') {
 				const msgId = String(event.messageId);
 				const existing = messages.find((m) => m.id === msgId);
 				if (!existing) {
@@ -1011,22 +1169,28 @@
 			const toolCallId = String(event.toolCallId);
 			const status = event.status === 'failed' ? 'failed' : 'completed';
 			const result = event.result;
+			let isCreateSkill = event.toolName === 'create_skill' || event.tool === 'create_skill';
 			messages = messages.map((msg) => {
 				if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
 				return {
 					...msg,
-					toolCalls: msg.toolCalls.map((c) =>
-						c.toolCallId === toolCallId
-							? {
-									...c,
-									status,
-									output: result,
-									completedAt: new Date().toISOString()
-								}
-							: c
-					)
+					toolCalls: msg.toolCalls.map((c) => {
+						if (c.toolCallId === toolCallId) {
+							if (c.toolName === 'create_skill') isCreateSkill = true;
+							return {
+								...c,
+								status,
+								output: result,
+								completedAt: new Date().toISOString()
+							};
+						}
+						return c;
+					})
 				};
 			});
+			if (isCreateSkill && status === 'completed') {
+				void loadSkills();
+			}
 		} else if (event.type === 'message.end') {
 			lastFailedSubmission = null;
 			const msgId = String(event.messageId);
@@ -1046,11 +1210,14 @@
 	}
 
 	async function sendMessage() {
-		if (running) return;
+		if (running || conversationLoading || skillSaving || toolsSaving || modelSaving) return;
 		const content = message.trim();
 		if ((!content && pendingAttachments.length === 0) || !activeId) {
 			notify(!activeId ? 'No active conversation' : 'Type a message or attach a file first');
 			return;
+		}
+		if (activeConversation?.model) {
+			setLastUsedModel(activeConversation.model);
 		}
 		const filesToSend = pendingAttachments;
 		lastFailedSubmission = {
@@ -1070,6 +1237,7 @@
 			{
 				id: `${activeId}:user:${Date.now()}`,
 				role: 'user',
+				skill: activeConversation?.activeSkill ?? null,
 				content,
 				attachments: filesToSend.map((file, index) => ({
 					id: `${activeId}:attachment:${attachmentTimestamp}:${index}`,
@@ -1124,7 +1292,8 @@
 	}
 
 	async function retryLastMessage() {
-		if (running || !activeId) return;
+		if (running || conversationLoading || skillSaving || toolsSaving || modelSaving || !activeId)
+			return;
 		const streamConversationId = activeId;
 		const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
 		if (lastUserIdx === -1) {
@@ -1199,8 +1368,14 @@
 	function onKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
-			if (!running) sendMessage();
+			if (!running && !conversationLoading && !skillSaving && !toolsSaving && !modelSaving)
+				void sendMessage();
 		}
+	}
+
+	function applySkillSuggestion() {
+		const skill = suggestion;
+		if (skill) void selectSkill(skill.id);
 	}
 
 	async function logout() {
@@ -1238,7 +1413,12 @@
 		</div>
 		<button
 			class="new-chat"
-			disabled={isNewConversationEmpty || running}
+			disabled={isNewConversationEmpty ||
+				running ||
+				conversationLoading ||
+				skillSaving ||
+				toolsSaving ||
+				modelSaving}
 			title={isNewConversationEmpty ? 'Already on a new conversation' : 'New chat'}
 			onclick={() => {
 				sidebar.closeMobile();
@@ -1261,6 +1441,7 @@
 			<a class="nav-item" href={resolve('/settings/instructions')}
 				><FileText size={16} /> Instructions</a
 			>
+			<a class="nav-item" href={resolve('/skills')}><Sparkles size={16} /> Skills</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
 			<a class="nav-item" href={resolve('/settings/browser-extension')}
 				><Puzzle size={16} /> Browser Extension</a
@@ -1340,6 +1521,7 @@
 				<div class="empty-state">Ask something to start a conversation.</div>
 			{/if}
 			{#each messages as msg, i (msg.id)}
+				{@const turnSkill = messageSkill(i)}
 				<article
 					class="message"
 					class:assistant-message={msg.role === 'assistant'}
@@ -1354,6 +1536,7 @@
 								<Bot size={14} aria-hidden="true" />
 								<span>MIMIN</span>
 							{/if}
+							{#if turnSkill}<span class="skill-badge">{turnSkill.name}</span>{/if}
 							<time datetime={msg.createdAt}>{formatTime(msg.createdAt)}</time>
 						</div>
 						{#if msg.role === 'user' && i === messages.length - 1 && canRetry}
@@ -1361,7 +1544,11 @@
 								type="button"
 								class="message-retry-btn"
 								onclick={retryLastMessage}
-								disabled={running}
+								disabled={running ||
+									conversationLoading ||
+									skillSaving ||
+									toolsSaving ||
+									modelSaving}
 								title="Retry last message"
 								aria-label="Retry last message"
 							>
@@ -1447,8 +1634,10 @@
 												<div class="tool-call-icon">
 													{#if toolCall.toolName === 'project_knowledge_search'}
 														<FolderKanban size={13} />
-													{:else if toolCall.toolName === 'web_search'}
+													{:else if toolCall.toolName === 'web_search' || toolCall.toolName === 'browser_search'}
 														<Globe size={13} />
+													{:else if toolCall.toolName === 'create_skill'}
+														<WandSparkles size={13} />
 													{:else}
 														<Wrench size={13} />
 													{/if}
@@ -1529,7 +1718,7 @@
 							type="button"
 							class="inline-error-retry"
 							onclick={retryLastMessage}
-							disabled={running}
+							disabled={running || conversationLoading || skillSaving || toolsSaving || modelSaving}
 							title="Retry last message"
 							aria-label="Retry last message"
 						>
@@ -1541,6 +1730,56 @@
 			{/if}
 			<div class="composer-container">
 				<div class="chat-composer">
+					{#if activeConversation?.activeSkill}
+						<div class="skill-status">
+							<span class="skill-badge">
+								<Sparkles size={12} class="skill-badge-icon" aria-hidden="true" />
+								<span class="skill-badge-name">{activeConversation.activeSkill.name}</span>
+								<button
+									type="button"
+									class="skill-badge-remove"
+									aria-label="Remove active skill"
+									title="Remove active skill"
+									disabled={conversationLoading || skillSaving || toolsSaving || modelSaving}
+									onclick={() => selectSkill(null)}
+								>
+									<X size={12} />
+								</button>
+							</span>
+							<span class="skill-status-hint">Applies to future replies</span>
+						</div>
+					{/if}
+					{#if suggestion && !suggestionDismissed}
+						<div class="skill-suggestion-banner">
+							<div class="skill-suggestion-content">
+								<Sparkles size={13} class="skill-suggestion-icon" aria-hidden="true" />
+								<span class="skill-suggestion-text">
+									Suggested skill: <strong>{suggestion.name}</strong>
+								</span>
+							</div>
+							<div class="skill-suggestion-actions">
+								<button
+									type="button"
+									class="skill-suggestion-apply"
+									disabled={conversationLoading || skillSaving || toolsSaving || modelSaving}
+									onclick={applySkillSuggestion}
+								>
+									Use skill
+								</button>
+								<button
+									type="button"
+									class="skill-suggestion-dismiss"
+									aria-label="Dismiss skill suggestion"
+									title="Dismiss suggestion"
+									onclick={() => {
+										suggestionDismissed = true;
+									}}
+								>
+									<X size={13} />
+								</button>
+							</div>
+						</div>
+					{/if}
 					{#if pendingAttachments.length}
 						<div class="attachment-list" aria-label="Files to attach">
 							{#each pendingAttachments as file, index (file.name + file.size + index)}
@@ -1579,14 +1818,24 @@
 							<button
 								class="control"
 								title="Attach files"
-								disabled={running}
+								disabled={running ||
+									conversationLoading ||
+									skillSaving ||
+									toolsSaving ||
+									modelSaving}
 								onclick={() => fileInput?.click()}><Paperclip size={15} /> File</button
 							>
 							<ModelPicker
 								models={pickerModels}
 								value={activeConversation?.model ?? ''}
 								loading={modelsLoading}
-								disabled={running || !activeId || modelSaving || configuredModels.length === 0}
+								disabled={running ||
+									!activeId ||
+									conversationLoading ||
+									modelSaving ||
+									skillSaving ||
+									toolsSaving ||
+									configuredModels.length === 0}
 								placeholder={configuredModels.length
 									? 'Pick a model'
 									: modelLoadError
@@ -1597,7 +1846,14 @@
 							<select
 								class="control thinking-level-control"
 								value={selectedThinkingLevel}
-								disabled={running || thinkingSaving || !activeId || !activeConversation?.model}
+								disabled={running ||
+									conversationLoading ||
+									thinkingSaving ||
+									skillSaving ||
+									toolsSaving ||
+									modelSaving ||
+									!activeId ||
+									!activeConversation?.model}
 								aria-label="Thinking level"
 								title="Thinking level"
 								onchange={(event) => selectThinkingLevel(event.currentTarget.value)}
@@ -1610,16 +1866,35 @@
 									</option>
 								{/each}
 							</select>
+							<SkillPicker
+								skills={eligibleSkills}
+								activeSkillId={activeConversation?.activeSkill?.id}
+								loading={skillsLoading}
+								disabled={running ||
+									!activeId ||
+									conversationLoading ||
+									skillSaving ||
+									toolsSaving ||
+									modelSaving}
+								ontoggle={toggleSkill}
+							/>
 							<ToolPicker
 								tools={displayTools}
 								enabledTools={activeConversation?.enabledTools ?? []}
 								loading={toolsLoading}
-								disabled={running || !activeId}
+								disabled={running ||
+									!activeId ||
+									conversationLoading ||
+									skillSaving ||
+									toolsSaving ||
+									modelSaving}
 								ontoggle={toggleTool}
 							/>
 						</div>
 						<button
 							class="send-button"
+							disabled={!running &&
+								(conversationLoading || skillSaving || toolsSaving || modelSaving)}
 							class:stop={running}
 							aria-label={running ? 'Stop generation' : 'Send message'}
 							title={running ? 'Stop generation' : 'Send message'}
@@ -1668,6 +1943,133 @@
 {#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <style>
+	.skill-status {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex-wrap: wrap;
+		padding: 8px 12px 0;
+	}
+	.skill-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		max-width: 100%;
+		padding: 3px 8px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--surface-subtle);
+		color: var(--text);
+		font-size: var(--text-xs);
+		font-weight: 500;
+	}
+	.skill-badge :global(svg.skill-badge-icon) {
+		color: var(--accent-fg);
+		flex-shrink: 0;
+	}
+	.skill-badge-name {
+		max-width: 200px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.skill-badge-remove {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 1px;
+		border: 0;
+		border-radius: 3px;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: color 0.15s ease, background 0.15s ease;
+	}
+	.skill-badge-remove:hover:not(:disabled) {
+		color: var(--danger-text, #ef4444);
+		background: var(--surface-hover);
+	}
+	.skill-badge-remove:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.skill-status-hint {
+		color: var(--text-faint);
+		font-size: var(--text-xs);
+	}
+	.skill-suggestion-banner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+		margin: 8px 12px 0;
+		padding: 6px 10px;
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		background: var(--surface-subtle);
+		font-size: var(--text-xs);
+		color: var(--text);
+	}
+	.skill-suggestion-content {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		min-width: 0;
+	}
+	.skill-suggestion-banner :global(svg.skill-suggestion-icon) {
+		color: var(--accent-fg);
+		flex-shrink: 0;
+	}
+	.skill-suggestion-text {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.skill-suggestion-text strong {
+		color: var(--text-strong);
+		font-weight: 600;
+	}
+	.skill-suggestion-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex-shrink: 0;
+	}
+	.skill-suggestion-apply {
+		padding: 2px 8px;
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		background: var(--surface);
+		color: var(--text-strong);
+		font-size: var(--text-xs);
+		font-weight: 550;
+		cursor: pointer;
+		transition: background 0.15s ease, border-color 0.15s ease;
+	}
+	.skill-suggestion-apply:hover:not(:disabled) {
+		background: var(--surface-hover);
+		border-color: var(--text-faint);
+	}
+	.skill-suggestion-apply:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.skill-suggestion-dismiss {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 3px;
+		border: 0;
+		border-radius: 4px;
+		background: transparent;
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: color 0.15s ease;
+	}
+	.skill-suggestion-dismiss:hover {
+		color: var(--text-strong);
+	}
+
 	.new-chat:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
@@ -1764,6 +2166,8 @@
 	}
 	.message-label-header {
 		display: flex;
+		flex-wrap: wrap;
+		max-width: 100%;
 		align-items: center;
 		gap: 6px;
 		white-space: nowrap;

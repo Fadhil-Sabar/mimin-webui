@@ -62,6 +62,13 @@ const tools: AppTool[] = [
 		projectOnly: true
 	},
 	{
+		name: 'create_skill',
+		label: 'Create Skill',
+		description: 'Create a reusable skill with custom instructions, tools, and triggers.',
+		category: 'workspace',
+		enabled: true
+	},
+	{
 		name: 'code_execution',
 		label: 'Code Execution',
 		description: 'Run isolated code tasks.',

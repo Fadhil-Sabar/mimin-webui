@@ -18,6 +18,11 @@ import {
 	MAX_FILE_SIZE,
 	saveUploadedFile
 } from '$lib/server/files/storage';
+import {
+	getConversationSkillSnapshot,
+	getConversationSkillSummary
+} from '$lib/server/skill-runtime';
+import { getProjectConversationTools } from '$lib/server/ai/project-context';
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -69,6 +74,12 @@ export const POST: RequestHandler = async (event) => {
 		const db = getDb();
 		const conversation = await getOwnedConversation(conversationId, user.id);
 		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
+		// Capture tool settings before the async stream starts. A skill switch
+		// made while this turn is generating applies only to the next turn.
+		const turnEnabledTools = getProjectConversationTools(
+			conversation.projectId,
+			conversation.enabledTools
+		);
 		turnToken = randomUUID();
 		if (!beginConversationTurn(conversationId, turnToken))
 			return apiError(
@@ -103,7 +114,12 @@ export const POST: RequestHandler = async (event) => {
 		}
 		const [userMessage] = await db
 			.insert(schema.messages)
-			.values({ conversationId, role: 'user', content: parsed.data.content })
+			.values({
+				conversationId,
+				role: 'user',
+				content: parsed.data.content,
+				skillSnapshot: getConversationSkillSnapshot(conversation)
+			})
 			.returning();
 		messageIdForCleanup = userMessage.id;
 		if (conversation.projectId)
@@ -181,6 +197,7 @@ export const POST: RequestHandler = async (event) => {
 					messageId: userMessage.id,
 					role: 'user',
 					content: parsed.data.content,
+					skill: getConversationSkillSummary(conversation),
 					attachments: attachmentRecords
 				});
 				await runConversationTurn(
@@ -191,7 +208,8 @@ export const POST: RequestHandler = async (event) => {
 					user.id,
 					userMessage.id,
 					streamTurnToken,
-					browserBridgeEnabled
+					browserBridgeEnabled,
+					turnEnabledTools
 				);
 				send('done', { type: 'done' });
 			} catch (error) {

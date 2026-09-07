@@ -6,6 +6,7 @@ import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/ser
 import { projectInput } from '$lib/server/validation';
 import { cleanupStoredFiles } from '$lib/server/files/storage';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
+import { toPublicConversation } from '$lib/server/skill-runtime';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -82,10 +83,16 @@ export const GET: RequestHandler = async (event) => {
 		]);
 		const fileTotal = Number(fileTotals[0]?.count ?? 0);
 		const conversationTotal = Number(conversationTotals[0]?.count ?? 0);
+		const publicConversations = conversations.map((conversation) => {
+			const publicConversation = toPublicConversation(conversation);
+			if (!publicConversation.activeSkill)
+				Reflect.deleteProperty(publicConversation, 'activeSkill');
+			return publicConversation;
+		});
 		return json({
 			project,
 			files,
-			conversations,
+			conversations: publicConversations,
 			pagination: {
 				files: {
 					page: filesPagination.page,

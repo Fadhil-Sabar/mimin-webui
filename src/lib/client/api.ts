@@ -65,7 +65,12 @@ function tryParseJson(value: string): unknown | undefined {
 }
 
 export async function createConversation(
-	input: { projectId?: string | null; model?: string; enabledTools?: string[] } = {}
+	input: {
+		projectId?: string | null;
+		model?: string;
+		enabledTools?: string[];
+		skillId?: string | null;
+	} = {}
 ) {
 	const response = await fetch('/api/conversations', {
 		method: 'POST',
@@ -83,7 +88,12 @@ export async function stopConversation(id: string) {
 
 export async function updateConversation(
 	id: string,
-	input: { title?: string; model?: string; enabledTools?: string[] }
+	input: {
+		title?: string;
+		model?: string;
+		enabledTools?: string[];
+		skillId?: string | null;
+	}
 ) {
 	const response = await fetch(`/api/conversations/${id}`, {
 		method: 'PATCH',

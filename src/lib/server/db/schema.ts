@@ -11,6 +11,7 @@ import {
 	primaryKey,
 	uniqueIndex
 } from 'drizzle-orm/pg-core';
+import type { SkillSnapshot } from '$lib/skills';
 
 export const users = pgTable('users', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -97,6 +98,36 @@ export const projects = pgTable(
 	(table) => ({ userIdx: index('projects_user_idx').on(table.userId) })
 );
 
+/** User-owned reusable instructions and tool presets. */
+export const skills = pgTable(
+	'skills',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		description: text('description').notNull().default(''),
+		instructions: text('instructions').notNull(),
+		enabledTools: jsonb('enabled_tools')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		triggerPhrases: jsonb('trigger_phrases')
+			.$type<string[]>()
+			.notNull()
+			.default(sql`'[]'::jsonb`),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		userIdx: index('skills_user_idx').on(table.userId),
+		projectIdx: index('skills_project_idx').on(table.projectId),
+		userProjectIdx: index('skills_user_project_idx').on(table.userId, table.projectId)
+	})
+);
+
 export const projectFiles = pgTable(
 	'project_files',
 	{
@@ -123,6 +154,9 @@ export const conversations = pgTable(
 		id: uuid('id').defaultRandom().primaryKey(),
 		userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }),
 		projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+		activeSkillId: uuid('active_skill_id').references(() => skills.id, { onDelete: 'set null' }),
+		// Captured at activation so edits/deletion never rewrite conversation history.
+		activeSkillSnapshot: jsonb('active_skill_snapshot').$type<SkillSnapshot>(),
 		title: text('title').notNull().default('New conversation'),
 		model: text('model').notNull().default('openai/gpt-4o-mini'),
 		enabledTools: jsonb('enabled_tools')
@@ -172,6 +206,8 @@ export const messages = pgTable(
 			.references(() => conversations.id, { onDelete: 'cascade' }),
 		role: text('role').notNull(),
 		content: jsonb('content').notNull(),
+		// Only user messages carry this immutable per-turn skill context.
+		skillSnapshot: jsonb('skill_snapshot').$type<SkillSnapshot>(),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => ({ conversationIdx: index('messages_conversation_idx').on(table.conversationId) })

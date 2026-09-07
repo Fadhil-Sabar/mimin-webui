@@ -20,11 +20,18 @@
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import {
+		conversationsState,
+		getLastUsedModel,
+		resolveInitialModel,
+		setLastUsedModel,
+		type ConversationSummary
+	} from '$lib/client/conversations.svelte';
 	let prompt = $state('');
 	let toast = $state('');
 	let { data } = $props();
 	let user = $derived(data.user);
-	let conversations = $state<{ id: string; title: string }[]>([]);
+	let conversations = $state<ConversationSummary[]>([]);
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
 	let modelLoadError = $state('');
@@ -57,9 +64,7 @@
 				.filter(Boolean)
 				.join(' ');
 			if (modelLoadError) notify('Some live models could not be loaded. Check Providers.');
-			const preferred = configuredModels.find((model) => modelRef(model) === 'openai/gpt-4o-mini');
-			const selected = preferred ?? configuredModels[0];
-			selectedModel = selected ? modelRef(selected) : '';
+			selectedModel = resolveInitialModel(configuredModels) ?? '';
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not load models');
 		} finally {
@@ -81,6 +86,7 @@
 			);
 			return;
 		}
+		setLastUsedModel(selectedModel);
 		try {
 			const response = await fetch('/api/conversations', {
 				method: 'POST',
@@ -90,6 +96,9 @@
 			if (!response.ok)
 				throw new Error((await response.json()).error?.message ?? 'Could not start a conversation');
 			const conversation = (await response.json()).conversation;
+			if (conversation.model) {
+				setLastUsedModel(conversation.model);
+			}
 			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}&prompt=${encodeURIComponent(content)}`;
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not start a conversation');
@@ -107,7 +116,17 @@
 		await loadModels();
 		try {
 			const response = await fetch('/api/conversations');
-			if (response.ok) conversations = (await response.json()).conversations ?? [];
+			if (response.ok) {
+				const data = await response.json();
+				conversations = data.conversations ?? [];
+				conversationsState.setItems(conversations);
+				if (!getLastUsedModel() && conversations[0]?.model) {
+					setLastUsedModel(conversations[0].model);
+					if (configuredModels.some((m) => modelRef(m) === conversations[0].model)) {
+						selectedModel = conversations[0].model;
+					}
+				}
+			}
 		} catch {
 			/* ignore */
 		}
@@ -160,6 +179,7 @@
 			<a class="nav-item" href={resolve('/settings/instructions')}
 				><FileText size={16} /> Instructions</a
 			>
+			<a class="nav-item" href={resolve('/skills')}><Sparkles size={16} /> Skills</a>
 			<a class="nav-item" href={resolve('/settings/web-search')}><Globe size={16} /> Web Search</a>
 			<a class="nav-item" href={resolve('/settings/browser-extension')}
 				><Puzzle size={16} /> Browser Extension</a
@@ -222,6 +242,7 @@
 						placeholder={modelLoadError ? 'Models unavailable' : 'Configure a provider'}
 						onselect={(model) => {
 							selectedModel = model;
+							setLastUsedModel(model);
 						}}
 					/>
 					<button

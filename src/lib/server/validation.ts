@@ -1,4 +1,40 @@
 import { z } from 'zod';
+
+export const SKILL_NAME_MAX_LENGTH = 120;
+export const SKILL_DESCRIPTION_MAX_LENGTH = 2000;
+export const SKILL_INSTRUCTIONS_MAX_LENGTH = 20000;
+export const SKILL_MAX_TOOLS = 20;
+export const SKILL_MAX_TRIGGER_PHRASES = 12;
+export const SKILL_TRIGGER_MAX_LENGTH = 160;
+
+function hasUniqueNormalizedValues(values: string[]) {
+	const normalized = values.map((value) => value.replace(/\s+/g, ' ').trim().toLowerCase());
+	return new Set(normalized).size === normalized.length;
+}
+
+const skillTriggerPhrases = z
+	.array(z.string().trim().min(1).max(SKILL_TRIGGER_MAX_LENGTH))
+	.max(SKILL_MAX_TRIGGER_PHRASES)
+	.refine(hasUniqueNormalizedValues, 'Trigger phrases must be unique.');
+
+export const skillInput = z.object({
+	name: z.string().trim().min(1).max(SKILL_NAME_MAX_LENGTH),
+	description: z.string().trim().max(SKILL_DESCRIPTION_MAX_LENGTH).default(''),
+	instructions: z.string().trim().min(1).max(SKILL_INSTRUCTIONS_MAX_LENGTH),
+	projectId: z.string().uuid().nullable().default(null),
+	enabledTools: z.array(z.string().trim().min(1).max(100)).max(SKILL_MAX_TOOLS).default([]),
+	triggerPhrases: skillTriggerPhrases.default([])
+});
+
+export const skillPatchInput = z.object({
+	name: z.string().trim().min(1).max(SKILL_NAME_MAX_LENGTH).optional(),
+	description: z.string().trim().max(SKILL_DESCRIPTION_MAX_LENGTH).optional(),
+	instructions: z.string().trim().min(1).max(SKILL_INSTRUCTIONS_MAX_LENGTH).optional(),
+	projectId: z.string().uuid().nullable().optional(),
+	enabledTools: z.array(z.string().trim().min(1).max(100)).max(SKILL_MAX_TOOLS).optional(),
+	triggerPhrases: skillTriggerPhrases.optional()
+});
+
 export const projectInput = z.object({
 	name: z.string().trim().min(1).max(120),
 	description: z.string().trim().max(2000).default(''),
@@ -6,6 +42,7 @@ export const projectInput = z.object({
 });
 export const conversationInput = z.object({
 	projectId: z.string().uuid().nullable().optional(),
+	skillId: z.string().uuid().nullable().optional(),
 	title: z.string().trim().min(1).max(200).optional(),
 	model: z.string().trim().min(1).max(200).default('openai/gpt-4o-mini'),
 	enabledTools: z.array(z.string()).max(20).default(['web_search'])

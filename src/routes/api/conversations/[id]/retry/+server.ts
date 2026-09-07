@@ -12,6 +12,8 @@ import {
 	stopConversation
 } from '$lib/server/ai/agent.service';
 import { BROWSER_BRIDGE_HEADER } from '$lib/server/browser/bridge';
+import { getTurnSkillSnapshot, skillSnapshotToSummary } from '$lib/server/skill-runtime';
+import { getProjectConversationTools } from '$lib/server/ai/project-context';
 
 function sse(event: string, data: unknown) {
 	return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -37,6 +39,10 @@ export const POST: RequestHandler = async (event) => {
 		const db = getDb();
 		const conversation = await getOwnedConversation(conversationId, user.id);
 		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
+		const turnEnabledTools = getProjectConversationTools(
+			conversation.projectId,
+			conversation.enabledTools
+		);
 
 		turnToken = randomUUID();
 		if (!beginConversationTurn(conversationId, turnToken))
@@ -164,6 +170,7 @@ export const POST: RequestHandler = async (event) => {
 					messageId: userMessage.id,
 					role: 'user',
 					content: prompt,
+					skill: skillSnapshotToSummary(getTurnSkillSnapshot(userMessage, conversation)),
 					attachments: attachmentRecords
 				});
 				await runConversationTurn(
@@ -174,7 +181,8 @@ export const POST: RequestHandler = async (event) => {
 					user.id,
 					userMessage.id,
 					streamTurnToken,
-					browserBridgeEnabled
+					browserBridgeEnabled,
+					turnEnabledTools
 				);
 				send('done', { type: 'done' });
 			} catch (error) {
