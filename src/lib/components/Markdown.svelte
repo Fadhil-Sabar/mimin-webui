@@ -8,6 +8,8 @@
 		renderCitationPillHtml,
 		type SourceItem
 	} from '$lib/client/citations';
+	import MermaidDiagram from '$lib/components/MermaidDiagram.svelte';
+	import { parseMarkdownSegments, type MarkdownSegment } from '$lib/client/markdown';
 
 	interface Props {
 		content: string;
@@ -20,7 +22,7 @@
 
 	let processed = $derived.by(() => {
 		if (!content || typeof content !== 'string') {
-			return { html: '', sources: [] as SourceItem[] };
+			return { segments: [] as MarkdownSegment[], sources: [] as SourceItem[] };
 		}
 
 		const { cleanedMarkdown, sources } = parseCitationsAndSources(content, externalSources);
@@ -101,10 +103,19 @@
 		});
 
 		try {
-			const html = marked.parse(cleanedMarkdown) as string;
-			return { html, sources };
+			const segments = parseMarkdownSegments(cleanedMarkdown, marked);
+			return { segments, sources };
 		} catch {
-			return { html: `<p>${escapeHtml(cleanedMarkdown)}</p>`, sources };
+			return {
+				segments: [
+					{
+						type: 'html' as const,
+						html: `<p>${escapeHtml(cleanedMarkdown)}</p>`,
+						id: 'fallback'
+					}
+				],
+				sources
+			};
 		}
 	});
 
@@ -133,10 +144,16 @@
 </script>
 
 <div class="markdown-container {className}">
-	<div class="markdown-body" role="presentation" onclick={handleClick}>
-		<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-		{@html processed.html}
-	</div>
+	{#each processed.segments as segment (segment.id)}
+		{#if segment.type === 'html'}
+			<div class="markdown-body" role="presentation" onclick={handleClick}>
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+				{@html segment.html}
+			</div>
+		{:else if segment.type === 'mermaid'}
+			<MermaidDiagram code={segment.code} />
+		{/if}
+	{/each}
 
 	{#if processed.sources.length > 0}
 		<div class="message-sources-wrapper">
