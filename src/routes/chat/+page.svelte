@@ -287,10 +287,7 @@
 						id,
 						role: 'assistant',
 						content: thinking
-							? [
-									{ type: 'thinking', thinking },
-									...(text ? [{ type: 'text', text }] : [])
-								]
+							? [{ type: 'thinking', thinking }, ...(text ? [{ type: 'text', text }] : [])]
 							: text,
 						createdAt: new Date().toISOString(),
 						toolCalls: [],
@@ -947,11 +944,7 @@
 		});
 
 		void (async () => {
-			await Promise.all([
-				loadModels(),
-				loadConversations(),
-				loadThinkingPreferences()
-			]);
+			await Promise.all([loadModels(), loadConversations(), loadThinkingPreferences()]);
 			const params = new URL(window.location.href).searchParams;
 			const requested = params.get('id');
 			const pendingPrompt = params.get('prompt');

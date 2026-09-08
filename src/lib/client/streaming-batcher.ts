@@ -43,9 +43,9 @@ export function createStreamingDeltaBatcher(
 		},
 		flush() {
 			if (scheduledHandle !== undefined) {
-			cancel(scheduledHandle);
-			scheduledHandle = undefined;
-		}
+				cancel(scheduledHandle);
+				scheduledHandle = undefined;
+			}
 			flush();
 		},
 		clear() {

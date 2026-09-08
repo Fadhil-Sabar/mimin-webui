@@ -5,10 +5,14 @@ describe('streaming delta batcher', () => {
 	it('coalesces thinking and message deltas until one scheduled flush', () => {
 		let scheduled: (() => void) | undefined;
 		const onFlush = vi.fn();
-		const batcher = createStreamingDeltaBatcher(onFlush, (callback) => {
-			scheduled = callback;
-			return 1;
-		}, () => undefined);
+		const batcher = createStreamingDeltaBatcher(
+			onFlush,
+			(callback) => {
+				scheduled = callback;
+				return 1;
+			},
+			() => undefined
+		);
 
 		batcher.push('assistant-1', 'thinking', 'think ');
 		batcher.push('assistant-1', 'thinking', 'more');
@@ -25,10 +29,14 @@ describe('streaming delta batcher', () => {
 	it('flushes pending deltas synchronously and allows later frames', () => {
 		let scheduled: (() => void) | undefined;
 		const onFlush = vi.fn();
-		const batcher = createStreamingDeltaBatcher(onFlush, (callback) => {
-			scheduled = callback;
-			return 1;
-		}, () => undefined);
+		const batcher = createStreamingDeltaBatcher(
+			onFlush,
+			(callback) => {
+				scheduled = callback;
+				return 1;
+			},
+			() => undefined
+		);
 
 		batcher.push('one', 'text', 'a');
 		batcher.flush();
