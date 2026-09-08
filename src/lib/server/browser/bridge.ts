@@ -94,7 +94,9 @@ export type BrowserSession = {
 };
 
 export const BROWSER_SESSION_TTL_MS = 60 * 60 * 1000;
+export const MAX_BROWSER_SESSIONS = 512;
 const browserSessions = new Map<string, BrowserSession>();
+export const MAX_PENDING_BROWSER_REQUESTS = 256;
 
 export function browserSessionKey(context: { userId: string; conversationId: string }): string {
 	return `${context.userId}:${context.conversationId}`;
@@ -104,6 +106,7 @@ export function getBrowserSession(
 	userId: string,
 	conversationId: string
 ): BrowserSession | undefined {
+	clearStaleBrowserSessions();
 	const key = `${userId}:${conversationId}`;
 	const session = browserSessions.get(key);
 	if (!session) return undefined;
@@ -119,7 +122,12 @@ export function setBrowserSession(
 	conversationId: string,
 	tabId: string | number
 ): void {
+	clearStaleBrowserSessions();
 	const key = `${userId}:${conversationId}`;
+	if (!browserSessions.has(key) && browserSessions.size >= MAX_BROWSER_SESSIONS) {
+		const oldestKey = browserSessions.keys().next().value as string;
+		browserSessions.delete(oldestKey);
+	}
 	browserSessions.set(key, {
 		tabId,
 		updatedAt: Date.now()
@@ -198,6 +206,14 @@ function rejectPending(request: PendingRequest, error: Error) {
 	request.reject(error);
 }
 
+function trimPendingRequests() {
+	while (pendingRequests.size >= MAX_PENDING_BROWSER_REQUESTS) {
+		const oldest = pendingRequests.values().next().value as PendingRequest | undefined;
+		if (!oldest) return;
+		rejectPending(oldest, browserError('CAPACITY'));
+	}
+}
+
 function isAbortError(error: unknown) {
 	return error instanceof Error && error.name === 'AbortError';
 }
@@ -226,6 +242,7 @@ export function requestBrowserAction(
 	};
 
 	return new Promise<BrowserPageResult>((resolve, reject) => {
+		trimPendingRequests();
 		const timer = setTimeout(() => {
 			const request = pendingRequests.get(requestId);
 			if (request) rejectPending(request, browserError('TIMEOUT'));

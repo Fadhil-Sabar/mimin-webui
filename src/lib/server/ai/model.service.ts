@@ -34,16 +34,33 @@ import {
 	type DiscoverableProvider,
 	type DiscoveredModel
 } from './model-discovery';
+import { BoundedTtlLruCache, hashSecret } from '../cache';
 
 const PROVIDERS: DiscoverableProvider[] = ['openai', 'anthropic', 'google'];
 const LIVE_MODEL_CACHE_TTL = 60_000;
+const FAILED_MODEL_CACHE_TTL = 10_000;
+const LIVE_MODEL_CACHE_MAX_ENTRIES = 128;
+const RUNTIME_MODEL_CACHE_MAX_ENTRIES = 512;
 type RuntimeModel = Model<Api>;
 export type ModelSource = 'live' | 'catalog';
 
 let registry: ReturnType<typeof createModels> | undefined;
 let catalogModels: RuntimeModel[] | undefined;
-const runtimeModels = new Map<string, RuntimeModel>();
-const liveModelCache = new Map<string, { models: RuntimeModel[]; expiresAt: number }>();
+const runtimeModels = new BoundedTtlLruCache<string, RuntimeModel>({
+	maxEntries: RUNTIME_MODEL_CACHE_MAX_ENTRIES,
+	ttlMs: LIVE_MODEL_CACHE_TTL
+});
+type LiveModelCacheEntry = { models: RuntimeModel[]; error?: string };
+const liveModelCache = new BoundedTtlLruCache<string, LiveModelCacheEntry>({
+	maxEntries: LIVE_MODEL_CACHE_MAX_ENTRIES,
+	ttlMs: LIVE_MODEL_CACHE_TTL
+});
+
+/** Test-only reset hook; production callers should let bounded TTL eviction work. */
+export function clearModelCaches(): void {
+	runtimeModels.clear();
+	liveModelCache.clear();
+}
 
 function createCustomOpenAiProvider() {
 	const base = openaiProvider();
@@ -308,14 +325,14 @@ function runtimeModel(
 	return model;
 }
 
-function credentialCacheKey(
+export function credentialCacheKey(
 	userId: string | undefined,
 	provider: DiscoverableProvider,
 	apiKey: string,
 	baseUrl: string | null
 ) {
-	// Keep the cache user-scoped without retaining a complete secret in the key.
-	return `${userId ?? 'public'}:${provider}:${baseUrl ?? ''}:${apiKey.length}:${apiKey.slice(-8)}`;
+	// Keep the cache user-scoped without retaining any part of the secret.
+	return `${userId ?? 'public'}:${provider}:${baseUrl ?? ''}:${hashSecret(apiKey)}`;
 }
 
 async function loadProviderModels(
@@ -328,13 +345,13 @@ async function loadProviderModels(
 
 	const cacheKey = credentialCacheKey(userId, provider, credential.apiKey, credential.baseUrl);
 	const cached = liveModelCache.get(cacheKey);
-	if (cached && cached.expiresAt > Date.now())
+	if (cached)
 		return cached.models.length
 			? { models: cached.models, source: 'live' }
 			: {
 					models: cached.models,
 					source: 'live',
-					error: `No chat models are available for ${provider}.`
+					error: cached.error ?? `No chat models are available for ${provider}.`
 				};
 
 	try {
@@ -342,7 +359,7 @@ async function loadProviderModels(
 		const models = discovered
 			.map((model) => runtimeModel(provider, model))
 			.filter((model): model is RuntimeModel => Boolean(model));
-		liveModelCache.set(cacheKey, { models, expiresAt: Date.now() + LIVE_MODEL_CACHE_TTL });
+		liveModelCache.set(cacheKey, { models });
 		if (models.length === 0)
 			return {
 				models,
@@ -351,6 +368,14 @@ async function loadProviderModels(
 			};
 		return { models, source: 'live' };
 	} catch {
+		liveModelCache.set(
+			cacheKey,
+			{
+				models: [],
+				error: `Could not load live ${provider} models. Check the provider key or base URL.`
+			},
+			FAILED_MODEL_CACHE_TTL
+		);
 		return {
 			models: [],
 			source: 'live',
@@ -422,7 +447,7 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 			credential.baseUrl
 		);
 		const cached = liveModelCache.get(cacheKey);
-		if (cached && cached.expiresAt > Date.now()) {
+		if (cached) {
 			providerModels = cached.models;
 			source = 'live';
 		} else {
@@ -458,14 +483,12 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 							)
 						);
 					}
-					liveModelCache.set(cacheKey, {
-						models: providerModels,
-						expiresAt: Date.now() + LIVE_MODEL_CACHE_TTL
-					});
+					liveModelCache.set(cacheKey, { models: providerModels });
 					source = 'live';
 				}
 			} catch {
-				// Fallback to catalog models already in registry
+				// Keep the catalog fallback and briefly negative-cache the failure.
+				liveModelCache.set(cacheKey, { models: providerModels }, FAILED_MODEL_CACHE_TTL);
 			}
 		}
 
