@@ -8,6 +8,7 @@ export const PROCESSING_STATUSES = ['queued', 'processing', 'succeeded', 'failed
 export type ProcessingStatus = (typeof PROCESSING_STATUSES)[number];
 export const MAX_PROCESSING_ATTEMPTS = 5;
 export const PROCESSING_LEASE_MS = 5 * 60_000;
+export const PROCESSING_HEARTBEAT_MS = Math.max(1_000, Math.floor(PROCESSING_LEASE_MS / 3));
 
 export function processingJobStatus(status: string): ProcessingStatus {
 	return (PROCESSING_STATUSES as readonly string[]).includes(status)
@@ -17,6 +18,10 @@ export function processingJobStatus(status: string): ProcessingStatus {
 
 export function shouldRetryProcessingJob(attempts: number, maxAttempts = MAX_PROCESSING_ATTEMPTS) {
 	return attempts < maxAttempts;
+}
+
+export function leaseHeartbeatDelay(leaseMs = PROCESSING_LEASE_MS) {
+	return Math.max(1_000, Math.floor(leaseMs / 3));
 }
 
 export async function enqueueDocumentProcessing(
@@ -31,13 +36,28 @@ export async function enqueueDocumentProcessing(
 	return job;
 }
 
-type ClaimedJob = { id: string; projectId: string; fileId: string; attempts: number };
+export type ClaimedJob = {
+	id: string;
+	projectId: string;
+	fileId: string;
+	attempts: number;
+	workerId: string;
+	leaseToken: string;
+};
+
+export class DocumentLeaseLostError extends Error {
+	constructor() {
+		super('DOCUMENT_PROCESSING_LEASE_LOST');
+		this.name = 'DocumentLeaseLostError';
+	}
+}
 
 /** Atomically claims one queued or expired job; SKIP LOCKED makes this multi-instance safe. */
 export async function claimDocumentProcessingJob(
 	workerId = randomUUID()
 ): Promise<ClaimedJob | null> {
 	const db = getDb();
+	const leaseToken = randomUUID();
 	return db.transaction(async (tx) => {
 		const lease = new Date(Date.now() + PROCESSING_LEASE_MS);
 		const rows = await tx.execute(sql`
@@ -50,31 +70,79 @@ export async function claimDocumentProcessingJob(
 			)
 			UPDATE document_processing_jobs AS job
 			SET status = 'processing', attempts = job.attempts + 1,
-				lease_until = ${lease}, worker_id = ${workerId}, updated_at = now()
+				lease_until = ${lease}, worker_id = ${workerId}, lease_token = ${leaseToken}, updated_at = now()
 			FROM candidate
 			WHERE job.id = candidate.id
-			RETURNING job.id, job.project_id AS "projectId", job.file_id AS "fileId", job.attempts
+			RETURNING job.id, job.project_id AS "projectId", job.file_id AS "fileId", job.attempts,
+				job.worker_id AS "workerId", job.lease_token AS "leaseToken"
 		`);
 		return (rows[0] as ClaimedJob | undefined) ?? null;
 	});
 }
 
+function ownedJobWhere(job: ClaimedJob) {
+	return and(
+		eq(schema.documentProcessingJobs.id, job.id),
+		eq(schema.documentProcessingJobs.status, 'processing'),
+		eq(schema.documentProcessingJobs.workerId, job.workerId),
+		eq(schema.documentProcessingJobs.leaseToken, job.leaseToken),
+		sql`${schema.documentProcessingJobs.leaseUntil} > now()`
+	);
+}
+
+function ownedFileWhere(job: ClaimedJob) {
+	return sql`${schema.projectFiles.id} = ${job.fileId}
+		AND EXISTS (
+			SELECT 1 FROM document_processing_jobs
+			WHERE id = ${job.id} AND project_id = ${job.projectId} AND file_id = ${job.fileId}
+			  AND status = 'processing' AND worker_id = ${job.workerId}
+			  AND lease_token = ${job.leaseToken} AND lease_until > now()
+		)`;
+}
+
+export async function renewDocumentProcessingLease(job: ClaimedJob): Promise<boolean> {
+	const [updated] = await getDb()
+		.update(schema.documentProcessingJobs)
+		.set({ leaseUntil: new Date(Date.now() + PROCESSING_LEASE_MS), updatedAt: new Date() })
+		.where(ownedJobWhere(job))
+		.returning({ id: schema.documentProcessingJobs.id });
+	return Boolean(updated);
+}
+
+async function assertLease(job: ClaimedJob) {
+	if (!(await renewDocumentProcessingLease(job))) throw new DocumentLeaseLostError();
+}
+
 async function finishJob(job: ClaimedJob, status: 'succeeded' | 'failed', error?: unknown) {
-	await getDb()
+	const [updated] = await getDb()
 		.update(schema.documentProcessingJobs)
 		.set({
 			status,
 			leaseUntil: null,
 			workerId: null,
+			leaseToken: null,
 			lastError: error instanceof Error ? error.message : error ? String(error) : null,
 			updatedAt: new Date(),
 			availableAt: new Date()
 		})
-		.where(eq(schema.documentProcessingJobs.id, job.id));
+		.where(ownedJobWhere(job))
+		.returning({ id: schema.documentProcessingJobs.id });
+	if (!updated) throw new DocumentLeaseLostError();
 }
 
 export async function processDocumentProcessingJob(job: ClaimedJob) {
+	let heartbeat: ReturnType<typeof setInterval> | undefined;
+	let leaseLost = false;
 	try {
+		heartbeat = setInterval(() => {
+			void renewDocumentProcessingLease(job)
+				.then((owned) => {
+					if (!owned) leaseLost = true;
+				})
+				.catch(() => {
+					leaseLost = true;
+				});
+		}, PROCESSING_HEARTBEAT_MS);
 		const db = getDb();
 		const [file] = await db
 			.select()
@@ -87,14 +155,21 @@ export async function processDocumentProcessingJob(job: ClaimedJob) {
 			);
 		if (!file) throw new Error('FILE_NOT_FOUND');
 
-		// Read storage once. The same bytes feed validation, extraction, chunking and embedding.
 		const bytes = await readStoredFile(file.storageKey);
 		const extraction = await extractUploadedFile(
 			new File([new Uint8Array(bytes)], file.filename, { type: file.mimeType }),
 			{ ocr: true }
 		);
 		const chunks = chunkUploadedExtraction(extraction);
+		if (leaseLost) throw new DocumentLeaseLostError();
+		await assertLease(job);
 		await db.transaction(async (tx) => {
+			const [lease] = await tx
+				.update(schema.documentProcessingJobs)
+				.set({ leaseUntil: new Date(Date.now() + PROCESSING_LEASE_MS), updatedAt: new Date() })
+				.where(ownedJobWhere(job))
+				.returning({ id: schema.documentProcessingJobs.id });
+			if (!lease) throw new DocumentLeaseLostError();
 			await tx
 				.delete(schema.projectFileChunks)
 				.where(eq(schema.projectFileChunks.fileId, job.fileId));
@@ -104,7 +179,7 @@ export async function processDocumentProcessingJob(job: ClaimedJob) {
 					.values(
 						chunks.map((chunk) => ({ ...chunk, projectId: job.projectId, fileId: job.fileId }))
 					);
-			await tx
+			const [updated] = await tx
 				.update(schema.projectFiles)
 				.set({
 					extractionStatus: extraction.extractionStatus,
@@ -113,40 +188,54 @@ export async function processDocumentProcessingJob(job: ClaimedJob) {
 					chunkCount: chunks.length,
 					processingStatus: 'processing'
 				})
-				.where(eq(schema.projectFiles.id, job.fileId));
+				.where(ownedFileWhere(job))
+				.returning({ id: schema.projectFiles.id });
+			if (!updated) throw new DocumentLeaseLostError();
 		});
 
+		if (leaseLost) throw new DocumentLeaseLostError();
+		await assertLease(job);
 		const indexing = await indexKnowledgeEmbeddings(job.projectId, job.fileId);
 		if (indexing.status === 'unavailable') throw new Error('EMBEDDING_UNAVAILABLE');
-		await getDb()
+		if (leaseLost) throw new DocumentLeaseLostError();
+		const [fileUpdated] = await getDb()
 			.update(schema.projectFiles)
 			.set({ processingStatus: 'succeeded' })
-			.where(eq(schema.projectFiles.id, job.fileId));
+			.where(ownedFileWhere(job))
+			.returning({ id: schema.projectFiles.id });
+		if (!fileUpdated) throw new DocumentLeaseLostError();
 		await finishJob(job, 'succeeded');
 		return { status: 'succeeded' as const, indexing };
 	} catch (error) {
-		await getDb()
-			.update(schema.projectFiles)
-			.set({
-				processingStatus: shouldRetryProcessingJob(job.attempts) ? 'queued' : 'failed',
-				extractionError: error instanceof Error ? error.message : String(error)
-			})
-			.where(eq(schema.projectFiles.id, job.fileId))
-			.catch(() => {});
-		if (shouldRetryProcessingJob(job.attempts)) {
+		if (!(error instanceof DocumentLeaseLostError)) {
+			const message = error instanceof Error ? error.message : String(error);
 			await getDb()
-				.update(schema.documentProcessingJobs)
+				.update(schema.projectFiles)
 				.set({
-					status: 'queued',
-					availableAt: new Date(Date.now() + Math.min(job.attempts * 30_000, 300_000)),
-					leaseUntil: null,
-					workerId: null,
-					lastError: error instanceof Error ? error.message : String(error),
-					updatedAt: new Date()
+					processingStatus: shouldRetryProcessingJob(job.attempts) ? 'queued' : 'failed',
+					extractionError: message
 				})
-				.where(eq(schema.documentProcessingJobs.id, job.id));
-		} else await finishJob(job, 'failed', error);
+				.where(ownedFileWhere(job))
+				.catch(() => {});
+			if (shouldRetryProcessingJob(job.attempts)) {
+				await getDb()
+					.update(schema.documentProcessingJobs)
+					.set({
+						status: 'queued',
+						availableAt: new Date(Date.now() + Math.min(job.attempts * 30_000, 300_000)),
+						leaseUntil: null,
+						workerId: null,
+						leaseToken: null,
+						lastError: message,
+						updatedAt: new Date()
+					})
+					.where(ownedJobWhere(job))
+					.catch(() => {});
+			} else await finishJob(job, 'failed', error).catch(() => {});
+		}
 		return { status: 'failed' as const, error };
+	} finally {
+		if (heartbeat) clearInterval(heartbeat);
 	}
 }
 
@@ -161,7 +250,6 @@ export async function runDocumentWorker(signal?: AbortSignal) {
 			}
 			await processDocumentProcessingJob(job);
 		} catch {
-			// Database outages must not kill the worker; leases make recovery safe.
 			await new Promise((resolve) => setTimeout(resolve, 2000));
 		}
 	}

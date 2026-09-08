@@ -353,6 +353,7 @@ export const documentProcessingJobs = pgTable(
 		availableAt: timestamp('available_at', { withTimezone: true }).defaultNow().notNull(),
 		leaseUntil: timestamp('lease_until', { withTimezone: true }),
 		workerId: text('worker_id'),
+		leaseToken: text('lease_token'),
 		lastError: text('last_error'),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
