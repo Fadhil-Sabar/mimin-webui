@@ -122,6 +122,7 @@ vi.mock('../src/lib/server/db/client', () => {
 				};
 			}
 		}),
+		transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
 		update: (table: unknown) => ({
 			set: (values: Record<string, unknown>) => {
 				testState.updated.push({ table, values });
@@ -301,9 +302,10 @@ describe('Projects API routes', () => {
 		const response = await projectFilesRoute.POST(event(request, { id: 'project-1' }));
 		const body = await response.json();
 
-		expect(response.status).toBe(201);
+		expect(response.status).toBe(202);
 		expect(body.file).toMatchObject({ extractionStatus: 'extracted', chunkCount: 1 });
-		expect(body.extraction).toEqual({ status: 'extracted', pageCount: null, error: null });
+		expect(body.processing).toEqual({ status: 'queued' });
+		expect(body.extraction).toEqual({ status: 'not_started', pageCount: null, error: null });
 	});
 
 	it('cleans up every project storage key when deleting an owned project', async () => {

@@ -1,15 +1,10 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { desc, eq } from 'drizzle-orm';
-import { indexKnowledgeEmbeddings } from '$lib/server/ai/knowledge-indexing';
+import { enqueueDocumentProcessing } from '$lib/server/files/document-processing';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
-import {
-	chunkUploadedExtraction,
-	cleanupStoredFiles,
-	extractUploadedFile,
-	saveProjectFile
-} from '$lib/server/files/storage';
+import { cleanupStoredFiles, saveProjectFile } from '$lib/server/files/storage';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -46,44 +41,39 @@ export const POST: RequestHandler = async (event) => {
 		if (!(value instanceof File)) return apiError('FILE_REQUIRED', 'A file field is required.');
 		const saved = await saveProjectFile(projectId, value);
 		savedStorageKey = saved.storageKey;
-		const extraction = await extractUploadedFile(value, { ocr: true });
-		const chunks = chunkUploadedExtraction(extraction);
-		const [record] = await db
-			.insert(schema.projectFiles)
-			.values({
+		const { record } = await db.transaction(async (tx) => {
+			const [fileRecord] = await tx
+				.insert(schema.projectFiles)
+				.values({
+					projectId,
+					filename: saved.filename,
+					mimeType: saved.mimeType,
+					sizeBytes: saved.sizeBytes,
+					storageKey: saved.storageKey,
+					extractionStatus: 'not_started',
+					processingStatus: 'queued',
+					chunkCount: 0
+				})
+				.returning();
+			await enqueueDocumentProcessing(
 				projectId,
-				filename: saved.filename,
-				mimeType: saved.mimeType,
-				sizeBytes: saved.sizeBytes,
-				storageKey: saved.storageKey,
-				extractionStatus: extraction.extractionStatus,
-				pageCount: extraction.pageCount,
-				extractionError: extraction.extractionError,
-				chunkCount: chunks.length
-			})
-			.returning();
+				fileRecord.id,
+				tx as unknown as ReturnType<typeof getDb>
+			);
+			return { record: fileRecord };
+		});
 		savedFileId = record.id;
-		if (chunks.length)
-			await db
-				.insert(schema.projectFileChunks)
-				.values(chunks.map((chunk) => ({ projectId, fileId: record.id, ...chunk })));
 		await db
 			.update(schema.projects)
 			.set({ updatedAt: new Date() })
 			.where(eq(schema.projects.id, projectId));
-		const indexing = await indexKnowledgeEmbeddings(projectId, record.id);
 		return json(
 			{
 				file: record,
-				indexing,
-				chunks: chunks.length,
-				extraction: {
-					status: extraction.extractionStatus,
-					pageCount: extraction.pageCount,
-					error: extraction.extractionError
-				}
+				processing: { status: 'queued' },
+				extraction: { status: 'not_started', pageCount: null, error: null }
 			},
-			{ status: 201 }
+			{ status: 202 }
 		);
 	} catch (error) {
 		if (savedStorageKey) await cleanupStoredFiles([savedStorageKey]);

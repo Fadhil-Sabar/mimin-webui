@@ -149,6 +149,7 @@ export const projectFiles = pgTable(
 		pageCount: integer('page_count'),
 		extractionError: text('extraction_error'),
 		chunkCount: integer('chunk_count').notNull().default(0),
+		processingStatus: text('processing_status').notNull().default('queued'),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => ({ projectIdx: index('project_files_project_idx').on(table.projectId) })
@@ -326,6 +327,31 @@ export const providerSettings = pgTable(
 	},
 	(table) => ({
 		userProviderIdx: index('provider_settings_user_provider_idx').on(table.userId, table.provider)
+	})
+);
+
+export const documentProcessingJobs = pgTable(
+	'document_processing_jobs',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		projectId: uuid('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		fileId: uuid('file_id')
+			.notNull()
+			.references(() => projectFiles.id, { onDelete: 'cascade' }),
+		status: text('status').notNull().default('queued'),
+		attempts: integer('attempts').notNull().default(0),
+		availableAt: timestamp('available_at', { withTimezone: true }).defaultNow().notNull(),
+		leaseUntil: timestamp('lease_until', { withTimezone: true }),
+		workerId: text('worker_id'),
+		lastError: text('last_error'),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		claimIdx: index('document_processing_jobs_claim_idx').on(table.status, table.availableAt),
+		fileIdx: index('document_processing_jobs_file_idx').on(table.fileId)
 	})
 );
 
