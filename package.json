@@ -17,6 +17,7 @@
 		"db:migrate": "node scripts/migrate.js",
 		"db:seed": "node scripts/seed.js",
 		"test": "vitest run",
+		"test:integration": "./scripts/test-integration.sh",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
 		"bundle:budget": "node scripts/check-bundle-budget.mjs"

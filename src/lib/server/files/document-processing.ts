@@ -86,7 +86,7 @@ export async function claimDocumentProcessingJob(
 			)
 			UPDATE document_processing_jobs AS job
 			SET status = 'processing', attempts = job.attempts + 1,
-				lease_until = ${lease}, worker_id = ${workerId}, lease_token = ${leaseToken}, updated_at = now()
+				lease_until = ${lease.toISOString()}::timestamptz, worker_id = ${workerId}, lease_token = ${leaseToken}, updated_at = now()
 			FROM candidate
 			WHERE job.id = candidate.id
 			RETURNING job.id, job.project_id AS "projectId", job.file_id AS "fileId", job.attempts,
