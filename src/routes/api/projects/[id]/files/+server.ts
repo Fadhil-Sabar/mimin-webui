@@ -1,10 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
 import { desc, eq } from 'drizzle-orm';
+import { indexKnowledgeEmbeddings } from '$lib/server/ai/knowledge-indexing';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
 import {
-	chunkText,
+	chunkUploadedExtraction,
 	cleanupStoredFiles,
 	extractUploadedFile,
 	saveProjectFile
@@ -45,8 +46,8 @@ export const POST: RequestHandler = async (event) => {
 		if (!(value instanceof File)) return apiError('FILE_REQUIRED', 'A file field is required.');
 		const saved = await saveProjectFile(projectId, value);
 		savedStorageKey = saved.storageKey;
-		const extraction = await extractUploadedFile(value);
-		const chunks = chunkText(extraction.extractedText ?? '');
+		const extraction = await extractUploadedFile(value, { ocr: true });
+		const chunks = chunkUploadedExtraction(extraction);
 		const [record] = await db
 			.insert(schema.projectFiles)
 			.values({
@@ -65,14 +66,16 @@ export const POST: RequestHandler = async (event) => {
 		if (chunks.length)
 			await db
 				.insert(schema.projectFileChunks)
-				.values(chunks.map((content) => ({ projectId, fileId: record.id, content })));
+				.values(chunks.map((chunk) => ({ projectId, fileId: record.id, ...chunk })));
 		await db
 			.update(schema.projects)
 			.set({ updatedAt: new Date() })
 			.where(eq(schema.projects.id, projectId));
+		const indexing = await indexKnowledgeEmbeddings(projectId, record.id);
 		return json(
 			{
 				file: record,
+				indexing,
 				chunks: chunks.length,
 				extraction: {
 					status: extraction.extractionStatus,

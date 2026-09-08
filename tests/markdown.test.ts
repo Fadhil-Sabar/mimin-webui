@@ -118,6 +118,23 @@ describe('citations parsing and fallback sources', () => {
 		});
 	});
 
+	it('adds the PDF page fragment to project file citation links', () => {
+		const { sources, sourcesMap } = parseCitationsAndSources('The answer is in [1].', [
+			{
+				title: 'requirements.pdf',
+				url: '/api/projects/project-1/files/file-1',
+				type: 'project_file',
+				filename: 'requirements.pdf',
+				page: 3,
+				snippet: 'The retention period is seven years.'
+			}
+		]);
+
+		expect(sources).toHaveLength(1);
+		expect(sources[0].url).toBe('/api/projects/project-1/files/file-1#page=3');
+		expect(sourcesMap.get(1)?.snippet).toBe('The retention period is seven years.');
+	});
+
 	it('renders citation pill with real url and hover card', () => {
 		const html = renderCitationPillHtml(
 			1,

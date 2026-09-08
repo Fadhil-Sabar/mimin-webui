@@ -32,10 +32,7 @@ Sudah tersedia:
 
 Belum tersedia:
 
-- OCR untuk PDF yang hanya berisi gambar
 - Provider adapter untuk web search dan web fetch
-- Semantic embeddings dan pgvector
-- Persistence citation penuh dari tool result ke assistant message
 
 ## Arsitektur
 
@@ -384,23 +381,11 @@ Provider key tidak pernah muncul di response model API atau browser code.
 
 ## Knowledge retrieval
 
-Implementasi retrieval pertama menggunakan text search:
+Project Knowledge kini mendukung OCR lokal dengan Tesseract untuk halaman PDF hasil pemindaian, chunk dengan nomor halaman, embedding pgvector, dan pencarian hybrid semantic/keyword. Text search tetap tersedia saat embedding dinonaktifkan atau gagal. Sitasi menyimpan nama file, halaman, dan kutipan teks; klik sumber di bawah jawaban untuk membuka file asli yang dilindungi autentikasi.
 
-```text
-upload file
-    ↓
-validasi dan simpan file
-    ↓
-extract TXT/MD/JSON/PDF
-    ↓
-chunk text
-    ↓
-simpan project_file_chunks
-    ↓
-project_knowledge_search
-```
+Jalankan migrasi database setelah memasang pgvector. Docker Compose membangun PostgreSQL 17 Alpine dengan pgvector tanpa mengganti volume lama. Embedding bersifat opt-in melalui `KNOWLEDGE_EMBEDDINGS_ENABLED=true`; lihat `.env.example` untuk endpoint/model/key. Gunakan tombol **Reindex** pada file lama untuk menambahkan OCR, nomor halaman, dan embedding. Percakapan dan file lama tetap kompatibel.
 
-Seluruh isi file tidak diinjeksi ke setiap request model. Tool hanya mengembalikan chunk yang cocok dengan query. Embedding dan pgvector dapat ditambahkan kemudian tanpa mengubah kontrak tool.
+Panduan konfigurasi, batas OCR, keamanan, migrasi, dan pemulihan tersedia di [Knowledge retrieval (English)](README.md#knowledge-retrieval).
 
 ## Frontend routes
 
@@ -458,9 +443,9 @@ Lihat [README.md](README.md).
 ## Limitasi dan next steps
 
 1. Tambahkan authentication dan ownership filter ke semua query.
-2. Tambahkan OCR untuk PDF yang hanya berisi gambar.
+2. Tambahkan antrean indexing untuk instalasi berskala besar.
 3. Implementasikan adapter web search dan web fetch dengan SSRF protection.
-4. Hubungkan citation service ke normalized source dari tool result.
+4. Perluas persistence sitasi ke sumber web.
 5. Migrasikan project overview dan chat history sepenuhnya ke shared API state.
 6. Tambahkan integration test dengan disposable PostgreSQL.
 7. Tambahkan deployment adapter eksplisit, seperti Node atau Cloudflare.

@@ -14,7 +14,17 @@
 	interface Props {
 		content: string;
 		class?: string;
-		sources?: Array<{ title?: string; url: string; snippet?: string } | SourceItem>;
+		sources?: Array<
+			| {
+					title?: string;
+					url: string;
+					snippet?: string;
+					page?: number | null;
+					type?: string;
+					filename?: string;
+			  }
+			| SourceItem
+		>;
 	}
 
 	let { content = '', class: className = '', sources: externalSources = [] }: Props = $props();
@@ -156,6 +166,7 @@
 	{/each}
 
 	{#if processed.sources.length > 0}
+		{@const hasProjectSources = processed.sources.some((source) => source.type === 'project_file')}
 		<div class="message-sources-wrapper">
 			<button
 				type="button"
@@ -172,7 +183,7 @@
 				</span>
 			</button>
 
-			{#if showSources}
+			{#if showSources || hasProjectSources}
 				<div class="sources-list" transition:slide={{ duration: 180 }}>
 					{#each processed.sources as source (source.index + source.url)}
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
@@ -189,7 +200,16 @@
 							{/if}
 							<div class="source-item-info">
 								<div class="source-item-title">{source.title || source.domain}</div>
-								<div class="source-item-domain">{source.domain}</div>
+								<div class="source-item-domain">
+									{source.type === 'project_file'
+										? source.page
+											? `Page ${source.page}`
+											: 'Project file'
+										: source.domain}
+								</div>
+								{#if source.snippet}
+									<div class="source-item-snippet">{source.snippet}</div>
+								{/if}
 							</div>
 							<ExternalLink size={13} class="source-item-external" />
 						</a>
@@ -664,6 +684,17 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.source-item-snippet {
+		margin-top: 4px;
+		font-size: 0.75rem;
+		line-height: 1.45;
+		color: var(--text-body);
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
+		overflow: hidden;
 	}
 	:global(.source-item-external) {
 		color: var(--text-faint);

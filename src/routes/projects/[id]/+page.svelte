@@ -16,6 +16,7 @@
 		Plus,
 		Puzzle,
 		Search,
+		RefreshCw,
 		Settings,
 		Sparkles,
 		Trash2,
@@ -69,6 +70,7 @@
 	let toast = $state('');
 	let projectQuery = $state('');
 	let uploading = $state(false);
+	let indexingNotice = $state('');
 	let dragActive = $state(false);
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 	let uploadSummary = $state<{ succeeded: number; failed: string[] } | null>(null);
@@ -91,6 +93,27 @@
 		hasMore: false
 	});
 	let loadSequence = 0;
+	let reindexing = $state<string | null>(null);
+	async function reindexFile(file: ProjectFile) {
+		reindexing = file.id;
+		try {
+			const response = await fetch(`/api/projects/${projectId}/files/${file.id}/reindex`, {
+				method: 'POST'
+			});
+			const result = await response.json();
+			if (!response.ok) throw new Error(result.error?.message || 'Reindexing failed.');
+			await load(projectId, { reset: true });
+			notify(
+				result.indexing?.status === 'unavailable'
+					? 'Text indexed; semantic indexing unavailable. Retry reindexing later.'
+					: 'Knowledge index updated.'
+			);
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Reindexing failed.');
+		} finally {
+			reindexing = null;
+		}
+	}
 	function notify(message: string) {
 		toast = message;
 		setTimeout(() => (toast = ''), 1800);
@@ -283,6 +306,7 @@
 		if (!selected || selected.length === 0) return;
 		uploading = true;
 		uploadSummary = null;
+		indexingNotice = '';
 		let succeeded = 0;
 		const failed: string[] = [];
 		try {
@@ -298,6 +322,10 @@
 					failed.push(`${file.name}: ${payload?.error?.message ?? 'upload failed'}`);
 					continue;
 				}
+				const payload = await response.json();
+				if (payload.indexing?.status === 'unavailable')
+					indexingNotice =
+						'Files are searchable by text. Semantic indexing is unavailable; use Reindex to retry.';
 				succeeded += 1;
 			}
 			await load();
@@ -392,7 +420,9 @@
 	function extractionNeedsAttention(file: ProjectFile) {
 		return Boolean(
 			file.extractionError ||
-			['failed', 'empty', 'not_started'].includes(file.extractionStatus ?? '') ||
+			['failed', 'empty', 'not_started', 'partial', 'truncated'].includes(
+				file.extractionStatus ?? ''
+			) ||
 			(file.chunkCount ?? 0) === 0
 		);
 	}
@@ -409,6 +439,7 @@
 			case 'empty':
 				return 'No text found';
 			case 'truncated':
+			case 'partial':
 				return 'Partially indexed';
 			case 'extracted':
 			case 'complete':
@@ -620,6 +651,7 @@
 							></span
 						>
 					</button>
+					{#if indexingNotice}<p role="status">{indexingNotice}</p>{/if}
 					{#if uploadSummary}
 						<div class="upload-summary" role="alert">
 							<strong>{uploadSummary.succeeded} uploaded</strong>
@@ -658,6 +690,14 @@
 									</div>
 									<span class="muted desktop-only">{formatSize(file.sizeBytes)}</span>
 									<span class="muted desktop-only">{formatDate(file.createdAt)}</span>
+									<button
+										class="icon-button"
+										aria-label={`Reindex ${file.filename}`}
+										title="Extract text and rebuild knowledge index"
+										disabled={reindexing !== null}
+										onclick={() => reindexFile(file)}
+										><RefreshCw size={16} />{reindexing === file.id ? 'Indexing…' : ''}</button
+									>
 									<button
 										class="row-menu"
 										aria-label={`Delete ${file.filename}`}

@@ -21,7 +21,7 @@ Available:
 - Project file upload and deletion
 - Basic text extraction for `.txt`, `.md`, and `.json`
 - Bounded PDF text extraction for chat attachments and project knowledge
-- Project knowledge chunking for basic text search
+- Page-aware project knowledge with local OCR, hybrid keyword/pgvector retrieval, and persistent clickable citations
 - Stop generation with `AbortController` and Pi agent abort
 - Project and conversation CRUD
 - Complete Projects UI for create, edit, delete, knowledge health, search, uploads, and project chats
@@ -36,10 +36,7 @@ Available:
 Not yet available:
 
 - Registration and password reset
-- OCR for image-only PDFs
 - Provider adapter for web fetch
-- Semantic embeddings and pgvector
-- Full citation persistence from tool results to assistant messages
 
 ## Architecture
 
@@ -414,7 +411,7 @@ Message requests accept content, a model reference, and enabled tools. The messa
 
 #### Chat attachments
 
-The chat composer accepts up to 5 attachments per message. Supported formats are `.txt`, `.md`, `.json`, and `.pdf`; each file and the combined attachments are limited to 25 MB. Plain-text and extractable PDF text are included as bounded, clearly delimited reference context for the agent (including attachments from earlier turns) without changing the visible or stored message text. PDF extraction runs once at upload with limits of 100 pages, 500,000 extracted characters, 10 seconds, and 16 MP per image resource. Empty, corrupt, and password-protected PDFs remain stored with an extraction status/error; image-only PDFs currently produce no text.
+The chat composer accepts up to 5 attachments per message. Supported formats are `.txt`, `.md`, `.json`, and `.pdf`; each file and the combined attachments are limited to 25 MB. Plain-text and extractable PDF text are included as bounded, clearly delimited reference context for the agent (including attachments from earlier turns) without changing the visible or stored message text. PDF extraction runs once at upload with limits of 100 pages, 500,000 extracted characters, 10 seconds, and 16 MP per image resource. Empty, corrupt, and password-protected PDFs remain stored with an extraction status/error; chat attachments retain the existing visual fallback. Project Knowledge additionally runs local OCR for sparse/image-only pages.
 
 Multipart requests use `content`, optional `model`, and repeated `files` fields:
 
@@ -464,23 +461,33 @@ Provider keys never appear in model API responses or browser code. Each conversa
 
 ## Knowledge retrieval
 
-The first retrieval implementation uses text search:
+Project uploads retain the original file, extract native PDF text page by page, and run local Tesseract OCR on sparse/image-only pages. Chunks preserve page numbers, include 150 characters of overlap for continuity, and are indexed for keyword search immediately. With embeddings enabled, batches of at most 32 chunks are sent to the configured OpenAI-compatible embeddings endpoint and stored as pgvector vectors.
 
-```text
-upload file
-    ↓
-validate and store file
-    ↓
-extract TXT/MD/JSON/PDF
-    ↓
-chunk text
-    ↓
-store project_file_chunks
-    ↓
-project_knowledge_search
-```
+Search is scoped to both the owning user and active project. Keyword candidates keep the existing `ILIKE` content/filename search (with literal wildcard escaping), now ranked by term coverage. Semantic candidates use cosine distance, restricted to the same endpoint/model identity. Reciprocal-rank fusion combines up to 40 candidates from each channel and returns at most 8 passages. If embeddings are disabled, unavailable, malformed, or incompatible, keyword search continues. If neither channel finds a match, the existing project overview fallback remains. No full document is injected into every chat turn.
 
-The full file is not injected into every model request. The tool returns only chunks matching the search query. Embeddings and pgvector can be added later without changing the tool contract.
+Project Knowledge tool results produce citation snapshots on assistant messages: filename, page when known, and the extracted passage. Citations appear below the answer and open the authenticated original file, using the PDF page fragment when available. Reloading a conversation preserves them. Deleting a file retains the historical passage but removes access to the original; old conversations without citations still render normally. Old chunks without embeddings or page numbers remain searchable.
+
+### Setup and upgrading existing installations
+
+1. Back up PostgreSQL and uploaded files. The Compose database now builds `Dockerfile.postgres`, retaining PostgreSQL 17 Alpine and the existing volume while adding pgvector. Run `docker compose build postgres && docker compose up -d postgres`. Do not delete the database volume. For managed PostgreSQL, install/enable pgvector through your provider first.
+2. Run `npm run db:migrate` (or the normal Docker entrypoint). Migration `0012_cynical_swarm.sql` enables `vector`, adds nullable 1536-dimensional embeddings/model identity, and an HNSW cosine index. It preserves existing rows. Migration `0013_secret_dorian_gray.sql` also makes the legacy account `issuer` column nullable for Better Auth compatibility; existing account values and indexes remain intact. The migration role needs permission to create the extension; an administrator may pre-create it. Migration deliberately fails if pgvector is not installed; query/provider failures after migration still fall back to text.
+3. For local development install Tesseract and language data, for example `apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ind`. The application Docker image includes these packages. OCR is enabled for project uploads by default; set `PDF_OCR_ENABLED=false` to disable it or `PDF_OCR_LANGUAGES=eng` to use English only.
+4. To enable semantic retrieval set `KNOWLEDGE_EMBEDDINGS_ENABLED=true`, `KNOWLEDGE_EMBEDDING_URL`, `KNOWLEDGE_EMBEDDING_MODEL`, and `KNOWLEDGE_EMBEDDING_API_KEY` (defaults and server-key fallback are in `.env.example`). The endpoint must return 1536-dimensional float vectors. Local HTTP endpoints also require their origin in `OUTBOUND_ALLOWED_ORIGINS`. Restart the application after configuration changes. Extracted passages leave the server only when embeddings are explicitly enabled; OCR remains local.
+5. Use the **Reindex** button beside each existing project file to extract pages/OCR and create embeddings. The authenticated endpoint is `POST /api/projects/:id/files/:fileId/reindex`. It atomically replaces chunks, retains previous text on extraction errors, and can be repeated after an embedding outage or endpoint/model change. Old uploads are never silently deleted or automatically sent to a new provider.
+
+### Limits and operation
+
+PDF uploads retain the 25 MB, 100-page, and 500,000-character limits. OCR defaults to 24 sparse pages, 60 seconds per document, and 15 seconds per Tesseract process; `PDF_OCR_MAX_PAGES`, `PDF_OCR_TIMEOUT_MS`, and `PDF_OCR_PAGE_TIMEOUT_MS` configure these bounds. At most two OCR documents run concurrently per process (`PDF_OCR_MAX_CONCURRENT`); additional uploads retain their file and report an OCR busy status for reindexing. Partial extraction and missing OCR/language data are reported in file health. OCR quality depends on scan resolution and language data; inspect cited passages when a scan is poor.
+
+Embedding requests time out after 15 seconds, validate dimensions/finite values/index ordering, and reject redirects and oversized responses. Lexical chunks survive failed batches. Upload/reindex responses include `indexing.status` (`disabled`, `indexed`, or `unavailable`) and the number indexed; server logs report fallback without document text or credentials. The Node adapter needs `BODY_SIZE_LIMIT=30M` to accommodate the 25 MB upload limit (included in Docker defaults). Indexing is synchronous and bounded per document; configure reverse-proxy upload timeouts to accommodate OCR and embedding batches. For very large deployments, move indexing to a durable job worker before increasing document limits. HNSW is approximate, so evaluate recall on your corpus; model/endpoint changes require reindexing because vectors from different spaces are never mixed. There is no cross-project embedding cache.
+
+Implementation references: [pgvector cosine search and HNSW](https://github.com/pgvector/pgvector), [Tesseract command-line usage](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html).
+
+### Automated verification
+
+`npm test` runs extraction, ranking, embedding validation, indexing fallback, reindexing, citation persistence, and authorization tests. It includes a native two-page PDF fixture. Install Tesseract (or set `PDF_OCR_COMMAND` to its executable) to also run the image-only PDF integration test. The synthetic fixtures are in `tests/fixtures/`.
+
+Set `TEST_DATABASE_URL` to a migrated **test database** and run `npm test -- tests/knowledge-pgvector.integration.test.ts` for real pgvector queries. These tests use deterministic vectors to isolate SQL similarity, fusion, ownership, model compatibility, and fallback behavior; they do not call a paid embedding provider. They create and clean up their own fixture users/projects. Without this variable the database integration suite is skipped. For release checks also run `npm run lint`, `npm run check`, and `npm run build`.
 
 ## Frontend routes
 
@@ -542,10 +549,10 @@ Provider settings       save/encrypt/mask/delete verified
 ## Known limitations and next steps
 
 1. Add registration and password reset flows.
-2. Add OCR for image-only PDFs.
+2. Add durable background indexing for high-volume installations.
 3. Add web fetch with SSRF protection and connect citation persistence to normalized web sources.
 4. Add integration tests with disposable PostgreSQL.
-5. Add an explicit deployment adapter, such as Node or Cloudflare.
+5. Add a managed deployment guide (the production build uses the Node adapter).
 
 ## Indonesian documentation
 

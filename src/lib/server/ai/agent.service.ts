@@ -1,7 +1,7 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { clampThinkingLevel, type ModelThinkingLevel } from '@earendil-works/pi-ai';
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { listAvailableModels, modelRegistry, resolveModel, splitModelRef } from './model.service';
 import { getProviderCredential, type ProviderCredential } from './provider-settings.service';
@@ -88,6 +88,38 @@ type AgentEvent = {
 	assistantMessageEvent?: { type?: string; delta?: string };
 	message?: { role?: string };
 };
+
+type ProjectKnowledgeCitation = {
+	type?: string;
+	title?: string;
+	filename?: string;
+	projectId?: string;
+	fileId?: string;
+	chunkId?: string;
+	page?: number | null;
+	passage?: string;
+};
+
+function projectKnowledgeCitationsFromResult(
+	result: unknown,
+	projectId: string
+): ProjectKnowledgeCitation[] {
+	if (!result || typeof result !== 'object') return [];
+	const details = (result as Record<string, unknown>).details;
+	if (!details || typeof details !== 'object') return [];
+	const sources = (details as Record<string, unknown>).sources;
+	if (!Array.isArray(sources)) return [];
+	return sources.filter((source): source is ProjectKnowledgeCitation => {
+		if (!source || typeof source !== 'object') return false;
+		const value = source as Record<string, unknown>;
+		return (
+			value.type === 'project_file' &&
+			value.projectId === projectId &&
+			typeof value.fileId === 'string' &&
+			(typeof value.passage === 'string' || typeof value.title === 'string')
+		);
+	});
+}
 
 const EMPTY_USAGE = {
 	input: 0,
@@ -183,6 +215,8 @@ export async function runConversationTurn(
 		.from(schema.conversations)
 		.where(eq(schema.conversations.id, conversationId));
 	if (!conversation) throw new Error('CONVERSATION_NOT_FOUND');
+	if (userId && conversation.userId && conversation.userId !== userId)
+		throw new Error('CONVERSATION_NOT_FOUND');
 	let selectedModelRef = modelRef ?? conversation.model;
 	const selectedModel = splitModelRef(selectedModelRef);
 	if (!selectedModel) throw new Error('MODEL_NOT_AVAILABLE');
@@ -330,7 +364,7 @@ export async function runConversationTurn(
 	const tools = [
 		...(toolGating.exposeWebSearch ? [createWebSearchTool(searchSettings)] : []),
 		...(conversation.projectId && enabledTools.includes('project_knowledge_search')
-			? [createProjectKnowledgeTool(conversation.projectId)]
+			? [createProjectKnowledgeTool(conversation.projectId, effectiveUserId)]
 			: []),
 		...(toolGating.exposeBrowserOpen && effectiveUserId
 			? [
@@ -414,7 +448,84 @@ export async function runConversationTurn(
 	let currentAssistantText = '';
 	let currentThinkingText = '';
 	let lastAssistantMessageId: string | null = null;
+	let lastTextAssistantMessageId: string | null = null;
 	const createdAssistantMessageIds: string[] = [];
+	const projectCitations: ProjectKnowledgeCitation[] = [];
+	const projectCitationKeys = new Set<string>();
+	const MAX_PROJECT_CITATIONS = 32;
+
+	function collectProjectKnowledgeCitations(result: unknown) {
+		if (!conversation.projectId) return;
+		for (const citation of projectKnowledgeCitationsFromResult(result, conversation.projectId)) {
+			if (projectCitations.length >= MAX_PROJECT_CITATIONS) return;
+			const passage = citation.passage?.trim() ?? '';
+			const key = [citation.fileId, citation.chunkId ?? '', citation.page ?? '', passage].join('|');
+			if (!projectCitationKeys.has(key)) {
+				projectCitationKeys.add(key);
+				projectCitations.push({ ...citation, passage });
+			}
+		}
+	}
+
+	async function persistProjectKnowledgeCitations(messageId: string) {
+		if (!conversation.projectId || projectCitations.length === 0) return [];
+		const projectId = conversation.projectId;
+		return db.transaction(async (tx) => {
+			const fileIds = [
+				...new Set(
+					projectCitations
+						.map((citation) => citation.fileId)
+						.filter((fileId): fileId is string => Boolean(fileId))
+				)
+			];
+			const liveFiles = fileIds.length
+				? await tx
+						.select({ id: schema.projectFiles.id })
+						.from(schema.projectFiles)
+						.where(
+							and(
+								eq(schema.projectFiles.projectId, projectId),
+								inArray(schema.projectFiles.id, fileIds)
+							)
+						)
+						.for('key share')
+				: [];
+			const liveFileIds = new Set(liveFiles.map((file) => file.id));
+			const persisted: Array<ProjectKnowledgeCitation & { url: string }> = [];
+			for (const citation of projectCitations) {
+				if (!citation.fileId) continue;
+				const url = `/api/projects/${encodeURIComponent(projectId)}/files/${encodeURIComponent(citation.fileId)}`;
+				const filename = citation.filename?.trim() || citation.title?.trim() || 'Project file';
+				const label = citation.page ? `${filename} p.${citation.page}` : filename;
+				const citationIndex = persisted.length + 1;
+				const [source] = await tx
+					.insert(schema.sources)
+					.values({
+						type: 'project_file' as const,
+						title: filename,
+						url,
+						fileId: liveFileIds.has(citation.fileId) ? citation.fileId : null,
+						metadata: {
+							projectId,
+							citationIndex,
+							filename,
+							page: citation.page ?? null,
+							passage: citation.passage ?? '',
+							chunkId: citation.chunkId ?? null
+						}
+					})
+					.returning({ id: schema.sources.id });
+				if (!source) continue;
+				await tx.insert(schema.messageCitations).values({
+					messageId,
+					sourceId: source.id,
+					label
+				});
+				persisted.push({ ...citation, title: filename, url });
+			}
+			return persisted;
+		});
+	}
 
 	async function ensureAssistantMessage(): Promise<string> {
 		if (currentAssistantMessageId) return currentAssistantMessageId;
@@ -446,6 +557,7 @@ export async function runConversationTurn(
 				]
 			: text;
 		await db.update(schema.messages).set({ content }).where(eq(schema.messages.id, msgId));
+		if (text.trim()) lastTextAssistantMessageId = msgId;
 		emit({
 			type: 'message.end',
 			messageId: msgId,
@@ -456,7 +568,10 @@ export async function runConversationTurn(
 		currentThinkingText = '';
 	}
 
-	agent.subscribe(async (event) => {
+	let subscriberError: unknown;
+	let eventQueue: Promise<void> = Promise.resolve();
+
+	const handleAgentEvent = async (event: unknown) => {
 		const e = event as AgentEvent;
 		if (e.type === 'agent_start') emit({ type: 'turn.start' });
 		if (e.type === 'message_start') {
@@ -512,6 +627,8 @@ export async function runConversationTurn(
 			});
 		}
 		if (e.type === 'tool_execution_end') {
+			if (e.toolName === 'project_knowledge_search' && !e.isError)
+				collectProjectKnowledgeCitations(e.result);
 			await db
 				.update(schema.toolCalls)
 				.set({
@@ -539,10 +656,26 @@ export async function runConversationTurn(
 			}
 			emit({ type: 'turn.end' });
 		}
+	};
+	agent.subscribe((event) => {
+		eventQueue = eventQueue
+			.then(() => handleAgentEvent(event))
+			.catch((error) => {
+				subscriberError ??= error;
+			});
 	});
+	async function drainEventQueue() {
+		while (true) {
+			const pending = eventQueue;
+			await pending;
+			if (pending === eventQueue) return;
+		}
+	}
 	try {
 		if (isConversationTurnCanceled(turnToken)) return null;
 		await agent.prompt(promptWithAttachments, pdfVisionFallback.images);
+		await drainEventQueue();
+		if (subscriberError) throw subscriberError;
 		await finalizeCurrentAssistantMessage();
 		if (agent.state.errorMessage) {
 			throw new Error(agent.state.errorMessage);
@@ -556,6 +689,15 @@ export async function runConversationTurn(
 			throw new Error(
 				(lastMsg as { errorMessage?: string }).errorMessage || 'Agent execution failed'
 			);
+		}
+		if (lastTextAssistantMessageId && projectCitations.length > 0) {
+			const citations = await persistProjectKnowledgeCitations(lastTextAssistantMessageId);
+			if (citations.length)
+				emit({
+					type: 'message.citations',
+					messageId: lastTextAssistantMessageId,
+					citations
+				});
 		}
 
 		for (const msgId of createdAssistantMessageIds) {
@@ -593,6 +735,9 @@ export async function runConversationTurn(
 				.where(eq(schema.projects.id, conversation.projectId));
 		return lastAssistantMessageId;
 	} catch (error) {
+		// The SDK does not await subscriber promises. Drain queued persistence
+		// work before cleanup so a late event cannot write after a failed turn.
+		await drainEventQueue().catch(() => {});
 		for (const msgId of createdAssistantMessageIds) {
 			const [msg] = await db
 				.select()

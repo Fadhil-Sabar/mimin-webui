@@ -85,6 +85,20 @@
 			"when": 1788769620253,
 			"tag": "0011_rapid_blade",
 			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "7",
+			"when": 1788827717247,
+			"tag": "0012_cynical_swarm",
+			"breakpoints": true
+		},
+		{
+			"idx": 13,
+			"version": "7",
+			"when": 1788828802805,
+			"tag": "0013_secret_dorian_gray",
+			"breakpoints": true
 		}
 	]
 }

@@ -21,12 +21,14 @@ export const createSkillParameters = Type.Object({
 	name: Type.String({
 		minLength: 1,
 		maxLength: SKILL_NAME_MAX_LENGTH,
-		description: 'The title/name of the skill (e.g. "TypeScript Refactorer", "SQL Optimizer", "Meeting Notes Formatter").'
+		description:
+			'The title/name of the skill (e.g. "TypeScript Refactorer", "SQL Optimizer", "Meeting Notes Formatter").'
 	}),
 	instructions: Type.String({
 		minLength: 1,
 		maxLength: SKILL_INSTRUCTIONS_MAX_LENGTH,
-		description: 'Comprehensive system instructions for this skill, describing its persona, step-by-step approach, constraints, style, and output format.'
+		description:
+			'Comprehensive system instructions for this skill, describing its persona, step-by-step approach, constraints, style, and output format.'
 	}),
 	description: Type.Optional(
 		Type.String({
@@ -36,24 +38,29 @@ export const createSkillParameters = Type.Object({
 	),
 	projectId: Type.Optional(
 		Type.Union([Type.String(), Type.Null()], {
-			description: 'Optional project ID to associate this skill with. Pass null or omit for a personal skill available across all chats.'
+			description:
+				'Optional project ID to associate this skill with. Pass null or omit for a personal skill available across all chats.'
 		})
 	),
 	enabledTools: Type.Optional(
 		Type.Array(Type.String(), {
 			maxItems: SKILL_MAX_TOOLS,
-			description: 'Tool names enabled when this skill is active (e.g. ["web_search", "project_knowledge_search"]).'
+			description:
+				'Tool names enabled when this skill is active (e.g. ["web_search", "project_knowledge_search"]).'
 		})
 	),
 	triggerPhrases: Type.Optional(
 		Type.Array(Type.String({ maxLength: SKILL_TRIGGER_MAX_LENGTH }), {
 			maxItems: SKILL_MAX_TRIGGER_PHRASES,
-			description: 'Phrases that trigger a recommendation to activate this skill (e.g. ["review code", "write sql query"]).'
+			description:
+				'Phrases that trigger a recommendation to activate this skill (e.g. ["review code", "write sql query"]).'
 		})
 	)
 });
 
-export function createCreateSkillTool(context: SkillToolContext): AgentTool<typeof createSkillParameters> {
+export function createCreateSkillTool(
+	context: SkillToolContext
+): AgentTool<typeof createSkillParameters> {
 	return {
 		name: 'create_skill',
 		label: 'Create Skill',

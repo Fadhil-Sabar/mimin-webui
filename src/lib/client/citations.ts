@@ -6,6 +6,10 @@ export interface SourceItem {
 	title: string;
 	domain: string;
 	faviconUrl: string;
+	type?: string;
+	filename?: string;
+	page?: number | null;
+	snippet?: string;
 }
 
 export function extractDomain(url: string): string {
@@ -53,7 +57,17 @@ export function extractCleanTitle(url: string, explicitTitle?: string): string {
 
 export function parseCitationsAndSources(
 	rawMarkdown: string,
-	fallbackSources?: Array<{ title?: string; url?: string; snippet?: string } | SourceItem>
+	fallbackSources?: Array<
+		| {
+				title?: string;
+				url?: string;
+				snippet?: string;
+				page?: number | null;
+				type?: string;
+				filename?: string;
+		  }
+		| SourceItem
+	>
 ): {
 	cleanedMarkdown: string;
 	sources: SourceItem[];
@@ -67,19 +81,36 @@ export function parseCitationsAndSources(
 	const sourcesList: SourceItem[] = [];
 	let nextIndex = 1;
 
-	function addSource(index: number | null, url: string, title?: string): SourceItem {
-		const trimmedUrl = url.trim();
-		if (!trimmedUrl || !/^https?:\/\//i.test(trimmedUrl)) {
+	function addSource(
+		index: number | null,
+		url: string,
+		title?: string,
+		metadata?: Pick<SourceItem, 'type' | 'filename' | 'page' | 'snippet'>
+	): SourceItem {
+		let trimmedUrl = url.trim();
+		if (
+			metadata?.type === 'project_file' &&
+			trimmedUrl.startsWith('/api/') &&
+			Number.isInteger(metadata.page) &&
+			(metadata.page as number) > 0 &&
+			!/[#&]page=/.test(trimmedUrl)
+		) {
+			trimmedUrl += `${trimmedUrl.includes('#') ? '&' : '#'}page=${encodeURIComponent(String(metadata.page))}`;
+		}
+		const navigable = /^https?:\/\//i.test(trimmedUrl) || trimmedUrl.startsWith('/api/');
+		if (!trimmedUrl || !navigable) {
 			return {
 				index: index ?? 1,
 				url: trimmedUrl,
 				title: title || trimmedUrl,
 				domain: '',
-				faviconUrl: ''
+				faviconUrl: '',
+				...metadata
 			};
 		}
-		const domain = extractDomain(trimmedUrl);
-		const faviconUrl = getFaviconUrl(domain);
+		const isRemote = /^https?:\/\//i.test(trimmedUrl);
+		const domain = isRemote ? extractDomain(trimmedUrl) : 'Project file';
+		const faviconUrl = isRemote ? getFaviconUrl(domain) : '';
 		const cleanTitle = extractCleanTitle(trimmedUrl, title);
 
 		if (index !== null && index > 0) {
@@ -93,6 +124,7 @@ export function parseCitationsAndSources(
 				if (cleanTitle && cleanTitle !== existing.title) {
 					existing.title = cleanTitle;
 				}
+				Object.assign(existing, metadata);
 				return existing;
 			}
 			const item: SourceItem = {
@@ -100,7 +132,8 @@ export function parseCitationsAndSources(
 				url: trimmedUrl,
 				title: cleanTitle,
 				domain,
-				faviconUrl
+				faviconUrl,
+				...metadata
 			};
 			sourcesMap.set(index, item);
 			sourcesList.push(item);
@@ -114,6 +147,7 @@ export function parseCitationsAndSources(
 			if (cleanTitle && cleanTitle !== existing.title && cleanTitle !== existing.domain) {
 				existing.title = cleanTitle;
 			}
+			Object.assign(existing, metadata);
 			return existing;
 		}
 
@@ -123,7 +157,8 @@ export function parseCitationsAndSources(
 			url: trimmedUrl,
 			title: cleanTitle,
 			domain,
-			faviconUrl
+			faviconUrl,
+			...metadata
 		};
 		sourcesMap.set(idx, item);
 		sourcesList.push(item);
@@ -133,7 +168,12 @@ export function parseCitationsAndSources(
 	if (fallbackSources && fallbackSources.length > 0) {
 		fallbackSources.forEach((s, i) => {
 			if (s && s.url) {
-				addSource(i + 1, s.url, s.title);
+				addSource(i + 1, s.url, s.title, {
+					snippet: s.snippet,
+					page: 'page' in s ? s.page : null,
+					type: 'type' in s ? s.type : undefined,
+					filename: 'filename' in s ? s.filename : undefined
+				});
 			}
 		});
 	}

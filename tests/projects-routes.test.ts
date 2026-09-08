@@ -158,8 +158,15 @@ vi.mock('../src/lib/server/ai/model.service', () => ({
 	listAvailableModels: vi.fn(async () => [])
 }));
 
+vi.mock('../src/lib/server/ai/knowledge-indexing', () => ({
+	indexKnowledgeEmbeddings: vi.fn(async () => ({ status: 'disabled', indexed: 0 }))
+}));
+
 vi.mock('../src/lib/server/files/storage', () => ({
-	chunkText: (text: string) => (text.trim() ? [text.trim()] : []),
+	chunkUploadedExtraction: (extraction: { extractedText: string }) =>
+		extraction.extractedText.trim()
+			? [{ content: extraction.extractedText.trim(), page: null }]
+			: [],
 	cleanupStoredFiles: vi.fn(async (keys: string[]) => {
 		testState.cleanupKeys.push(...keys);
 	}),

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import type { AppModel } from '$lib/server/ai/model.service';
 
 const testState = vi.hoisted(() => ({
 	user: { id: 'user-1' } as { id: string } | null,
@@ -64,6 +65,19 @@ vi.mock('$lib/server/ai/model.service', () => ({
 	isModelAvailable: vi.fn(async () => true),
 	listAvailableModels: vi.fn(async () => [{ provider: 'openai', id: 'gpt-4o-mini' }])
 }));
+
+function testModel(provider: string, id: string): AppModel {
+	return {
+		provider,
+		id,
+		providerName: provider,
+		name: id,
+		configured: true,
+		userConfigured: false,
+		source: 'catalog',
+		capabilities: { vision: false, tools: false, reasoning: false, thinkingLevels: [] }
+	};
+}
 
 vi.mock('$lib/server/ai/project-context', () => ({
 	getProjectConversationTools: vi.fn((_p, tools) => tools ?? ['web_search'])
@@ -200,8 +214,8 @@ describe('conversations API endpoints', () => {
 		testState.conversations[0].model = 'anthropic/claude-3-5-sonnet';
 		const modelService = await import('$lib/server/ai/model.service');
 		vi.mocked(modelService.listAvailableModels).mockResolvedValueOnce([
-			{ provider: 'openai', id: 'gpt-4o-mini' } as any,
-			{ provider: 'anthropic', id: 'claude-3-5-sonnet' } as any
+			testModel('openai', 'gpt-4o-mini'),
+			testModel('anthropic', 'claude-3-5-sonnet')
 		]);
 
 		const event = {

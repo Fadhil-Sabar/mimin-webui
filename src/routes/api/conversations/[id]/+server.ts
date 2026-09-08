@@ -77,6 +77,39 @@ export const GET: RequestHandler = async (event) => {
 			current.push(attachment);
 			attachmentsByMessage.set(attachment.messageId, current);
 		}
+		const citationRows = rows.length
+			? await db
+					.select({
+						messageId: schema.messageCitations.messageId,
+						sourceId: schema.messageCitations.sourceId,
+						label: schema.messageCitations.label,
+						type: schema.sources.type,
+						title: schema.sources.title,
+						url: schema.sources.url,
+						fileId: schema.sources.fileId,
+						metadata: schema.sources.metadata
+					})
+					.from(schema.messageCitations)
+					.innerJoin(schema.sources, eq(schema.messageCitations.sourceId, schema.sources.id))
+					.where(
+						inArray(
+							schema.messageCitations.messageId,
+							rows.map((row) => row.id)
+						)
+					)
+			: [];
+		const citationsByMessage = new Map<string, typeof citationRows>();
+		for (const citation of citationRows) {
+			const current = citationsByMessage.get(citation.messageId) ?? [];
+			current.push(citation);
+			citationsByMessage.set(citation.messageId, current);
+		}
+		const citationOrder = (metadata: unknown) => {
+			const index = (metadata as { citationIndex?: unknown } | null)?.citationIndex;
+			return typeof index === 'number' && Number.isFinite(index) ? index : 0;
+		};
+		for (const citations of citationsByMessage.values())
+			citations.sort((a, b) => citationOrder(a.metadata) - citationOrder(b.metadata));
 		return json({
 			conversation: {
 				...toPublicConversation(conversation)
@@ -84,7 +117,8 @@ export const GET: RequestHandler = async (event) => {
 			messages: rows.map((row) => ({
 				...toPublicMessage(row),
 				attachments: attachmentsByMessage.get(row.id) ?? [],
-				toolCalls: toolCallsByMessage.get(row.id) ?? []
+				toolCalls: toolCallsByMessage.get(row.id) ?? [],
+				citations: citationsByMessage.get(row.id) ?? []
 			})),
 			toolCalls: calls
 		});

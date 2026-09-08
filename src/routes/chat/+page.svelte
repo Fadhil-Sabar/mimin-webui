@@ -87,6 +87,24 @@
 		startedAt?: string | null;
 		completedAt?: string | null;
 	};
+	type MessageCitation = {
+		sourceId?: string;
+		label?: string;
+		type?: string;
+		title?: string;
+		url?: string | null;
+		fileId?: string | null;
+		metadata?: {
+			filename?: string;
+			page?: number | null;
+			passage?: string;
+			chunkId?: string | null;
+			projectId?: string;
+		} | null;
+		page?: number | null;
+		passage?: string;
+		filename?: string;
+	};
 	type ChatMessage = {
 		skill?: SkillSummary | null;
 		id: string;
@@ -95,6 +113,7 @@
 		createdAt: string;
 		attachments?: MessageAttachment[];
 		toolCalls?: ToolCall[];
+		citations?: MessageCitation[];
 		isStreaming?: boolean;
 	};
 	type MessageAttachment = {
@@ -359,9 +378,17 @@
 		};
 	}
 
-	function getToolSourceList(
-		toolCall: ToolCall
-	): Array<{ title: string; url?: string; page?: number | null; type?: string }> {
+	function getToolSourceList(toolCall: ToolCall): Array<{
+		title: string;
+		url?: string;
+		page?: number | null;
+		type?: string;
+		filename?: string;
+		projectId?: string;
+		fileId?: string;
+		chunkId?: string;
+		passage?: string;
+	}> {
 		if (!toolCall.output || typeof toolCall.output !== 'object') return [];
 		const output = toolCall.output as Record<string, unknown>;
 		const details = output.details as Record<string, unknown> | undefined;
@@ -372,6 +399,11 @@
 					url?: string;
 					page?: number | null;
 					type?: string;
+					filename?: string;
+					projectId?: string;
+					fileId?: string;
+					chunkId?: string;
+					passage?: string;
 				}>;
 			}
 			if (Array.isArray(details.results)) {
@@ -380,6 +412,11 @@
 					url?: string;
 					page?: number | null;
 					type?: string;
+					filename?: string;
+					projectId?: string;
+					fileId?: string;
+					chunkId?: string;
+					passage?: string;
 				}>;
 			}
 			if (details.url && typeof details.url === 'string') {
@@ -440,26 +477,75 @@
 		return 'Completed';
 	}
 
-	function getTurnSources(
-		msgIndex: number
-	): Array<{ title: string; url: string; snippet?: string }> {
+	function getTurnSources(msgIndex: number): Array<{
+		title: string;
+		url: string;
+		snippet?: string;
+		page?: number | null;
+		type?: string;
+		filename?: string;
+	}> {
 		const target = messages[msgIndex];
 		if (!target || target.role !== 'assistant') return [];
 
-		const collected: Array<{ title: string; url: string; snippet?: string }> = [];
-		const seenUrls = new SvelteSet<string>();
+		const collected: Array<{
+			title: string;
+			url: string;
+			snippet?: string;
+			page?: number | null;
+			type?: string;
+			filename?: string;
+		}> = [];
+		const seenSources = new SvelteSet<string>();
+
+		function addCitation(citation: MessageCitation) {
+			const metadata = citation.metadata ?? {};
+			const url = citation.url ?? '';
+			const snippet = citation.passage || metadata.passage || '';
+			const sourceKey = `${url}|${citation.page ?? metadata.page ?? ''}|${snippet}`;
+			if (
+				!url ||
+				(!/^https?:\/\//i.test(url) && !url.startsWith('/api/')) ||
+				seenSources.has(sourceKey)
+			)
+				return;
+			seenSources.add(sourceKey);
+			collected.push({
+				title: citation.filename || citation.title || metadata.filename || citation.label || url,
+				url,
+				snippet,
+				page: citation.page ?? metadata.page ?? null,
+				type: citation.type,
+				filename: citation.filename || metadata.filename
+			});
+		}
+
+		for (const citation of target.citations ?? []) addCitation(citation);
 
 		function addFromToolCalls(toolCalls?: ToolCall[]) {
 			if (!toolCalls) return;
 			for (const tc of toolCalls) {
 				const sources = getToolSourceList(tc);
 				for (const s of sources) {
-					if (s.url && /^https?:\/\//i.test(s.url) && !seenUrls.has(s.url)) {
-						seenUrls.add(s.url);
+					const url =
+						s.url ||
+						(s.type === 'project_file' && s.projectId && s.fileId
+							? `/api/projects/${encodeURIComponent(s.projectId)}/files/${encodeURIComponent(s.fileId)}`
+							: '');
+					const sourceKey = `${url}|${s.page ?? ''}|${s.passage || ''}`;
+					if (
+						url &&
+						(/^https?:\/\//i.test(url) || url.startsWith('/api/')) &&
+						!seenSources.has(sourceKey)
+					) {
+						seenSources.add(sourceKey);
 						collected.push({
-							title: s.title || s.url,
-							url: s.url,
-							snippet: ''
+							title: s.filename || s.title || url,
+							url,
+							snippet: s.passage || '',
+							page: s.page ?? null,
+							type: s.type,
+							filename: s.filename
 						});
 					}
 				}
@@ -1199,10 +1285,19 @@
 					? {
 							...msg,
 							isStreaming: false,
-							content: event.content !== undefined ? event.content : msg.content
+							content: event.content !== undefined ? event.content : msg.content,
+							...(Array.isArray(event.citations)
+								? { citations: event.citations as MessageCitation[] }
+								: {})
 						}
 					: msg
 			);
+		} else if (event.type === 'message.citations') {
+			const msgId = String(event.messageId);
+			if (Array.isArray(event.citations))
+				messages = messages.map((msg) =>
+					msg.id === msgId ? { ...msg, citations: event.citations as MessageCitation[] } : msg
+				);
 		} else if (event.type === 'error') {
 			liveError = extractSseErrorMessage(event.error);
 			messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
@@ -1676,7 +1771,7 @@
 														<span class="tool-detail-heading">Result</span>
 														{#if getToolSourceList(toolCall).length > 0}
 															<div class="tool-source-chips">
-																{#each getToolSourceList(toolCall) as src (src.title + src.url + src.page)}
+																{#each getToolSourceList(toolCall) as src (`${src.type ?? ''}|${src.fileId ?? ''}|${src.chunkId ?? ''}|${src.title}|${src.url ?? ''}|${src.page ?? ''}`)}
 																	<div class="tool-source-chip">
 																		{#if src.type === 'project_file'}
 																			<FileText size={12} />
@@ -1983,7 +2078,9 @@
 		background: transparent;
 		color: var(--text-muted);
 		cursor: pointer;
-		transition: color 0.15s ease, background 0.15s ease;
+		transition:
+			color 0.15s ease,
+			background 0.15s ease;
 	}
 	.skill-badge-remove:hover:not(:disabled) {
 		color: var(--danger-text, #ef4444);
@@ -2044,7 +2141,9 @@
 		font-size: var(--text-xs);
 		font-weight: 550;
 		cursor: pointer;
-		transition: background 0.15s ease, border-color 0.15s ease;
+		transition:
+			background 0.15s ease,
+			border-color 0.15s ease;
 	}
 	.skill-suggestion-apply:hover:not(:disabled) {
 		background: var(--surface-hover);

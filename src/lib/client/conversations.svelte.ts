@@ -48,9 +48,7 @@ export function resolveInitialModel(
 	].filter(Boolean) as string[];
 
 	for (const candidate of candidates) {
-		const matched = configuredModels.find(
-			(model) => `${model.provider}/${model.id}` === candidate
-		);
+		const matched = configuredModels.find((model) => `${model.provider}/${model.id}` === candidate);
 		if (matched) return `${matched.provider}/${matched.id}`;
 	}
 

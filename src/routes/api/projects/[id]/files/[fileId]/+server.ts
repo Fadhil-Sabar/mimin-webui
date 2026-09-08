@@ -3,7 +3,49 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { and, eq } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
-import { cleanupStoredFiles, resolveStoragePath } from '$lib/server/files/storage';
+import { cleanupStoredFiles, readStoredFile, resolveStoragePath } from '$lib/server/files/storage';
+
+export const GET: RequestHandler = async (event) => {
+	try {
+		const user = await requireUser(event);
+		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
+		const { id: projectId, fileId } = event.params;
+		if (!projectId || !fileId) return apiError('FILE_NOT_FOUND', 'File not found.', 404);
+		const db = getDb();
+		if (!(await getOwnedProject(projectId, user.id)))
+			return apiError('FILE_NOT_FOUND', 'File not found.', 404);
+		const [file] = await db
+			.select()
+			.from(schema.projectFiles)
+			.where(and(eq(schema.projectFiles.id, fileId), eq(schema.projectFiles.projectId, projectId)));
+		if (!file) return apiError('FILE_NOT_FOUND', 'File not found.', 404);
+		try {
+			resolveStoragePath(file.storageKey);
+		} catch {
+			return apiError('INVALID_FILE_PATH', 'Invalid file path.', 400);
+		}
+		let data: Buffer;
+		try {
+			data = await readStoredFile(file.storageKey);
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException)?.code === 'ENOENT')
+				return apiError('FILE_NOT_FOUND', 'File not found.', 404);
+			throw error;
+		}
+		const body = new Uint8Array(data).slice().buffer;
+		return new Response(body, {
+			headers: {
+				'content-type': file.mimeType,
+				'content-length': String(data.byteLength),
+				'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
+				'cache-control': 'private, no-store',
+				'x-content-type-options': 'nosniff'
+			}
+		});
+	} catch (error) {
+		return handleApiError(error);
+	}
+};
 
 export const DELETE: RequestHandler = async (event) => {
 	try {

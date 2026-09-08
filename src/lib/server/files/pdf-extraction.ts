@@ -1,17 +1,53 @@
 import { getDocumentProxy } from 'unpdf';
+import {
+	getPdfOcrConfig,
+	ocrPdfPages,
+	PDF_OCR_NATIVE_TEXT_THRESHOLD,
+	type PdfOcrConfig,
+	type PdfOcrStatus
+} from './pdf-ocr';
 
 export const PDF_MAX_PAGES = 100;
 export const PDF_MAX_TEXT_CHARS = 500_000;
 export const PDF_EXTRACTION_TIMEOUT_MS = 10_000;
 export const PDF_MAX_IMAGE_SIZE = 16_777_216;
 
-export type PdfExtractionStatus = 'extracted' | 'empty' | 'truncated' | 'failed';
+export type PdfExtractionStatus = 'extracted' | 'empty' | 'truncated' | 'partial' | 'failed';
+export type PdfExtractionPage = {
+	page: number;
+	text: string;
+	source: 'native' | 'ocr' | 'hybrid';
+};
+export type PdfExtractionOptions = {
+	maxPages?: number;
+	maxTextChars?: number;
+	timeoutMs?: number;
+	/** Enables OCR for sparse pages. Chat attachment extraction leaves this disabled. */
+	ocr?: boolean;
+	ocrConfig?: Partial<PdfOcrConfig>;
+};
 export type PdfExtractionResult = {
 	status: PdfExtractionStatus;
 	text: string;
+	pages: PdfExtractionPage[];
 	pageCount: number | null;
 	error: string | null;
+	ocrStatus: PdfOcrStatus;
 };
+
+export function mergePdfPageText(
+	nativeText: string,
+	ocrText: string
+): { text: string; source: PdfExtractionPage['source'] } {
+	if (!nativeText) return { text: ocrText, source: 'ocr' };
+	if (!ocrText) return { text: nativeText, source: 'native' };
+	const nativeNormalized = nativeText.replace(/\s+/g, ' ').trim().toLowerCase();
+	const ocrNormalized = ocrText.replace(/\s+/g, ' ').trim().toLowerCase();
+	if (nativeNormalized === ocrNormalized) return { text: nativeText, source: 'native' };
+	if (ocrNormalized.includes(nativeNormalized)) return { text: ocrText, source: 'ocr' };
+	if (nativeNormalized.includes(ocrNormalized)) return { text: nativeText, source: 'native' };
+	return { text: `${nativeText}\n${ocrText}`, source: 'hybrid' };
+}
 
 export function hasPdfMagicBytes(data: Uint8Array) {
 	return data.length >= 5 && new TextDecoder().decode(data.subarray(0, 5)) === '%PDF-';
@@ -52,17 +88,18 @@ async function disposePdf(
 /** Extracts text once with page, text, image-resource, and wall-clock limits. */
 export async function extractPdfText(
 	data: Uint8Array,
-	options: {
-		maxPages?: number;
-		maxTextChars?: number;
-		timeoutMs?: number;
-	} = {}
+	options: PdfExtractionOptions = {}
 ): Promise<PdfExtractionResult> {
 	if (!hasPdfMagicBytes(data)) throw new Error('INVALID_PDF');
 	const maxPages = options.maxPages ?? PDF_MAX_PAGES;
 	const maxTextChars = options.maxTextChars ?? PDF_MAX_TEXT_CHARS;
-	const timeoutMs = options.timeoutMs ?? PDF_EXTRACTION_TIMEOUT_MS;
+	const timeoutMs =
+		options.timeoutMs ??
+		(options.ocr
+			? Math.max(PDF_EXTRACTION_TIMEOUT_MS, getPdfOcrConfig(options.ocrConfig).timeoutMs)
+			: PDF_EXTRACTION_TIMEOUT_MS);
 	const startedAt = Date.now();
+	const ocrAbortController = options.ocr ? new AbortController() : undefined;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let pdf: Awaited<ReturnType<typeof getDocumentProxy>> | undefined;
 	let timedOut = false;
@@ -87,7 +124,8 @@ export async function extractPdfText(
 			const document = await load;
 			const pageCount = document.numPages;
 			if (pageCount > maxPages) throw new Error('PDF_TOO_MANY_PAGES');
-			const pages: string[] = [];
+			const pages: PdfExtractionPage[] = [];
+			const candidates: Array<{ page: number; nativeText: string }> = [];
 			let textLength = 0;
 			let truncated = false;
 			for (let pageNumber = 1; pageNumber <= pageCount; pageNumber += 1) {
@@ -107,27 +145,82 @@ export async function extractPdfText(
 						break;
 					}
 					if (pageText.length > remaining) {
-						pages.push(pageText.slice(0, remaining));
+						pages.push({ page: pageNumber, text: pageText.slice(0, remaining), source: 'native' });
 						textLength = maxTextChars;
 						truncated = true;
 						break;
 					}
-					pages.push(pageText);
+					pages.push({ page: pageNumber, text: pageText, source: 'native' });
+					if (pageText.trim().length < PDF_OCR_NATIVE_TEXT_THRESHOLD)
+						candidates.push({ page: pageNumber, nativeText: pageText });
 					textLength += pageText.length;
 				} finally {
 					await page.cleanup();
 				}
 			}
-			const text = pages.join('\n').replace(/\r\n/g, '\n').trim();
+
+			let ocrStatus: PdfOcrStatus = 'not_needed';
+			let ocrError: string | null = null;
+			if (options.ocr && candidates.length && !truncated) {
+				const ocr = await ocrPdfPages(document, candidates, {
+					config: options.ocrConfig,
+					deadlineMs: startedAt + timeoutMs,
+					signal: ocrAbortController?.signal
+				});
+				ocrStatus = ocr.status;
+				ocrError = ocr.error;
+				for (const ocrPage of ocr.pages) {
+					const page = pages.find((candidate) => candidate.page === ocrPage.page);
+					if (!page || !ocrPage.text) continue;
+					const merged = mergePdfPageText(page.text, ocrPage.text);
+					page.text = merged.text;
+					page.source = merged.source;
+				}
+			}
+
+			let remainingText = maxTextChars;
+			const boundedPages: PdfExtractionPage[] = [];
+			let outputTruncated = truncated;
+			for (const page of pages) {
+				if (remainingText <= 0) {
+					outputTruncated = true;
+					break;
+				}
+				const text = page.text.slice(0, remainingText);
+				if (text.length < page.text.length) outputTruncated = true;
+				boundedPages.push({ ...page, text });
+				remainingText -= text.length;
+			}
+			const text = boundedPages
+				.map((page) => page.text)
+				.join('\n')
+				.replace(/\r\n/g, '\n')
+				.trim();
+			const partial =
+				ocrStatus === 'partial' ||
+				ocrStatus === 'failed' ||
+				ocrStatus === 'busy' ||
+				ocrStatus === 'unavailable';
 			return {
-				status: text ? (truncated ? 'truncated' : 'extracted') : 'empty',
+				status: text
+					? outputTruncated
+						? 'truncated'
+						: partial
+							? 'partial'
+							: 'extracted'
+					: 'empty',
 				text,
+				pages: boundedPages,
 				pageCount,
-				error: null
+				error: ocrError,
+				ocrStatus
 			} satisfies PdfExtractionResult;
 		})();
 		const timeout = new Promise<never>((_, reject) => {
-			timer = setTimeout(() => reject(timeoutError()), timeoutMs);
+			timer = setTimeout(() => {
+				ocrAbortController?.abort();
+				reject(timeoutError());
+			}, timeoutMs);
 		});
 		return await Promise.race([extraction, timeout]);
 	} catch (error) {
@@ -135,8 +228,10 @@ export async function extractPdfText(
 		return {
 			status: 'failed',
 			text: '',
+			pages: [],
 			pageCount: pdf?.numPages ?? null,
-			error: errorCode(error)
+			error: errorCode(error),
+			ocrStatus: 'not_needed'
 		};
 	} finally {
 		if (timer) clearTimeout(timer);
@@ -144,6 +239,6 @@ export async function extractPdfText(
 	}
 }
 
-export async function extractPdfFile(file: File, options?: Parameters<typeof extractPdfText>[1]) {
+export async function extractPdfFile(file: File, options?: PdfExtractionOptions) {
 	return extractPdfText(new Uint8Array(await file.arrayBuffer()), options);
 }

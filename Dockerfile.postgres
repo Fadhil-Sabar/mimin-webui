@@ -1,0 +1,23 @@
+# Build pgvector against the same PostgreSQL 17 Alpine base used by the
+# existing named volume. Keeping the base distribution stable avoids an
+# unnecessary Alpine-to-Debian image switch during upgrades.
+FROM postgres:17-alpine AS pgvector-builder
+
+ARG PGVECTOR_VERSION=0.8.2
+
+RUN apk add --no-cache --virtual .pgvector-build-deps \
+		build-base \
+		clang21 \
+		llvm21 \
+		git \
+		postgresql17-dev \
+		linux-headers \
+	&& git clone --depth 1 --branch "v${PGVECTOR_VERSION}" https://github.com/pgvector/pgvector.git /tmp/pgvector \
+	&& make -C /tmp/pgvector \
+	&& make -C /tmp/pgvector install
+
+FROM postgres:17-alpine
+
+COPY --from=pgvector-builder /usr/local/lib/postgresql/vector.so /usr/local/lib/postgresql/vector.so
+COPY --from=pgvector-builder /usr/local/share/postgresql/extension/vector--*.sql /usr/local/share/postgresql/extension/
+COPY --from=pgvector-builder /usr/local/share/postgresql/extension/vector.control /usr/local/share/postgresql/extension/vector.control

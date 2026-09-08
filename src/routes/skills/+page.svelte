@@ -628,7 +628,9 @@
 						<button
 							class="empty-card"
 							onclick={() =>
-								openCreate(scopeFilter === 'project' && selectedProjectId ? selectedProjectId : null)}
+								openCreate(
+									scopeFilter === 'project' && selectedProjectId ? selectedProjectId : null
+								)}
 						>
 							<Plus size={19} />
 							<strong>Create a new skill</strong>

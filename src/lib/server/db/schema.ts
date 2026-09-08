@@ -9,7 +9,8 @@ import {
 	index,
 	boolean,
 	primaryKey,
-	uniqueIndex
+	uniqueIndex,
+	vector
 } from 'drizzle-orm/pg-core';
 import type { SkillSnapshot } from '$lib/skills';
 
@@ -52,7 +53,9 @@ export const accounts = pgTable(
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 		providerId: text('provider_id').notNull(),
-		issuer: text('issuer').notNull(),
+		// Better Auth 1.7.x does not write issuer for credential accounts.
+		// Keep legacy values where present, but allow new inserts to omit it.
+		issuer: text('issuer'),
 		accountId: text('account_id').notNull(),
 		userId: uuid('user_id')
 			.notNull()
@@ -311,8 +314,16 @@ export const projectFileChunks = pgTable(
 			.references(() => projectFiles.id, { onDelete: 'cascade' }),
 		content: text('content').notNull(),
 		page: integer('page'),
+		embedding: vector('embedding', { dimensions: 1536 }),
+		embeddingModel: text('embedding_model'),
 		metadata: jsonb('metadata'),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
-	(table) => ({ projectIdx: index('chunks_project_idx').on(table.projectId) })
+	(table) => ({
+		projectIdx: index('chunks_project_idx').on(table.projectId),
+		embeddingIdx: index('chunks_embedding_idx').using(
+			'hnsw',
+			table.embedding.op('vector_cosine_ops')
+		)
+	})
 );

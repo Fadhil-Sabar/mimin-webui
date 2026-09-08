@@ -2,7 +2,14 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
 import { env } from '$env/dynamic/private';
 import { randomUUID } from 'node:crypto';
-import { extractPdfFile, hasPdfMagicBytes, type PdfExtractionResult } from './pdf-extraction';
+import {
+	extractPdfFile,
+	hasPdfMagicBytes,
+	type PdfExtractionOptions,
+	type PdfExtractionPage,
+	type PdfExtractionResult
+} from './pdf-extraction';
+import type { PdfOcrStatus } from './pdf-ocr';
 
 const allowed = new Map([
 	['.txt', 'text/plain'],
@@ -71,17 +78,25 @@ export type UploadedFileExtraction = {
 	extractionStatus: PdfExtractionResult['status'] | 'not_started';
 	pageCount: number | null;
 	extractionError: string | null;
+	/** Page-aware extraction is available for project knowledge citations and chunk metadata. */
+	pages?: PdfExtractionPage[];
+	ocrStatus?: PdfOcrStatus;
 };
 
-export async function extractUploadedFile(file: File): Promise<UploadedFileExtraction> {
+export async function extractUploadedFile(
+	file: File,
+	options: Pick<PdfExtractionOptions, 'ocr' | 'ocrConfig'> = {}
+): Promise<UploadedFileExtraction> {
 	const info = validateFilename(file.name);
 	if (info.mimeType === 'application/pdf') {
-		const result = await extractPdfFile(file);
+		const result = await extractPdfFile(file, options);
 		return {
 			extractedText: result.text || null,
 			extractionStatus: result.status,
 			pageCount: result.pageCount,
-			extractionError: result.error
+			extractionError: result.error,
+			pages: result.pages,
+			ocrStatus: result.ocrStatus
 		};
 	}
 	const text = await file.text();
@@ -121,4 +136,40 @@ export function chunkText(text: string, chunkSize = 1200) {
 	for (let i = 0; i < normalized.length; i += chunkSize)
 		chunks.push(normalized.slice(i, i + chunkSize));
 	return chunks;
+}
+
+export type UploadedExtractionChunk = { content: string; page: number | null };
+
+export const PROJECT_KNOWLEDGE_CHUNK_SIZE = 1200;
+export const PROJECT_KNOWLEDGE_CHUNK_OVERLAP = 150;
+
+function chunkKnowledgeText(text: string, chunkSize: number) {
+	const normalized = text.replace(/\r\n/g, '\n').trim();
+	if (!normalized) return [];
+	// Keep tiny caller-specified chunks compatible with chunkText and avoid overlap loops.
+	const overlap = chunkSize >= 300 ? Math.min(PROJECT_KNOWLEDGE_CHUNK_OVERLAP, chunkSize - 1) : 0;
+	const step = Math.max(1, chunkSize - overlap);
+	const chunks: string[] = [];
+	for (let start = 0; start < normalized.length; start += step) {
+		const chunk = normalized.slice(start, start + chunkSize);
+		if (chunk) chunks.push(chunk);
+		if (start + chunkSize >= normalized.length) break;
+	}
+	return chunks;
+}
+
+/** Chunk extracted content while retaining the source PDF page for citations. */
+export function chunkUploadedExtraction(
+	extraction: Pick<UploadedFileExtraction, 'extractedText' | 'pages'>,
+	chunkSize = PROJECT_KNOWLEDGE_CHUNK_SIZE
+): UploadedExtractionChunk[] {
+	if (extraction.pages?.length) {
+		return extraction.pages.flatMap((page) =>
+			chunkKnowledgeText(page.text, chunkSize).map((content) => ({ content, page: page.page }))
+		);
+	}
+	return chunkKnowledgeText(extraction.extractedText ?? '', chunkSize).map((content) => ({
+		content,
+		page: null
+	}));
 }
