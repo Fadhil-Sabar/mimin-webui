@@ -20,6 +20,16 @@ export function shouldRetryProcessingJob(attempts: number, maxAttempts = MAX_PRO
 	return attempts < maxAttempts;
 }
 
+export function isProcessingJobClaimable(
+	status: ProcessingStatus,
+	attempts: number,
+	timing: { available: boolean; leaseExpired: boolean },
+	maxAttempts = MAX_PROCESSING_ATTEMPTS
+) {
+	if (attempts >= maxAttempts) return false;
+	return status === 'queued' ? timing.available : status === 'processing' && timing.leaseExpired;
+}
+
 export function leaseHeartbeatDelay(leaseMs = PROCESSING_LEASE_MS) {
 	return Math.max(1_000, Math.floor(leaseMs / 3));
 }
@@ -52,6 +62,11 @@ export class DocumentLeaseLostError extends Error {
 	}
 }
 
+export function assertOwnedProcessingUpdate<T>(updated: T | undefined): T {
+	if (!updated) throw new DocumentLeaseLostError();
+	return updated;
+}
+
 /** Atomically claims one queued or expired job; SKIP LOCKED makes this multi-instance safe. */
 export async function claimDocumentProcessingJob(
 	workerId = randomUUID()
@@ -63,8 +78,9 @@ export async function claimDocumentProcessingJob(
 		const rows = await tx.execute(sql`
 			WITH candidate AS (
 				SELECT id FROM document_processing_jobs
-				WHERE (status = 'queued' AND available_at <= now())
-				   OR (status = 'processing' AND lease_until < now())
+				WHERE attempts < ${MAX_PROCESSING_ATTEMPTS}
+				  AND ((status = 'queued' AND available_at <= now())
+				   OR (status = 'processing' AND lease_until < now()))
 				ORDER BY created_at
 				FOR UPDATE SKIP LOCKED LIMIT 1
 			)
@@ -127,7 +143,7 @@ async function finishJob(job: ClaimedJob, status: 'succeeded' | 'failed', error?
 		})
 		.where(ownedJobWhere(job))
 		.returning({ id: schema.documentProcessingJobs.id });
-	if (!updated) throw new DocumentLeaseLostError();
+	assertOwnedProcessingUpdate(updated);
 }
 
 export async function processDocumentProcessingJob(job: ClaimedJob) {
@@ -169,7 +185,7 @@ export async function processDocumentProcessingJob(job: ClaimedJob) {
 				.set({ leaseUntil: new Date(Date.now() + PROCESSING_LEASE_MS), updatedAt: new Date() })
 				.where(ownedJobWhere(job))
 				.returning({ id: schema.documentProcessingJobs.id });
-			if (!lease) throw new DocumentLeaseLostError();
+			assertOwnedProcessingUpdate(lease);
 			await tx
 				.delete(schema.projectFileChunks)
 				.where(eq(schema.projectFileChunks.fileId, job.fileId));
@@ -190,7 +206,7 @@ export async function processDocumentProcessingJob(job: ClaimedJob) {
 				})
 				.where(ownedFileWhere(job))
 				.returning({ id: schema.projectFiles.id });
-			if (!updated) throw new DocumentLeaseLostError();
+			assertOwnedProcessingUpdate(updated);
 		});
 
 		if (leaseLost) throw new DocumentLeaseLostError();
@@ -203,22 +219,23 @@ export async function processDocumentProcessingJob(job: ClaimedJob) {
 			.set({ processingStatus: 'succeeded' })
 			.where(ownedFileWhere(job))
 			.returning({ id: schema.projectFiles.id });
-		if (!fileUpdated) throw new DocumentLeaseLostError();
+		assertOwnedProcessingUpdate(fileUpdated);
 		await finishJob(job, 'succeeded');
 		return { status: 'succeeded' as const, indexing };
 	} catch (error) {
 		if (!(error instanceof DocumentLeaseLostError)) {
 			const message = error instanceof Error ? error.message : String(error);
-			await getDb()
+			const [fileUpdated] = await getDb()
 				.update(schema.projectFiles)
 				.set({
 					processingStatus: shouldRetryProcessingJob(job.attempts) ? 'queued' : 'failed',
 					extractionError: message
 				})
 				.where(ownedFileWhere(job))
-				.catch(() => {});
+				.returning({ id: schema.projectFiles.id });
+			assertOwnedProcessingUpdate(fileUpdated);
 			if (shouldRetryProcessingJob(job.attempts)) {
-				await getDb()
+				const [jobUpdated] = await getDb()
 					.update(schema.documentProcessingJobs)
 					.set({
 						status: 'queued',
@@ -230,8 +247,9 @@ export async function processDocumentProcessingJob(job: ClaimedJob) {
 						updatedAt: new Date()
 					})
 					.where(ownedJobWhere(job))
-					.catch(() => {});
-			} else await finishJob(job, 'failed', error).catch(() => {});
+					.returning({ id: schema.documentProcessingJobs.id });
+				assertOwnedProcessingUpdate(jobUpdated);
+			} else await finishJob(job, 'failed', error);
 		}
 		return { status: 'failed' as const, error };
 	} finally {
