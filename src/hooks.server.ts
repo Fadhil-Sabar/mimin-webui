@@ -3,7 +3,12 @@ import { building } from '$app/environment';
 import { isAuthPath, svelteKitHandler } from 'better-auth/svelte-kit';
 import { auth } from '$lib/server/auth';
 
+import { runDocumentWorker } from '$lib/server/files/document-processing';
+
 const PUBLIC_PAGES = new Set(['/login']);
+
+// The web process also owns a DB-leased worker. Multiple instances safely share the queue.
+if (!building && process.env.DOCUMENT_WORKER_ENABLED !== 'false') void runDocumentWorker();
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (isAuthPath(event.url.toString(), auth.options)) {

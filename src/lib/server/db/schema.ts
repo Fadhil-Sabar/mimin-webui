@@ -98,7 +98,10 @@ export const projects = pgTable(
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},
-	(table) => ({ userIdx: index('projects_user_idx').on(table.userId) })
+	(table) => ({
+		userIdx: index('projects_user_idx').on(table.userId),
+		userUpdatedIdx: index('projects_user_updated_idx').on(table.userId, table.updatedAt, table.id)
+	})
 );
 
 /** User-owned reusable instructions and tool presets. */
@@ -146,6 +149,7 @@ export const projectFiles = pgTable(
 		pageCount: integer('page_count'),
 		extractionError: text('extraction_error'),
 		chunkCount: integer('chunk_count').notNull().default(0),
+		processingStatus: text('processing_status').notNull().default('not_started'),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => ({ projectIdx: index('project_files_project_idx').on(table.projectId) })
@@ -172,7 +176,21 @@ export const conversations = pgTable(
 	(table) => ({
 		userIdx: index('conversations_user_idx').on(table.userId),
 		projectIdx: index('conversations_project_idx').on(table.projectId),
-		updatedIdx: index('conversations_updated_idx').on(table.updatedAt)
+		updatedIdx: index('conversations_updated_idx').on(table.updatedAt),
+		userUpdatedIdx: index('conversations_user_updated_idx').on(
+			table.userId,
+			table.updatedAt,
+			table.id
+		),
+		projectUpdatedIdx: index('conversations_project_updated_idx').on(
+			table.projectId,
+			table.updatedAt,
+			table.id
+		),
+		titleTrigramIdx: index('conversations_title_trgm_idx').using(
+			'gin',
+			table.title.op('gin_trgm_ops')
+		)
 	})
 );
 
@@ -213,7 +231,18 @@ export const messages = pgTable(
 		skillSnapshot: jsonb('skill_snapshot').$type<SkillSnapshot>(),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
-	(table) => ({ conversationIdx: index('messages_conversation_idx').on(table.conversationId) })
+	(table) => ({
+		conversationIdx: index('messages_conversation_idx').on(table.conversationId),
+		conversationCreatedIdx: index('messages_conversation_created_idx').on(
+			table.conversationId,
+			table.createdAt,
+			table.id
+		),
+		contentTrigramIdx: index('messages_content_trgm_idx').using(
+			'gin',
+			sql`(${table.content}::text) gin_trgm_ops`
+		)
+	})
 );
 
 export const messageAttachments = pgTable(
@@ -236,17 +265,24 @@ export const messageAttachments = pgTable(
 	(table) => ({ messageIdx: index('message_attachments_message_idx').on(table.messageId) })
 );
 
-export const toolCalls = pgTable('tool_calls', {
-	id: uuid('id').defaultRandom().primaryKey(),
-	messageId: uuid('message_id').references(() => messages.id, { onDelete: 'cascade' }),
-	toolCallId: text('tool_call_id').notNull(),
-	toolName: text('tool_name').notNull(),
-	input: jsonb('input'),
-	output: jsonb('output'),
-	status: text('status').notNull().default('pending'),
-	startedAt: timestamp('started_at', { withTimezone: true }),
-	completedAt: timestamp('completed_at', { withTimezone: true })
-});
+export const toolCalls = pgTable(
+	'tool_calls',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		messageId: uuid('message_id').references(() => messages.id, { onDelete: 'cascade' }),
+		toolCallId: text('tool_call_id').notNull(),
+		toolName: text('tool_name').notNull(),
+		input: jsonb('input'),
+		output: jsonb('output'),
+		status: text('status').notNull().default('pending'),
+		startedAt: timestamp('started_at', { withTimezone: true }),
+		completedAt: timestamp('completed_at', { withTimezone: true })
+	},
+	(table) => ({
+		messageStartedIdx: index('tool_calls_message_started_idx').on(table.messageId, table.startedAt),
+		callIdIdx: index('tool_calls_call_id_idx').on(table.toolCallId)
+	})
+);
 
 export const sources = pgTable('sources', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -302,6 +338,32 @@ export const providerSettings = pgTable(
 	})
 );
 
+export const documentProcessingJobs = pgTable(
+	'document_processing_jobs',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		projectId: uuid('project_id')
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		fileId: uuid('file_id')
+			.notNull()
+			.references(() => projectFiles.id, { onDelete: 'cascade' }),
+		status: text('status').notNull().default('queued'),
+		attempts: integer('attempts').notNull().default(0),
+		availableAt: timestamp('available_at', { withTimezone: true }).defaultNow().notNull(),
+		leaseUntil: timestamp('lease_until', { withTimezone: true }),
+		workerId: text('worker_id'),
+		leaseToken: text('lease_token'),
+		lastError: text('last_error'),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		claimIdx: index('document_processing_jobs_claim_idx').on(table.status, table.availableAt),
+		fileIdx: index('document_processing_jobs_file_idx').on(table.fileId)
+	})
+);
+
 export const projectFileChunks = pgTable(
 	'project_file_chunks',
 	{
@@ -321,6 +383,11 @@ export const projectFileChunks = pgTable(
 	},
 	(table) => ({
 		projectIdx: index('chunks_project_idx').on(table.projectId),
+		fileIdx: index('chunks_file_idx').on(table.fileId),
+		contentTrigramIdx: index('chunks_content_trgm_idx').using(
+			'gin',
+			table.content.op('gin_trgm_ops')
+		),
 		embeddingIdx: index('chunks_embedding_idx').using(
 			'hnsw',
 			table.embedding.op('vector_cosine_ops')

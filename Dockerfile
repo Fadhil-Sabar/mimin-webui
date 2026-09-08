@@ -5,13 +5,13 @@ WORKDIR /app
 
 # Install all dependencies including devDependencies for build
 COPY package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
 # Copy full application source
 COPY . .
 
-# Build browser extensions and SvelteKit application
-RUN npm run build
+# Build browser extensions and SvelteKit application, then enforce the client budget
+RUN npm run build && npm run bundle:budget
 
 # Stage 2: Runtime stage
 FROM node:22-bookworm-slim AS runner
@@ -23,28 +23,27 @@ ENV PORT=3000
 ENV HOST=0.0.0.0
 ENV BODY_SIZE_LIMIT=30M
 
-# Install curl for container healthcheck
+# Install curl for container healthcheck and OCR runtimes
 RUN apt-get update && apt-get install -y --no-install-recommends curl tesseract-ocr tesseract-ocr-eng tesseract-ocr-ind \
     && rm -rf /var/lib/apt/lists/*
 
 # Install production dependencies only
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # Copy built application and assets
-COPY --from=builder /app/build ./build
-COPY --from=builder /app/static ./static
+COPY --from=builder --chown=node:node /app/build ./build
+COPY --from=builder --chown=node:node /app/static ./static
 
 # Copy database schema migrations and maintenance scripts
-COPY drizzle ./drizzle
-COPY scripts ./scripts
+COPY --chown=node:node drizzle ./drizzle
+COPY --chown=node:node scripts ./scripts
 
 # Copy container entrypoint script
-COPY docker-entrypoint.sh ./docker-entrypoint.sh
-RUN chmod +x ./docker-entrypoint.sh
+COPY --chown=node:node docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh && mkdir -p /app/data/uploads && chown -R node:node /app/data
 
-# Prepare directory for uploads
-RUN mkdir -p /app/data/uploads
+USER node
 
 EXPOSE 3000
 

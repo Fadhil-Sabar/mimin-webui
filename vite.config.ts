@@ -4,6 +4,11 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+	build: {
+		// Mermaid 11.17.2/@mermaid-js/parser emits an indivisible 662096-byte
+		// lazy chunk; keep Vite's warning threshold aligned with the measured budget.
+		chunkSizeWarningLimit: 680
+	},
 	plugins: [
 		tailwindcss(),
 		sveltekit({

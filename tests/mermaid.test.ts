@@ -51,6 +51,15 @@ describe('mermaid caching', () => {
 		clearMermaidCache();
 		expect(getCachedMermaidSvg(code, true)).toBeUndefined();
 	});
+
+	it('bounds cached SVG entries', () => {
+		for (let index = 0; index < 40; index += 1) {
+			setCachedMermaidSvg(`graph TD\nA-->${index}`, true, `<svg>${index}</svg>`);
+		}
+
+		expect(getCachedMermaidSvg('graph TD\nA-->0', true)).toBeUndefined();
+		expect(getCachedMermaidSvg('graph TD\nA-->39', true)).toBe('<svg>39</svg>');
+	});
 });
 
 describe('markdown segment parsing for mermaid diagrams', () => {

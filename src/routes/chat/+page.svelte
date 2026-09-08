@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onDestroy, onMount, tick } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
 	import {
@@ -65,6 +65,7 @@
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
+	import { createStreamingDeltaBatcher, type StreamingDelta } from '$lib/client/streaming-batcher';
 
 	type Conversation = {
 		activeSkill?: SkillSummary | null;
@@ -259,6 +260,46 @@
 	let conversationNavigationToken = 0;
 	let conversationLoading = $state(false);
 	let toolsLoadToken = 0;
+
+	function applyStreamingDeltas(deltas: StreamingDelta[]) {
+		for (const { id, thinking, text } of deltas) {
+			let found = false;
+			messages = messages.map((msg) => {
+				if (msg.id !== id) return msg;
+				found = true;
+				const currentThinking = thinkingText(msg.content) + thinking;
+				const currentText = contentText(msg.content) + text;
+				return {
+					...msg,
+					content: currentThinking
+						? [
+								{ type: 'thinking', thinking: currentThinking },
+								...(currentText ? [{ type: 'text', text: currentText }] : [])
+							]
+						: currentText,
+					isStreaming: true
+				};
+			});
+			if (!found) {
+				messages = [
+					...messages,
+					{
+						id,
+						role: 'assistant',
+						content: thinking
+							? [{ type: 'thinking', thinking }, ...(text ? [{ type: 'text', text }] : [])]
+							: text,
+						createdAt: new Date().toISOString(),
+						toolCalls: [],
+						isStreaming: true
+					}
+				];
+			}
+		}
+	}
+
+	const streamingDeltas = createStreamingDeltaBatcher(applyStreamingDeltas);
+	onDestroy(() => streamingDeltas.clear());
 
 	$effect(() => {
 		if (typeof window === 'undefined') return;
@@ -752,6 +793,7 @@
 		const switching = id !== activeId;
 		if (switching) {
 			conversationNavigationToken += 1;
+			streamingDeltas.clear();
 			pendingAttachments = [];
 			abortController?.abort();
 			abortController = undefined;
@@ -903,12 +945,7 @@
 		});
 
 		void (async () => {
-			await Promise.all([
-				loadModels(),
-				loadConversations(),
-				loadTools(),
-				loadThinkingPreferences()
-			]);
+			await Promise.all([loadModels(), loadConversations(), loadThinkingPreferences()]);
 			const params = new URL(window.location.href).searchParams;
 			const requested = params.get('id');
 			const pendingPrompt = params.get('prompt');
@@ -1147,69 +1184,11 @@
 		} else if (event.type === 'thinking.delta') {
 			const msgId = String(event.messageId);
 			const delta = String(event.delta ?? '');
-			let found = false;
-			messages = messages.map((msg) => {
-				if (msg.id !== msgId) return msg;
-				found = true;
-				let currentThinking = thinkingText(msg.content);
-				let currentText = contentText(msg.content);
-				currentThinking += delta;
-				return {
-					...msg,
-					content: [
-						{ type: 'thinking', thinking: currentThinking },
-						...(currentText ? [{ type: 'text', text: currentText }] : [])
-					],
-					isStreaming: true
-				};
-			});
-			if (!found) {
-				messages = [
-					...messages,
-					{
-						id: msgId,
-						role: 'assistant',
-						content: [{ type: 'thinking', thinking: delta }],
-						createdAt: new Date().toISOString(),
-						toolCalls: [],
-						isStreaming: true
-					}
-				];
-			}
+			streamingDeltas.push(msgId, 'thinking', delta);
 		} else if (event.type === 'message.delta') {
 			const msgId = String(event.messageId);
 			const delta = String(event.delta ?? '');
-			let found = false;
-			messages = messages.map((msg) => {
-				if (msg.id !== msgId) return msg;
-				found = true;
-				let currentThinking = thinkingText(msg.content);
-				let currentText = contentText(msg.content);
-				currentText += delta;
-				return {
-					...msg,
-					content: currentThinking
-						? [
-								{ type: 'thinking', thinking: currentThinking },
-								{ type: 'text', text: currentText }
-							]
-						: currentText,
-					isStreaming: true
-				};
-			});
-			if (!found) {
-				messages = [
-					...messages,
-					{
-						id: msgId,
-						role: 'assistant',
-						content: delta,
-						createdAt: new Date().toISOString(),
-						toolCalls: [],
-						isStreaming: true
-					}
-				];
-			}
+			streamingDeltas.push(msgId, 'text', delta);
 		} else if (event.type === 'tool.start') {
 			const msgId = event.messageId ? String(event.messageId) : undefined;
 			const toolCallId = String(event.toolCallId);
@@ -1278,6 +1257,7 @@
 				void loadSkills();
 			}
 		} else if (event.type === 'message.end') {
+			streamingDeltas.flush();
 			lastFailedSubmission = null;
 			const msgId = String(event.messageId);
 			messages = messages.map((msg) =>
@@ -1299,6 +1279,7 @@
 					msg.id === msgId ? { ...msg, citations: event.citations as MessageCitation[] } : msg
 				);
 		} else if (event.type === 'error') {
+			streamingDeltas.flush();
 			liveError = extractSseErrorMessage(event.error);
 			messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 		}
@@ -1369,6 +1350,7 @@
 			}
 		} finally {
 			if (activeId === streamConversationId && abortController === streamAbortController) {
+				streamingDeltas.flush();
 				messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 				const completedLoadToken = conversationLoadToken;
 				await loadConversations();
@@ -1432,6 +1414,7 @@
 			}
 		} finally {
 			if (activeId === streamConversationId && abortController === streamAbortController) {
+				streamingDeltas.flush();
 				messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 				const completedLoadToken = conversationLoadToken;
 				await loadConversations();
@@ -1452,6 +1435,7 @@
 	async function stopMessage() {
 		const stoppingId = activeId;
 		const stoppingController = abortController;
+		streamingDeltas.flush();
 		stoppingController?.abort();
 		if (stoppingId) await stopConversation(stoppingId).catch(() => {});
 		if (activeId === stoppingId && (!abortController || abortController === stoppingController)) {
@@ -1700,7 +1684,9 @@
 							</details>
 						{/if}
 						{#if contentText(msg.content)}
-							{#if msg.role === 'assistant'}
+							{#if msg.role === 'assistant' && msg.isStreaming}
+								<p class="response-text streaming-plain-text">{contentText(msg.content)}</p>
+							{:else if msg.role === 'assistant'}
 								<Markdown content={contentText(msg.content)} sources={getTurnSources(i)} />
 							{:else}
 								<p>{contentText(msg.content)}</p>

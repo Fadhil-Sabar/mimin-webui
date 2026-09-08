@@ -3,6 +3,7 @@ import { browser } from '$app/environment';
 let currentTheme: 'dark' | 'neutral' | null = null;
 let idCounter = 0;
 
+const MAX_CACHE_ENTRIES = 32;
 const svgCache = new Map<string, string>();
 
 export function getMermaidCacheKey(code: string, isDark: boolean): string {
@@ -10,11 +11,25 @@ export function getMermaidCacheKey(code: string, isDark: boolean): string {
 }
 
 export function getCachedMermaidSvg(code: string, isDark: boolean): string | undefined {
-	return svgCache.get(getMermaidCacheKey(code, isDark));
+	const key = getMermaidCacheKey(code, isDark);
+	const cached = svgCache.get(key);
+	if (cached !== undefined) {
+		// Refresh the entry so frequently used diagrams remain cached.
+		svgCache.delete(key);
+		svgCache.set(key, cached);
+	}
+	return cached;
 }
 
 export function setCachedMermaidSvg(code: string, isDark: boolean, svg: string): void {
-	svgCache.set(getMermaidCacheKey(code, isDark), svg);
+	const key = getMermaidCacheKey(code, isDark);
+	svgCache.delete(key);
+	svgCache.set(key, svg);
+	while (svgCache.size > MAX_CACHE_ENTRIES) {
+		const oldest = svgCache.keys().next().value;
+		if (oldest === undefined) break;
+		svgCache.delete(oldest);
+	}
 }
 
 export function clearMermaidCache(): void {
@@ -96,7 +111,7 @@ export async function renderMermaid(code: string, isDark: boolean): Promise<stri
 
 	try {
 		const { svg } = await mermaid.render(id, trimmedCode);
-		svgCache.set(cacheKey, svg);
+		setCachedMermaidSvg(trimmedCode, isDark, svg);
 		return svg;
 	} catch (error) {
 		// Clean up any stray temporary elements created by mermaid on failure

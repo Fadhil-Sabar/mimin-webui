@@ -1,12 +1,17 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { and, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, lt, or, sql } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
-import { extractMessageText, extractSnippet } from '$lib/server/conversations';
+import {
+	decodeConversationCursor,
+	encodeConversationCursor,
+	extractMessageText,
+	extractSnippet
+} from '$lib/server/conversations';
 import {
 	getConversationSkillSummary,
 	resolveConversationSkill,
@@ -21,6 +26,12 @@ export const GET: RequestHandler = async (event) => {
 		const db = getDb();
 		const projectId = event.url.searchParams.get('projectId');
 		const q = event.url.searchParams.get('q')?.trim();
+		const limit = Number(event.url.searchParams.get('limit') ?? '50');
+		if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+			return apiError('INVALID_INPUT', 'limit must be an integer between 1 and 100.');
+		const cursorValue = event.url.searchParams.get('cursor');
+		const cursor = cursorValue ? decodeConversationCursor(cursorValue) : null;
+		if (cursorValue && !cursor) return apiError('INVALID_INPUT', 'Invalid conversations cursor.');
 		const baseQuery = db
 			.select({
 				id: schema.conversations.id,
@@ -39,19 +50,37 @@ export const GET: RequestHandler = async (event) => {
 			.leftJoin(schema.projects, eq(schema.conversations.projectId, schema.projects.id));
 
 		if (!q) {
-			const rows = projectId
-				? await baseQuery
-						.where(
-							and(
-								eq(schema.conversations.userId, user.id),
-								eq(schema.conversations.projectId, projectId)
-							)
+			const after = cursor
+				? or(
+						lt(schema.conversations.updatedAt, cursor.updatedAt),
+						and(
+							eq(schema.conversations.updatedAt, cursor.updatedAt),
+							lt(schema.conversations.id, cursor.id)
 						)
-						.orderBy(desc(schema.conversations.updatedAt))
-				: await baseQuery
-						.where(eq(schema.conversations.userId, user.id))
-						.orderBy(desc(schema.conversations.updatedAt));
-			return json({ conversations: rows.map(withPublicSkill) });
+					)
+				: undefined;
+			const filter = and(
+				eq(schema.conversations.userId, user.id),
+				projectId ? eq(schema.conversations.projectId, projectId) : undefined,
+				after
+			);
+			const query = baseQuery
+				.where(filter)
+				.orderBy(desc(schema.conversations.updatedAt), desc(schema.conversations.id));
+			const rows = await (typeof (query as { limit?: unknown }).limit === 'function'
+				? query.limit(limit + 1)
+				: query);
+			const pageRows = rows.slice(0, limit);
+			return json({
+				conversations: pageRows.map(withPublicSkill),
+				nextCursor:
+					rows.length > limit && pageRows.length
+						? encodeConversationCursor({
+								updatedAt: pageRows[pageRows.length - 1].updatedAt,
+								id: pageRows[pageRows.length - 1].id
+							})
+						: null
+			});
 		}
 
 		const escapedQ = q.replace(/[%_\\]/g, '\\$&');
@@ -91,22 +120,44 @@ export const GET: RequestHandler = async (event) => {
 				? or(titleFilter, projectFilter, inArray(schema.conversations.id, messageConversationIds))
 				: or(titleFilter, projectFilter);
 
-		const rows = await baseQuery
+		const rowsQuery = baseQuery
 			.where(
 				and(
 					eq(schema.conversations.userId, user.id),
 					projectId ? eq(schema.conversations.projectId, projectId) : undefined,
-					matchFilter
+					matchFilter,
+					cursor
+						? or(
+								lt(schema.conversations.updatedAt, cursor.updatedAt),
+								and(
+									eq(schema.conversations.updatedAt, cursor.updatedAt),
+									lt(schema.conversations.id, cursor.id)
+								)
+							)
+						: undefined
 				)
 			)
-			.orderBy(desc(schema.conversations.updatedAt));
+			.orderBy(desc(schema.conversations.updatedAt), desc(schema.conversations.id));
+		const rows = await (typeof (rowsQuery as { limit?: unknown }).limit === 'function'
+			? rowsQuery.limit(limit + 1)
+			: rowsQuery);
+		const pageRows = rows.slice(0, limit);
 
-		const conversationsWithSnippets = rows.map((conv) => ({
+		const conversationsWithSnippets = pageRows.map((conv) => ({
 			...withPublicSkill(conv),
 			snippet: messageSnippets.get(conv.id) ?? null
 		}));
 
-		return json({ conversations: conversationsWithSnippets });
+		return json({
+			conversations: conversationsWithSnippets,
+			nextCursor:
+				rows.length > limit && pageRows.length
+					? encodeConversationCursor({
+							updatedAt: pageRows[pageRows.length - 1].updatedAt,
+							id: pageRows[pageRows.length - 1].id
+						})
+					: null
+		});
 	} catch (error) {
 		return handleApiError(error);
 	}

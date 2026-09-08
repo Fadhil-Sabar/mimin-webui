@@ -487,7 +487,7 @@ Implementation references: [pgvector cosine search and HNSW](https://github.com/
 
 `npm test` runs extraction, ranking, embedding validation, indexing fallback, reindexing, citation persistence, and authorization tests. It includes a native two-page PDF fixture. Install Tesseract (or set `PDF_OCR_COMMAND` to its executable) to also run the image-only PDF integration test. The synthetic fixtures are in `tests/fixtures/`.
 
-Set `TEST_DATABASE_URL` to a migrated **test database** and run `npm test -- tests/knowledge-pgvector.integration.test.ts` for real pgvector queries. These tests use deterministic vectors to isolate SQL similarity, fusion, ownership, model compatibility, and fallback behavior; they do not call a paid embedding provider. They create and clean up their own fixture users/projects. Without this variable the database integration suite is skipped. For release checks also run `npm run lint`, `npm run check`, and `npm run build`.
+`npm run test:integration` builds the disposable PostgreSQL 17 + pgvector image, applies all migrations, and runs the database-backed document lease and pgvector suites. To use an existing database instead, set `TEST_DATABASE_URL` (and optionally `DATABASE_URL`) before running the command. These tests use deterministic vectors to isolate SQL similarity, fusion, ownership, model compatibility, fallback, job claiming, and stale-lease fencing; they do not call a paid embedding provider. The temporary local container is removed automatically. For release checks also run `npm run lint`, `npm run check`, and `npm run build`.
 
 ## Frontend routes
 
