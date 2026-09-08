@@ -67,7 +67,7 @@ export const GET: RequestHandler = async (event) => {
 			const query = baseQuery
 				.where(filter)
 				.orderBy(desc(schema.conversations.updatedAt), desc(schema.conversations.id));
-			const rows = await (typeof (query as any).limit === 'function'
+			const rows = await (typeof (query as { limit?: unknown }).limit === 'function'
 				? query.limit(limit + 1)
 				: query);
 			const pageRows = rows.slice(0, limit);
@@ -138,7 +138,7 @@ export const GET: RequestHandler = async (event) => {
 				)
 			)
 			.orderBy(desc(schema.conversations.updatedAt), desc(schema.conversations.id));
-		const rows = await (typeof (rowsQuery as any).limit === 'function'
+		const rows = await (typeof (rowsQuery as { limit?: unknown }).limit === 'function'
 			? rowsQuery.limit(limit + 1)
 			: rowsQuery);
 		const pageRows = rows.slice(0, limit);

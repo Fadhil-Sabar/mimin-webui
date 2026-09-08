@@ -48,7 +48,7 @@ export const GET: RequestHandler = async (event) => {
 				)
 			)
 			.orderBy(asc(schema.messages.createdAt), asc(schema.messages.id));
-		const rawRows = await (typeof (messageQuery as any).limit === 'function'
+		const rawRows = await (typeof (messageQuery as { limit?: unknown }).limit === 'function'
 			? messageQuery.limit(limit + 1)
 			: messageQuery);
 		const hasMore = rawRows.length > limit;
