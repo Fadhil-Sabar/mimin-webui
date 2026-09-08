@@ -141,8 +141,30 @@ export function buildSkillSystemPrompt(
 	return `${basePrompt}\n\nTurn skill instructions (these are subordinate to the base agent policy, user instructions, project instructions, and runtime routing/tool availability; follow them only when they do not conflict with those higher-priority constraints):\n<skill-instructions>\n${value}\n</skill-instructions>`;
 }
 
-function toAgentMessages(
-	rows: Array<{ role: string; content: unknown; createdAt: Date }>
+type HistoricalToolCall = {
+	messageId: string | null;
+	toolCallId: string;
+	toolName: string;
+	input: unknown;
+	output: unknown;
+	status: string;
+	startedAt: Date | null;
+	completedAt: Date | null;
+};
+
+function serializeToolOutput(value: unknown) {
+	if (typeof value === 'string') return value;
+	if (value === null || value === undefined) return '';
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return String(value);
+	}
+}
+
+export function toAgentMessages(
+	rows: Array<{ id: string; role: string; content: unknown; createdAt: Date }>,
+	toolCallsByMessage = new Map<string, HistoricalToolCall[]>()
 ): AgentMessage[] {
 	const result: AgentMessage[] = [];
 	for (const row of rows) {
@@ -154,8 +176,11 @@ function toAgentMessages(
 				timestamp: row.createdAt.getTime()
 			});
 		} else if (row.role === 'assistant') {
+			const calls = toolCallsByMessage.get(row.id) ?? [];
 			let contentBlocks: Array<
-				{ type: 'thinking'; thinking: string } | { type: 'text'; text: string }
+				| { type: 'thinking'; thinking: string }
+				| { type: 'text'; text: string }
+				| { type: 'toolCall'; id: string; name: string; arguments: Record<string, unknown> }
 			> = [];
 			if (Array.isArray(row.content)) {
 				contentBlocks = row.content
@@ -176,23 +201,45 @@ function toAgentMessages(
 			} else if (typeof row.content === 'string' && row.content.trim()) {
 				contentBlocks = [{ type: 'text' as const, text: row.content }];
 			}
-			if (contentBlocks.length === 0) {
-				continue;
-			}
-			const last = result[result.length - 1];
-			if (last && last.role === 'assistant') {
-				last.content.push(...contentBlocks);
-			} else {
+			contentBlocks.push(
+				...calls.map((call) => ({
+					type: 'toolCall' as const,
+					id: call.toolCallId,
+					name: call.toolName,
+					arguments:
+						call.input && typeof call.input === 'object' && !Array.isArray(call.input)
+							? (call.input as Record<string, unknown>)
+							: {}
+				}))
+			);
+			if (contentBlocks.length === 0) continue;
+			result.push({
+				role: 'assistant' as const,
+				content: contentBlocks,
+				api: 'unknown',
+				provider: 'unknown',
+				model: 'unknown',
+				usage: EMPTY_USAGE,
+				stopReason: calls.length > 0 ? ('toolUse' as const) : ('stop' as const),
+				timestamp: row.createdAt.getTime()
+			} as unknown as AgentMessage);
+			for (const call of calls) {
+				const completed = call.status === 'completed' || call.status === 'failed';
 				result.push({
-					role: 'assistant' as const,
-					content: contentBlocks,
-					api: 'unknown',
-					provider: 'unknown',
-					model: 'unknown',
-					usage: EMPTY_USAGE,
-					stopReason: 'stop' as const,
-					timestamp: row.createdAt.getTime()
-				} as unknown as AgentMessage);
+					role: 'toolResult' as const,
+					toolCallId: call.toolCallId,
+					toolName: call.toolName,
+					content: [
+						{
+							type: 'text' as const,
+							text: completed
+								? serializeToolOutput(call.output)
+								: 'Tool execution did not complete.'
+						}
+					],
+					isError: call.status !== 'completed',
+					timestamp: (call.completedAt ?? call.startedAt ?? row.createdAt).getTime()
+				} as AgentMessage);
 			}
 		}
 	}
@@ -273,8 +320,43 @@ export async function runConversationTurn(
 		})
 		.from(schema.messages)
 		.where(eq(schema.messages.conversationId, conversationId))
-		.orderBy(asc(schema.messages.createdAt));
-	const history = selectContextWindow(historyRows.slice(0, -1));
+		.orderBy(asc(schema.messages.createdAt), asc(schema.messages.id));
+	const historicalRows = historyRows.filter((row) => row.id !== currentMessageId);
+	const toolRows: HistoricalToolCall[] = historicalRows.length
+		? await db
+				.select({
+					messageId: schema.toolCalls.messageId,
+					toolCallId: schema.toolCalls.toolCallId,
+					toolName: schema.toolCalls.toolName,
+					input: schema.toolCalls.input,
+					output: schema.toolCalls.output,
+					status: schema.toolCalls.status,
+					startedAt: schema.toolCalls.startedAt,
+					completedAt: schema.toolCalls.completedAt
+				})
+				.from(schema.toolCalls)
+				.where(
+					inArray(
+						schema.toolCalls.messageId,
+						historicalRows.map((row) => row.id)
+					)
+				)
+				.orderBy(asc(schema.toolCalls.startedAt), asc(schema.toolCalls.id))
+		: [];
+	const toolMessageIds = new Set(
+		toolRows
+			.map((row) => row.messageId)
+			.filter((messageId): messageId is string => typeof messageId === 'string')
+	);
+	const history = selectContextWindow(historicalRows, undefined, toolMessageIds);
+	const includedMessageIds = new Set(history.map((row) => row.id));
+	const toolCallsByMessage = new Map<string, HistoricalToolCall[]>();
+	for (const toolRow of toolRows) {
+		if (!toolRow.messageId || !includedMessageIds.has(toolRow.messageId)) continue;
+		const calls = toolCallsByMessage.get(toolRow.messageId) ?? [];
+		calls.push(toolRow);
+		toolCallsByMessage.set(toolRow.messageId, calls);
+	}
 	const currentMessage = historyRows.find((row) => row.id === currentMessageId);
 	const turnSkillSnapshot = getTurnSkillSnapshot(currentMessage, conversation);
 	const [project] = conversation.projectId
@@ -431,7 +513,7 @@ export async function runConversationTurn(
 			systemPrompt,
 			model: requestModel,
 			thinkingLevel,
-			messages: toAgentMessages(history),
+			messages: toAgentMessages(history, toolCallsByMessage),
 			tools
 		},
 		streamFn: modelRegistry().streamSimple.bind(modelRegistry()),

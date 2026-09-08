@@ -6,6 +6,7 @@ import {
 	encodeMessageCursor
 } from '../src/lib/server/conversations';
 import { selectContextWindow } from '../src/lib/server/ai/context-window';
+import { toAgentMessages } from '../src/lib/server/ai/agent.service';
 
 describe('cursor pagination', () => {
 	it('round trips opaque conversation and message cursors', () => {
@@ -51,5 +52,42 @@ describe('context window', () => {
 			createdAt: new Date(index)
 		}));
 		expect(selectContextWindow(rows).map((row) => row.id)).toEqual(['2', '3', '4']);
+	});
+
+	it('reconstructs historical tool calls together with their results', () => {
+		const createdAt = new Date('2026-01-02T03:04:05.000Z');
+		const messages = toAgentMessages(
+			[{ id: 'a1', role: 'assistant', content: '', createdAt }],
+			new Map([
+				[
+					'a1',
+					[
+						{
+							messageId: 'a1',
+							toolCallId: 'call-1',
+							toolName: 'web_search',
+							input: { query: 'test' },
+							output: { answer: 'ok' },
+							status: 'completed',
+							startedAt: createdAt,
+							completedAt: createdAt
+						}
+					]
+				]
+			])
+		);
+
+		expect(messages).toHaveLength(2);
+		expect(messages[0]).toMatchObject({
+			role: 'assistant',
+			stopReason: 'toolUse',
+			content: [{ type: 'toolCall', id: 'call-1', name: 'web_search' }]
+		});
+		expect(messages[1]).toMatchObject({
+			role: 'toolResult',
+			toolCallId: 'call-1',
+			isError: false,
+			content: [{ type: 'text', text: '{"answer":"ok"}' }]
+		});
 	});
 });

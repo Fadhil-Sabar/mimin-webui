@@ -1,6 +1,6 @@
 {
-	"id": "8ba599a7-147e-49ab-9840-58ebb96db6a0",
-	"prevId": "f78429da-d9ae-4b8f-a07e-9c155a96e609",
+	"id": "d6875f1d-d6d9-4f22-add5-1ca7f6181694",
+	"prevId": "8ba599a7-147e-49ab-9840-58ebb96db6a0",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -321,6 +321,22 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
+				},
+				"conversations_title_trgm_idx": {
+					"name": "conversations_title_trgm_idx",
+					"columns": [
+						{
+							"expression": "title",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last",
+							"opclass": "gin_trgm_ops"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "gin",
+					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -414,6 +430,12 @@
 					"primaryKey": false,
 					"notNull": false
 				},
+				"lease_token": {
+					"name": "lease_token",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"last_error": {
 					"name": "last_error",
 					"type": "text",
@@ -433,12 +455,6 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": "now()"
-				},
-				"lease_token": {
-					"name": "lease_token",
-					"type": "text",
-					"primaryKey": false,
-					"notNull": false
 				}
 			},
 			"indexes": {
@@ -753,6 +769,21 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
+				},
+				"messages_content_trgm_idx": {
+					"name": "messages_content_trgm_idx",
+					"columns": [
+						{
+							"expression": "(\"content\"::text) gin_trgm_ops",
+							"asc": true,
+							"isExpression": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "gin",
+					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -1065,7 +1096,7 @@
 					"type": "text",
 					"primaryKey": false,
 					"notNull": true,
-					"default": "'queued'"
+					"default": "'not_started'"
 				},
 				"created_at": {
 					"name": "created_at",
