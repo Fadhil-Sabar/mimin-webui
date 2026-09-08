@@ -16,6 +16,7 @@ import { readStoredFile } from '$lib/server/files/storage';
 import { buildAttachmentContext } from '$lib/server/files/attachment-context';
 import { buildPdfVisionFallback } from '$lib/server/files/pdf-vision';
 import { buildProjectSystemPrompt, getProjectConversationTools } from './project-context';
+import { selectContextWindow } from './context-window';
 import { assertAllowedOutboundUrl } from '../outbound';
 import {
 	cancelBrowserRequests,
@@ -273,7 +274,7 @@ export async function runConversationTurn(
 		.from(schema.messages)
 		.where(eq(schema.messages.conversationId, conversationId))
 		.orderBy(asc(schema.messages.createdAt));
-	const history = historyRows.slice(0, -1);
+	const history = selectContextWindow(historyRows.slice(0, -1));
 	const currentMessage = historyRows.find((row) => row.id === currentMessageId);
 	const turnSkillSnapshot = getTurnSkillSnapshot(currentMessage, conversation);
 	const [project] = conversation.projectId

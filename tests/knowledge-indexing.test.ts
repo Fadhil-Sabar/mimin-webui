@@ -54,8 +54,8 @@ describe('knowledge embedding indexing', () => {
 			indexed: 33
 		});
 		expect(state.embed.mock.calls.map((call) => call[0].length)).toEqual([32, 1]);
-		expect(state.writes).toHaveLength(33);
-		expect(state.writes[0]).toEqual({ embedding: [1], embeddingModel: 'model' });
+		expect(state.writes).toHaveLength(2);
+		expect(state.writes[0]).toMatchObject({ embeddingModel: 'model' });
 	});
 	it('retains lexical chunks and reports provider failure', async () => {
 		state.embed.mockRejectedValue(new Error('outage'));

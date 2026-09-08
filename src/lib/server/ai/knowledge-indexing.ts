@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, schema } from '../db/client';
 import { embedKnowledge, EMBEDDING_BATCH_SIZE } from './knowledge-embeddings';
 
@@ -21,17 +21,29 @@ export async function indexKnowledgeEmbeddings(projectId: string, fileId: string
 			const result = await embedKnowledge(batch.map((chunk) => chunk.content));
 			if (!result) return { status: 'disabled' as const, indexed };
 			await db.transaction(async (tx) => {
-				for (const [index, chunk] of batch.entries())
-					await tx
-						.update(schema.projectFileChunks)
-						.set({ embedding: result.vectors[index], embeddingModel: result.identity })
-						.where(
-							and(
-								eq(schema.projectFileChunks.id, chunk.id),
-								eq(schema.projectFileChunks.projectId, projectId),
-								eq(schema.projectFileChunks.fileId, fileId)
-							)
-						);
+				const embeddingCase = sql.join(
+					batch.map(
+						(chunk, index) =>
+							sql`when ${schema.projectFileChunks.id} = ${chunk.id} then ${JSON.stringify(result.vectors[index])}::vector`
+					),
+					sql` `
+				);
+				await tx
+					.update(schema.projectFileChunks)
+					.set({
+						embedding: sql`case ${embeddingCase} end`,
+						embeddingModel: result.identity
+					})
+					.where(
+						and(
+							inArray(
+								schema.projectFileChunks.id,
+								batch.map((chunk) => chunk.id)
+							),
+							eq(schema.projectFileChunks.projectId, projectId),
+							eq(schema.projectFileChunks.fileId, fileId)
+						)
+					);
 			});
 			indexed += batch.length;
 		}

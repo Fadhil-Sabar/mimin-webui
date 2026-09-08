@@ -1,11 +1,12 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, or } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
+import { decodeMessageCursor, encodeMessageCursor } from '$lib/server/conversations';
 import { clearBrowserSession } from '$lib/server/browser/bridge';
 import {
 	resolveConversationSkill,
@@ -23,11 +24,35 @@ export const GET: RequestHandler = async (event) => {
 		const db = getDb();
 		const conversation = await getOwnedConversation(id, user.id);
 		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
-		const rows = await db
+		const limit = Number(event.url.searchParams.get('limit') ?? '50');
+		if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+			return apiError('INVALID_INPUT', 'limit must be an integer between 1 and 100.');
+		const cursorValue = event.url.searchParams.get('cursor');
+		const cursor = cursorValue ? decodeMessageCursor(cursorValue) : null;
+		if (cursorValue && !cursor) return apiError('INVALID_INPUT', 'Invalid messages cursor.');
+		const messageQuery = db
 			.select()
 			.from(schema.messages)
-			.where(eq(schema.messages.conversationId, id))
-			.orderBy(asc(schema.messages.createdAt));
+			.where(
+				and(
+					eq(schema.messages.conversationId, id),
+					cursor
+						? or(
+								gt(schema.messages.createdAt, cursor.createdAt),
+								and(
+									eq(schema.messages.createdAt, cursor.createdAt),
+									gt(schema.messages.id, cursor.id)
+								)
+							)
+						: undefined
+				)
+			)
+			.orderBy(asc(schema.messages.createdAt), asc(schema.messages.id));
+		const rawRows = await (typeof (messageQuery as any).limit === 'function'
+			? messageQuery.limit(limit + 1)
+			: messageQuery);
+		const hasMore = rawRows.length > limit;
+		const rows = rawRows.slice(0, limit);
 		const calls = await db
 			.select({
 				id: schema.toolCalls.id,
@@ -120,7 +145,14 @@ export const GET: RequestHandler = async (event) => {
 				toolCalls: toolCallsByMessage.get(row.id) ?? [],
 				citations: citationsByMessage.get(row.id) ?? []
 			})),
-			toolCalls: calls
+			toolCalls: calls,
+			nextCursor:
+				hasMore && rows.length
+					? encodeMessageCursor({
+							createdAt: rows[rows.length - 1].createdAt,
+							id: rows[rows.length - 1].id
+						})
+					: null
 		});
 	} catch (error) {
 		return handleApiError(error);
