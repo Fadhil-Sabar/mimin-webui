@@ -793,6 +793,7 @@
 		const switching = id !== activeId;
 		if (switching) {
 			conversationNavigationToken += 1;
+			streamingDeltas.clear();
 			pendingAttachments = [];
 			abortController?.abort();
 			abortController = undefined;
@@ -1349,6 +1350,7 @@
 			}
 		} finally {
 			if (activeId === streamConversationId && abortController === streamAbortController) {
+				streamingDeltas.flush();
 				messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 				const completedLoadToken = conversationLoadToken;
 				await loadConversations();
@@ -1412,6 +1414,7 @@
 			}
 		} finally {
 			if (activeId === streamConversationId && abortController === streamAbortController) {
+				streamingDeltas.flush();
 				messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 				const completedLoadToken = conversationLoadToken;
 				await loadConversations();
@@ -1432,6 +1435,7 @@
 	async function stopMessage() {
 		const stoppingId = activeId;
 		const stoppingController = abortController;
+		streamingDeltas.flush();
 		stoppingController?.abort();
 		if (stoppingId) await stopConversation(stoppingId).catch(() => {});
 		if (activeId === stoppingId && (!abortController || abortController === stoppingController)) {

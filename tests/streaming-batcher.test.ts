@@ -7,7 +7,7 @@ describe('streaming delta batcher', () => {
 		const onFlush = vi.fn();
 		const batcher = createStreamingDeltaBatcher(
 			onFlush,
-			(callback) => {
+			(callback: () => void) => {
 				scheduled = callback;
 				return 1;
 			},
@@ -31,7 +31,7 @@ describe('streaming delta batcher', () => {
 		const onFlush = vi.fn();
 		const batcher = createStreamingDeltaBatcher(
 			onFlush,
-			(callback) => {
+			(callback: () => void) => {
 				scheduled = callback;
 				return 1;
 			},
@@ -45,5 +45,24 @@ describe('streaming delta batcher', () => {
 
 		expect(onFlush).toHaveBeenNthCalledWith(1, [{ id: 'one', thinking: '', text: 'a' }]);
 		expect(onFlush).toHaveBeenNthCalledWith(2, [{ id: 'two', thinking: '', text: 'b' }]);
+	});
+
+	it('clears pending deltas when the active conversation changes', () => {
+		let scheduled: (() => void) | undefined;
+		const onFlush = vi.fn();
+		const batcher = createStreamingDeltaBatcher(
+			onFlush,
+			(callback: () => void) => {
+				scheduled = callback;
+				return 1;
+			},
+			() => undefined
+		);
+
+		batcher.push('old-conversation-message', 'text', 'stale');
+		batcher.clear();
+		scheduled?.();
+
+		expect(onFlush).not.toHaveBeenCalled();
 	});
 });
