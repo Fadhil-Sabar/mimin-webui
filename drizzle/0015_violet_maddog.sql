@@ -12,7 +12,7 @@ CREATE TABLE "document_processing_jobs" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "project_files" ADD COLUMN "processing_status" text DEFAULT 'queued' NOT NULL;--> statement-breakpoint
+ALTER TABLE "project_files" ADD COLUMN "processing_status" text DEFAULT 'not_started' NOT NULL;--> statement-breakpoint
 ALTER TABLE "document_processing_jobs" ADD CONSTRAINT "document_processing_jobs_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "document_processing_jobs" ADD CONSTRAINT "document_processing_jobs_file_id_project_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."project_files"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "document_processing_jobs_claim_idx" ON "document_processing_jobs" USING btree ("status","available_at");--> statement-breakpoint

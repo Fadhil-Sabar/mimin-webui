@@ -321,6 +321,22 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
+				},
+				"conversations_title_trgm_idx": {
+					"name": "conversations_title_trgm_idx",
+					"columns": [
+						{
+							"expression": "title",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last",
+							"opclass": "gin_trgm_ops"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "gin",
+					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -747,6 +763,21 @@
 					"concurrently": false,
 					"method": "btree",
 					"with": {}
+				},
+				"messages_content_trgm_idx": {
+					"name": "messages_content_trgm_idx",
+					"columns": [
+						{
+							"expression": "(\"content\"::text) gin_trgm_ops",
+							"asc": true,
+							"isExpression": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "gin",
+					"with": {}
 				}
 			},
 			"foreignKeys": {
@@ -1059,7 +1090,7 @@
 					"type": "text",
 					"primaryKey": false,
 					"notNull": true,
-					"default": "'queued'"
+					"default": "'not_started'"
 				},
 				"created_at": {
 					"name": "created_at",

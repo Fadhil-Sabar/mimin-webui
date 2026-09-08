@@ -149,7 +149,7 @@ export const projectFiles = pgTable(
 		pageCount: integer('page_count'),
 		extractionError: text('extraction_error'),
 		chunkCount: integer('chunk_count').notNull().default(0),
-		processingStatus: text('processing_status').notNull().default('queued'),
+		processingStatus: text('processing_status').notNull().default('not_started'),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => ({ projectIdx: index('project_files_project_idx').on(table.projectId) })
@@ -186,6 +186,10 @@ export const conversations = pgTable(
 			table.projectId,
 			table.updatedAt,
 			table.id
+		),
+		titleTrigramIdx: index('conversations_title_trgm_idx').using(
+			'gin',
+			table.title.op('gin_trgm_ops')
 		)
 	})
 );
@@ -233,6 +237,10 @@ export const messages = pgTable(
 			table.conversationId,
 			table.createdAt,
 			table.id
+		),
+		contentTrigramIdx: index('messages_content_trgm_idx').using(
+			'gin',
+			sql`(${table.content}::text) gin_trgm_ops`
 		)
 	})
 );
