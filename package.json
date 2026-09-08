@@ -18,7 +18,8 @@
 		"db:seed": "node scripts/seed.js",
 		"test": "vitest run",
 		"lint": "prettier --check . && eslint .",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"bundle:budget": "node scripts/check-bundle-budget.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -43,14 +44,13 @@
 		"typescript": "^6.0.3",
 		"typescript-eslint": "^8.60.1",
 		"vite": "^8.0.16",
-		"vitest": "^3.2.4"
+		"vitest": "^4.1.11"
 	},
 	"dependencies": {
 		"@earendil-works/pi-agent-core": "^0.84.4",
 		"@earendil-works/pi-ai": "^0.84.4",
 		"@lucide/svelte": "^1.38.0",
 		"@napi-rs/canvas": "^1.0.8",
-		"@types/marked": "^6.0.0",
 		"@types/prismjs": "^1.26.6",
 		"better-auth": "^1.7.2",
 		"dotenv": "^16.6.1",
@@ -61,5 +61,6 @@
 		"prismjs": "^1.30.0",
 		"unpdf": "^1.8.1",
 		"zod": "^4.1.12"
-	}
+	},
+	"packageManager": "npm@10.9.8"
 }
