@@ -195,6 +195,9 @@ generate them directly:
 npm run extension:build
 ```
 
+To verify the injected page-reading and interaction scripts against a real browser DOM, run
+`npm run extension:probe` and open the printed URL; every check must report PASS.
+
 For local installation details, see [`browser-extension/README.md`](browser-extension/README.md).
 Production releases should be signed and distributed through the Chrome Web Store and Mozilla
 Add-ons so users receive normal installation prompts and automatic updates.

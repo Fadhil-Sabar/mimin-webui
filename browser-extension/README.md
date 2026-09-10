@@ -62,6 +62,23 @@ MIMIN_EXTENSION_ORIGINS=https://mimin.example.com npm run extension:build
 
 ## Test locally
 
+### Verify the injected scripts in a real browser
+
+Unit tests run the background handler against a mocked browser API, so they cannot check real CSS
+selectors, real event dispatch, real computed styles, or real layout. The probe covers that seam:
+
+```bash
+npm run extension:probe
+```
+
+It extracts the shipped `pageSnapshot` and `interactPage` from `src/background-core.js`, serves
+`probe/index.html` with them, and runs 35 self-checks on a page with buttons, inputs, a select, a
+hidden input, and a `display:none` subtree. Open the printed URL and confirm the bottom line reads
+`SUMMARY 35 passed, 0 failed`. Exit with Ctrl+C when done.
+
+`tests/extension-probe.test.ts` guards the extraction, so renaming either function fails the unit
+suite instead of silently disabling the probe.
+
 Chrome, Edge, Brave, and other Chromium browsers:
 
 1. Open `chrome://extensions`.
