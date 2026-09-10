@@ -216,6 +216,11 @@ export function clearAllBrowserConsentRequests(): void {
 	pendingConsents.clear();
 }
 
+/**
+ * True when a consent request was canceled rather than denied. A timeout does
+ * not appear here: the broker resolves it as a not-granted outcome so a turn
+ * keeps running instead of failing.
+ */
 export function isBrowserConsentAbortError(error: unknown) {
-	return error instanceof Error && /BROWSER_CONSENT_(CANCELED|TIMEOUT)/.test(error.message);
+	return error instanceof Error && error.message.includes('BROWSER_CONSENT_CANCELED');
 }

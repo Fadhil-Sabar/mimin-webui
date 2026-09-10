@@ -5,6 +5,7 @@ import {
 	clearAllBrowserConsentRequests,
 	grantConversationBrowserConsent,
 	hasConversationBrowserConsent,
+	isBrowserConsentAbortError,
 	pendingBrowserConsentCount,
 	requestBrowserConsent,
 	resolveBrowserConsent,
@@ -133,6 +134,15 @@ describe('browser consent broker', () => {
 				controller.signal
 			)
 		).rejects.toThrow('BROWSER_CONSENT_CANCELED');
+	});
+
+	it('classifies cancellation separately from denial and timeout', () => {
+		expect(isBrowserConsentAbortError(new Error('BROWSER_CONSENT_CANCELED'))).toBe(true);
+		// A timeout resolves as not-granted instead of throwing, so it is not an abort.
+		expect(isBrowserConsentAbortError(new Error('BROWSER_CONSENT_TIMEOUT'))).toBe(false);
+		expect(isBrowserConsentAbortError(new Error('BROWSER_BRIDGE_CANCELED'))).toBe(false);
+		expect(isBrowserConsentAbortError('BROWSER_CONSENT_CANCELED')).toBe(false);
+		expect(isBrowserConsentAbortError(undefined)).toBe(false);
 	});
 
 	it('revokes a conversation grant', () => {

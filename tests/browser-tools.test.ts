@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	createBrowserInteractTool,
 	createBrowserOpenTool,
@@ -9,6 +9,7 @@ import {
 	type BrowserToolEvent
 } from '../src/lib/server/ai/tools/browser.tool';
 import {
+	BROWSER_CONSENT_TIMEOUT_MS,
 	clearAllBrowserConsentGrants,
 	clearAllBrowserConsentRequests,
 	grantConversationBrowserConsent,
@@ -495,6 +496,20 @@ describe('browser tab tools with consent', () => {
 		// The standing grant suppresses the second prompt.
 		expect(consentEvents(events)).toHaveLength(1);
 		expect(dispatched[1]).toMatchObject({ action: 'scroll', direction: 'bottom' });
+	});
+
+	it('reports a timeout when the user never answers the prompt', async () => {
+		vi.useFakeTimers();
+		const tool = createBrowserTabsTool(tabContext, () => {});
+		const assertion = expect(
+			tool.execute('call-timeout', {}, new AbortController().signal)
+		).rejects.toThrow(
+			'BROWSER_CONSENT_TIMEOUT: The user did not answer the browser access request. Ask again or continue without their tabs.'
+		);
+
+		await vi.advanceTimersByTimeAsync(BROWSER_CONSENT_TIMEOUT_MS + 1_000);
+		await assertion;
+		vi.useRealTimers();
 	});
 
 	it('validates navigate URLs before dispatch', async () => {
