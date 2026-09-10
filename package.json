@@ -11,6 +11,7 @@
 		"extension:build": "tsx scripts/build-browser-extension.ts",
 		"extension:probe": "node scripts/extension-probe.mjs",
 		"extension:validate": "npx --yes web-ext@latest lint --source-dir=static/extensions/firefox --output=text",
+		"extension:e2e:chrome": "node scripts/chrome-extension-e2e.mjs",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

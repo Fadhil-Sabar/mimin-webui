@@ -111,8 +111,32 @@ npx --yes web-ext run --source-dir=static/extensions/firefox --url=http://localh
 
 `Installed ... as a temporary add-on` means the manifest, background script, and content script all
 loaded. This runs against a throwaway profile, so your own browser is untouched. Chrome cannot load
-an unpacked extension from the command line on recent builds, so verify the Chrome package by hand
-through `chrome://extensions`.
+an unpacked extension from the command line on branded builds, so use the Chromium check below.
+
+### End-to-end check in a real Chromium
+
+```bash
+npm run extension:build
+npm run dev                 # in another terminal
+npm run extension:e2e:chrome
+```
+
+This loads the packed Chrome build into a real Chromium through the DevTools Protocol (using Node's
+built-in WebSocket, so there is nothing to install) and asserts the parts no unit test can reach:
+
+- the MV3 service worker starts, which proves `background.chrome.js` -> `importScripts` works
+- the content script injects on the real Mimin origin
+- a real page -> extension `postMessage` round trip returns the bridge version
+- `browser_tabs_list` refuses to leak private or localhost URLs
+- `browser_open` opens and reads a live public page through the injected snapshot
+- a private URL is rejected
+
+Branded Google Chrome refuses `--load-extension` outright, and some Chrome for Testing builds ignore
+it, so the script tries every Chromium it can find newest-first and reports which one worked. Set
+`CHROME_PATH` to force a specific binary. Expect `SUMMARY 6 passed, 0 failed`.
+
+Driving a full chat turn (login, send a message, answer the consent card) is not covered here: it
+needs a configured model provider credential, which a bare checkout does not have.
 
 Chrome, Edge, Brave, and other Chromium browsers:
 
