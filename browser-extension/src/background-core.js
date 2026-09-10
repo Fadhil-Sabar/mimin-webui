@@ -177,6 +177,20 @@
 		return { ok: false, error: message };
 	}
 
+	/**
+	 * Read a message off a thrown value without `instanceof Error`. Errors here can
+	 * come from the browser API in another realm, where `instanceof` is false and
+	 * the message would be replaced by a useless generic fallback.
+	 */
+	function errorMessage(error, fallback) {
+		if (error && typeof error === 'object') {
+			const message = error.message;
+			if (typeof message === 'string' && message.trim()) return message;
+		}
+		if (typeof error === 'string' && error.trim()) return error;
+		return fallback;
+	}
+
 	function successResponse(result) {
 		return { ok: true, result };
 	}
@@ -820,10 +834,9 @@
 		try {
 			validatedFinalUrl = validatePublicUrl(finalUrl);
 		} catch (err) {
-			throw new Error(
-				`Redirected to disallowed URL: ${err instanceof Error ? err.message : 'Disallowed URL'}`,
-				{ cause: err }
-			);
+			throw new Error(`Redirected to disallowed URL: ${errorMessage(err, 'Disallowed URL')}`, {
+				cause: err
+			});
 		}
 
 		// Verify host permission for the final origin
@@ -1130,7 +1143,7 @@
 			}
 			return errorResponse('Unsupported bridge action.');
 		} catch (error) {
-			return errorResponse(error instanceof Error ? error.message : 'Bridge request failed.');
+			return errorResponse(errorMessage(error, 'Bridge request failed.'));
 		}
 	}
 

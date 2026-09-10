@@ -6,6 +6,21 @@
 		return typeof origin === 'string' && configuredOrigins.includes(origin);
 	}
 
+	/**
+	 * Read a message off a thrown value without `instanceof Error`.
+	 * Content scripts bridge two realms (page and extension), and an Error built
+	 * in one realm is not an instance of the other's Error constructor. Losing the
+	 * message here would surface a useless "Bridge request failed." to the user.
+	 */
+	function errorMessage(error) {
+		if (error && typeof error === 'object') {
+			const message = error.message;
+			if (typeof message === 'string' && message.trim()) return message;
+		}
+		if (typeof error === 'string' && error.trim()) return error;
+		return 'Bridge request failed.';
+	}
+
 	function sendRuntimeMessage(message) {
 		return new Promise((resolve, reject) => {
 			let settled = false;
@@ -88,10 +103,7 @@
 					pageOrigin: event.origin
 				});
 			} catch (error) {
-				reply = {
-					ok: false,
-					error: error instanceof Error ? error.message : 'Bridge request failed.'
-				};
+				reply = { ok: false, error: errorMessage(error) };
 			}
 
 			const message = {

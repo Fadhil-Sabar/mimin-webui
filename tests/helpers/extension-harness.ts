@@ -8,7 +8,7 @@
  * mocked.
  */
 import { readFileSync } from 'node:fs';
-import { runInThisContext } from 'node:vm';
+import { createContext, runInContext, runInThisContext } from 'node:vm';
 import { vi } from 'vitest';
 
 export type AnyRecord = Record<string, unknown>;
@@ -167,4 +167,100 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 		createCalls,
 		chromeMock
 	};
+}
+
+export type FakeWindow = {
+	location: { origin: string };
+	addEventListener: (type: string, listener: (event: AnyRecord) => void) => void;
+	removeEventListener: (type: string, listener: (event: AnyRecord) => void) => void;
+	postMessage: (data: unknown, origin?: string) => void;
+	/** Simulate a message arriving on the page, as the extension would post it. */
+	dispatchMessage: (data: unknown, origin?: string, source?: unknown) => void;
+	listenerCount: () => number;
+	posted: Array<{ data: AnyRecord; origin?: string }>;
+	deliveries: Array<{ data: AnyRecord; origin?: string }>;
+};
+
+/**
+ * A minimal `window` that dispatches `message` events, so the page-side
+ * `postMessage` protocol can be driven without a DOM.
+ */
+export function createFakeWindow(origin = PROBE_ORIGIN): FakeWindow {
+	const listeners = new Set<(event: AnyRecord) => void>();
+	const posted: Array<{ data: AnyRecord; origin?: string }> = [];
+	const deliveries: Array<{ data: AnyRecord; origin?: string }> = [];
+	const fakeWindow: FakeWindow = {
+		location: { origin },
+		addEventListener: (type, listener) => {
+			if (type === 'message') listeners.add(listener);
+		},
+		removeEventListener: (type, listener) => {
+			if (type === 'message') listeners.delete(listener);
+		},
+		postMessage: (data, targetOrigin) => {
+			const origin2 = targetOrigin ?? origin;
+			posted.push({ data: data as AnyRecord, origin: origin2 });
+			// Real postMessage is asynchronous and reaches only same-origin listeners.
+			queueMicrotask(() => {
+				if (origin2 !== origin) return;
+				deliveries.push({ data: data as AnyRecord, origin: origin2 });
+				for (const listener of [...listeners])
+					listener({ data, origin: origin2, source: fakeWindow });
+			});
+		},
+		dispatchMessage: (data, messageOrigin = origin, source) => {
+			for (const listener of [...listeners])
+				listener({
+					data,
+					origin: messageOrigin,
+					source: source === undefined ? fakeWindow : source
+				});
+		},
+		listenerCount: () => listeners.size,
+		posted,
+		deliveries
+	};
+	return fakeWindow;
+}
+
+/**
+ * Loads the real `browser-extension/src/content.js` relay against a fake window
+ * and a mocked extension runtime.
+ */
+export function loadContentScript(options: {
+	window: FakeWindow;
+	allowedOrigins?: string[];
+	sendMessage?: (message: AnyRecord) => unknown;
+}) {
+	const sent: AnyRecord[] = [];
+	const sendMessage =
+		options.sendMessage ??
+		(async (message: AnyRecord) => {
+			void message;
+			return { ok: true, result: { version: '0.4.0' } };
+		});
+	const sandbox: AnyRecord = {
+		window: options.window,
+		console,
+		chrome: {
+			runtime: {
+				lastError: undefined,
+				sendMessage: (message: AnyRecord) => {
+					sent.push(message);
+					return sendMessage(message);
+				}
+			}
+		},
+		MIMIN_EXTENSION_CONFIG: {
+			version: '0.4.0',
+			allowedOrigins: options.allowedOrigins ?? [PROBE_ORIGIN]
+		}
+	};
+	sandbox.globalThis = sandbox;
+	const context = createContext(sandbox);
+	runInContext(
+		readFileSync(new URL('../../browser-extension/src/content.js', import.meta.url), 'utf8'),
+		context
+	);
+	return { sent };
 }

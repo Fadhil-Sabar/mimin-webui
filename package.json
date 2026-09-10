@@ -10,6 +10,7 @@
 		"prebuild": "npm run extension:build",
 		"extension:build": "tsx scripts/build-browser-extension.ts",
 		"extension:probe": "node scripts/extension-probe.mjs",
+		"extension:validate": "npx --yes web-ext@latest lint --source-dir=static/extensions/firefox --output=text",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",

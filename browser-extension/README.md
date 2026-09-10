@@ -93,6 +93,27 @@ loading the packed extension into a real browser against a running Mimin instanc
 step, install the package below, sign in to Mimin, and confirm the settings page reports
 **Connected** before asking the agent to read a tab.
 
+### Validate and load the packaged artifact
+
+The unit tests check the manifests as data. Mozilla's validator checks the real packaged directory,
+and it is the closest automated equivalent of a store review:
+
+```bash
+npm run extension:validate   # downloads web-ext on first use
+```
+
+Expect `errors 0`, `warnings 0`, `notices 0`. To confirm the package actually loads, launch it in a
+temporary Firefox profile with [web-ext](https://extensionworkshop.com/documentation/develop/web-ext-command-reference/):
+
+```bash
+npx --yes web-ext run --source-dir=static/extensions/firefox --url=http://localhost:5173/ --args=-headless
+```
+
+`Installed ... as a temporary add-on` means the manifest, background script, and content script all
+loaded. This runs against a throwaway profile, so your own browser is untouched. Chrome cannot load
+an unpacked extension from the command line on recent builds, so verify the Chrome package by hand
+through `chrome://extensions`.
+
 Chrome, Edge, Brave, and other Chromium browsers:
 
 1. Open `chrome://extensions`.
