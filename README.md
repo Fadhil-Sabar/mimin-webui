@@ -180,7 +180,7 @@ Mimin distinguishes these research and browser capabilities:
 - **Browser Read Tab (`browser_read_tab`)**: Reads one of the user's tabs by `tabId`, URL match, or the active tab, returning the same bounded snapshot as `browser_open` plus indexed interactive elements.
 - **Browser Interact (`browser_interact`)**: Clicks, types, selects, presses keys, scrolls, navigates, or re-reads inside one of the user's tabs, targeting an element by its `ref` (or a CSS selector / visible label).
 
-Tab access is consented in the chat: the first time a turn needs the user's tabs, Mimin asks whether to **allow just once** or **allow for this conversation**. A conversation-scoped grant is remembered for that chat (12 hours, in-memory) and can be revoked with `DELETE /api/conversations/{id}/browser-consent`. Denying or not answering blocks the tab tools for that call; `browser_open` on a user-requested URL is not gated because the request itself is the instruction.
+Tab access is consented in the chat: the first time a turn needs the user's tabs, Mimin asks whether to **allow just once** or **allow for this conversation**. "Allow just once" covers that single tool call, so a turn that needs several tab actions asks again for each one. A conversation-scoped grant is remembered for that chat (12 hours, in-memory) and can be revoked with `DELETE /api/conversations/{id}/browser-consent`. Denying or not answering blocks the tab tools for that call; `browser_open` on a user-requested URL is not gated because the request itself is the instruction.
 
 Deterministic per-turn tool gating ensures the model never receives ambiguous interchangeable search tools. When an explicit browser search intent is detected, `web_search` is hidden for that turn and browser tools are exposed.
 

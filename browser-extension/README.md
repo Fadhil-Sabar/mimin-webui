@@ -13,7 +13,7 @@ The bridge distinguishes these search and browsing capabilities:
 
 Every snapshot returns `elements`, a bounded list of visible interactive elements (`ref`, `tag`, `name`, `type`, `disabled`, `selector`). The bridge keeps the resolved elements in the tab's isolated world so a follow-up action can use `ref` even if the page re-renders; the CSS `selector` is a fallback. Reads and interactions are wrapped in `<untrusted-browser-page>` markers when they reach the model, and clicking/typing is never treated as trusted instruction.
 
-Mimin asks for the user's approval in the chat before the first tab access in a conversation: **allow just once** or **allow for this conversation**. The extension itself has no notion of that grant; it only enforces host permissions and allowed origins.
+Mimin asks for the user's approval in the chat before the first tab access in a conversation: **allow just once** or **allow for this conversation**. "Allow just once" authorizes that single tool call, so a turn that needs several tab actions asks again. The extension itself has no notion of that grant; it only enforces host permissions and allowed origins.
 
 ## Host permissions and privacy
 
