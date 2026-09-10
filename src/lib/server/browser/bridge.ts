@@ -43,6 +43,7 @@ export type BrowserPageResult = {
 	tabId?: string | number;
 	reason?: string;
 	captcha?: boolean;
+	renderingPending?: boolean;
 	/**
 	 * Set by `browser_tab_interact` when the page should have changed: false means
 	 * the site accepted nothing, so the action must not be reported as effective.
@@ -237,6 +238,7 @@ export const browserPageResultSchema = z
 		readable: z.boolean(),
 		reason: z.string().trim().max(1_000).optional(),
 		captcha: z.boolean().optional(),
+		renderingPending: z.boolean().optional(),
 		changed: z.boolean().optional()
 	})
 	.strict();

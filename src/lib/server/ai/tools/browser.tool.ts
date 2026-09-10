@@ -104,6 +104,7 @@ function resultText(result: BrowserPageResult, action: 'open' | 'search' | 'tab'
 		return result.readable
 			? [
 					heading,
+					renderingNotice(result),
 					'<untrusted-browser-page>',
 					result.title ? `Title: ${result.title}` : '',
 					result.text ? `Text:\n${result.text}` : '',
@@ -125,6 +126,11 @@ function resultText(result: BrowserPageResult, action: 'open' | 'search' | 'tab'
 		return [resultTextSearch(result), elements].filter(Boolean).join('\n\n');
 	}
 	return resultTextSearch(result);
+}
+
+function renderingNotice(result: BrowserPageResult) {
+	if (!result.renderingPending) return '';
+	return 'Navigation committed, but the page has not rendered any content yet. It may still be loading or render client-side. Wait briefly, then use browser_interact with action "wait" and waitMs, or use browser_read_tab to try again.';
 }
 
 /**

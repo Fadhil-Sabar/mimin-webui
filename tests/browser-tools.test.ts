@@ -453,6 +453,40 @@ describe('browser tab tools with consent', () => {
 		expect(first.text).toContain('[ref 1] button "Sign in"');
 	});
 
+	it('explains how to retry when navigation committed before page rendering', async () => {
+		const events: BrowserToolEvent[] = [];
+		const tool = createBrowserReadTabTool(tabContext, (event) => {
+			events.push(event);
+			if (event.type === 'browser.consent.request') {
+				queueMicrotask(() => resolveBrowserConsent(event.requestId, tabContext.userId, 'once'));
+				return;
+			}
+			queueMicrotask(() => {
+				settleBrowserRequest(tabContext.userId, event.requestId, event.token, true, {
+					url: 'https://example.com/late',
+					readable: true,
+					title: 'Late page',
+					text: '',
+					elements: [],
+					renderingPending: true
+				});
+			});
+		});
+
+		const result = await tool.execute(
+			'call-late-render',
+			{ tabId: 5 },
+			new AbortController().signal
+		);
+		const first = result.content[0];
+		if (first.type !== 'text') throw new Error('Expected text content');
+		expect(first.text).toContain(
+			'Navigation committed, but the page has not rendered any content yet'
+		);
+		expect(first.text).toContain('<untrusted-browser-page>');
+		expect(events.some((event) => event.type === 'browser.request')).toBe(true);
+	});
+
 	it('forwards interact arguments and skips the prompt after a conversation grant', async () => {
 		const events: BrowserToolEvent[] = [];
 		const dispatched: Array<Record<string, unknown>> = [];

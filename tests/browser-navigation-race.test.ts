@@ -28,7 +28,7 @@ afterEach(() => {
  * A tab that navigates the way Firefox does: the old document keeps reporting
  * "complete" until the new document commits a tick later.
  */
-function loadNavigatingTab(options: { commitDelayMs?: number } = {}) {
+function loadNavigatingTab(options: { commitDelayMs?: number; onCommit?: () => void } = {}) {
 	const commitDelayMs = options.commitDelayMs ?? 30;
 	const harness = loadExtension({
 		tabs: [{ id: 11, url: page, status: 'complete' }],
@@ -51,6 +51,7 @@ function loadNavigatingTab(options: { commitDelayMs?: number } = {}) {
 			text: 'Results for kafe',
 			elements: [{ ref: 0, tag: 'input', name: 'Search', selector: 'input#q' }]
 		};
+		options.onCommit?.();
 		timeline.push(`commit:${tab.url}`);
 		for (const listener of harness.updateListeners) listener(11, { status: 'complete' });
 	};
@@ -76,6 +77,32 @@ function loadNavigatingTab(options: { commitDelayMs?: number } = {}) {
 		timeline.push(`inject:${func?.name ?? 'anonymous'}`);
 		return originalExecute(injection);
 	};
+
+	return { harness, timeline };
+}
+
+function loadLateRenderingTab() {
+	const render = () => {
+		harness.snapshot.value = {
+			...harness.snapshot.value,
+			title: 'Rendered results',
+			text: 'Late-rendered results for kafe',
+			elements: [{ ref: 0, tag: 'button', name: 'First result', selector: '#first-result' }]
+		};
+		timeline.push('render');
+	};
+	const { harness, timeline } = loadNavigatingTab({
+		commitDelayMs: 0,
+		onCommit: () => {
+			harness.snapshot.value = {
+				...harness.snapshot.value,
+				title: 'Google Maps',
+				text: '',
+				elements: []
+			};
+			setTimeout(render, 250);
+		}
+	});
 
 	return { harness, timeline };
 }
@@ -141,5 +168,54 @@ describe('navigation commit ordering', () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it('waits for content rendered after an instantly completed navigation', async () => {
+		const { harness, timeline } = loadLateRenderingTab();
+		harness.digests.push({ url: page, length: 90, hash: 111 });
+		harness.digests.push({ url: target, length: 140, hash: 222 });
+
+		const reply = await harness.send('browser_tab_interact', {
+			tabId: 11,
+			action: 'navigate',
+			url: target
+		});
+
+		expect(reply.ok).toBe(true);
+		const result = reply.result as AnyRecord;
+		expect(result.text).toBe('Late-rendered results for kafe');
+		expect(result.elements).toHaveLength(1);
+		expect(timeline.indexOf('render')).toBeLessThan(timeline.length);
+	});
+
+	it('reports an ineffective scroll as unchanged', async () => {
+		const { harness } = loadNavigatingTab();
+		harness.digests.push({ url: page, length: 90, hash: 111 });
+		harness.digests.push({ url: page, length: 90, hash: 111 });
+
+		const reply = await harness.send('browser_tab_interact', {
+			tabId: 11,
+			action: 'scroll',
+			direction: 'down',
+			amount: 1_500
+		});
+
+		expect(reply.ok).toBe(true);
+		expect((reply.result as AnyRecord).changed).toBe(false);
+	});
+
+	it('honors an explicit waitMs minimum after navigation commits', async () => {
+		const { harness } = loadLateRenderingTab();
+		const startedAt = Date.now();
+
+		const reply = await harness.send('browser_tab_interact', {
+			tabId: 11,
+			action: 'navigate',
+			url: target,
+			waitMs: 100
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(Date.now() - startedAt).toBeGreaterThanOrEqual(95);
 	});
 });

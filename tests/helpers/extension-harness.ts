@@ -137,7 +137,7 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 
 	vi.stubGlobal('chrome', chromeMock);
 	vi.stubGlobal('MIMIN_EXTENSION_CONFIG', {
-		version: '0.4.0',
+		version: '0.4.2',
 		allowedOrigins: [PROBE_ORIGIN]
 	});
 	vi.stubGlobal('MIMIN_EXTENSION_TEST_HOOKS', hooks);
@@ -248,7 +248,7 @@ export function loadContentScript(options: {
 		options.sendMessage ??
 		(async (message: AnyRecord) => {
 			void message;
-			return { ok: true, result: { version: '0.4.0' } };
+			return { ok: true, result: { version: '0.4.2' } };
 		});
 	const sandbox: AnyRecord = {
 		window: options.window,
@@ -263,7 +263,7 @@ export function loadContentScript(options: {
 			}
 		},
 		MIMIN_EXTENSION_CONFIG: {
-			version: '0.4.0',
+			version: '0.4.2',
 			allowedOrigins: options.allowedOrigins ?? [PROBE_ORIGIN]
 		}
 	};

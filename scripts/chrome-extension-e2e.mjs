@@ -306,6 +306,69 @@ try {
 		}
 	);
 
+	// The extension intentionally rejects localhost/private navigation targets. Use
+	// a public URL and make its new document late-render through CDP, preserving the
+	// real extension navigation and snapshot path without weakening that gate. The
+	// stable Mimin page dispatches the request while a separate tab is navigated.
+	const openedSlowTab = await probe(
+		'opens a public tab for the late-rendering navigation case',
+		'browser_open',
+		{ url: 'https://www.google.com/extension-slow-render-seed.html' },
+		(reply) => ({
+			ok: reply.ok === true && Boolean(reply.result?.tabId),
+			detail: reply.ok === true ? `tabId=${reply.result?.tabId}` : `error: ${reply.error}`
+		})
+	);
+	const slowTabId = openedSlowTab?.result?.tabId;
+	const { targetInfos } = await cdp.send('Target.getTargets');
+	const slowTarget = targetInfos.find(
+		(target) => target.type === 'page' && target.url.includes('extension-slow-render-seed.html')
+	);
+	if (!slowTarget || slowTabId === undefined)
+		throw new Error('Could not find the slow-render target tab.');
+	const { sessionId: slowSessionId } = await cdp.send('Target.attachToTarget', {
+		targetId: slowTarget.targetId,
+		flatten: true
+	});
+	await cdp.send('Page.enable', {}, slowSessionId);
+	await cdp.send(
+		'Page.addScriptToEvaluateOnNewDocument',
+		{
+			source: `
+				if (location.pathname.endsWith('/extension-slow-render.html')) {
+					document.addEventListener('DOMContentLoaded', () => {
+						document.body.textContent = '';
+						setTimeout(() => {
+							document.body.innerHTML = '<main><h1>Slow-rendered page</h1><button>Ready</button></main>';
+						}, 350);
+					});
+				}
+			`
+		},
+		slowSessionId
+	);
+
+	await probe(
+		'navigates to a late-rendering same-origin page and waits for its content',
+		'browser_tab_interact',
+		{
+			tabId: slowTabId,
+			action: 'navigate',
+			url: 'https://www.google.com/extension-slow-render.html'
+		},
+		(reply) => {
+			if (reply.timeout) return { ok: false, detail: 'timed out' };
+			if (reply.ok !== true) return { ok: false, detail: `error: ${reply.error}` };
+			const result = reply.result ?? {};
+			return {
+				ok:
+					result.renderingPending !== true &&
+					String(result.text ?? '').includes('Slow-rendered page'),
+				detail: `renderingPending=${result.renderingPending ?? false} text=${String(result.text ?? '').length}B elements=${result.elements?.length ?? 0}`
+			};
+		}
+	);
+
 	await probe('rejects a private URL', 'browser_open', { url: 'http://192.168.1.1/' }, (reply) => {
 		if (reply.timeout) return { ok: false, detail: 'timed out' };
 		return { ok: reply.ok === false, detail: `error=${reply.error}` };

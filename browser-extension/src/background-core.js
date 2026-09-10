@@ -1,10 +1,12 @@
 (() => {
 	const extensionApi = globalThis.browser ?? globalThis.chrome;
-	const config = globalThis.MIMIN_EXTENSION_CONFIG ?? { version: '0.4.0', allowedOrigins: [] };
+	const config = globalThis.MIMIN_EXTENSION_CONFIG ?? { version: '0.4.2', allowedOrigins: [] };
 	const MAX_QUERY_LENGTH = 500;
 	const LOAD_TIMEOUT_MS = 15_000;
 	const INTERACTION_SETTLE_MS = 350;
 	const TAB_SETTLE_TIMEOUT_MS = 4_000;
+	const RENDER_POLL_INTERVAL_MS = 100;
+	const RENDER_TIMEOUT_MS = 4_000;
 	const MAX_WAIT_MS = 10_000;
 	const MAX_TABS = 50;
 	const SEARCH_ENGINES = Object.freeze({
@@ -911,7 +913,8 @@
 	/** True when the action is expected to alter the page. */
 	function shouldVerifyChange(args) {
 		const action = args?.action;
-		if (action === 'click' || action === 'select' || action === 'press') return true;
+		if (action === 'click' || action === 'select' || action === 'press' || action === 'scroll')
+			return true;
 		if (action === 'navigate' || action === 'back' || action === 'forward' || action === 'reload')
 			return true;
 		return action === 'type' && Boolean(args.submit);
@@ -952,6 +955,54 @@
 		return { ...snapshot, readable: true, tabId };
 	}
 
+	function snapshotHasContent(snapshot) {
+		return Boolean(snapshot?.text?.trim()) || Boolean(snapshot?.elements?.length);
+	}
+
+	/**
+	 * A committed document can still be an empty client-side shell. Keep reading
+	 * until text or an interactive element appears, but never wait indefinitely.
+	 */
+	async function readRenderedSnapshot(tabId, finalUrl, isGoogle, minimumWaitMs = 0) {
+		const startedAt = Date.now();
+		const minimumUntil = startedAt + minimumWaitMs;
+		const deadline = startedAt + Math.max(RENDER_TIMEOUT_MS, minimumWaitMs);
+		let latest = null;
+		let rejectClosed;
+		const closed = new Promise((_, reject) => {
+			rejectClosed = reject;
+		});
+		const onRemoved = (removedTabId) => {
+			if (removedTabId === tabId)
+				rejectClosed(
+					new Error('The browser tab was closed while waiting for page content to render.')
+				);
+		};
+		const removedEvents = extensionApi.tabs?.onRemoved;
+		if (removedEvents?.addListener) removedEvents.addListener(onRemoved);
+		try {
+			while (Date.now() < deadline) {
+				latest = await readSnapshot(tabId, finalUrl, isGoogle);
+				if (snapshotHasContent(latest) && Date.now() >= minimumUntil) return latest;
+				const remaining = Math.max(0, deadline - Date.now());
+				if (!remaining) break;
+				await Promise.race([delay(Math.min(RENDER_POLL_INTERVAL_MS, remaining)), closed]);
+			}
+			if (!latest) latest = await readSnapshot(tabId, finalUrl, isGoogle);
+			return snapshotHasContent(latest) ? latest : { ...latest, renderingPending: true };
+		} catch (error) {
+			if (error?.message?.includes('closed while waiting for page content')) throw error;
+			try {
+				await apiCall(extensionApi.tabs, 'get', tabId);
+			} catch {
+				throw new Error('The browser tab was closed while waiting for page content to render.');
+			}
+			throw error;
+		} finally {
+			if (removedEvents?.removeListener) removedEvents.removeListener(onRemoved);
+		}
+	}
+
 	async function openTab(url, options = {}) {
 		const active = Boolean(options.active);
 		const reuse = options.reuse ?? true;
@@ -962,6 +1013,7 @@
 			const existing = await findReusableTab(options.preferredTabId);
 			if (existing?.id) {
 				try {
+					const previousUrl = tabUrl(existing.url);
 					const updateProps = { url };
 					if (active) updateProps.active = true;
 					const isSameUrl = existing.url === url;
@@ -970,6 +1022,9 @@
 					await markTabOwned(existing.id);
 					if (isSameUrl) {
 						await apiCall(extensionApi.tabs, 'reload', existing.id).catch(() => {});
+						await waitForTabSettled(existing.id, TAB_SETTLE_TIMEOUT_MS);
+					} else {
+						await waitForNavigationCommit(existing.id, previousUrl, LOAD_TIMEOUT_MS);
 					}
 				} catch (err) {
 					console.warn('Failed to update tab, falling back to create:', err);
@@ -986,7 +1041,7 @@
 			isNewTab = true;
 		}
 
-		await waitForTabLoad(tab.id, isNewTab);
+		if (isNewTab) await waitForTabLoad(tab.id, true);
 
 		// Read final tab URL after navigation/redirects complete
 		let currentTab;
@@ -1024,7 +1079,7 @@
 				tabId: tab.id
 			};
 		} else {
-			snapshot = await readSnapshot(tab.id, validatedFinalUrl, isGoogle);
+			snapshot = await readRenderedSnapshot(tab.id, validatedFinalUrl, isGoogle);
 		}
 
 		if (options.autoClose) {
@@ -1244,7 +1299,11 @@
 			await apiCall(extensionApi.tabs, 'reload', tab.id);
 			await waitForTabSettled(tab.id, TAB_SETTLE_TIMEOUT_MS);
 		} else if (args.action === 'wait') {
-			await delay(Math.min(Math.max(Number(args.waitMs) || 1_000, 0), MAX_WAIT_MS));
+			const waitMs =
+				args.waitMs === undefined
+					? 1_000
+					: Math.min(Math.max(Number(args.waitMs) || 0, 0), MAX_WAIT_MS);
+			await delay(waitMs);
 		} else {
 			let outcome;
 			try {
@@ -1267,7 +1326,14 @@
 		await waitForTabSettled(tab.id, TAB_SETTLE_TIMEOUT_MS);
 		const current = await apiCall(extensionApi.tabs, 'get', tab.id).catch(() => null);
 		const settledUrl = validatePublicUrl(tabUrl(current?.url) || finalUrl);
-		const result = await readSnapshot(tab.id, settledUrl, isReadableGoogleUrl(settledUrl));
+		const minimumWaitMs =
+			args.action === 'wait' ? 0 : Math.min(Math.max(Number(args.waitMs) || 0, 0), MAX_WAIT_MS);
+		const result = await readRenderedSnapshot(
+			tab.id,
+			settledUrl,
+			isReadableGoogleUrl(settledUrl),
+			minimumWaitMs
+		);
 		if (before) {
 			const after = await readPageDigest(tab.id);
 			if (after) result.changed = before.url !== after.url || before.hash !== after.hash;

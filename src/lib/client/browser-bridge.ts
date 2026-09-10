@@ -73,7 +73,7 @@ export function requestBrowserBridge(
 	});
 }
 
-export const REQUIRED_BROWSER_EXTENSION_VERSION = '0.4.1';
+export const REQUIRED_BROWSER_EXTENSION_VERSION = '0.4.2';
 
 const BROWSER_BRIDGE_ACTIONS = [
 	'browser_search',

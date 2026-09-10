@@ -8,7 +8,7 @@ const output = join(root, 'static', 'extensions');
 /**
  * The shipped manifest is the single source of truth for the extension version.
  * Keeping a second literal here is how the two drifted apart: the build shipped
- * 0.4.1 while the manifests still said 0.4.0, so the popup and the app handshake
+ * an older package while the manifests claimed a different release, so the popup and the app handshake
  * disagreed about what was installed.
  */
 const version = await readManifestVersion();
