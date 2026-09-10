@@ -79,6 +79,20 @@ hidden input, and a `display:none` subtree. Open the printed URL and confirm the
 `tests/extension-probe.test.ts` guards the extraction, so renaming either function fails the unit
 suite instead of silently disabling the probe.
 
+### Automated end-to-end transport test
+
+`tests/browser-e2e.test.ts` wires the real server bridge to the real extension background handler in
+one process. The agent tool emits a `browser.request`, that exact event is dispatched to the shipped
+background handler with only the browser API mocked, and the reply is validated against the
+production result schema before settling the pending request. It covers listing, reading, clicking,
+the consent gate (allowed once, denied, and a standing conversation grant), `browser_open`, tab
+continuity, and the unreadable-tab path.
+
+What it proves: the two halves agree on action names and argument shapes. What it does not cover:
+loading the packed extension into a real browser against a running Mimin instance. For that final
+step, install the package below, sign in to Mimin, and confirm the settings page reports
+**Connected** before asking the agent to read a tab.
+
 Chrome, Edge, Brave, and other Chromium browsers:
 
 1. Open `chrome://extensions`.
