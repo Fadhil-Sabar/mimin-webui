@@ -167,6 +167,8 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 		send,
 		hooks,
 		executeCalls,
+		/** Fire a `tabs.onUpdated` event the way the browser would. */
+		updateListeners,
 		snapshot,
 		interactOutcome,
 		digests,

@@ -362,6 +362,78 @@
 	}
 
 	/**
+	 * Wait for a navigation we just started to commit.
+	 *
+	 * `tabs.get().status` still reports "complete" for the document being
+	 * navigated away from, so accepting that as "loaded" returns immediately and
+	 * the following read runs against the old page. That is worse than merely
+	 * stale: the ref registry lives in the old document's injected world, so the
+	 * next interaction reports a missing element once the new page replaces it.
+	 *
+	 * A commit means the tab finished loading *and* its URL is no longer the one
+	 * we navigated away from. Requiring both keeps this correct whether the
+	 * browser reports the new URL before or only after the new document commits.
+	 */
+	function waitForNavigationCommit(tabId, previousUrl, timeoutMs) {
+		return new Promise((resolve, reject) => {
+			let finished = false;
+			let timer;
+			const committed = (tab) => {
+				if (!tab || tab.status !== 'complete') return false;
+				const url = tabUrl(tab.url);
+				return Boolean(url) && url !== previousUrl;
+			};
+			const inspect = () => {
+				void apiCall(extensionApi.tabs, 'get', tabId).then(
+					(tab) => {
+						if (committed(tab)) finish();
+					},
+					() => undefined
+				);
+			};
+			const finish = () => {
+				if (finished) return;
+				finished = true;
+				clearTimeout(timer);
+				clearInterval(poll);
+				extensionApi.tabs.onUpdated.removeListener(onUpdated);
+				extensionApi.tabs.onRemoved.removeListener(onRemoved);
+				resolve();
+			};
+			const fail = (error) => {
+				if (finished) return;
+				finished = true;
+				clearTimeout(timer);
+				clearInterval(poll);
+				extensionApi.tabs.onUpdated.removeListener(onUpdated);
+				extensionApi.tabs.onRemoved.removeListener(onRemoved);
+				reject(error);
+			};
+			const onUpdated = (updatedTabId) => {
+				if (updatedTabId === tabId) inspect();
+			};
+			const onRemoved = (removedTabId) => {
+				if (removedTabId === tabId) fail(new Error('The browser tab was closed while loading.'));
+			};
+			extensionApi.tabs.onUpdated.addListener(onUpdated);
+			extensionApi.tabs.onRemoved.addListener(onRemoved);
+			// Some browsers commit so quickly that no event is observed, and others
+			// coalesce events for background tabs, so poll as well.
+			const poll = setInterval(inspect, 100);
+			timer = setTimeout(
+				() =>
+					fail(
+						new Error(
+							'The page did not finish navigating in time, so nothing was read from it. Check the URL and try again.'
+						)
+					),
+				timeoutMs
+			);
+			inspect();
+		});
+	}
+
+	/**
 	 * Injected into a tab. Returns a readable snapshot plus a ref registry for
 	 * interactive elements so later actions can target them reliably.
 	 */
@@ -657,12 +729,22 @@
 			element.dispatchEvent(new KeyboardEvent('keyup', init));
 		}
 
+		/**
+		 * Candidates must match the names a snapshot shows for the same element,
+		 * because the model reads a name there and may pass it back as `text`.
+		 * Leaving out `placeholder` made typing into a field by its displayed name
+		 * impossible: the snapshot said `input "Email address"` while the matcher
+		 * could not see it.
+		 */
 		function normalizeLabel(element) {
 			return [
-				element.innerText,
-				element.textContent,
+				element.getAttribute?.('aria-label'),
+				element.getAttribute?.('placeholder'),
+				element.getAttribute?.('title'),
+				element.getAttribute?.('name'),
 				element.value,
-				element.getAttribute?.('aria-label')
+				element.innerText,
+				element.textContent
 			]
 				.filter(Boolean)
 				.join(' ')
@@ -672,7 +754,30 @@
 				.slice(0, 300);
 		}
 
-		function findTarget() {
+		// Labels that usually mean "act on me": controls, links, and clickable rows.
+		const CLICKABLE_LABELS =
+			'a,button,summary,label,[role="button"],[role="link"],input[type="submit"],input[type="button"]';
+		// Fields that text can actually be typed into. Kept separate so a click by
+		// label cannot accidentally land on a text box.
+		const EDITABLE_LABELS =
+			'input:not([type="hidden"]),textarea,select,[contenteditable=""],[contenteditable="true"]';
+
+		/** True when the element is actually rendered, not merely present. */
+		function isRendered(element) {
+			if (element.hidden) return false;
+			const style =
+				typeof globalThis.getComputedStyle === 'function'
+					? globalThis.getComputedStyle(element)
+					: null;
+			if (style && (style.display === 'none' || style.visibility === 'hidden')) return false;
+			if (typeof element.getBoundingClientRect === 'function') {
+				const rect = element.getBoundingClientRect();
+				if (rect && rect.width <= 0 && rect.height <= 0) return false;
+			}
+			return true;
+		}
+
+		function findTarget(options = {}) {
 			if (typeof payload.ref === 'number') {
 				const list = globalThis.__miminElementRefs;
 				const element = Array.isArray(list) ? list[payload.ref] : undefined;
@@ -688,21 +793,44 @@
 			}
 			if (typeof payload.text === 'string' && payload.text) {
 				const wanted = payload.text.toLowerCase();
-				const nodes = document.querySelectorAll(
-					'a,button,summary,label,[role="button"],[role="link"],input[type="submit"],input[type="button"]'
-				);
-				for (const element of nodes) {
+				const selector = options.editable
+					? `${CLICKABLE_LABELS},${EDITABLE_LABELS}`
+					: CLICKABLE_LABELS;
+				for (const element of document.querySelectorAll(selector)) {
 					const label = normalizeLabel(element);
-					if (label && label.includes(wanted)) return element;
+					if (!label || !label.includes(wanted)) continue;
+					// Label matching is a convenience for the model. Never act on
+					// something the page is not showing, since the snapshot would not
+					// have listed it either.
+					if (isRendered(element)) return element;
 				}
 			}
 			return null;
 		}
 
+		/**
+		 * A ref only means something for the snapshot it came from; the registry
+		 * lives in this document's injected world and dies with the document. When
+		 * the page has moved on, say so instead of leaving the caller to retry the
+		 * same doomed call.
+		 */
+		function missingTarget(options = {}) {
+			if (typeof payload.ref === 'number') {
+				const reason = Array.isArray(globalThis.__miminElementRefs)
+					? `Ref ${payload.ref} does not match anything on this page any more.`
+					: `Ref ${payload.ref} cannot be used because this tab has not been read since the page changed, so the reference is stale.`;
+				return `${reason} Read the tab again to get current refs.`;
+			}
+			if (options.editable) {
+				return 'No editable field matched that text. Read the tab and pass the ref of the field instead of its label.';
+			}
+			return 'No element matched. Read the tab again to see the elements it now has.';
+		}
+
 		let target;
 		if (action === 'click') {
 			target = findTarget();
-			if (!target) return { ok: false, error: 'No matching element was found to click.' };
+			if (!target) return { ok: false, error: missingTarget() };
 			try {
 				target.scrollIntoView({ block: 'center', inline: 'center' });
 			} catch {
@@ -715,8 +843,8 @@
 		}
 
 		if (action === 'type') {
-			target = findTarget();
-			if (!target) return { ok: false, error: 'No matching input was found to type into.' };
+			target = findTarget({ editable: true });
+			if (!target) return { ok: false, error: missingTarget({ editable: true }) };
 			target.focus?.();
 			if (typeof target.select === 'function') {
 				try {
@@ -740,8 +868,8 @@
 		}
 
 		if (action === 'select') {
-			target = findTarget();
-			if (!target) return { ok: false, error: 'No matching select element was found.' };
+			target = findTarget({ editable: true });
+			if (!target) return { ok: false, error: missingTarget({ editable: true }) };
 			target.focus?.();
 			fill(target, String(payload.value ?? payload.text ?? ''));
 			return { ok: true, action, performed: 'selected' };
@@ -755,7 +883,7 @@
 
 		if (action === 'hover') {
 			target = findTarget();
-			if (!target) return { ok: false, error: 'No matching element was found to hover.' };
+			if (!target) return { ok: false, error: missingTarget() };
 			try {
 				target.scrollIntoView({ block: 'center' });
 			} catch {
@@ -1104,7 +1232,8 @@
 		if (args.action === 'navigate') {
 			const target = validatePublicUrl(args.url);
 			await apiCall(extensionApi.tabs, 'update', tab.id, { url: target });
-			await waitForTabLoad(tab.id, true);
+			// Wait for the new document, not for the old one's "complete" status.
+			await waitForNavigationCommit(tab.id, finalUrl, LOAD_TIMEOUT_MS);
 		} else if (args.action === 'back') {
 			await apiCall(extensionApi.tabs, 'goBack', tab.id);
 			await waitForTabSettled(tab.id, TAB_SETTLE_TIMEOUT_MS);

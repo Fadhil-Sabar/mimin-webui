@@ -218,6 +218,23 @@
 					JSON.stringify(window.__events)
 				);
 
+				// Typing by label, without a ref, must reach a real field: the label
+				// fallback used to exclude inputs, so this could never work.
+				const emailField = document.getElementById('email');
+				emailField.value = '';
+				r = interactPage({ action: 'type', text: 'Email address' });
+				check('type by label finds a field without a ref', r.ok === true, JSON.stringify(r));
+				check(
+					'type by label wrote into that field',
+					emailField.value === 'Email address',
+					emailField.value
+				);
+
+				// A click by label must not land on a text field.
+				window.__events.length = 0;
+				r = interactPage({ action: 'click', text: 'Never visible' });
+				check('click by label ignores hidden buttons', r.ok === false, JSON.stringify(r));
+
 				// Failure paths
 				r = interactPage({ action: 'click', ref: 9999 });
 				check(
@@ -229,6 +246,18 @@
 				check('missing selector fails cleanly', r.ok === false, JSON.stringify(r));
 				r = interactPage({ action: 'teleport' });
 				check('unknown action fails cleanly', r.ok === false, JSON.stringify(r));
+
+				// A ref from a document that has not been read is reported as stale, with
+				// the remedy, instead of a dead end.
+				const savedRefs = window.__miminElementRefs;
+				window.__miminElementRefs = undefined;
+				r = interactPage({ action: 'click', ref: 0 });
+				check(
+					'missing registry reports a stale ref with a remedy',
+					r.ok === false && /Read the tab again/.test(String(r.error)),
+					JSON.stringify(r)
+				);
+				window.__miminElementRefs = savedRefs;
 
 				// Refs survive a full snapshot refresh (staleness contract)
 				const second = pageSnapshot({ google: false });

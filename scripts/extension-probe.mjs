@@ -16,49 +16,32 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { extractFunction } from './extract-function.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, 'browser-extension', 'src', 'background-core.js');
 const probePage = join(root, 'browser-extension', 'probe', 'index.html');
 const port = Number(process.env.PROBE_PORT ?? 8931);
 
-/** Extract a top-level function declaration by matching braces. */
-function extractFunction(code, name) {
-	const start = code.indexOf(`function ${name}(`);
-	if (start === -1) throw new Error(`Could not find function ${name} in ${source}`);
-	let index = code.indexOf('{', start);
-	let depth = 0;
-	for (; index < code.length; index += 1) {
-		const char = code[index];
-		if (char === '{') depth += 1;
-		else if (char === '}') {
-			depth -= 1;
-			if (depth === 0) return code.slice(start, index + 1);
-		} else if (char === '"' || char === "'" || char === '`') {
-			const quote = char;
-			index += 1;
-			while (index < code.length && code[index] !== quote) {
-				if (code[index] === '\\') index += 1;
-				index += 1;
-			}
-		}
-	}
-	throw new Error(`Unbalanced braces while extracting ${name}`);
+/**
+ * Rebuilt for every request so editing `background-core.js` only needs a reload,
+ * instead of a server restart that silently kept serving the previous functions.
+ */
+async function injectedSource() {
+	const background = await readFile(source, 'utf8');
+	return [
+		'// Generated from browser-extension/src/background-core.js. Do not edit.',
+		extractFunction(background, 'pageSnapshot'),
+		'',
+		extractFunction(background, 'pageDigest'),
+		'',
+		extractFunction(background, 'interactPage')
+	].join('\n');
 }
-
-const background = await readFile(source, 'utf8');
-const injected = [
-	'// Generated from browser-extension/src/background-core.js. Do not edit.',
-	extractFunction(background, 'pageSnapshot'),
-	'',
-	extractFunction(background, 'pageDigest'),
-	'',
-	extractFunction(background, 'interactPage')
-].join('\n');
 
 const page = await readFile(probePage, 'utf8');
 
-const server = createServer((request, response) => {
+const server = createServer(async (request, response) => {
 	const path = (request.url ?? '/').split('?')[0];
 	if (path === '/' || path === '/index.html') {
 		response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
@@ -70,7 +53,7 @@ const server = createServer((request, response) => {
 			'content-type': 'text/javascript; charset=utf-8',
 			'cache-control': 'no-store'
 		});
-		response.end(injected);
+		response.end(await injectedSource());
 		return;
 	}
 	response.writeHead(404, { 'content-type': 'text/plain' });

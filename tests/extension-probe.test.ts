@@ -2,32 +2,12 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The injected-script probe (`npm run extension:probe`) extracts these two
- * functions by source from the extension IIFE. If either is renamed or made a
- * non-declaration, the probe silently breaks, so guard the seam here.
+ * The injected-script probe (`npm run extension:probe`) extracts these functions
+ * by source from the extension IIFE. If either is renamed or made a
+ * non-declaration, the probe silently breaks, so guard the seam here using the
+ * very same extractor the probe uses.
  */
-function extractFunction(code: string, name: string) {
-	const start = code.indexOf(`function ${name}(`);
-	expect(start, `function ${name} must exist in background-core.js`).toBeGreaterThan(-1);
-	let index = code.indexOf('{', start);
-	let depth = 0;
-	for (; index < code.length; index += 1) {
-		const char = code[index];
-		if (char === '{') depth += 1;
-		else if (char === '}') {
-			depth -= 1;
-			if (depth === 0) return code.slice(start, index + 1);
-		} else if (char === '"' || char === "'" || char === '`') {
-			const quote = char;
-			index += 1;
-			while (index < code.length && code[index] !== quote) {
-				if (code[index] === '\\') index += 1;
-				index += 1;
-			}
-		}
-	}
-	throw new Error(`Unbalanced braces while extracting ${name}`);
-}
+const { extractFunction } = await import('../scripts/extract-function.mjs');
 
 describe('extension probe extraction', () => {
 	it('extracts pageSnapshot and interactPage as self-contained functions', async () => {
@@ -43,6 +23,32 @@ describe('extension probe extraction', () => {
 			expect(() => new Function(`return (${body})`)).not.toThrow();
 			expect(body.endsWith('}')).toBe(true);
 		}
+	});
+
+	it('ignores braces and apostrophes inside comments', () => {
+		// A comment is where an unbalanced brace or a lone apostrophe is most likely
+		// to appear, and either one used to run the slice past the function end.
+		const code = [
+			'function outer() {',
+			"\t// don't be fooled by } or a trailing quote '",
+			'\tconst inner = { a: 1 };',
+			'\t/* a block } comment too */',
+			'\treturn inner;',
+			'}',
+			'function next() {',
+			'\treturn 1;',
+			'}'
+		].join('\n');
+
+		const body = extractFunction(code, 'outer');
+
+		// Counting raw braces here would be wrong: the slice is allowed to contain
+		// unbalanced braces inside its comments and strings. What matters is that it
+		// stops at the right place and parses.
+		expect(body).toContain('const inner = { a: 1 };');
+		expect(body).not.toContain('function next');
+		expect(body.endsWith('}')).toBe(true);
+		expect(() => new Function(`return (${body})`)).not.toThrow();
 	});
 
 	it('keeps the probe page wired to the generated script', async () => {

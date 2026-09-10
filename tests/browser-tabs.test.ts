@@ -286,6 +286,61 @@ describe('injected page interaction', () => {
 		]);
 	});
 
+	it('matches a field by the name a snapshot shows for it', async () => {
+		const harness = loadExtension({ tabs: exampleTabs, granted: ['https://*/*'] });
+		const interactPage = harness.hooks.interactPage as (payload: AnyRecord) => AnyRecord;
+		// Snapshots name a field by its placeholder when it has no text, and every
+		// other field below matches a different selector.
+		const field = fakeElement('input', {
+			value: '',
+			attributes: { placeholder: 'Email address' }
+		});
+		vi.stubGlobal('document', {
+			querySelector: () => null,
+			querySelectorAll: () => [field]
+		});
+
+		expect(interactPage({ action: 'type', text: 'Email address' })).toMatchObject({
+			ok: true,
+			performed: 'typed'
+		});
+		expect(field.value).toBe('Email address');
+	});
+
+	it('does not act on a label match the page is not showing', async () => {
+		const harness = loadExtension({ tabs: exampleTabs, granted: ['https://*/*'] });
+		const interactPage = harness.hooks.interactPage as (payload: AnyRecord) => AnyRecord;
+		const hidden = fakeElement('button', {
+			innerText: 'Never visible',
+			getBoundingClientRect: () => ({ width: 0, height: 0 })
+		});
+		vi.stubGlobal('document', {
+			querySelector: () => null,
+			querySelectorAll: () => [hidden]
+		});
+
+		const result = interactPage({ action: 'click', text: 'Never visible' });
+
+		expect(result.ok).toBe(false);
+		expect(hidden.clicked).toBe(0);
+	});
+
+	it('explains that a ref is stale instead of failing silently', async () => {
+		const harness = loadExtension({ tabs: exampleTabs, granted: ['https://*/*'] });
+		const interactPage = harness.hooks.interactPage as (payload: AnyRecord) => AnyRecord;
+
+		// No snapshot has run in this document, so any ref it holds is meaningless.
+		vi.stubGlobal('__miminElementRefs', undefined);
+		const stale = interactPage({ action: 'click', ref: 0 });
+		expect(stale.ok).toBe(false);
+		expect(String(stale.error)).toContain('stale');
+		expect(String(stale.error)).toContain('Read the tab again');
+
+		vi.stubGlobal('__miminElementRefs', []);
+		const missing = interactPage({ action: 'click', ref: 3 });
+		expect(String(missing.error)).toContain('Ref 3 does not match anything');
+	});
+
 	it('scrolls the window by direction', async () => {
 		const harness = loadExtension({ tabs: exampleTabs, granted: ['https://*/*'] });
 		const interactPage = harness.hooks.interactPage as (payload: AnyRecord) => AnyRecord;
