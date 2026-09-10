@@ -20,12 +20,15 @@
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const extensionDir = join(root, 'static', 'extensions', 'chrome');
+const builtVersion = JSON.parse(
+	await readFile(join(extensionDir, 'manifest.json'), 'utf8')
+).version;
 const targetUrl = process.env.EXTENSION_E2E_URL ?? 'http://localhost:5173/';
 const debugPort = Number(process.env.EXTENSION_E2E_PORT ?? 9333);
 const scratchRoot = process.env.JCODE_SCRATCH_DIR ?? '/tmp';
@@ -270,9 +273,11 @@ try {
 	await probe('page reaches the extension (ping)', 'ping', {}, (reply) => {
 		if (reply.timeout) return { ok: false, detail: 'timed out waiting for a reply' };
 		if (reply.ok !== true) return { ok: false, detail: `error: ${reply.error}` };
+		// Compared against the packaged manifest so the handshake cannot silently
+		// report a version the build did not ship.
 		return {
-			ok: reply.result?.version === '0.4.0',
-			detail: `version=${reply.result?.version} publicWebsites=${reply.result?.permissions?.publicWebsites}`
+			ok: reply.result?.version === builtVersion,
+			detail: `version=${reply.result?.version} expected=${builtVersion} publicWebsites=${reply.result?.permissions?.publicWebsites}`
 		};
 	});
 

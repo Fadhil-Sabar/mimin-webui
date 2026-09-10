@@ -5,7 +5,13 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const source = join(root, 'browser-extension', 'src');
 const output = join(root, 'static', 'extensions');
-const version = '0.4.0';
+/**
+ * The shipped manifest is the single source of truth for the extension version.
+ * Keeping a second literal here is how the two drifted apart: the build shipped
+ * 0.4.1 while the manifests still said 0.4.0, so the popup and the app handshake
+ * disagreed about what was installed.
+ */
+const version = await readManifestVersion();
 const defaultOrigins = ['http://localhost:5173', 'http://127.0.0.1:5173'];
 const sharedFiles = [
 	'popup.html',
@@ -16,6 +22,27 @@ const sharedFiles = [
 	'background.chrome.js',
 	'background.firefox.js'
 ];
+
+/** Read and cross-check the version declared by both shipped manifests. */
+async function readManifestVersion() {
+	const versions = await Promise.all(
+		['chrome', 'firefox'].map(async (target) => {
+			const manifest = JSON.parse(
+				await readFile(join(source, `manifest.${target}.json`), 'utf8')
+			) as { version?: string };
+			if (!manifest.version) throw new Error(`manifest.${target}.json has no version`);
+			return { target, version: manifest.version };
+		})
+	);
+	const [first, ...rest] = versions;
+	for (const entry of rest) {
+		if (entry.version !== first.version)
+			throw new Error(
+				`Extension manifests disagree on the version: ${first.target} ${first.version} vs ${entry.target} ${entry.version}`
+			);
+	}
+	return first.version;
+}
 
 function readAllowedOrigins() {
 	const raw = process.env.MIMIN_EXTENSION_ORIGINS;

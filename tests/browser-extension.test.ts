@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { buildSearchUrl, SEARCH_ENGINES } from '../browser-extension/src/search.js';
+import { REQUIRED_BROWSER_EXTENSION_VERSION } from '../src/lib/client/browser-bridge';
 
 describe('Mimin Search browser extension', () => {
 	it('builds encoded Google and Scholar searches', () => {
@@ -31,7 +32,6 @@ describe('Mimin Search browser extension', () => {
 			)
 		);
 		expect(manifest.manifest_version).toBe(3);
-		expect(manifest.version).toBe('0.4.0');
 		expect(manifest.action.default_popup).toBe('popup.html');
 		expect(manifest.permissions).toEqual(['scripting', 'storage']);
 		expect(manifest.host_permissions).toEqual([
@@ -39,6 +39,35 @@ describe('Mimin Search browser extension', () => {
 			'https://scholar.google.com/*'
 		]);
 		expect(manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
+	});
+
+	it('keeps the shipped version agreed on and not ahead of what the app requires', async () => {
+		const read = async (target: string) =>
+			JSON.parse(
+				await readFile(
+					new URL(`../browser-extension/src/manifest.${target}.json`, import.meta.url),
+					'utf8'
+				)
+			) as { version: string };
+		const chrome = await read('chrome');
+		const firefox = await read('firefox');
+
+		// The build derives the packaged version from these, so a disagreement here
+		// means the two browser builds claim to be different releases.
+		expect(firefox.version).toBe(chrome.version);
+
+		// If the app required a newer extension than the one we ship, every user
+		// would see "Update required" with nothing to update to.
+		const compare = (a: string, b: string) => {
+			const left = a.split('.').map(Number);
+			const right = b.split('.').map(Number);
+			for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+				const difference = (left[index] ?? 0) - (right[index] ?? 0);
+				if (difference !== 0) return difference;
+			}
+			return 0;
+		};
+		expect(compare(chrome.version, REQUIRED_BROWSER_EXTENSION_VERSION)).toBeGreaterThanOrEqual(0);
 	});
 
 	it('declares that the Firefox build collects only website content', async () => {
