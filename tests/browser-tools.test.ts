@@ -1,9 +1,20 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import {
+	createBrowserInteractTool,
 	createBrowserOpenTool,
+	createBrowserReadTabTool,
 	createBrowserSearchTool,
-	buildBrowserSearchUrl
+	createBrowserTabsTool,
+	buildBrowserSearchUrl,
+	type BrowserToolEvent
 } from '../src/lib/server/ai/tools/browser.tool';
+import {
+	clearAllBrowserConsentGrants,
+	clearAllBrowserConsentRequests,
+	grantConversationBrowserConsent,
+	resolveBrowserConsent,
+	type BrowserConsentEvent
+} from '../src/lib/server/browser/consent';
 import {
 	settleBrowserRequest,
 	type BrowserBridgeContext,
@@ -337,5 +348,164 @@ describe('browser tools', () => {
 			new AbortController().signal
 		);
 		expect((capturedB2 as unknown as BrowserBridgeEvent | null)?.args?.preferredTabId).toBe(456);
+	});
+});
+
+describe('browser tab tools with consent', () => {
+	afterEach(() => {
+		clearAllBrowserConsentRequests();
+		clearAllBrowserConsentGrants();
+	});
+
+	const tabContext = { userId: 'user-tabs', conversationId: 'conv-tabs', turnToken: 'turn-tabs' };
+
+	function consentEvents(events: BrowserToolEvent[]) {
+		return events.filter(
+			(event): event is BrowserConsentEvent => event.type === 'browser.consent.request'
+		);
+	}
+
+	it('asks for consent before listing tabs and formats the granted listing', async () => {
+		const events: BrowserToolEvent[] = [];
+		const tool = createBrowserTabsTool(tabContext, (event) => {
+			events.push(event);
+			if (event.type === 'browser.consent.request') {
+				queueMicrotask(() => resolveBrowserConsent(event.requestId, tabContext.userId, 'once'));
+				return;
+			}
+			queueMicrotask(() => {
+				settleBrowserRequest(tabContext.userId, event.requestId, event.token, true, {
+					tabs: [
+						{
+							tabId: 5,
+							title: 'Docs',
+							url: 'https://example.com/docs',
+							active: true,
+							readable: true
+						},
+						{ tabId: 6, title: 'Hidden', active: false, readable: false, reason: 'url_hidden' }
+					],
+					tabId: 5
+				});
+			});
+		});
+
+		const result = await tool.execute('call-tabs', {}, new AbortController().signal);
+		expect(consentEvents(events)).toHaveLength(1);
+		expect(consentEvents(events)[0].action).toBe('browser_tabs_list');
+
+		const first = result.content[0];
+		if (first.type !== 'text') throw new Error('Expected text content');
+		expect(first.text).toContain('Open browser tabs');
+		expect(first.text).toContain('tabId 5');
+		expect(first.text).toContain('URL: https://example.com/docs');
+		expect(first.text).toContain('not readable (url_hidden)');
+
+		// The listing is also exposed as sources for the chat UI.
+		const sources = (result.details as { sources: Array<{ url?: string }> }).sources;
+		expect(sources.map((source) => source.url)).toEqual(['https://example.com/docs']);
+	});
+
+	it('never dispatches a bridge request when the user denies access', async () => {
+		const events: BrowserToolEvent[] = [];
+		const tool = createBrowserReadTabTool(tabContext, (event) => {
+			events.push(event);
+			if (event.type === 'browser.consent.request') {
+				queueMicrotask(() => resolveBrowserConsent(event.requestId, tabContext.userId, 'deny'));
+			}
+		});
+
+		await expect(
+			tool.execute('call-deny', { tabId: 5 }, new AbortController().signal)
+		).rejects.toThrow('BROWSER_CONSENT_DENIED');
+		expect(consentEvents(events)).toHaveLength(1);
+		expect(events.some((event) => event.type === 'browser.request')).toBe(false);
+	});
+
+	it('reads a tab and returns the interactive element list', async () => {
+		const events: BrowserToolEvent[] = [];
+		const tool = createBrowserReadTabTool(tabContext, (event) => {
+			events.push(event);
+			if (event.type === 'browser.consent.request') {
+				queueMicrotask(() => resolveBrowserConsent(event.requestId, tabContext.userId, 'once'));
+				return;
+			}
+			queueMicrotask(() => {
+				settleBrowserRequest(tabContext.userId, event.requestId, event.token, true, {
+					url: 'https://example.com/docs',
+					readable: true,
+					title: 'Docs',
+					text: 'Body text',
+					elements: [
+						{ ref: 0, tag: 'a', name: 'Guide' },
+						{ ref: 1, tag: 'button', name: 'Sign in' }
+					]
+				});
+			});
+		});
+
+		const result = await tool.execute('call-read', { tabId: 5 }, new AbortController().signal);
+		const first = result.content[0];
+		if (first.type !== 'text') throw new Error('Expected text content');
+		expect(first.text).toContain('Browser tab snapshot from https://example.com/docs');
+		expect(first.text).toContain('Interactive elements (pass the ref to browser_interact)');
+		expect(first.text).toContain('[ref 1] button "Sign in"');
+	});
+
+	it('forwards interact arguments and skips the prompt after a conversation grant', async () => {
+		const events: BrowserToolEvent[] = [];
+		const dispatched: Array<Record<string, unknown>> = [];
+		const tool = createBrowserInteractTool(tabContext, (event) => {
+			events.push(event);
+			if (event.type === 'browser.consent.request') {
+				queueMicrotask(() =>
+					resolveBrowserConsent(event.requestId, tabContext.userId, 'conversation')
+				);
+				return;
+			}
+			dispatched.push(event.args);
+			queueMicrotask(() => {
+				settleBrowserRequest(tabContext.userId, event.requestId, event.token, true, {
+					url: 'https://example.com/docs',
+					readable: true,
+					title: 'Docs'
+				});
+			});
+		});
+
+		await tool.execute(
+			'call-interact-1',
+			{ action: 'type', tabId: 5, ref: 2, text: 'hello', submit: true },
+			new AbortController().signal
+		);
+		expect(dispatched[0]).toMatchObject({
+			action: 'type',
+			tabId: 5,
+			ref: 2,
+			text: 'hello',
+			submit: true
+		});
+		expect(consentEvents(events)).toHaveLength(1);
+
+		await tool.execute(
+			'call-interact-2',
+			{ action: 'scroll', direction: 'bottom' },
+			new AbortController().signal
+		);
+		// The standing grant suppresses the second prompt.
+		expect(consentEvents(events)).toHaveLength(1);
+		expect(dispatched[1]).toMatchObject({ action: 'scroll', direction: 'bottom' });
+	});
+
+	it('validates navigate URLs before dispatch', async () => {
+		const tool = createBrowserInteractTool(tabContext, () => {});
+		grantConversationBrowserConsent(tabContext.userId, tabContext.conversationId);
+		await expect(
+			tool.execute(
+				'call-navigate',
+				{ action: 'navigate', url: 'http://localhost:5173' },
+				new AbortController().signal
+			)
+		).rejects.toThrow('BROWSER_BRIDGE_PRIVATE_URL');
 	});
 });

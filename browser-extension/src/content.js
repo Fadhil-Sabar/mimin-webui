@@ -59,7 +59,14 @@
 			typeof value.id === 'string' &&
 			value.id.length > 0 &&
 			value.id.length <= 128 &&
-			['ping', 'browser_search', 'browser_open'].includes(value.action) &&
+			[
+				'ping',
+				'browser_search',
+				'browser_open',
+				'browser_tabs_list',
+				'browser_tab_read',
+				'browser_tab_interact'
+			].includes(value.action) &&
 			(value.args === undefined ||
 				(value.args && typeof value.args === 'object' && !Array.isArray(value.args)))
 		);

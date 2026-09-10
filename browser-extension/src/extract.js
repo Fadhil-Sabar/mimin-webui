@@ -162,6 +162,7 @@ export function googleSearchSnapshot(doc, loc) {
 		text,
 		links,
 		results,
+		elements: collectInteractiveElements(currentDoc),
 		captcha: /captcha|unusual traffic|not a robot|sorry\.google\.com/.test(lowered)
 	};
 }
@@ -284,9 +285,111 @@ export function genericPageSnapshot(doc, loc) {
 		text,
 		links,
 		results: [],
+		elements: collectInteractiveElements(currentDoc),
 		captcha:
 			/captcha|unusual traffic|not a robot|verify you are human|turnstile|cloudflare\s+ray/i.test(
 				lowered
 			)
 	};
+}
+
+/** Interactive element selector shared with the injected snapshot function. */
+export const INTERACTIVE_SELECTOR = [
+	'a[href]',
+	'button',
+	'input:not([type="hidden"])',
+	'textarea',
+	'select',
+	'summary',
+	'[contenteditable="true"]',
+	'[role="button"]',
+	'[role="link"]',
+	'[role="checkbox"]',
+	'[role="radio"]',
+	'[role="tab"]',
+	'[role="menuitem"]',
+	'[role="switch"]'
+].join(', ');
+
+/**
+ * Assign stable refs to visible interactive elements so follow-up actions can
+ * target them without guessing at CSS selectors.
+ *
+ * @param {any} doc
+ */
+export function collectInteractiveElements(doc) {
+	/** @type {any[]} */
+	const elements = [];
+	/** @type {any[]} */
+	const registry = [];
+	if (!doc || typeof doc.querySelectorAll !== 'function') {
+		/** @type {any} */ (globalThis).__miminElementRefs = registry;
+		return elements;
+	}
+
+	/**
+	 * @param {string | null | undefined} value
+	 * @param {number} limit
+	 */
+	const normalize = (value, limit) => (value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
+
+	/**
+	 * @param {any} element
+	 */
+	function isVisible(element) {
+		if (element.hidden) return false;
+		const style =
+			typeof globalThis.getComputedStyle === 'function'
+				? globalThis.getComputedStyle(element)
+				: null;
+		if (style) {
+			if (style.display === 'none' || style.visibility === 'hidden') return false;
+			const opacity = Number(style.opacity);
+			if (Number.isFinite(opacity) && opacity === 0) return false;
+		}
+		if (typeof element.getBoundingClientRect === 'function') {
+			const rect = element.getBoundingClientRect();
+			if (rect && rect.width <= 0 && rect.height <= 0) return false;
+		}
+		return true;
+	}
+
+	/**
+	 * @param {any} element
+	 */
+	function labelFor(element) {
+		const candidates = [
+			element.getAttribute?.('aria-label'),
+			element.getAttribute?.('placeholder'),
+			element.getAttribute?.('title'),
+			element.getAttribute?.('name'),
+			element.innerText,
+			element.value,
+			element.textContent
+		];
+		for (const candidate of candidates) {
+			const text = normalize(candidate, 240);
+			if (text) return text;
+		}
+		return '';
+	}
+
+	for (const element of doc.querySelectorAll(INTERACTIVE_SELECTOR)) {
+		if (elements.length >= 200) break;
+		if (!isVisible(element)) continue;
+		registry.push(element);
+		const type = element.getAttribute?.('type');
+		const disabled = Boolean(
+			element.disabled || element.getAttribute?.('aria-disabled') === 'true'
+		);
+		elements.push({
+			ref: registry.length - 1,
+			tag: (element.tagName || '').toLowerCase(),
+			name: labelFor(element),
+			type: type || undefined,
+			disabled: disabled || undefined
+		});
+	}
+	/** @type {any} */ (globalThis).__miminElementRefs = registry;
+	return elements;
 }

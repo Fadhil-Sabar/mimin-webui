@@ -115,6 +115,27 @@ describe('detectBrowserIntent', () => {
 			expect(detectBrowserIntent(q), `Query: "${q}"`).toEqual({ type: 'browser-open' });
 		}
 	});
+
+	it('classifies explicit references to an already-open tab', () => {
+		const queries = [
+			'baca tab ini',
+			'lihat tab saya yang terbuka',
+			'klik tombol login di tab itu',
+			'read my current tab',
+			'use the other tab to finish this',
+			'isi form di tab aktif'
+		];
+		for (const q of queries) {
+			expect(detectBrowserIntent(q), `Query: "${q}"`).toEqual({ type: 'browser-tab' });
+		}
+	});
+
+	it('keeps opening a new tab on browser-open instead of tab tools', () => {
+		expect(detectBrowserIntent('buka tab baru untuk halaman ini')).toEqual({
+			type: 'browser-open'
+		});
+		expect(detectBrowserIntent('open a new tab')).not.toEqual({ type: 'browser-tab' });
+	});
 });
 
 describe('resolveTurnToolGating', () => {
@@ -261,8 +282,41 @@ describe('resolveTurnToolGating', () => {
 		});
 		expect(gating.exposeBrowserSearch).toBe(false);
 		expect(gating.exposeBrowserOpen).toBe(false);
+		expect(gating.exposeBrowserTabs).toBe(false);
 		expect(gating.exposeWebSearch).toBe(true);
 		expect(gating.blockedReason).toBeUndefined();
+	});
+
+	it('exposes the tab tools with the rest of a connected bridge', () => {
+		const generic = resolveTurnToolGating({
+			prompt: 'cari berita terbaru OpenAI',
+			browserBridgeEnabled: true,
+			hasWebSearch: true
+		});
+		expect(generic.exposeBrowserTabs).toBe(true);
+
+		const tabIntent = resolveTurnToolGating({
+			prompt: 'klik tombol login di tab saya',
+			browserBridgeEnabled: true,
+			hasWebSearch: true
+		});
+		expect(tabIntent.browserIntent).toEqual({ type: 'browser-tab' });
+		expect(tabIntent.exposeBrowserTabs).toBe(true);
+		expect(tabIntent.exposeWebSearch).toBe(false);
+		expect(tabIntent.exposeBrowserOpen).toBe(true);
+	});
+
+	it('blocks tab intent without falling back to web_search when the bridge is unavailable', () => {
+		const gating = resolveTurnToolGating({
+			prompt: 'baca tab ini',
+			browserBridgeEnabled: false,
+			hasWebSearch: true
+		});
+		expect(gating.exposeBrowserTabs).toBe(false);
+		expect(gating.exposeBrowserOpen).toBe(false);
+		expect(gating.exposeBrowserSearch).toBe(false);
+		expect(gating.exposeWebSearch).toBe(false);
+		expect(gating.blockedReason).toBe('browser_bridge_unavailable');
 	});
 });
 
@@ -340,6 +394,7 @@ describe('getTurnRoutingInstruction', () => {
 		expect(getTurnRoutingInstruction({ type: 'browser-open' })).toBe(
 			'The user explicitly requested browser navigation. Use browser_open.'
 		);
+		expect(getTurnRoutingInstruction({ type: 'browser-tab' })).toContain('browser_read_tab');
 		expect(getTurnRoutingInstruction({ type: 'none' })).toBeNull();
 	});
 });

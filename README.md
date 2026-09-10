@@ -171,15 +171,20 @@ Open `http://localhost:5173`.
 
 Open **Settings → Browser Extension**, enable the bridge, and install the package for your browser. Reload Mimin in that same browser and check for **Connected**.
 
-Mimin distinguishes three research and browser capabilities:
+Mimin distinguishes these research and browser capabilities:
 
 - **Web Search (`web_search`)**: Default server-side research provider (Tavily with DuckDuckGo fallback). General queries (e.g. “cari berita terbaru OpenAI” or “research agentic coding benchmark”) automatically route to `web_search` without touching the browser.
 - **Browser Search (`browser_search`)**: Explicit Google or Google Scholar search through the user's real browser. Available only when the query explicitly targets Google or Scholar (e.g. “cari di Google tentang WebMCP” or “search Scholar for LLM hallucination”). Returns structured search results.
 - **Browser Open (`browser_open`)**: Opens and reads public HTTP/HTTPS web pages through the browser (e.g. “buka https://example.com” or inspecting search results). Generic page reading requires user-granted website reading permission in the extension popup.
+- **Browser Tabs (`browser_tabs`)**: Lists the open tabs the extension is allowed to describe (id, title, URL, active/pinned, readable).
+- **Browser Read Tab (`browser_read_tab`)**: Reads one of the user's tabs by `tabId`, URL match, or the active tab, returning the same bounded snapshot as `browser_open` plus indexed interactive elements.
+- **Browser Interact (`browser_interact`)**: Clicks, types, selects, presses keys, scrolls, navigates, or re-reads inside one of the user's tabs, targeting an element by its `ref` (or a CSS selector / visible label).
+
+Tab access is consented in the chat: the first time a turn needs the user's tabs, Mimin asks whether to **allow just once** or **allow for this conversation**. A conversation-scoped grant is remembered for that chat (12 hours, in-memory) and can be revoked with `DELETE /api/conversations/{id}/browser-consent`. Denying or not answering blocks the tab tools for that call; `browser_open` on a user-requested URL is not gated because the request itself is the instruction.
 
 Deterministic per-turn tool gating ensures the model never receives ambiguous interchangeable search tools. When an explicit browser search intent is detected, `web_search` is hidden for that turn and browser tools are exposed.
 
-The bridge is off by default and enabled per browser. Only a connected chat turn receives browser tools. By default, the extension has host permissions for Google and Google Scholar. For other public HTTP(S) websites, users can grant optional host permissions directly from the extension popup under **Public website reading**. If permission has not been granted, `browser_open` navigates to the page and returns `{ readable: false, reason: "host_permission_required" }` without reading page content. Existing tabs, browsing history, local addresses, and private networks are strictly protected and never accessed. CAPTCHA challenges require the user to complete them manually; Mimin never bypasses them. Keep the chat open while a browser tool runs.
+The bridge is off by default and enabled per browser. Only a connected chat turn receives browser tools. By default, the extension has host permissions for Google and Google Scholar. For other public HTTP(S) websites and the user's other tabs, users can grant optional host permissions directly from the extension popup under **Tab reading & interaction**. Tab metadata is only listed for tabs the extension is permitted to read; internal pages and private or local addresses are skipped. If permission has not been granted, reading returns `{ readable: false, reason: "host_permission_required" }` without reading page content. Browsing history, cookies, accounts, and saved passwords are never read. CAPTCHA challenges require the user to complete them manually; Mimin never bypasses them. Keep the chat open while a browser tool runs.
 
 If you installed an earlier Mimin Search popup, replace/reload it with the new package and reload Mimin. For hosted instances, build with `MIMIN_EXTENSION_ORIGINS` set to the comma-separated exact Mimin origins. Default origins are `http://localhost:5173` and `http://127.0.0.1:5173`.
 

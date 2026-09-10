@@ -54,6 +54,36 @@ const tools: AppTool[] = [
 		settingHref: '/settings/browser-extension'
 	},
 	{
+		name: 'browser_tabs',
+		label: 'Browser Tabs',
+		description: "List the user's open browser tabs via browser extension.",
+		category: 'browser',
+		enabled: false,
+		readOnly: true,
+		settingHint: 'Configure in Settings > Browser Extension',
+		settingHref: '/settings/browser-extension'
+	},
+	{
+		name: 'browser_read_tab',
+		label: 'Browser Read Tab',
+		description: "Read one of the user's open browser tabs via browser extension.",
+		category: 'browser',
+		enabled: false,
+		readOnly: true,
+		settingHint: 'Configure in Settings > Browser Extension',
+		settingHref: '/settings/browser-extension'
+	},
+	{
+		name: 'browser_interact',
+		label: 'Browser Interact',
+		description: "Click, type, and navigate inside the user's open browser tabs.",
+		category: 'browser',
+		enabled: false,
+		readOnly: true,
+		settingHint: 'Configure in Settings > Browser Extension',
+		settingHref: '/settings/browser-extension'
+	},
+	{
 		name: 'project_knowledge_search',
 		label: 'Project Knowledge',
 		description: 'Search files attached to the active project.',

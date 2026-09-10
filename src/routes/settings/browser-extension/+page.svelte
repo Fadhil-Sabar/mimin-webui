@@ -36,7 +36,7 @@
 	let connected = $state(false);
 	let updateRequired = $state(false);
 	let installedVersion = $state<string | undefined>(undefined);
-	let requiredVersion = $state<string>('0.3.0');
+	let requiredVersion = $state<string>('0.4.0');
 	let checking = $state(false);
 	let status = $state('Checking connection…');
 	let permissions = $state<{ google?: boolean; publicWebsites?: boolean } | undefined>(undefined);
@@ -234,7 +234,7 @@
 								<span class="badge ok">Enabled</span>
 							</div>
 							<div class="perm-status-item">
-								<span>Public website reading</span>
+								<span>Tab reading &amp; interaction</span>
 								{#if permissions?.publicWebsites}
 									<span class="badge ok">Enabled</span>
 								{:else}
@@ -251,9 +251,10 @@
 						</p>
 					{:else if connected}
 						<p class="footnote-perm">
-							To enable reading generic web links opened with <code>browser_open</code>, open the
-							Mimin Browser Bridge extension popup in your browser toolbar and click
-							<strong>Grant</strong>.
+							To let Mimin read and click inside your open tabs, open the Mimin Browser Bridge
+							extension popup in your browser toolbar and click <strong>Grant</strong> under
+							<em>Tab reading &amp; interaction</em>. Mimin still asks you in the chat the first
+							time it needs your tabs.
 						</p>
 					{/if}
 				</div>
@@ -267,9 +268,12 @@
 							queries.
 							<strong>Browser Search</strong> is only exposed when you explicitly ask to search
 							Google or Google Scholar.
-							<strong>Browser Open</strong> opens a specific public URL in your browser and reads its
-							snapshot if public website reading permission is granted. Existing tabs, cookies, and browsing
-							history are never accessed.
+							<strong>Browser Open</strong> opens a specific public URL in your browser and reads
+							its snapshot if public website reading permission is granted.
+							<strong>Browser Tabs</strong>, <strong>Browser Read Tab</strong>, and
+							<strong>Browser Interact</strong> read and operate the tabs you already have open. The first
+							time in a chat that Mimin needs them, it asks whether to allow access once or for that conversation.
+							Cookies, saved passwords, and browsing history are never read.
 						</p>
 					</div>
 				</div>

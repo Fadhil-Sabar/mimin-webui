@@ -93,6 +93,20 @@ function matchesSelector(node: MockNode, selector: string): boolean {
 		if (part === 'main' && tag === 'main') return true;
 		if (part === '[role="main"]' && node.getAttribute?.('role') === 'main') return true;
 		if (part === 'a[href]' && tag === 'a' && node.getAttribute?.('href')) return true;
+		if (part === 'button' && tag === 'button') return true;
+		if (
+			part === 'input:not([type="hidden"])' &&
+			tag === 'input' &&
+			node.getAttribute?.('type') !== 'hidden'
+		) {
+			return true;
+		}
+		if (part === 'textarea' && tag === 'textarea') return true;
+		if (part === 'select' && tag === 'select') return true;
+		if (part === 'summary' && tag === 'summary') return true;
+		if (part.startsWith('[role="') && node.getAttribute?.('role') === part.slice(7, -2)) {
+			return true;
+		}
 		if (part.startsWith('.') && node.attributes?.class?.split(/\s+/).includes(part.slice(1))) {
 			return true;
 		}
@@ -425,6 +439,49 @@ describe('browser extraction: generic public pages', () => {
 		expect(isReadableGoogleUrl('https://www.google.com/search?q=test')).toBe(true);
 		expect(isReadableGoogleUrl('https://scholar.google.com/scholar?q=ai')).toBe(true);
 		expect(isReadableGoogleUrl('https://example.com')).toBe(false);
+	});
+
+	it('assigns refs to visible interactive elements and skips hidden inputs', () => {
+		const doc = createMockDocument({
+			title: 'Interactive page',
+			bodyChildren: [
+				createMockElement('button', {}, ['Sign in']),
+				createMockElement('input', { type: 'text', placeholder: 'Email' }),
+				createMockElement('input', { type: 'hidden', name: 'csrf' }),
+				createMockElement('a', { href: 'https://example.com/docs' }, ['Docs']),
+				createMockElement('div', { role: 'button' }, ['Custom control'])
+			]
+		});
+
+		const snapshot = genericPageSnapshot(doc, { href: 'https://example.com/page' });
+		expect(
+			snapshot.elements.map((element) => ({
+				ref: element.ref,
+				tag: element.tag,
+				name: element.name
+			}))
+		).toEqual([
+			{ ref: 0, tag: 'button', name: 'Sign in' },
+			{ ref: 1, tag: 'input', name: 'Email' },
+			{ ref: 2, tag: 'a', name: 'Docs' },
+			{ ref: 3, tag: 'div', name: 'Custom control' }
+		]);
+	});
+
+	it('caps the interactive element list', () => {
+		const controls: MockNode[] = [];
+		for (let index = 0; index < 260; index++) {
+			controls.push(createMockElement('button', {}, [`Action ${index}`]));
+		}
+		const doc = createMockDocument({
+			title: 'Many controls',
+			bodyChildren: [createMockElement('main', {}, controls)]
+		});
+
+		const snapshot = genericPageSnapshot(doc, { href: 'https://example.com/many' });
+		expect(snapshot.elements.length).toBe(200);
+		expect(snapshot.elements[0].ref).toBe(0);
+		expect(snapshot.elements[199].ref).toBe(199);
 	});
 
 	it('returns structured unreadable result when host permission is missing', () => {

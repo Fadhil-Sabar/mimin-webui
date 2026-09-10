@@ -4,7 +4,12 @@ import { z } from 'zod';
 export const BROWSER_BRIDGE_TIMEOUT_MS = 45_000;
 export const BROWSER_BRIDGE_HEADER = 'x-mimin-browser-bridge';
 
-export type BrowserBridgeAction = 'browser_open' | 'browser_search';
+export type BrowserBridgeAction =
+	| 'browser_open'
+	| 'browser_search'
+	| 'browser_tabs_list'
+	| 'browser_tab_read'
+	| 'browser_tab_interact';
 
 export type BrowserPageLink = {
 	title: string;
@@ -17,6 +22,16 @@ export type BrowserSearchResult = {
 	snippet: string;
 };
 
+/** A tappable/typable element on a page, referenced by a numeric `ref` in later actions. */
+export type BrowserInteractiveElement = {
+	ref: number;
+	tag: string;
+	name: string;
+	type?: string;
+	disabled?: boolean;
+	selector?: string;
+};
+
 export type BrowserPageResult = {
 	url: string;
 	readable: boolean;
@@ -24,10 +39,39 @@ export type BrowserPageResult = {
 	text?: string;
 	links?: BrowserPageLink[];
 	results?: BrowserSearchResult[];
+	elements?: BrowserInteractiveElement[];
 	tabId?: string | number;
 	reason?: string;
 	captcha?: boolean;
 };
+
+/** Metadata for one open browser tab the extension is allowed to describe. */
+export type BrowserTabSummary = {
+	tabId: string | number;
+	title: string;
+	url?: string;
+	active: boolean;
+	pinned?: boolean;
+	readable: boolean;
+	reason?: string;
+};
+
+export type BrowserTabsResult = {
+	tabs: BrowserTabSummary[];
+	tabId?: string | number;
+};
+
+export type BrowserBridgeResult = BrowserPageResult | BrowserTabsResult;
+
+export function isBrowserTabsResult(value: BrowserBridgeResult): value is BrowserTabsResult {
+	return Array.isArray((value as BrowserTabsResult).tabs);
+}
+
+/** Narrow to a page snapshot, rejecting the tab-listing result shape. */
+export function expectPageResult(value: BrowserBridgeResult): BrowserPageResult {
+	if (isBrowserTabsResult(value)) throw browserError('UNEXPECTED_RESULT');
+	return value;
+}
 
 export type BrowserBridgeEvent = {
 	type: 'browser.request';
@@ -81,7 +125,7 @@ type PendingRequest = BrowserBridgeContext & {
 	requestId: string;
 	token: string;
 	action: BrowserBridgeAction;
-	resolve: (result: BrowserPageResult) => void;
+	resolve: (result: BrowserBridgeResult) => void;
 	reject: (error: Error) => void;
 	timer: ReturnType<typeof setTimeout>;
 };
@@ -165,6 +209,17 @@ const searchResultSchema = z.object({
 	snippet: z.string().max(4_000)
 });
 
+const interactiveElementSchema = z
+	.object({
+		ref: z.number().int().nonnegative(),
+		tag: z.string().trim().max(40),
+		name: z.string().max(240),
+		type: z.string().trim().max(40).optional(),
+		disabled: z.boolean().optional(),
+		selector: z.string().max(400).optional()
+	})
+	.strict();
+
 export const browserPageResultSchema = z
 	.object({
 		url: httpUrlSchema,
@@ -172,6 +227,7 @@ export const browserPageResultSchema = z
 		text: z.string().max(50_000).optional(),
 		links: z.array(linkSchema).max(100).optional(),
 		results: z.array(searchResultSchema).max(100).optional(),
+		elements: z.array(interactiveElementSchema).max(200).optional(),
 		tabId: z.union([z.string().max(200), z.number().int().nonnegative()]).optional(),
 		readable: z.boolean(),
 		reason: z.string().trim().max(1_000).optional(),
@@ -179,12 +235,36 @@ export const browserPageResultSchema = z
 	})
 	.strict();
 
+export const browserTabSummarySchema = z
+	.object({
+		tabId: z.union([z.string().max(200), z.number().int().nonnegative()]),
+		title: z.string().trim().max(500),
+		url: httpUrlSchema.optional(),
+		active: z.boolean(),
+		pinned: z.boolean().optional(),
+		readable: z.boolean(),
+		reason: z.string().trim().max(200).optional()
+	})
+	.strict();
+
+export const browserTabsResultSchema = z
+	.object({
+		tabs: z.array(browserTabSummarySchema).max(200),
+		tabId: z.union([z.string().max(200), z.number().int().nonnegative()]).optional()
+	})
+	.strict();
+
+export const browserBridgeResultSchema = z.union([
+	browserTabsResultSchema,
+	browserPageResultSchema
+]);
+
 export const browserResultSchema = z
 	.object({
 		requestId: z.string().uuid(),
 		token: z.string().uuid(),
 		ok: z.boolean(),
-		result: browserPageResultSchema.optional(),
+		result: browserBridgeResultSchema.optional(),
 		error: z.string().trim().max(1_000).optional()
 	})
 	.strict()
@@ -229,7 +309,7 @@ export function requestBrowserAction(
 	args: Record<string, unknown>,
 	emit: (event: BrowserBridgeEvent) => void,
 	signal?: AbortSignal
-) {
+): Promise<BrowserBridgeResult> {
 	if (signal?.aborted) return Promise.reject(browserError('CANCELED'));
 
 	const requestId = randomUUID();
@@ -241,7 +321,7 @@ export function requestBrowserAction(
 		...(session?.tabId !== undefined ? { preferredTabId: session.tabId } : {})
 	};
 
-	return new Promise<BrowserPageResult>((resolve, reject) => {
+	return new Promise<BrowserBridgeResult>((resolve, reject) => {
 		trimPendingRequests();
 		const timer = setTimeout(() => {
 			const request = pendingRequests.get(requestId);
@@ -309,7 +389,7 @@ export function settleBrowserRequest(
 	requestId: string,
 	token: string,
 	ok: boolean,
-	result?: BrowserPageResult,
+	result?: BrowserBridgeResult,
 	error?: string
 ) {
 	const request = pendingRequests.get(requestId);

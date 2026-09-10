@@ -31,7 +31,7 @@ describe('Mimin Search browser extension', () => {
 			)
 		);
 		expect(manifest.manifest_version).toBe(3);
-		expect(manifest.version).toBe('0.3.0');
+		expect(manifest.version).toBe('0.4.0');
 		expect(manifest.action.default_popup).toBe('popup.html');
 		expect(manifest.permissions).toEqual(['scripting', 'storage']);
 		expect(manifest.host_permissions).toEqual([

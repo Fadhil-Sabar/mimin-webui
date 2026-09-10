@@ -53,7 +53,11 @@
 		type SkillSummary
 	} from '$lib/skills';
 	import QuestionCard from '$lib/components/QuestionCard.svelte';
-	import { answerQuestion } from '$lib/client/api';
+	import BrowserConsentCard, {
+		type BrowserConsentDecision,
+		type BrowserConsentState
+	} from '$lib/components/BrowserConsentCard.svelte';
+	import { answerBrowserConsent, answerQuestion } from '$lib/client/api';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
 	import {
@@ -84,10 +88,63 @@
 		toolName: string;
 		input?: unknown;
 		output?: unknown;
+		consent?: BrowserConsentState;
 		status: 'pending' | 'running' | 'completed' | 'failed';
 		startedAt?: string | null;
 		completedAt?: string | null;
 	};
+	/** Tools whose availability follows the browser bridge connection, not the tool picker. */
+	const BROWSER_BRIDGE_TOOLS = new Set([
+		'browser_search',
+		'browser_open',
+		'browser_tabs',
+		'browser_read_tab',
+		'browser_interact'
+	]);
+
+	const BROWSER_BRIDGE_TOOL_FALLBACKS: ToolOption[] = [
+		{
+			name: 'browser_search',
+			label: 'Browser Search',
+			description: 'Search Google or Google Scholar via browser extension.',
+			category: 'browser',
+			enabled: false,
+			readOnly: true
+		},
+		{
+			name: 'browser_open',
+			label: 'Browser Open',
+			description: 'Open and read a public webpage via browser extension.',
+			category: 'browser',
+			enabled: false,
+			readOnly: true
+		},
+		{
+			name: 'browser_tabs',
+			label: 'Browser Tabs',
+			description: "List the user's open browser tabs via browser extension.",
+			category: 'browser',
+			enabled: false,
+			readOnly: true
+		},
+		{
+			name: 'browser_read_tab',
+			label: 'Browser Read Tab',
+			description: "Read one of the user's open browser tabs via browser extension.",
+			category: 'browser',
+			enabled: false,
+			readOnly: true
+		},
+		{
+			name: 'browser_interact',
+			label: 'Browser Interact',
+			description: "Click, type, and navigate inside the user's open browser tabs.",
+			category: 'browser',
+			enabled: false,
+			readOnly: true
+		}
+	];
+
 	type MessageCitation = {
 		sourceId?: string;
 		label?: string;
@@ -320,7 +377,7 @@
 
 	let displayTools = $derived.by(() => {
 		const tools = availableTools.map((tool) =>
-			tool.name === 'browser_search' || tool.name === 'browser_open'
+			BROWSER_BRIDGE_TOOLS.has(tool.name)
 				? {
 						...tool,
 						enabled: browserBridgeEnabled,
@@ -329,14 +386,11 @@
 					}
 				: tool
 		);
-		if (!tools.some((t) => t.name === 'browser_search')) {
+		for (const fallback of BROWSER_BRIDGE_TOOL_FALLBACKS) {
+			if (tools.some((tool) => tool.name === fallback.name)) continue;
 			tools.push({
-				name: 'browser_search',
-				label: 'Browser Search',
-				description: 'Search Google or Google Scholar via browser extension.',
-				category: 'browser',
+				...fallback,
 				enabled: browserBridgeEnabled,
-				readOnly: true,
 				settingHint: 'Configure in Settings > Browser Extension',
 				settingHref: '/settings/browser-extension'
 			});
@@ -410,6 +464,34 @@
 				label: 'Create Skill',
 				action: skillName ? `Creating skill "${skillName}"...` : 'Creating skill...',
 				query: skillName
+			};
+		}
+		if (toolName === 'browser_tabs') {
+			return { label: 'Browser Tabs', action: 'Listing open browser tabs...' };
+		}
+		if (toolName === 'browser_read_tab') {
+			const tabId = typeof rawInput.tabId === 'number' ? rawInput.tabId : undefined;
+			return {
+				label: 'Read Browser Tab',
+				action: tabId !== undefined ? `Reading tab ${tabId}...` : 'Reading the active tab...'
+			};
+		}
+		if (toolName === 'browser_interact') {
+			const interaction = typeof rawInput.action === 'string' ? rawInput.action : undefined;
+			const detail =
+				typeof rawInput.text === 'string' && rawInput.text
+					? rawInput.text
+					: typeof rawInput.selector === 'string'
+						? rawInput.selector
+						: interaction === 'navigate' && typeof rawInput.url === 'string'
+							? rawInput.url
+							: undefined;
+			return {
+				label: 'Browser Interact',
+				action: interaction
+					? `${interaction} in browser tab...`
+					: 'Interacting with browser tab...',
+				query: detail
 			};
 		}
 		return {
@@ -489,6 +571,32 @@
 		if (toolCall.toolName === 'browser_open') {
 			return 'Page opened';
 		}
+		if (toolCall.toolName === 'browser_tabs') {
+			const output =
+				toolCall.output && typeof toolCall.output === 'object'
+					? (toolCall.output as Record<string, unknown>)
+					: {};
+			const details =
+				output.details && typeof output.details === 'object'
+					? (output.details as Record<string, unknown>)
+					: undefined;
+			const tabs = Array.isArray(details?.tabs) ? details.tabs : [];
+			if (tabs.length > 0) return `${tabs.length} tab${tabs.length === 1 ? '' : 's'} listed`;
+			return 'Tabs listed';
+		}
+		if (toolCall.toolName === 'browser_read_tab') {
+			const output =
+				toolCall.output && typeof toolCall.output === 'object'
+					? (toolCall.output as Record<string, unknown>)
+					: {};
+			const details =
+				output.details && typeof output.details === 'object'
+					? (output.details as Record<string, unknown>)
+					: undefined;
+			if (details && details.readable === false) return 'Tab not readable';
+			return 'Tab read';
+		}
+		if (toolCall.toolName === 'browser_interact') return 'Browser action done';
 		if (toolCall.toolName === 'ask_question') {
 			const output =
 				toolCall.output && typeof toolCall.output === 'object'
@@ -1149,6 +1257,30 @@
 		await answerQuestion(activeId, toolCallId, payload.answers, payload.skipped);
 	}
 
+	function setToolCallConsent(toolCallId: string, consent: BrowserConsentState) {
+		messages = messages.map((msg) => {
+			if (!msg.toolCalls?.some((call) => call.toolCallId === toolCallId)) return msg;
+			return {
+				...msg,
+				toolCalls: msg.toolCalls.map((call) =>
+					call.toolCallId === toolCallId ? { ...call, consent } : call
+				)
+			};
+		});
+	}
+
+	async function handleConsentSubmit(
+		toolCallId: string | undefined,
+		decision: BrowserConsentDecision
+	) {
+		if (!activeId || !toolCallId) return;
+		await answerBrowserConsent(activeId, toolCallId, decision);
+		const current = messages
+			.flatMap((msg) => msg.toolCalls ?? [])
+			.find((call) => call.toolCallId === toolCallId);
+		if (current?.consent) setToolCallConsent(toolCallId, { ...current.consent, decision });
+	}
+
 	function handleStreamEvent(event: SseEvent) {
 		if (event.type === 'message.start') {
 			if (event.role === 'user') {
@@ -1230,6 +1362,19 @@
 					)
 				};
 			});
+		} else if (event.type === 'browser.consent.request') {
+			const requestId = String(event.requestId);
+			const consent: BrowserConsentState = {
+				requestId,
+				action: typeof event.action === 'string' ? event.action : undefined,
+				tabId:
+					typeof event.tabId === 'string' || typeof event.tabId === 'number'
+						? event.tabId
+						: undefined,
+				url: typeof event.url === 'string' ? event.url : undefined,
+				title: typeof event.title === 'string' ? event.title : undefined
+			};
+			setToolCallConsent(requestId, consent);
 		} else if (event.type === 'tool.end') {
 			const toolCallId = String(event.toolCallId);
 			const status = event.status === 'failed' ? 'failed' : 'completed';
@@ -1697,7 +1842,17 @@
 						{#if msg.toolCalls && msg.toolCalls.length > 0}
 							<div class="tool-calls-container" aria-label="Tool executions">
 								{#each msg.toolCalls as toolCall (toolCall.toolCallId || toolCall.id || toolCall.toolName)}
-									{#if toolCall.toolName === 'ask_question'}
+									{#if toolCall.consent}
+										<BrowserConsentCard
+											{toolCall}
+											active={toolCall.status === 'running' && !toolCall.consent.decision}
+											disabled={!running}
+											summary={toolCall.status === 'completed'
+												? getToolResultSummary(toolCall)
+												: ''}
+											onsubmit={(decision) => handleConsentSubmit(toolCall.toolCallId, decision)}
+										/>
+									{:else if toolCall.toolName === 'ask_question'}
 										<QuestionCard
 											{toolCall}
 											active={toolCall.status === 'running'}
@@ -1715,7 +1870,7 @@
 												<div class="tool-call-icon">
 													{#if toolCall.toolName === 'project_knowledge_search'}
 														<FolderKanban size={13} />
-													{:else if toolCall.toolName === 'web_search' || toolCall.toolName === 'browser_search'}
+													{:else if toolCall.toolName === 'web_search' || BROWSER_BRIDGE_TOOLS.has(toolCall.toolName)}
 														<Globe size={13} />
 													{:else if toolCall.toolName === 'create_skill'}
 														<WandSparkles size={13} />

@@ -164,6 +164,52 @@ describe('browser bridge result schema', () => {
 		).toBe(true);
 		expect(browserResultSchema.safeParse({ ...base, ok: false }).success).toBe(false);
 	});
+
+	it('accepts interactive elements on a page snapshot', () => {
+		expect(
+			browserPageResultSchema.safeParse({
+				url: 'https://example.com/',
+				readable: true,
+				elements: [
+					{ ref: 0, tag: 'a', name: 'Docs', selector: 'main > a:nth-of-type(1)' },
+					{ ref: 1, tag: 'button', name: 'Sign in', type: 'submit', disabled: true }
+				]
+			}).success
+		).toBe(true);
+		expect(
+			browserPageResultSchema.safeParse({
+				url: 'https://example.com/',
+				readable: true,
+				elements: [{ ref: -1, tag: 'a', name: 'Bad' }]
+			}).success
+		).toBe(false);
+	});
+
+	it('accepts a tab listing without a page URL', () => {
+		const result = {
+			tabs: [
+				{
+					tabId: 12,
+					title: 'Example',
+					url: 'https://example.com/',
+					active: true,
+					readable: true
+				},
+				{ tabId: 13, title: 'Hidden', active: false, readable: false, reason: 'url_hidden' }
+			],
+			tabId: 12
+		};
+		expect(browserResultSchema.safeParse({ ...base(), ok: true, result }).success).toBe(true);
+		// A tab listing must not be accepted as a page snapshot.
+		expect(browserPageResultSchema.safeParse(result).success).toBe(false);
+	});
+
+	function base() {
+		return {
+			requestId: '6a9d510f-bbc4-83ec-bd10-2c0767c67d92',
+			token: '6a9d510f-bbc4-83ec-bd10-2c0767c67d92'
+		};
+	}
 });
 
 describe('conversation browser sessions', () => {

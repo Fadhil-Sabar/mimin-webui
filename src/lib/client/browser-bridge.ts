@@ -17,7 +17,13 @@ export function setBrowserBridgeEnabled(enabled: boolean) {
 
 /** Only the content script on this Mimin origin relays these messages to the extension. */
 export function requestBrowserBridge(
-	action: 'ping' | 'browser_search' | 'browser_open',
+	action:
+		| 'ping'
+		| 'browser_search'
+		| 'browser_open'
+		| 'browser_tabs_list'
+		| 'browser_tab_read'
+		| 'browser_tab_interact',
 	args: Record<string, unknown> = {},
 	signal?: AbortSignal
 ): Promise<unknown> {
@@ -67,7 +73,15 @@ export function requestBrowserBridge(
 	});
 }
 
-export const REQUIRED_BROWSER_EXTENSION_VERSION = '0.3.0';
+export const REQUIRED_BROWSER_EXTENSION_VERSION = '0.4.0';
+
+const BROWSER_BRIDGE_ACTIONS = [
+	'browser_search',
+	'browser_open',
+	'browser_tabs_list',
+	'browser_tab_read',
+	'browser_tab_interact'
+] as const;
 
 export function compareExtensionVersions(v1: string, v2: string): number {
 	const p1 = v1.split('.').map((s) => parseInt(s, 10) || 0);
@@ -148,7 +162,7 @@ export async function handleBrowserRequest(event: Record<string, unknown>, signa
 	if (
 		typeof event.requestId !== 'string' ||
 		typeof event.token !== 'string' ||
-		(event.action !== 'browser_search' && event.action !== 'browser_open') ||
+		!BROWSER_BRIDGE_ACTIONS.includes(event.action as (typeof BROWSER_BRIDGE_ACTIONS)[number]) ||
 		!event.args ||
 		typeof event.args !== 'object' ||
 		Array.isArray(event.args)
@@ -157,7 +171,7 @@ export async function handleBrowserRequest(event: Record<string, unknown>, signa
 	let outcome: { ok: boolean; result?: unknown; error?: string };
 	try {
 		const result = await requestBrowserBridge(
-			event.action,
+			event.action as (typeof BROWSER_BRIDGE_ACTIONS)[number],
 			event.args as Record<string, unknown>,
 			signal
 		);

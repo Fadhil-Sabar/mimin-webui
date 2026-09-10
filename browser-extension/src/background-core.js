@@ -1,8 +1,12 @@
 (() => {
 	const extensionApi = globalThis.browser ?? globalThis.chrome;
-	const config = globalThis.MIMIN_EXTENSION_CONFIG ?? { version: '0.3.0', allowedOrigins: [] };
+	const config = globalThis.MIMIN_EXTENSION_CONFIG ?? { version: '0.4.0', allowedOrigins: [] };
 	const MAX_QUERY_LENGTH = 500;
 	const LOAD_TIMEOUT_MS = 15_000;
+	const INTERACTION_SETTLE_MS = 350;
+	const TAB_SETTLE_TIMEOUT_MS = 4_000;
+	const MAX_WAIT_MS = 10_000;
+	const MAX_TABS = 50;
 	const SEARCH_ENGINES = Object.freeze({
 		google: 'https://www.google.com/search',
 		scholar: 'https://scholar.google.com/scholar'
@@ -343,74 +347,132 @@
 		});
 	}
 
-	function googleSearchSnapshot() {
-		const normalize = (value, limit) => (value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
-		const limitUrl = (value) => (value ?? '').slice(0, 4_000);
-		const links = [];
-		const seenLinks = new Set();
-		for (const anchor of document.querySelectorAll('a[href]')) {
-			const raw = anchor.getAttribute('href');
-			if (!raw) continue;
-			let resolved;
-			try {
-				resolved = new URL(raw, location.href).href;
-			} catch {
-				continue;
-			}
-			let parsed;
-			try {
-				parsed = new URL(resolved);
-			} catch {
-				continue;
-			}
-			if (!['http:', 'https:'].includes(parsed.protocol)) continue;
-			const title = normalize(anchor.textContent, 240);
-			if (!title || seenLinks.has(resolved)) continue;
-			seenLinks.add(resolved);
-			links.push({ title, url: limitUrl(resolved) });
-			if (links.length >= 100) break;
-		}
-
-		const results = [];
-		const seenResults = new Set();
-		for (const root of document.querySelectorAll('.MjjYud, .g, .gs_ri')) {
-			const anchor = root.querySelector('h3 a[href], h3.gs_rt a[href], a[href]');
-			const title = normalize(anchor?.textContent, 300);
-			const rawUrl = anchor?.getAttribute('href');
-			if (!rawUrl || !title) continue;
-			let resolvedUrl;
-			try {
-				resolvedUrl = new URL(rawUrl, location.href).href;
-			} catch {
-				continue;
-			}
-			if (seenResults.has(resolvedUrl)) continue;
-			seenResults.add(resolvedUrl);
-			const snippet = normalize(
-				root.querySelector('.VwiC3b, .gs_rs, [data-sncf]')?.textContent,
-				4_000
-			);
-			results.push({ title, url: limitUrl(resolvedUrl), snippet });
-			if (results.length >= 100) break;
-		}
-
-		const text = normalize(document.body?.innerText, 20_000);
-		const lowered = `${location.href} ${document.title} ${text}`.toLowerCase();
-		return {
-			url: limitUrl(location.href),
-			title: normalize(document.title, 300),
-			text,
-			links,
-			results,
-			captcha: /captcha|unusual traffic|not a robot|sorry\.google\.com/.test(lowered)
-		};
-	}
-
-	function genericPageSnapshot() {
+	/**
+	 * Injected into a tab. Returns a readable snapshot plus a ref registry for
+	 * interactive elements so later actions can target them reliably.
+	 */
+	function pageSnapshot(options) {
+		const isGoogle = Boolean(options && options.google);
 		const normalize = (value, limit) => (value ?? '').replace(/\s+/g, ' ').trim().slice(0, limit);
 		const limitUrl = (value) => (value ?? '').slice(0, 4_000);
 
 		const IGNORED_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'TEMPLATE']);
+		const INTERACTIVE_SELECTOR = [
+			'a[href]',
+			'button',
+			'input:not([type="hidden"])',
+			'textarea',
+			'select',
+			'summary',
+			'[contenteditable="true"]',
+			'[role="button"]',
+			'[role="link"]',
+			'[role="checkbox"]',
+			'[role="radio"]',
+			'[role="tab"]',
+			'[role="menuitem"]',
+			'[role="switch"]'
+		].join(', ');
+
+		function escapeCss(value) {
+			if (globalThis.CSS && typeof globalThis.CSS.escape === 'function')
+				return globalThis.CSS.escape(value);
+			return String(value).replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
+		}
+
+		function cssPath(element) {
+			const parts = [];
+			let node = element;
+			while (node && node.nodeType === 1 && parts.length < 6) {
+				const tag = (node.tagName || '').toLowerCase();
+				if (!tag) break;
+				let part = tag;
+				const id = node.getAttribute?.('id');
+				if (id) {
+					parts.unshift(`${part}#${escapeCss(id)}`);
+					break;
+				}
+				const parent = node.parentElement;
+				if (parent) {
+					const siblings = [];
+					for (const child of parent.children || [])
+						if (child.tagName === node.tagName) siblings.push(child);
+					if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+				}
+				parts.unshift(part);
+				node = parent;
+			}
+			return parts.join(' > ');
+		}
+
+		function isVisible(element) {
+			if (element.hidden) return false;
+			const style =
+				typeof globalThis.getComputedStyle === 'function'
+					? globalThis.getComputedStyle(element)
+					: null;
+			if (style) {
+				if (style.display === 'none' || style.visibility === 'hidden') return false;
+				const opacity = Number(style.opacity);
+				if (Number.isFinite(opacity) && opacity === 0) return false;
+			}
+			if (typeof element.getBoundingClientRect === 'function') {
+				const rect = element.getBoundingClientRect();
+				if (rect && rect.width <= 0 && rect.height <= 0) return false;
+			}
+			return true;
+		}
+
+		function labelFor(element) {
+			const candidates = [
+				element.getAttribute?.('aria-label'),
+				element.getAttribute?.('placeholder'),
+				element.getAttribute?.('title'),
+				element.getAttribute?.('name'),
+				element.innerText,
+				element.value,
+				element.textContent
+			];
+			for (const candidate of candidates) {
+				const text = normalize(candidate, 240);
+				if (text) return text;
+			}
+			return '';
+		}
+
+		function collectInteractive(root) {
+			const registry = [];
+			const elements = [];
+			if (!root || typeof root.querySelectorAll !== 'function') {
+				globalThis.__miminElementRefs = registry;
+				return elements;
+			}
+			for (const element of root.querySelectorAll(INTERACTIVE_SELECTOR)) {
+				if (elements.length >= 200) break;
+				if (!isVisible(element)) continue;
+				registry.push(element);
+				let selector = '';
+				try {
+					selector = cssPath(element).slice(0, 400);
+				} catch {
+					// Elements without a stable path are still addressable by ref.
+				}
+				const type = element.getAttribute?.('type');
+				const disabled = Boolean(
+					element.disabled || element.getAttribute?.('aria-disabled') === 'true'
+				);
+				elements.push({
+					ref: registry.length - 1,
+					tag: (element.tagName || '').toLowerCase(),
+					name: labelFor(element),
+					type: type || undefined,
+					disabled: disabled || undefined,
+					selector: selector || undefined
+				});
+			}
+			globalThis.__miminElementRefs = registry;
+			return elements;
+		}
 
 		function extractCleanText(rootNode, limit) {
 			if (!rootNode) return '';
@@ -427,14 +489,12 @@
 					NodeFilterConst.SHOW_ELEMENT | NodeFilterConst.SHOW_TEXT,
 					{
 						acceptNode(node) {
-							if (node.nodeType === 1 /* Node.ELEMENT_NODE */) {
+							if (node.nodeType === 1) {
 								const tagName = (node.tagName || '').toUpperCase();
-								if (IGNORED_TAGS.has(tagName)) {
-									return NodeFilterConst.FILTER_REJECT;
-								}
+								if (IGNORED_TAGS.has(tagName)) return NodeFilterConst.FILTER_REJECT;
 								return NodeFilterConst.FILTER_SKIP;
 							}
-							if (node.nodeType === 3 /* Node.TEXT_NODE */) {
+							if (node.nodeType === 3) {
 								const val = node.nodeValue;
 								if (!val || !val.trim()) return NodeFilterConst.FILTER_SKIP;
 								return NodeFilterConst.FILTER_ACCEPT;
@@ -459,38 +519,67 @@
 			return normalize(rootNode.innerText ?? rootNode.textContent, limit);
 		}
 
-		const contentRoot = document.querySelector('article, main, [role="main"]');
-		let text = '';
-		if (contentRoot) {
-			text = extractCleanText(contentRoot, 20_000);
-		}
-		if (!text && document.body) {
-			text = extractCleanText(document.body, 20_000);
+		function collectLinks() {
+			const links = [];
+			const seenLinks = new Set();
+			for (const anchor of document.querySelectorAll('a[href]')) {
+				const raw = anchor.getAttribute('href');
+				if (!raw) continue;
+				let resolved;
+				try {
+					resolved = new URL(raw, location.href).href;
+				} catch {
+					continue;
+				}
+				let parsed;
+				try {
+					parsed = new URL(resolved);
+				} catch {
+					continue;
+				}
+				if (!['http:', 'https:'].includes(parsed.protocol)) continue;
+				const title = normalize(anchor.textContent, 240);
+				if (!title || seenLinks.has(resolved)) continue;
+				seenLinks.add(resolved);
+				links.push({ title, url: limitUrl(resolved) });
+				if (links.length >= 100) break;
+			}
+			return links;
 		}
 
-		const links = [];
-		const seenLinks = new Set();
-		for (const anchor of document.querySelectorAll('a[href]')) {
-			const raw = anchor.getAttribute('href');
-			if (!raw) continue;
-			let resolved;
-			try {
-				resolved = new URL(raw, location.href).href;
-			} catch {
-				continue;
+		function collectGoogleResults() {
+			const results = [];
+			const seenResults = new Set();
+			for (const root of document.querySelectorAll('.MjjYud, .g, .gs_ri')) {
+				const anchor = root.querySelector('h3 a[href], h3.gs_rt a[href], a[href]');
+				const title = normalize(anchor?.textContent, 300);
+				const rawUrl = anchor?.getAttribute('href');
+				if (!rawUrl || !title) continue;
+				let resolvedUrl;
+				try {
+					resolvedUrl = new URL(rawUrl, location.href).href;
+				} catch {
+					continue;
+				}
+				if (seenResults.has(resolvedUrl)) continue;
+				seenResults.add(resolvedUrl);
+				const snippet = normalize(
+					root.querySelector('.VwiC3b, .gs_rs, [data-sncf]')?.textContent,
+					4_000
+				);
+				results.push({ title, url: limitUrl(resolvedUrl), snippet });
+				if (results.length >= 100) break;
 			}
-			let parsed;
-			try {
-				parsed = new URL(resolved);
-			} catch {
-				continue;
-			}
-			if (!['http:', 'https:'].includes(parsed.protocol)) continue;
-			const title = normalize(anchor.textContent, 240);
-			if (!title || seenLinks.has(resolved)) continue;
-			seenLinks.add(resolved);
-			links.push({ title, url: limitUrl(resolved) });
-			if (links.length >= 100) break;
+			return results;
+		}
+
+		let text = '';
+		if (isGoogle) {
+			text = normalize(document.body?.innerText, 20_000);
+		} else {
+			const contentRoot = document.querySelector('article, main, [role="main"]');
+			if (contentRoot) text = extractCleanText(contentRoot, 20_000);
+			if (!text && document.body) text = extractCleanText(document.body, 20_000);
 		}
 
 		const lowered = `${location.href} ${document.title} ${text}`.toLowerCase();
@@ -498,20 +587,172 @@
 			url: limitUrl(location.href),
 			title: normalize(document.title, 300),
 			text,
-			links,
-			results: [],
-			captcha:
-				/captcha|unusual traffic|not a robot|verify you are human|turnstile|cloudflare\s+ray/i.test(
-					lowered
-				)
+			links: collectLinks(),
+			results: isGoogle ? collectGoogleResults() : [],
+			elements: collectInteractive(document.body || document.documentElement),
+			captcha: isGoogle
+				? /captcha|unusual traffic|not a robot|sorry\.google\.com/.test(lowered)
+				: /captcha|unusual traffic|not a robot|verify you are human|turnstile|cloudflare\s+ray/i.test(
+						lowered
+					)
 		};
 	}
 
+	/**
+	 * Injected into a tab to perform one interaction. Resolves targets through the
+	 * ref registry written by pageSnapshot, then falls back to selector or label text.
+	 */
+	function interactPage(payload) {
+		const action = payload && payload.action;
+
+		function setNativeValue(element, value) {
+			const prototype = Object.getPrototypeOf(element);
+			const descriptor = prototype && Object.getOwnPropertyDescriptor(prototype, 'value');
+			if (descriptor && typeof descriptor.set === 'function') descriptor.set.call(element, value);
+			else element.value = value;
+		}
+
+		function fill(element, value) {
+			setNativeValue(element, value);
+			element.dispatchEvent(new Event('input', { bubbles: true }));
+			element.dispatchEvent(new Event('change', { bubbles: true }));
+		}
+
+		function pressKey(element, key) {
+			const init = { key, code: key, bubbles: true, cancelable: true };
+			element.dispatchEvent(new KeyboardEvent('keydown', init));
+			element.dispatchEvent(new KeyboardEvent('keypress', init));
+			element.dispatchEvent(new KeyboardEvent('keyup', init));
+		}
+
+		function normalizeLabel(element) {
+			return [
+				element.innerText,
+				element.textContent,
+				element.value,
+				element.getAttribute?.('aria-label')
+			]
+				.filter(Boolean)
+				.join(' ')
+				.replace(/\s+/g, ' ')
+				.trim()
+				.toLowerCase()
+				.slice(0, 300);
+		}
+
+		function findTarget() {
+			if (typeof payload.ref === 'number') {
+				const list = globalThis.__miminElementRefs;
+				const element = Array.isArray(list) ? list[payload.ref] : undefined;
+				if (element && element.isConnected !== false) return element;
+			}
+			if (typeof payload.selector === 'string' && payload.selector) {
+				try {
+					const element = document.querySelector(payload.selector);
+					if (element) return element;
+				} catch {
+					/* invalid selector */
+				}
+			}
+			if (typeof payload.text === 'string' && payload.text) {
+				const wanted = payload.text.toLowerCase();
+				const nodes = document.querySelectorAll(
+					'a,button,summary,label,[role="button"],[role="link"],input[type="submit"],input[type="button"]'
+				);
+				for (const element of nodes) {
+					const label = normalizeLabel(element);
+					if (label && label.includes(wanted)) return element;
+				}
+			}
+			return null;
+		}
+
+		let target;
+		if (action === 'click') {
+			target = findTarget();
+			if (!target) return { ok: false, error: 'No matching element was found to click.' };
+			try {
+				target.scrollIntoView({ block: 'center', inline: 'center' });
+			} catch {
+				/* ignore */
+			}
+			target.focus?.();
+			if ((target.tagName || '').toUpperCase() === 'SELECT') fill(target, payload.value ?? '');
+			else target.click();
+			return { ok: true, action, performed: 'clicked' };
+		}
+
+		if (action === 'type') {
+			target = findTarget();
+			if (!target) return { ok: false, error: 'No matching input was found to type into.' };
+			target.focus?.();
+			if (typeof target.select === 'function') {
+				try {
+					target.select();
+				} catch {
+					/* ignore */
+				}
+			}
+			fill(target, typeof payload.text === 'string' ? payload.text : '');
+			if (payload.submit) {
+				pressKey(target, 'Enter');
+				if (target.form && typeof target.form.requestSubmit === 'function') {
+					try {
+						target.form.requestSubmit();
+					} catch {
+						/* ignore */
+					}
+				}
+			}
+			return { ok: true, action, performed: 'typed' };
+		}
+
+		if (action === 'select') {
+			target = findTarget();
+			if (!target) return { ok: false, error: 'No matching select element was found.' };
+			target.focus?.();
+			fill(target, String(payload.value ?? payload.text ?? ''));
+			return { ok: true, action, performed: 'selected' };
+		}
+
+		if (action === 'press') {
+			const element = document.activeElement || document.body;
+			pressKey(element, payload.key || 'Enter');
+			return { ok: true, action, performed: 'pressed' };
+		}
+
+		if (action === 'hover') {
+			target = findTarget();
+			if (!target) return { ok: false, error: 'No matching element was found to hover.' };
+			try {
+				target.scrollIntoView({ block: 'center' });
+			} catch {
+				/* ignore */
+			}
+			for (const type of ['mouseover', 'mouseenter', 'mousemove'])
+				target.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+			return { ok: true, action, performed: 'hovered' };
+		}
+
+		if (action === 'scroll') {
+			const amount = typeof payload.amount === 'number' ? payload.amount : 600;
+			const direction = payload.direction || 'down';
+			if (direction === 'top') globalThis.scrollTo({ top: 0, behavior: 'instant' });
+			else if (direction === 'bottom')
+				globalThis.scrollTo({ top: document.body?.scrollHeight ?? 0, behavior: 'instant' });
+			else globalThis.scrollBy({ top: direction === 'up' ? -amount : amount, behavior: 'instant' });
+			return { ok: true, action, performed: 'scrolled' };
+		}
+
+		if (action === 'wait' || action === 'read') return { ok: true, action, performed: action };
+
+		return { ok: false, error: `Unsupported interaction: ${action}` };
+	}
 	async function readSnapshot(tabId, finalUrl, isGoogle) {
-		const snapshotFunc = isGoogle ? googleSearchSnapshot : genericPageSnapshot;
 		const executions = await apiCall(extensionApi.scripting, 'executeScript', {
 			target: { tabId },
-			func: snapshotFunc
+			func: pageSnapshot,
+			args: [{ google: Boolean(isGoogle) }]
 		});
 		const snapshot = executions?.[0]?.result;
 		if (!snapshot || typeof snapshot !== 'object')
@@ -618,6 +859,218 @@
 		return snapshot;
 	}
 
+	function delay(ms) {
+		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	/** Wait until a tab finishes loading, or give up after timeoutMs. */
+	async function waitForTabSettled(tabId, timeoutMs) {
+		try {
+			const current = await apiCall(extensionApi.tabs, 'get', tabId);
+			if (current?.status === 'complete') return;
+		} catch {
+			return;
+		}
+		await new Promise((resolve) => {
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				clearTimeout(timer);
+				extensionApi.tabs.onUpdated.removeListener(onUpdated);
+				resolve();
+			};
+			const onUpdated = (updatedTabId, changeInfo) => {
+				if (updatedTabId === tabId && changeInfo.status === 'complete') finish();
+			};
+			extensionApi.tabs.onUpdated.addListener(onUpdated);
+			const timer = setTimeout(finish, timeoutMs);
+		});
+	}
+
+	/** Pick the tab a request refers to: explicit id, url match, active tab, then session tab. */
+	async function resolveTab(args = {}) {
+		if (args.tabId !== undefined && args.tabId !== null) {
+			// An explicit tabId is authoritative: never fall back to a different tab.
+			try {
+				const tab = await apiCall(extensionApi.tabs, 'get', args.tabId);
+				if (tab?.id !== undefined && tab.id !== null) return tab;
+			} catch {
+				// fall through to the null return below
+			}
+			return null;
+		}
+
+		if (typeof args.urlIncludes === 'string' && args.urlIncludes.trim()) {
+			const needle = args.urlIncludes.trim().toLowerCase();
+			try {
+				const tabs = await apiCall(extensionApi.tabs, 'query', {});
+				const match = (tabs || []).find(
+					(tab) => typeof tab.url === 'string' && tab.url.toLowerCase().includes(needle)
+				);
+				if (match?.id !== undefined && match.id !== null) return match;
+			} catch {
+				// ignore and continue
+			}
+		}
+
+		if (args.active) {
+			try {
+				const tabs = await apiCall(extensionApi.tabs, 'query', {
+					active: true,
+					currentWindow: true
+				});
+				if (tabs?.[0]?.id !== undefined) return tabs[0];
+			} catch {
+				// ignore and continue
+			}
+		}
+
+		const reusable = await findReusableTab(null);
+		if (reusable?.id !== undefined && reusable.id !== null) return reusable;
+
+		try {
+			const tabs = await apiCall(extensionApi.tabs, 'query', {
+				active: true,
+				currentWindow: true
+			});
+			if (tabs?.[0]?.id !== undefined) return tabs[0];
+		} catch {
+			// no tab available
+		}
+		return null;
+	}
+
+	function tabUrl(value) {
+		return typeof value === 'string' && /^https?:\/\//i.test(value) ? value : null;
+	}
+
+	async function listTabs(limit) {
+		const tabs = await apiCall(extensionApi.tabs, 'query', {});
+		const summaries = [];
+		for (const tab of tabs || []) {
+			if (tab?.id === undefined || tab.id === null) continue;
+			const rawUrl = tabUrl(tab.url);
+			if (tab.url && !rawUrl) continue; // skip internal pages we cannot read
+			let url = null;
+			if (rawUrl) {
+				try {
+					url = validatePublicUrl(rawUrl);
+				} catch {
+					continue; // never expose private or local addresses
+				}
+			}
+			const readable = url ? isReadableGoogleUrl(url) || (await hasHostPermission(url)) : false;
+			summaries.push({
+				tabId: tab.id,
+				title: (tab.title ?? '').slice(0, 500),
+				url: url ? url.slice(0, 2_048) : undefined,
+				active: Boolean(tab.active),
+				pinned: Boolean(tab.pinned),
+				readable,
+				reason: readable ? undefined : url ? 'host_permission_required' : 'url_hidden'
+			});
+		}
+		summaries.sort(
+			(a, b) => Number(b.active) - Number(a.active) || Number(a.tabId) - Number(b.tabId)
+		);
+		const bounded =
+			typeof limit === 'number' && Number.isFinite(limit)
+				? Math.max(1, Math.min(50, Math.floor(limit)))
+				: 50;
+		const active = summaries.find((summary) => summary.active);
+		return {
+			tabs: summaries.slice(0, bounded),
+			tabId: active?.tabId
+		};
+	}
+
+	function unreadableResult(tab, url, reason) {
+		return {
+			url: (url || '').slice(0, 4_000),
+			title: (tab?.title ?? '').slice(0, 300),
+			text: '',
+			links: [],
+			results: [],
+			elements: [],
+			readable: false,
+			reason,
+			tabId: tab?.id
+		};
+	}
+
+	async function readTab(args) {
+		const tab = await resolveTab(args);
+		if (!tab) throw new Error('No matching open tab was found. Use browser_tabs to list tabs.');
+		const rawUrl = tabUrl(tab.url);
+		if (!rawUrl)
+			throw new Error(
+				'This tab is not readable. Grant public website access in the Mimin Browser Bridge popup, then retry.'
+			);
+		const finalUrl = validatePublicUrl(rawUrl);
+		const isGoogle = isReadableGoogleUrl(finalUrl);
+		if (!isGoogle && !(await hasHostPermission(finalUrl))) {
+			return unreadableResult(tab, finalUrl, 'host_permission_required');
+		}
+		return readSnapshot(tab.id, finalUrl, isGoogle);
+	}
+
+	async function interactTab(args) {
+		const tab = await resolveTab(args);
+		if (!tab?.id) throw new Error('No matching open tab was found. Use browser_tabs to list tabs.');
+		const rawUrl = tabUrl(tab.url);
+		if (!rawUrl)
+			throw new Error(
+				'This tab is not readable. Grant public website access in the Mimin Browser Bridge popup, then retry.'
+			);
+		const finalUrl = validatePublicUrl(rawUrl);
+		const isGoogle = isReadableGoogleUrl(finalUrl);
+		if (!isGoogle && !(await hasHostPermission(finalUrl))) {
+			return unreadableResult(tab, finalUrl, 'host_permission_required');
+		}
+
+		await markTabOwned(tab.id);
+		await persistTabId(tab.id);
+		if (args.action === 'navigate') {
+			const target = validatePublicUrl(args.url);
+			await apiCall(extensionApi.tabs, 'update', tab.id, { url: target });
+			await waitForTabLoad(tab.id, true);
+		} else if (args.action === 'back') {
+			await apiCall(extensionApi.tabs, 'goBack', tab.id);
+			await waitForTabSettled(tab.id, TAB_SETTLE_TIMEOUT_MS);
+		} else if (args.action === 'forward') {
+			await apiCall(extensionApi.tabs, 'goForward', tab.id);
+			await waitForTabSettled(tab.id, TAB_SETTLE_TIMEOUT_MS);
+		} else if (args.action === 'reload') {
+			await apiCall(extensionApi.tabs, 'reload', tab.id);
+			await waitForTabSettled(tab.id, TAB_SETTLE_TIMEOUT_MS);
+		} else if (args.action === 'wait') {
+			await delay(Math.min(Math.max(Number(args.waitMs) || 1_000, 0), MAX_WAIT_MS));
+		} else {
+			let outcome;
+			try {
+				const executions = await apiCall(extensionApi.scripting, 'executeScript', {
+					target: { tabId: tab.id },
+					func: interactPage,
+					args: [args]
+				});
+				outcome = executions?.[0]?.result;
+			} catch (error) {
+				// A click can start a navigation that destroys the injected context.
+				outcome = { ok: true, action: args.action, performed: 'navigating' };
+				if (!/context|frame|document|message port/i.test(error?.message ?? '')) throw error;
+			}
+			if (outcome && outcome.ok === false)
+				throw new Error(outcome.error || 'The interaction could not be performed.');
+			await delay(INTERACTION_SETTLE_MS);
+		}
+
+		await waitForTabSettled(tab.id, TAB_SETTLE_TIMEOUT_MS);
+		const current = await apiCall(extensionApi.tabs, 'get', tab.id).catch(() => null);
+		const settledUrl = validatePublicUrl(tabUrl(current?.url) || finalUrl);
+		return readSnapshot(tab.id, settledUrl, isReadableGoogleUrl(settledUrl));
+	}
+
 	async function handleRequest(request, sender) {
 		if (!isAllowedSender(sender)) return errorResponse('This page is not an allowed Mimin origin.');
 		if (!request || request.source !== 'mimin-webui' || typeof request.id !== 'string')
@@ -652,6 +1105,15 @@
 					})
 				);
 			}
+			if (request.action === 'browser_tabs_list') {
+				return successResponse(await listTabs(args.limit ?? MAX_TABS));
+			}
+			if (request.action === 'browser_tab_read') {
+				return successResponse(await readTab(args));
+			}
+			if (request.action === 'browser_tab_interact') {
+				return successResponse(await interactTab(args));
+			}
 			return errorResponse('Unsupported bridge action.');
 		} catch (error) {
 			return errorResponse(error instanceof Error ? error.message : 'Bridge request failed.');
@@ -676,4 +1138,17 @@
 		void handleRequest(message.request, sender).then(sendResponse);
 		return true;
 	});
+
+	// Opt-in seam for tests. Never populated in a real browser session.
+	const testHooks = globalThis.MIMIN_EXTENSION_TEST_HOOKS;
+	if (testHooks && typeof testHooks === 'object') {
+		Object.assign(testHooks, {
+			pageSnapshot,
+			interactPage,
+			listTabs,
+			readTab,
+			interactTab,
+			resolveTab
+		});
+	}
 })();

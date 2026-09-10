@@ -2,13 +2,15 @@ export type BrowserIntent =
 	| { type: 'none' }
 	| { type: 'google-search' }
 	| { type: 'scholar-search' }
-	| { type: 'browser-open' };
+	| { type: 'browser-open' }
+	| { type: 'browser-tab' };
 
 export type ToolRouting = {
 	browserIntent: BrowserIntent;
 	exposeWebSearch: boolean;
 	exposeBrowserSearch: boolean;
 	exposeBrowserOpen: boolean;
+	exposeBrowserTabs: boolean;
 	blockedReason?: 'browser_bridge_unavailable';
 };
 
@@ -20,7 +22,8 @@ export type RecentToolCall = {
 };
 
 export type PendingBrowserAction = {
-	toolName: 'browser_open' | 'browser_search';
+	toolName:
+		'browser_open' | 'browser_search' | 'browser_tabs' | 'browser_read_tab' | 'browser_interact';
 	input: Record<string, unknown>;
 	reason: 'host_permission_required';
 };
@@ -116,6 +119,21 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 		}
 	}
 
+	// 4. Explicit reference to an already-open tab the user wants read or operated
+	// (e.g. "baca tab ini", "klik login di tab saya"). Opening a tab stays browser-open.
+	if (hasBrowserOrTab) {
+		const opensNewTab = /\b(?:buka|open|new|baru)\s+(?:\w+\s+){0,2}?tabs?\b/i.test(text);
+		const referencesOwnTab =
+			/\btabs?\s+(?:ini|itu|saya|ku|yang\s+(?:terbuka|aktif|sedang)|tersebut)\b/i.test(text) ||
+			/\b(?:this|current|the|my|active|other)\s+(?:\w+\s+){0,2}?tabs?\b/i.test(text) ||
+			/\b(?:baca|read|lihat|view|cek|check|klik|click|isi|type|interact|kerjakan|gunakan|use|akses|access)\b[^.!?\n]{0,40}\btabs?\b/i.test(
+				text
+			);
+		if (referencesOwnTab && !opensNewTab) {
+			return { type: 'browser-tab' };
+		}
+	}
+
 	// Direct open/read action targeting a URL, link, page, paper, or article
 	const hasDirectPageAction =
 		/\b(?:buka|open|read|baca|visit|kunjungi|fetch)\s+(?:this\s+|ini\s+)?(?:page|halaman|link|tautan|url|paper|artikel|article|jurnal)\b/i.test(
@@ -147,20 +165,28 @@ export function getPendingBrowserAction(
 	recentToolCalls: RecentToolCall[]
 ): PendingBrowserAction | null {
 	for (const call of recentToolCalls) {
-		if (call.toolName !== 'browser_open' && call.toolName !== 'browser_search') continue;
+		if (!BROWSER_ACTION_TOOLS.has(call.toolName)) continue;
 		if (!call.input || typeof call.input !== 'object' || Array.isArray(call.input)) return null;
 		if (!call.output || typeof call.output !== 'object' || Array.isArray(call.output)) return null;
 		const details = (call.output as { details?: unknown }).details;
 		if (!details || typeof details !== 'object' || Array.isArray(details)) return null;
 		if ((details as { reason?: unknown }).reason !== 'host_permission_required') return null;
 		return {
-			toolName: call.toolName,
+			toolName: call.toolName as PendingBrowserAction['toolName'],
 			input: call.input as Record<string, unknown>,
 			reason: 'host_permission_required'
 		};
 	}
 	return null;
 }
+
+const BROWSER_ACTION_TOOLS: ReadonlySet<string> = new Set([
+	'browser_open',
+	'browser_search',
+	'browser_tabs',
+	'browser_read_tab',
+	'browser_interact'
+]);
 
 export function getPendingBrowserActionInstruction(action: PendingBrowserAction): string {
 	return [
@@ -184,11 +210,13 @@ export function resolveTurnToolGating(options: TurnToolGatingOptions): ToolRouti
 			case 'google-search':
 			case 'scholar-search':
 			case 'browser-open':
+			case 'browser-tab':
 				return {
 					browserIntent,
 					exposeWebSearch: false,
 					exposeBrowserSearch: false,
 					exposeBrowserOpen: false,
+					exposeBrowserTabs: false,
 					blockedReason: 'browser_bridge_unavailable'
 				};
 			case 'none':
@@ -197,7 +225,8 @@ export function resolveTurnToolGating(options: TurnToolGatingOptions): ToolRouti
 					browserIntent,
 					exposeWebSearch: options.hasWebSearch,
 					exposeBrowserSearch: false,
-					exposeBrowserOpen: false
+					exposeBrowserOpen: false,
+					exposeBrowserTabs: false
 				};
 		}
 	}
@@ -206,7 +235,8 @@ export function resolveTurnToolGating(options: TurnToolGatingOptions): ToolRouti
 		browserIntent,
 		exposeWebSearch: browserIntent.type === 'none' && options.hasWebSearch,
 		exposeBrowserSearch: true,
-		exposeBrowserOpen: true
+		exposeBrowserOpen: true,
+		exposeBrowserTabs: true
 	};
 }
 
@@ -221,6 +251,8 @@ export function getTurnRoutingInstruction(intent: BrowserIntent): string | null 
 			return 'The user explicitly requested Google Scholar. Use browser_search with engine="scholar". Do not substitute another search provider.';
 		case 'browser-open':
 			return 'The user explicitly requested browser navigation. Use browser_open.';
+		case 'browser-tab':
+			return 'The user explicitly referenced an open browser tab. Use browser_tabs to see the open tabs, then browser_read_tab to read one or browser_interact to click, type, or navigate inside it. Do not substitute another tool.';
 		case 'none':
 		default:
 			return null;

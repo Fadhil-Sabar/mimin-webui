@@ -252,3 +252,33 @@ export async function answerQuestion(
 	}
 	return (await response.json()) as { ok: boolean };
 }
+
+export type BrowserConsentDecision = 'once' | 'conversation' | 'deny';
+
+/** Answer the first-use prompt that gates reading or interacting with the user's tabs. */
+export async function answerBrowserConsent(
+	conversationId: string,
+	requestId: string,
+	decision: BrowserConsentDecision
+) {
+	const response = await fetch(`/api/conversations/${conversationId}/browser-consent`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ requestId, decision })
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to submit browser permission');
+	}
+	return (await response.json()) as { ok: boolean; decision: BrowserConsentDecision };
+}
+
+/** Forget a conversation-scoped browser grant so the next access prompts again. */
+export async function revokeBrowserConsent(conversationId: string) {
+	const response = await fetch(`/api/conversations/${conversationId}/browser-consent`, {
+		method: 'DELETE'
+	});
+	if (!response.ok) return false;
+	const data = (await response.json().catch(() => null)) as { revoked?: boolean } | null;
+	return Boolean(data?.revoked);
+}

@@ -37,4 +37,17 @@ describe('tool registry', () => {
 		expect(tool?.category).toBe('interaction');
 		expect(tool?.enabled).toBe(true);
 	});
+
+	it.each([
+		['browser_tabs', 'Browser Tabs'],
+		['browser_read_tab', 'Browser Read Tab'],
+		['browser_interact', 'Browser Interact']
+	])('exposes %s as a bridge-configured browser tool', (name, label) => {
+		const tool = getTool(name);
+		expect(tool).toBeDefined();
+		expect(tool?.label).toBe(label);
+		expect(tool?.category).toBe('browser');
+		expect(tool?.readOnly).toBe(true);
+		expect(tool?.settingHref).toBe('/settings/browser-extension');
+	});
 });

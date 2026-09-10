@@ -1,8 +1,8 @@
 {
 	"manifest_version": 3,
 	"name": "Mimin Browser Bridge",
-	"version": "0.3.0",
-	"description": "A small bridge that lets Mimin open tabs, search Google or Scholar, and read public web pages.",
+	"version": "0.4.0",
+	"description": "A small bridge that lets Mimin open tabs, search Google or Scholar, read and interact with your open tabs.",
 	"permissions": ["scripting", "storage"],
 	"host_permissions": ["https://www.google.com/*", "https://scholar.google.com/*"],
 	"optional_host_permissions": ["http://*/*", "https://*/*"],
