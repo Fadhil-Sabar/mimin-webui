@@ -57,6 +57,12 @@
 		type BrowserConsentDecision,
 		type BrowserConsentState
 	} from '$lib/components/BrowserConsentCard.svelte';
+	import {
+		applyConsentDecision,
+		attachConsent,
+		consentFromEvent,
+		isConsentPending
+	} from '$lib/client/consent-state';
 	import { answerBrowserConsent, answerQuestion } from '$lib/client/api';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
@@ -1257,28 +1263,13 @@
 		await answerQuestion(activeId, toolCallId, payload.answers, payload.skipped);
 	}
 
-	function setToolCallConsent(toolCallId: string, consent: BrowserConsentState) {
-		messages = messages.map((msg) => {
-			if (!msg.toolCalls?.some((call) => call.toolCallId === toolCallId)) return msg;
-			return {
-				...msg,
-				toolCalls: msg.toolCalls.map((call) =>
-					call.toolCallId === toolCallId ? { ...call, consent } : call
-				)
-			};
-		});
-	}
-
 	async function handleConsentSubmit(
 		toolCallId: string | undefined,
 		decision: BrowserConsentDecision
 	) {
 		if (!activeId || !toolCallId) return;
 		await answerBrowserConsent(activeId, toolCallId, decision);
-		const current = messages
-			.flatMap((msg) => msg.toolCalls ?? [])
-			.find((call) => call.toolCallId === toolCallId);
-		if (current?.consent) setToolCallConsent(toolCallId, { ...current.consent, decision });
+		messages = applyConsentDecision(messages, toolCallId, decision);
 	}
 
 	function handleStreamEvent(event: SseEvent) {
@@ -1363,18 +1354,8 @@
 				};
 			});
 		} else if (event.type === 'browser.consent.request') {
-			const requestId = String(event.requestId);
-			const consent: BrowserConsentState = {
-				requestId,
-				action: typeof event.action === 'string' ? event.action : undefined,
-				tabId:
-					typeof event.tabId === 'string' || typeof event.tabId === 'number'
-						? event.tabId
-						: undefined,
-				url: typeof event.url === 'string' ? event.url : undefined,
-				title: typeof event.title === 'string' ? event.title : undefined
-			};
-			setToolCallConsent(requestId, consent);
+			const consent = consentFromEvent(event);
+			if (consent) messages = attachConsent(messages, consent.requestId, consent);
 		} else if (event.type === 'tool.end') {
 			const toolCallId = String(event.toolCallId);
 			const status = event.status === 'failed' ? 'failed' : 'completed';
@@ -1845,7 +1826,7 @@
 									{#if toolCall.consent}
 										<BrowserConsentCard
 											{toolCall}
-											active={toolCall.status === 'running' && !toolCall.consent.decision}
+											active={toolCall.status === 'running' && isConsentPending(toolCall.consent)}
 											disabled={!running}
 											summary={toolCall.status === 'completed'
 												? getToolResultSummary(toolCall)

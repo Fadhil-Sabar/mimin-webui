@@ -203,6 +203,12 @@ Browser commands travel over the chat SSE stream and results return through an a
 one-time callback. Pending requests live in the server process; multi-instance deployments need
 sticky routing for chat and result requests or a shared request broker.
 
+Browser access consent is also in-memory: a grant chosen with "Allow for this conversation" lasts 12 hours in
+the server process and is intentionally not persisted, so a restart asks again rather than
+silently restoring a privacy grant. For multi-instance deployments, a grant given on one instance
+is not visible to another, so keep chat, consent, and browser-result traffic on the same instance
+(the same sticky routing the pending-request broker already requires).
+
 The seed script creates a default account:
 
 ```text

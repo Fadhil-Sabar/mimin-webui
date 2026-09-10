@@ -392,7 +392,7 @@ describe('browser tab tools with consent', () => {
 
 		const result = await tool.execute('call-tabs', {}, new AbortController().signal);
 		expect(consentEvents(events)).toHaveLength(1);
-		expect(consentEvents(events)[0].action).toBe('browser_tabs_list');
+		expect(consentEvents(events)[0].action).toBe('browser_tabs');
 
 		const first = result.content[0];
 		if (first.type !== 'text') throw new Error('Expected text content');

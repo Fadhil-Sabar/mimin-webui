@@ -1,16 +1,9 @@
 <script lang="ts">
 	import { ShieldCheck, Check, X, Globe } from '@lucide/svelte';
+	import type { ConsentDecision, ConsentState } from '$lib/client/consent-state';
 
-	export type BrowserConsentDecision = 'once' | 'conversation' | 'deny';
-
-	export type BrowserConsentState = {
-		requestId: string;
-		action?: string;
-		tabId?: string | number;
-		url?: string;
-		title?: string;
-		decision?: BrowserConsentDecision;
-	};
+	export type BrowserConsentDecision = ConsentDecision;
+	export type BrowserConsentState = ConsentState;
 
 	type ToolCall = {
 		input?: unknown;
@@ -33,10 +26,11 @@
 	let isSubmitting = $state(false);
 	let submitError = $state('');
 
+	// Keys are tool names, matching the tool chip the user sees in the transcript.
 	const ACTION_LABELS: Record<string, string> = {
-		browser_tabs_list: 'list your open tabs',
-		browser_tab_read: 'read a tab',
-		browser_tab_interact: 'click, type, or navigate in a tab',
+		browser_tabs: 'list your open tabs',
+		browser_read_tab: 'read a tab',
+		browser_interact: 'click, type, or navigate in a tab',
 		browser_open: 'open a page',
 		browser_search: 'search in your browser'
 	};

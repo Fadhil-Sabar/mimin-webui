@@ -29,7 +29,7 @@ describe('browser consent broker', () => {
 		const outcome = await requestBrowserConsent(
 			context,
 			'call-1',
-			{ action: 'browser_tab_read', tabId: 7 },
+			{ action: 'browser_read_tab', tabId: 7 },
 			() => {
 				emitted += 1;
 			}
@@ -44,7 +44,7 @@ describe('browser consent broker', () => {
 		const pending = requestBrowserConsent(
 			context,
 			'call-2',
-			{ action: 'browser_tab_read', tabId: 7, url: 'https://example.com', title: 'Example' },
+			{ action: 'browser_read_tab', tabId: 7, url: 'https://example.com', title: 'Example' },
 			(emitted) => {
 				event = emitted;
 			}
@@ -54,7 +54,7 @@ describe('browser consent broker', () => {
 		expect(event?.type).toBe('browser.consent.request');
 		expect(event?.requestId).toBe('call-2');
 		expect(event?.conversationId).toBe('conv-1');
-		expect(event?.action).toBe('browser_tab_read');
+		expect(event?.action).toBe('browser_read_tab');
 		expect(event?.tabId).toBe(7);
 		expect(event?.url).toBe('https://example.com');
 		expect(event?.expiresInMs).toBeGreaterThan(0);
@@ -66,12 +66,7 @@ describe('browser consent broker', () => {
 	});
 
 	it('stores a long-lived grant when the user allows the conversation', async () => {
-		const pending = requestBrowserConsent(
-			context,
-			'call-3',
-			{ action: 'browser_tabs_list' },
-			() => {}
-		);
+		const pending = requestBrowserConsent(context, 'call-3', { action: 'browser_tabs' }, () => {});
 		expect(resolveBrowserConsent('call-3', 'user-1', 'conversation')).toBe(true);
 		await expect(pending).resolves.toEqual({ granted: true, decision: 'conversation' });
 		expect(hasConversationBrowserConsent('user-1', 'conv-1')).toBe(true);
@@ -84,7 +79,7 @@ describe('browser consent broker', () => {
 		const pending = requestBrowserConsent(
 			context,
 			'call-4',
-			{ action: 'browser_tab_interact', tabId: 3 },
+			{ action: 'browser_interact', tabId: 3 },
 			() => {}
 		);
 		expect(resolveBrowserConsent('call-4', 'user-1', 'deny')).toBe(true);
@@ -93,12 +88,7 @@ describe('browser consent broker', () => {
 	});
 
 	it('ignores answers from another user or unknown requests', async () => {
-		const pending = requestBrowserConsent(
-			context,
-			'call-5',
-			{ action: 'browser_tabs_list' },
-			() => {}
-		);
+		const pending = requestBrowserConsent(context, 'call-5', { action: 'browser_tabs' }, () => {});
 
 		expect(resolveBrowserConsent('call-5', 'user-2', 'once')).toBe(false);
 		expect(resolveBrowserConsent('missing-request', 'user-1', 'once')).toBe(false);
@@ -113,7 +103,7 @@ describe('browser consent broker', () => {
 		const pending = requestBrowserConsent(
 			context,
 			'call-6',
-			{ action: 'browser_tabs_list' },
+			{ action: 'browser_tabs' },
 			() => {},
 			undefined,
 			50
@@ -124,12 +114,7 @@ describe('browser consent broker', () => {
 	});
 
 	it('rejects pending prompts when the turn is canceled', async () => {
-		const pending = requestBrowserConsent(
-			context,
-			'call-7',
-			{ action: 'browser_tabs_list' },
-			() => {}
-		);
+		const pending = requestBrowserConsent(context, 'call-7', { action: 'browser_tabs' }, () => {});
 		const assertion = expect(pending).rejects.toThrow('BROWSER_CONSENT_CANCELED');
 		expect(cancelBrowserConsents('conv-1', 'turn-1')).toBe(1);
 		await assertion;
@@ -143,7 +128,7 @@ describe('browser consent broker', () => {
 			requestBrowserConsent(
 				context,
 				'call-8',
-				{ action: 'browser_tabs_list' },
+				{ action: 'browser_tabs' },
 				() => {},
 				controller.signal
 			)

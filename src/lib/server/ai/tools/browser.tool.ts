@@ -343,7 +343,7 @@ export function createBrowserTabsTool(
 				await ensureBrowserTabConsent(
 					context,
 					_toolCallId,
-					{ action: 'browser_tabs_list' },
+					{ action: 'browser_tabs' },
 					emit,
 					signal
 				);
@@ -389,7 +389,7 @@ export function createBrowserReadTabTool(
 					context,
 					_toolCallId,
 					{
-						action: 'browser_tab_read',
+						action: 'browser_read_tab',
 						tabId: params.tabId,
 						url: params.urlIncludes
 					},
@@ -457,7 +457,7 @@ export function createBrowserInteractTool(
 				await ensureBrowserTabConsent(
 					context,
 					_toolCallId,
-					{ action: 'browser_tab_interact', tabId: params.tabId },
+					{ action: 'browser_interact', tabId: params.tabId },
 					emit,
 					signal
 				);
