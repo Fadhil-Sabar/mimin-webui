@@ -75,7 +75,12 @@ export async function getWebSearchSettings(userId: string): Promise<WebSearchSet
 	const searchUrlFromUser = Boolean(row?.baseUrl);
 	const apiKeyEnvConfigured = Boolean(envKey);
 	const searchUrlEnvConfigured = Boolean(envSearchUrl);
-	const fromUser = apiKeyFromUser || searchUrlFromUser;
+	// Choosing a provider is user configuration too: without this, a saved
+	// SearXNG or custom selection still reported "DuckDuckGo fallback" while the
+	// header advertised "Engine: searxng", which told the user nothing true about
+	// what the agent would actually call.
+	const providerFromUser = Boolean(row && customConfig?.provider);
+	const fromUser = apiKeyFromUser || searchUrlFromUser || providerFromUser;
 	const configured = Boolean(
 		effectiveApiKey || effectiveSearchUrl || effectiveProvider === 'duckduckgo'
 	);

@@ -294,6 +294,25 @@ describe('web search', () => {
 		]);
 	});
 
+	it('names the missing JSON API when a SearXNG instance answers with HTML', async () => {
+		const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) =>
+			String(url).includes('searx')
+				? new Response('<!doctype html><html></html>', {
+						status: 200,
+						headers: { 'content-type': 'text/html' }
+					})
+				: new Response(JSON.stringify({ query: { search: [] } }), { status: 200 })
+		);
+
+		await expect(
+			searchWeb({ query: 'searx html instance' }, undefined, {
+				searchUrl: 'https://searx.example.com/search',
+				provider: 'searxng'
+			})
+		).rejects.toThrow(/JSON API/);
+		expect(fetchMock).toHaveBeenCalled();
+	});
+
 	it('automatically points to SEARXNG_URL when set in environment', async () => {
 		process.env.SEARXNG_URL = 'http://localhost:8080/search';
 		const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(

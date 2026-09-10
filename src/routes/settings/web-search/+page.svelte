@@ -9,6 +9,7 @@
 		FileText,
 		FolderKanban,
 		Globe,
+		Info,
 		KeyRound,
 		Loader2,
 		LogOut,
@@ -47,6 +48,7 @@
 	type TestResult = {
 		answer: string | null;
 		sources: Array<{ title: string; url: string; snippet: string }>;
+		notice?: string;
 	};
 	type EditingField = 'apiKey' | 'searchUrl' | null;
 
@@ -411,6 +413,18 @@
 						<h2 class="section-title">Search Engine Provider</h2>
 						<p class="section-desc">Select the search backend used by the web search agent tool.</p>
 
+						{#if (draftProvider === 'searxng' || draftProvider === 'custom') && !draftSearchUrl.trim()}
+							<p class="provider-warning">
+								<Info size={14} />
+								<span>
+									{draftProvider === 'searxng' ? 'SearXNG' : 'A custom provider'} needs a search URL.
+									Without one, searches use the shared public instance searx.be, which does not serve
+									the JSON API and will fail; every search then falls back to DuckDuckGo or Wikipedia.
+									Set the URL below.
+								</span>
+							</p>
+						{/if}
+
 						<div class="provider-grid">
 							<!-- Tavily -->
 							<label class="provider-option" class:selected={draftProvider === 'tavily'}>
@@ -725,6 +739,12 @@
 
 					{#if testResult}
 						<div class="test-result-box">
+							{#if testResult.notice}
+								<div class="test-notice-box">
+									<Info size={14} />
+									<span>{testResult.notice}</span>
+								</div>
+							{/if}
 							{#if testResult.answer}
 								<div class="answer-box">
 									<span class="answer-label">Direct Synthesized Answer:</span>
@@ -1159,6 +1179,32 @@
 		border: 1px solid color-mix(in srgb, var(--danger-bg) 40%, transparent);
 		border-radius: 8px;
 		color: var(--danger-text);
+		font-size: var(--text-sm);
+	}
+
+	.provider-warning {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		margin: 12px 0 0;
+		padding: 10px 14px;
+		background: color-mix(in srgb, var(--warning-bg, var(--bg-tertiary)) 16%, transparent);
+		border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+		border-radius: 8px;
+		color: var(--text-secondary);
+		font-size: var(--text-sm);
+	}
+
+	.test-notice-box {
+		display: flex;
+		align-items: flex-start;
+		gap: 8px;
+		margin-bottom: 16px;
+		padding: 10px 14px;
+		background: color-mix(in srgb, var(--warning-bg, var(--bg-tertiary)) 16%, transparent);
+		border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+		border-radius: 8px;
+		color: var(--text-secondary);
 		font-size: var(--text-sm);
 	}
 

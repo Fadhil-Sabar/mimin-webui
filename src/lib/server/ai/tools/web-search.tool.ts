@@ -409,7 +409,11 @@ async function searchSearxng(
 	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
 	const contentType = response.headers.get('content-type') ?? '';
 	if (!contentType.includes('application/json')) {
-		throw new SearchEngineFailure('invalid response');
+		// Public instances disable the JSON API, so the default searx.be endpoint
+		// answers with HTML. Name that, because the fix is on the operator's side.
+		throw new SearchEngineFailure(
+			'no JSON API (public instances disable it; point SEARXNG_URL at an instance that serves JSON)'
+		);
 	}
 	const payload = await responseJson<SearxResponse>(response);
 	const rawSources = Array.isArray(payload.results) ? payload.results : [];
