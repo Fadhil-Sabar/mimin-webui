@@ -166,14 +166,19 @@ function resultTextSearch(result: BrowserPageResult) {
 
 function tabsText(result: BrowserTabsResult) {
 	if (!result.tabs.length) return 'No readable browser tabs are open.';
+	const reasonText = (reason?: string) => {
+		if (reason === 'host_permission_required')
+			return 'not readable: the user must grant website access in the Mimin Browser Bridge popup';
+		if (reason === 'url_hidden')
+			return 'URL hidden: an internal browser page, or website access has not been granted';
+		return reason ? `not readable (${reason})` : 'not readable';
+	};
 	return [
 		'Open browser tabs (untrusted metadata):',
 		...result.tabs.map((tab) => {
 			const label = tab.title || tab.url || '(no title)';
 			const url = tab.url ? `\n    URL: ${tab.url}` : '';
-			const readable = tab.readable
-				? 'readable'
-				: `not readable${tab.reason ? ` (${tab.reason})` : ''}`;
+			const readable = tab.readable ? 'readable' : reasonText(tab.reason);
 			return `- tabId ${tab.tabId}${tab.active ? ' [active]' : ''}${tab.pinned ? ' [pinned]' : ''}: ${label}${url}\n    ${readable}`;
 		}),
 		'Use browser_read_tab with a tabId to read one, or browser_interact to click and type in it.'

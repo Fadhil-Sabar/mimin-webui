@@ -399,7 +399,7 @@ describe('browser tab tools with consent', () => {
 		expect(first.text).toContain('Open browser tabs');
 		expect(first.text).toContain('tabId 5');
 		expect(first.text).toContain('URL: https://example.com/docs');
-		expect(first.text).toContain('not readable (url_hidden)');
+		expect(first.text).toContain('URL hidden: an internal browser page');
 
 		// The listing is also exposed as sources for the chat UI.
 		const sources = (result.details as { sources: Array<{ url?: string }> }).sources;

@@ -7,7 +7,7 @@ The bridge distinguishes these search and browsing capabilities:
 - **Web Search**: default server-side research via search providers (Tavily with DuckDuckGo fallback). Handled entirely on the server without touching the browser.
 - **Browser Search**: explicit Google or Google Scholar search through the user's real browser. Only available when the user explicitly requests Google or Scholar. Returns structured results (`title`, `url`, `snippet`).
 - **Browser Open**: opens and reads a specific public HTTP/HTTPS webpage through the user's real browser. Returns clean, bounded page content (`title`, `text`, `links`, `elements`).
-- **Browser Tabs**: lists the open tabs the extension may describe (`tabId`, `title`, `url`, `active`, `pinned`, `readable`). Tabs without host permission report `url_hidden` and no URL.
+- **Browser Tabs**: lists the open tabs the extension may describe (`tabId`, `title`, `url`, `active`, `pinned`, `readable`). The extension requests no `tabs` permission, so a tab without host permission reports `url_hidden` with no title or URL. That covers both internal browser pages and ordinary sites the user has not granted access to; the two are indistinguishable by design.
 - **Browser Read Tab**: reads one tab by `tabId`, URL match, or the active tab. Returns the same bounded snapshot as Browser Open plus indexed interactive elements.
 - **Browser Interact**: clicks, types, selects, presses keys, scrolls, navigates (`navigate`, `back`, `forward`, `reload`), or re-reads inside a tab. Targets elements by the `ref` from a snapshot, or by CSS selector / visible label.
 

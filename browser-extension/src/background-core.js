@@ -926,6 +926,18 @@
 			}
 		}
 
+		// Mimin tracks the last tab per conversation. Honor it before the generic
+		// fallbacks, but do not adopt it: only tabs Mimin opened may be reused for
+		// navigation by browser_open.
+		if (args.preferredTabId !== undefined && args.preferredTabId !== null) {
+			try {
+				const tab = await apiCall(extensionApi.tabs, 'get', args.preferredTabId);
+				if (tab?.id !== undefined && tab.id !== null) return tab;
+			} catch {
+				// the conversation's previous tab is gone; fall back
+			}
+		}
+
 		const reusable = await findReusableTab(null);
 		if (reusable?.id !== undefined && reusable.id !== null) return reusable;
 
@@ -1012,6 +1024,7 @@
 		if (!isGoogle && !(await hasHostPermission(finalUrl))) {
 			return unreadableResult(tab, finalUrl, 'host_permission_required');
 		}
+		await persistTabId(tab.id);
 		return readSnapshot(tab.id, finalUrl, isGoogle);
 	}
 
@@ -1029,7 +1042,8 @@
 			return unreadableResult(tab, finalUrl, 'host_permission_required');
 		}
 
-		await markTabOwned(tab.id);
+		// Track the tab for this conversation without adopting it: a user tab the
+		// agent clicked in must never become a reusable navigation target.
 		await persistTabId(tab.id);
 		if (args.action === 'navigate') {
 			const target = validatePublicUrl(args.url);

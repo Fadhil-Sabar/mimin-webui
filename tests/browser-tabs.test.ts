@@ -197,16 +197,49 @@ describe('extension tab actions', () => {
 		expect(hidden?.url).toBeUndefined();
 	});
 
-	it('prefers the tab Mimin last used over an unrelated active tab', async () => {
+	it('reuses a tab Mimin opened over an unrelated active tab', async () => {
 		const harness = loadExtension({ tabs: exampleTabs, granted: ['https://*/*'] });
 		const active = await (harness.hooks.resolveTab as (args: AnyRecord) => Promise<AnyRecord>)({});
 		expect(active?.url).toBe('https://news.example.org/');
 
-		await harness.send('browser_tab_interact', { tabId: 1, action: 'read' });
+		// A tab Mimin opened is adopted, so later calls continue in it instead of
+		// hopping to whatever tab the user happens to be looking at.
+		await harness.send('browser_open', { url: 'https://example.com/opened' });
 		const continued = await (harness.hooks.resolveTab as (args: AnyRecord) => Promise<AnyRecord>)(
 			{}
 		);
-		expect(continued?.id).toBe(1);
+		expect(continued?.url).toBe('https://example.com/opened');
+		expect(continued?.id).not.toBe(2);
+	});
+
+	it('honors the conversation tab without adopting it for navigation', async () => {
+		const harness = loadExtension({
+			tabs: [
+				{ id: 1, url: 'https://example.com/docs', title: 'Example Docs', active: true },
+				{ id: 2, url: 'https://news.example.org/', title: 'News' }
+			],
+			granted: ['https://*/*']
+		});
+
+		// The server remembers tab 2 for this conversation even though the user's
+		// active tab is 1, and Mimin never opened tab 2.
+		const resolved = await (harness.hooks.resolveTab as (args: AnyRecord) => Promise<AnyRecord>)({
+			preferredTabId: 2
+		});
+		expect(resolved?.id).toBe(2);
+
+		// A stale conversation tab falls back instead of failing.
+		const fallback = await (harness.hooks.resolveTab as (args: AnyRecord) => Promise<AnyRecord>)({
+			preferredTabId: 404
+		});
+		expect(fallback?.id).toBe(1);
+
+		// Reading the user's tab must not turn it into a reusable navigation target.
+		await harness.send('browser_tab_read', { tabId: 2 });
+		await harness.send('browser_tab_interact', { tabId: 2, action: 'read' });
+		await harness.send('browser_open', { url: 'https://example.com/new' });
+		expect(harness.createCalls).toEqual([{ url: 'https://example.com/new', active: false }]);
+		expect(harness.updateCalls).toEqual([]);
 	});
 
 	it('reads a permitted tab and returns a snapshot with interactive elements', async () => {
