@@ -9,6 +9,7 @@ import { getWebSearchSettings } from './web-search-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
 import { createWebSearchTool } from './tools/web-search.tool';
 import { getModelThinkingPreference } from './model-preferences.service';
+import { createAgentEventQueue } from './agent-event-queue';
 import { buildUserSystemPrompt, getUserInstructions } from './user-instructions.service';
 import type { SkillSnapshot } from '$lib/skills';
 import { getTurnSkillSnapshot } from '../skill-runtime';
@@ -650,7 +651,6 @@ export async function runConversationTurn(
 	}
 
 	let subscriberError: unknown;
-	let eventQueue: Promise<void> = Promise.resolve();
 
 	const handleAgentEvent = async (event: unknown) => {
 		const e = event as AgentEvent;
@@ -738,34 +738,13 @@ export async function runConversationTurn(
 			emit({ type: 'turn.end' });
 		}
 	};
-	agent.subscribe((event) => {
-		eventQueue = eventQueue
-			.then(() => handleAgentEvent(event))
-			.catch((error) => {
-				subscriberError ??= error;
-			});
-		// Hand the queue back to the SDK. `processEvents` awaits each subscriber
-		// promise, so returning it makes the loop wait for this event to be
-		// persisted and forwarded before it runs the tool call.
-		//
-		// That ordering is load-bearing: a tool can emit its own events (a
-		// browser consent prompt, for example) from inside `execute`, which runs
-		// as soon as this event is handled. Without the await, the prompt frame
-		// can reach the browser before the `tool.start` frame that creates the
-		// tool call it hangs off, and the client has nothing to attach it to.
-		return eventQueue;
+	const agentEvents = createAgentEventQueue(agent, handleAgentEvent, (error) => {
+		subscriberError ??= error;
 	});
-	async function drainEventQueue() {
-		while (true) {
-			const pending = eventQueue;
-			await pending;
-			if (pending === eventQueue) return;
-		}
-	}
 	try {
 		if (isConversationTurnCanceled(turnToken)) return null;
 		await agent.prompt(promptWithAttachments, pdfVisionFallback.images);
-		await drainEventQueue();
+		await agentEvents.drain();
 		if (subscriberError) throw subscriberError;
 		await finalizeCurrentAssistantMessage();
 		if (agent.state.errorMessage) {
@@ -829,7 +808,7 @@ export async function runConversationTurn(
 		// Subscriber promises are handled in order, but the loop can still stop
 		// between events. Drain queued persistence work before cleanup so a late
 		// event cannot write after a failed turn.
-		await drainEventQueue().catch(() => {});
+		await agentEvents.drain().catch(() => {});
 		for (const msgId of createdAssistantMessageIds) {
 			const [msg] = await db
 				.select()
