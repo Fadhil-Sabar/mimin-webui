@@ -1,5 +1,32 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { EventEmitter } from 'node:events';
+import https from 'node:https';
 import { createWebSearchTool, searchWeb } from '../src/lib/server/ai/tools/web-search.tool';
+
+function stubHttpsResponse(status: number, body: string) {
+	const response = new EventEmitter() as EventEmitter & {
+		statusCode: number;
+		headers: Record<string, string>;
+	};
+	response.statusCode = status;
+	response.headers = { 'content-type': 'text/html' };
+	queueMicrotask(() => {
+		response.emit('data', body);
+		response.emit('end');
+	});
+	return response;
+}
+
+function stubHttpsRequest(status: number, body: string) {
+	return vi.spyOn(https, 'request').mockImplementation(((
+		options: unknown,
+		callback: (response: EventEmitter) => void
+	) => {
+		const request = new EventEmitter() as EventEmitter & { end: () => void };
+		request.end = () => queueMicrotask(() => callback(stubHttpsResponse(status, body)));
+		return request;
+	}) as typeof https.request);
+}
 
 afterEach(() => {
 	vi.restoreAllMocks();
@@ -54,6 +81,97 @@ describe('web search', () => {
 			expect.stringContaining('html.duckduckgo.com/html/?q=anything'),
 			expect.objectContaining({ signal: expect.any(AbortSignal) })
 		);
+	});
+
+	it('uses the DoH IP fallback with hostname SNI and parses real result sources', async () => {
+		const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			if (String(url).includes('duckduckgo.com/html')) throw new Error('ISP DNS/TLS failure');
+			if (String(url).includes('cloudflare-dns.com')) {
+				return new Response(JSON.stringify({ Answer: [{ type: 1, data: '20.43.161.105' }] }), {
+					status: 200
+				});
+			}
+			throw new Error(`Unexpected URL: ${String(url)}`);
+		});
+		const requestMock = stubHttpsRequest(
+			200,
+			'<a class="result__a" href="https://bintaro.example/cafe">Cafe Bintaro</a>'
+		);
+
+		const result = await searchWeb({ query: 'cafe Bintaro Tangerang Selatan' });
+
+		expect(result.sources).toEqual([
+			{ title: 'Cafe Bintaro', url: 'https://bintaro.example/cafe', snippet: '' }
+		]);
+		expect(fetchMock).toHaveBeenCalledWith(
+			expect.stringContaining('cloudflare-dns.com'),
+			expect.objectContaining({ headers: { accept: 'application/dns-json' } })
+		);
+		expect(requestMock).toHaveBeenCalledWith(
+			expect.objectContaining({
+				hostname: 'html.duckduckgo.com',
+				servername: 'html.duckduckgo.com',
+				rejectUnauthorized: true,
+				headers: expect.objectContaining({ host: 'html.duckduckgo.com' }),
+				lookup: expect.any(Function)
+			}),
+			expect.any(Function)
+		);
+		const requestOptions = requestMock.mock.calls[0]?.[0] as unknown as {
+			lookup: (
+				hostname: string,
+				options: { all?: boolean },
+				callback: (error: Error | null, address: string, family: number) => void
+			) => void;
+		};
+		const lookupResult = await new Promise<{ address: string; family: number }>(
+			(resolve, reject) => {
+				requestOptions.lookup(
+					'html.duckduckgo.com',
+					{},
+					(error: Error | null, address: string, family: number) => {
+						if (error) reject(error);
+						else resolve({ address, family });
+					}
+				);
+			}
+		);
+		expect(lookupResult).toEqual({ address: '20.43.161.105', family: 4 });
+	});
+
+	it('rejects an ISP block page and reports an ISP-specific diagnostic', async () => {
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.includes('duckduckgo.com/html')) {
+				return new Response('<html>internetpositif internetsehatku</html>', { status: 200 });
+			}
+			if (value.includes('wikipedia.org')) {
+				return new Response(JSON.stringify({ query: { search: [] } }), { status: 200 });
+			}
+			throw new Error(`Unexpected URL: ${value}`);
+		});
+		stubHttpsRequest(200, '<html>internetpositif internetsehatku</html>');
+
+		await expect(searchWeb({ query: 'blocked search' })).rejects.toMatchObject({
+			diagnostics: expect.arrayContaining(['DuckDuckGo: blocked by ISP'])
+		});
+		await expect(searchWeb({ query: 'blocked search' })).rejects.toThrow(/browser_search/);
+	});
+
+	it('treats a successful stub response with zero results as a failed engine', async () => {
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.includes('duckduckgo.com/html')) return new Response('', { status: 202 });
+			if (value.includes('wikipedia.org')) {
+				return new Response(JSON.stringify({ query: { search: [] } }), { status: 200 });
+			}
+			throw new Error(`Unexpected URL: ${value}`);
+		});
+		stubHttpsRequest(202, '');
+
+		await expect(searchWeb({ query: 'stub response' })).rejects.toMatchObject({
+			diagnostics: expect.arrayContaining(['DuckDuckGo: zero results', 'Wikipedia: zero results'])
+		});
 	});
 
 	it('exposes model-facing instructions to verify uncertain or current information', () => {
@@ -196,6 +314,53 @@ describe('web search', () => {
 		expect(result.sources).toEqual([
 			{ title: 'Fallback result', url: 'https://fallback.com/', snippet: '' }
 		]);
+	});
+
+	it('reports every exhausted engine and suggests the approved browser fallback', async () => {
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.includes('duckduckgo.com/html')) return new Response('', { status: 202 });
+			if (value.includes('wikipedia.org')) {
+				return new Response(JSON.stringify({ query: { search: [] } }), { status: 200 });
+			}
+			throw new Error(`Unexpected URL: ${value}`);
+		});
+		stubHttpsRequest(202, '');
+
+		const tool = createWebSearchTool();
+		const result = await tool.execute(
+			'test-call',
+			{ query: 'no results anywhere' },
+			new AbortController().signal
+		);
+		const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+		expect(text).toContain('DuckDuckGo: zero results');
+		expect(text).toContain('Wikipedia: zero results');
+		expect(text).toContain('browser_search');
+		expect(text).toContain("user's approval");
+	});
+
+	it('does not add a failure notice to an ordinary successful primary search', async () => {
+		process.env.WEB_SEARCH_API_KEY = 'test-search-key';
+		vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					results: [{ title: 'Primary', url: 'https://primary.example', content: 'ok' }]
+				}),
+				{ status: 200, headers: { 'content-type': 'application/json' } }
+			)
+		);
+
+		const tool = createWebSearchTool();
+		const result = await tool.execute(
+			'test-call',
+			{ query: 'primary success' },
+			new AbortController().signal
+		);
+		const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+		expect(text).toContain('Primary');
+		expect(text).not.toContain('diagnostic');
+		expect(text).not.toContain('browser_search');
 	});
 
 	it('falls back to Wikipedia if DuckDuckGo fails or returns empty results', async () => {

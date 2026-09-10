@@ -1,5 +1,7 @@
 import { Type } from 'typebox';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
+import https from 'node:https';
+import type { LookupFunction } from 'node:net';
 import { assertAllowedOutboundUrl, OutboundUrlError } from '../../outbound';
 
 const parameters = Type.Object({
@@ -12,7 +14,28 @@ type TavilyResponse = { answer?: unknown; results?: unknown };
 type SearxResponse = { results?: unknown };
 
 export type WebSearchSource = { title: string; url: string; snippet: string };
-export type WebSearchResult = { answer: string | null; sources: WebSearchSource[] };
+export type WebSearchResult = {
+	answer: string | null;
+	sources: WebSearchSource[];
+	diagnostics?: string[];
+};
+
+const BROWSER_SEARCH_HINT =
+	"You can instead search through the user's own browser with browser_search for Google/Scholar or browser_read_tab on a search URL, with the user's approval.";
+
+class SearchEngineFailure extends Error {
+	constructor(public readonly reason: string) {
+		super(reason);
+		this.name = 'SearchEngineFailure';
+	}
+}
+
+export class WebSearchExhaustedError extends Error {
+	constructor(public readonly diagnostics: string[]) {
+		super(`Web search failed. ${diagnostics.join('; ')}. ${BROWSER_SEARCH_HINT}`);
+		this.name = 'WebSearchExhaustedError';
+	}
+}
 
 export type WebSearchConfig = {
 	apiKey?: string | null;
@@ -57,10 +80,12 @@ function htmlText(value: string) {
 		.trim();
 }
 
+function isIspBlockPage(value: string) {
+	return /internetsehatku|internetpositif|aduanankonten/i.test(value);
+}
+
 function parseDuckDuckGo(html: string, maxResults: number): WebSearchSource[] {
-	if (html.includes('internetsehatku') || html.includes('internetpositif')) {
-		return [];
-	}
+	if (isIspBlockPage(html)) return [];
 
 	const sources: WebSearchSource[] = [];
 
@@ -126,6 +151,86 @@ function parseDuckDuckGo(html: string, maxResults: number): WebSearchSource[] {
 let cachedDdgIp: string | null = null;
 let lastDdgIpFetch = 0;
 
+const ddgLookup =
+	(ip: string): LookupFunction =>
+	(_hostname, options, callback) => {
+		if (options.all) {
+			callback(null, [{ address: ip, family: 4 }]);
+		} else {
+			callback(null, ip, 4);
+		}
+	};
+
+async function fetchDuckDuckGoByIp(
+	url: string,
+	ip: string,
+	signal?: AbortSignal
+): Promise<Response> {
+	assertAllowedOutboundUrl(url);
+	const target = new URL(url);
+	return await new Promise((resolve, reject) => {
+		const request = https.request(
+			{
+				hostname: target.hostname,
+				port: target.port || 443,
+				path: `${target.pathname}${target.search}`,
+				method: 'GET',
+				servername: target.hostname,
+				rejectUnauthorized: true,
+				headers: {
+					host: target.host,
+					accept: 'text/html,application/xhtml+xml',
+					'user-agent': BROWSER_USER_AGENT
+				},
+				lookup: ddgLookup(ip),
+				signal
+			},
+			(response) => {
+				const chunks: Buffer[] = [];
+				response.on('data', (chunk: Buffer | string) =>
+					chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+				);
+				response.on('end', () => {
+					const headers = new Headers();
+					for (const [key, value] of Object.entries(response.headers)) {
+						if (typeof value === 'string') headers.set(key, value);
+						else if (Array.isArray(value)) headers.set(key, value.join(', '));
+					}
+					resolve(
+						new Response(Buffer.concat(chunks).toString('utf8'), {
+							status: response.statusCode ?? 0,
+							headers
+						})
+					);
+				});
+				response.on('error', reject);
+			}
+		);
+		request.on('error', reject);
+		request.end();
+	});
+}
+
+async function parseDuckDuckGoResponse(
+	response: Response,
+	maxResults: number
+): Promise<{ html: string; sources: WebSearchSource[] }> {
+	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
+	const html = await response.text();
+	if (isIspBlockPage(html)) throw new SearchEngineFailure('blocked by ISP');
+	const sources = parseDuckDuckGo(html, maxResults);
+	if (sources.length === 0) throw new SearchEngineFailure('zero results');
+	return { html, sources };
+}
+
+async function responseJson<T>(response: Response): Promise<T> {
+	try {
+		return (await response.json()) as T;
+	} catch {
+		throw new SearchEngineFailure('invalid response');
+	}
+}
+
 async function resolveDdgIp(signal?: AbortSignal): Promise<string | null> {
 	if (cachedDdgIp && Date.now() - lastDdgIpFetch < 3600_000) {
 		return cachedDdgIp;
@@ -142,7 +247,7 @@ async function resolveDdgIp(signal?: AbortSignal): Promise<string | null> {
 				signal: signal ?? AbortSignal.timeout(3000)
 			});
 			if (!res.ok) continue;
-			const data = (await res.json()) as { Answer?: Array<{ type: number; data: string }> };
+			const data = await responseJson<{ Answer?: Array<{ type: number; data: string }> }>(res);
 			const aRecord = data.Answer?.find((a) => a.type === 1);
 			if (aRecord?.data && /^(\d{1,3}\.){3}\d{1,3}$/.test(aRecord.data)) {
 				cachedDdgIp = aRecord.data;
@@ -171,48 +276,36 @@ async function searchDuckDuckGo(
 	let html: string | null = null;
 
 	if (!customUrl) {
+		let standardFailure: string | undefined;
 		// 1. Try standard safeFetch first
 		try {
 			const response = await safeFetch(targetUrl, {
 				headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': BROWSER_USER_AGENT },
 				signal
 			});
-			if (response.ok) {
-				const text = await response.text();
-				if (!text.includes('internetsehatku') && !text.includes('internetpositif')) {
-					html = text;
-				}
-			}
-		} catch {
-			// standard fetch failed (e.g. ISP DNS censorship / SSL alert)
+			const parsed = await parseDuckDuckGoResponse(response, maxResults);
+			html = parsed.html;
+		} catch (error) {
+			standardFailure = error instanceof SearchEngineFailure ? error.reason : 'request failed';
 		}
 
 		// 2. If standard fetch failed or was blocked by ISP, resolve real IP via DoH
 		if (!html) {
 			const ddgIp = await resolveDdgIp(signal);
-			if (ddgIp) {
-				try {
-					const ipUrl = `https://${ddgIp}/html/?q=${encodeURIComponent(query)}`;
-					const fetchOptions: RequestInit & { tls?: { serverName?: string } } = {
-						headers: {
-							accept: 'text/html,application/xhtml+xml',
-							'user-agent': BROWSER_USER_AGENT,
-							Host: 'html.duckduckgo.com'
-						},
-						signal,
-						redirect: 'error',
-						tls: { serverName: 'html.duckduckgo.com' }
-					};
-					const ipResponse = await fetch(ipUrl, fetchOptions as RequestInit);
-					if (ipResponse.ok) {
-						const text = await ipResponse.text();
-						if (!text.includes('internetsehatku') && !text.includes('internetpositif')) {
-							html = text;
-						}
-					}
-				} catch {
-					// direct IP fetch failed
-				}
+			if (!ddgIp) throw new SearchEngineFailure(standardFailure ?? 'DoH resolution failed');
+			try {
+				const ipUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+				const parsed = await parseDuckDuckGoResponse(
+					await fetchDuckDuckGoByIp(ipUrl, ddgIp, signal),
+					maxResults
+				);
+				html = parsed.html;
+			} catch (error) {
+				throw new SearchEngineFailure(
+					error instanceof SearchEngineFailure
+						? error.reason
+						: (standardFailure ?? 'request failed')
+				);
 			}
 		}
 	} else {
@@ -220,13 +313,13 @@ async function searchDuckDuckGo(
 			headers: { accept: 'text/html', 'user-agent': BROWSER_USER_AGENT },
 			signal
 		});
-		if (!response.ok) throw new Error(`WEB_SEARCH_FAILED_${response.status}`);
-		html = await response.text();
+		const parsed = await parseDuckDuckGoResponse(response, maxResults);
+		html = parsed.html;
 	}
 
 	if (!html) throw new Error('WEB_SEARCH_FAILED');
 	const sources = parseDuckDuckGo(html, maxResults);
-	if (sources.length === 0) throw new Error('WEB_SEARCH_EMPTY_RESULTS');
+	if (sources.length === 0) throw new SearchEngineFailure('zero results');
 	return { answer: null, sources };
 }
 
@@ -254,14 +347,15 @@ async function searchWikipedia(
 		},
 		signal
 	});
-	if (!response.ok) throw new Error(`WEB_SEARCH_FAILED_${response.status}`);
-	const payload = (await response.json()) as WikiSearchResponse;
+	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
+	const payload = await responseJson<WikiSearchResponse>(response);
 	const searchItems = Array.isArray(payload.query?.search) ? payload.query!.search : [];
 	const sources: WebSearchSource[] = searchItems.map((item) => ({
 		title: item.title,
 		url: `https://en.wikipedia.org/wiki/${encodeURIComponent(item.title.replace(/\s+/g, '_'))}`,
 		snippet: htmlText(item.snippet).slice(0, 1200)
 	}));
+	if (sources.length === 0) throw new SearchEngineFailure('zero results');
 	return { answer: null, sources };
 }
 
@@ -297,19 +391,21 @@ async function searchSearxng(
 	if (apiKey) headers.authorization = `Bearer ${apiKey}`;
 
 	const response = await safeFetch(targetUrl, { headers, signal });
-	if (!response.ok) throw new Error(`WEB_SEARCH_FAILED_${response.status}`);
+	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
 	const contentType = response.headers.get('content-type') ?? '';
 	if (!contentType.includes('application/json')) {
-		throw new Error('SEARXNG_INVALID_JSON_RESPONSE');
+		throw new SearchEngineFailure('invalid response');
 	}
-	const payload = (await response.json()) as SearxResponse;
+	const payload = await responseJson<SearxResponse>(response);
 	const rawSources = Array.isArray(payload.results) ? payload.results : [];
+	const sources = rawSources
+		.map(asSource)
+		.filter((source): source is WebSearchSource => Boolean(source))
+		.slice(0, maxResults);
+	if (sources.length === 0) throw new SearchEngineFailure('zero results');
 	return {
 		answer: null,
-		sources: rawSources
-			.map(asSource)
-			.filter((source): source is WebSearchSource => Boolean(source))
-			.slice(0, maxResults)
+		sources
 	};
 }
 
@@ -330,23 +426,27 @@ async function searchTavilyOrCustom(
 		};
 		if (apiKey) headers.authorization = `Bearer ${apiKey}`;
 		const response = await safeFetch(getUrl, { headers, signal });
-		if (!response.ok) throw new Error(`WEB_SEARCH_FAILED_${response.status}`);
+		if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
 		const contentType = response.headers.get('content-type') ?? '';
 		if (contentType.includes('application/json')) {
-			const payload = (await response.json()) as TavilyResponse;
+			const payload = await responseJson<TavilyResponse>(response);
 			const rawSources = Array.isArray(payload.results) ? payload.results : [];
+			const sources = rawSources
+				.map(asSource)
+				.filter((source): source is WebSearchSource => Boolean(source))
+				.slice(0, maxResults);
+			if (sources.length === 0) throw new SearchEngineFailure('zero results');
 			return {
 				answer:
 					typeof payload.answer === 'string' && payload.answer.trim()
 						? payload.answer.trim()
 						: null,
-				sources: rawSources
-					.map(asSource)
-					.filter((source): source is WebSearchSource => Boolean(source))
-					.slice(0, maxResults)
+				sources
 			};
 		} else {
-			return { answer: null, sources: parseDuckDuckGo(await response.text(), maxResults) };
+			const sources = parseDuckDuckGo(await response.text(), maxResults);
+			if (sources.length === 0) throw new SearchEngineFailure('zero results');
+			return { answer: null, sources };
 		}
 	}
 
@@ -369,14 +469,24 @@ async function searchTavilyOrCustom(
 		signal
 	});
 
-	if (!response.ok) throw new Error(`WEB_SEARCH_FAILED_${response.status}`);
-	const payload = (await response.json()) as TavilyResponse;
+	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
+	const payload = await responseJson<TavilyResponse>(response);
 	const rawSources = Array.isArray(payload.results) ? payload.results : [];
+	const sources = rawSources
+		.map(asSource)
+		.filter((source): source is WebSearchSource => Boolean(source));
+	if (sources.length === 0) throw new SearchEngineFailure('zero results');
 	return {
 		answer:
 			typeof payload.answer === 'string' && payload.answer.trim() ? payload.answer.trim() : null,
-		sources: rawSources.map(asSource).filter((source): source is WebSearchSource => Boolean(source))
+		sources
 	};
+}
+
+function failureReason(error: unknown) {
+	if (error instanceof SearchEngineFailure) return error.reason;
+	if (error instanceof Error && error.name === 'AbortError') return 'request timed out';
+	return 'request failed';
 }
 
 export async function searchWeb(
@@ -414,70 +524,73 @@ export async function searchWeb(
 	signal?.addEventListener('abort', abort, { once: true });
 
 	try {
-		if (provider === 'duckduckgo') {
+		const failures: string[] = [];
+		const attempt = async (
+			engine: string,
+			search: () => Promise<WebSearchResult>
+		): Promise<WebSearchResult | null> => {
 			try {
-				return await searchDuckDuckGo(query, maxResults, timeout.signal, customUrl);
-			} catch (ddgError) {
-				if (customUrl) throw ddgError;
-				try {
-					return await searchWikipedia(query, maxResults, timeout.signal);
-				} catch {
-					throw ddgError;
-				}
+				return await search();
+			} catch (error) {
+				if (error instanceof OutboundUrlError) throw error;
+				failures.push(`${engine}: ${failureReason(error)}`);
+				return null;
 			}
+		};
+		const throwExhausted = (): never => {
+			throw new WebSearchExhaustedError(failures);
+		};
+
+		if (provider === 'duckduckgo') {
+			const ddg = await attempt('DuckDuckGo', () =>
+				searchDuckDuckGo(query, maxResults, timeout.signal, customUrl)
+			);
+			if (ddg) return ddg;
+			if (customUrl) return throwExhausted();
+			const wikipedia = await attempt('Wikipedia', () =>
+				searchWikipedia(query, maxResults, timeout.signal)
+			);
+			return wikipedia ?? throwExhausted();
 		}
 
 		if (provider === 'searxng') {
-			try {
-				return await searchSearxng(query, maxResults, timeout.signal, customUrl, effectiveApiKey);
-			} catch (primaryError) {
-				if (primaryError instanceof OutboundUrlError) throw primaryError;
-				// Automatic runtime fallback to DuckDuckGo, then Wikipedia if primary fails
-				try {
-					return await searchDuckDuckGo(query, maxResults, timeout.signal);
-				} catch {
-					try {
-						return await searchWikipedia(query, maxResults, timeout.signal);
-					} catch {
-						throw primaryError;
-					}
-				}
-			}
+			const primary = await attempt('SearXNG', () =>
+				searchSearxng(query, maxResults, timeout.signal, customUrl, effectiveApiKey)
+			);
+			if (primary) return primary;
+			const ddg = await attempt('DuckDuckGo', () =>
+				searchDuckDuckGo(query, maxResults, timeout.signal)
+			);
+			if (ddg) return ddg;
+			const wikipedia = await attempt('Wikipedia', () =>
+				searchWikipedia(query, maxResults, timeout.signal)
+			);
+			return wikipedia ?? throwExhausted();
 		}
 
 		if (!effectiveApiKey && !customUrl) {
-			try {
-				return await searchDuckDuckGo(query, maxResults, timeout.signal);
-			} catch (ddgError) {
-				try {
-					return await searchWikipedia(query, maxResults, timeout.signal);
-				} catch {
-					throw ddgError;
-				}
-			}
+			const ddg = await attempt('DuckDuckGo', () =>
+				searchDuckDuckGo(query, maxResults, timeout.signal)
+			);
+			if (ddg) return ddg;
+			const wikipedia = await attempt('Wikipedia', () =>
+				searchWikipedia(query, maxResults, timeout.signal)
+			);
+			return wikipedia ?? throwExhausted();
 		}
 
-		try {
-			return await searchTavilyOrCustom(
-				query,
-				maxResults,
-				timeout.signal,
-				customUrl,
-				effectiveApiKey
-			);
-		} catch (primaryError) {
-			if (primaryError instanceof OutboundUrlError) throw primaryError;
-			// Automatic runtime fallback to DuckDuckGo, then Wikipedia if Tavily / custom endpoint fails
-			try {
-				return await searchDuckDuckGo(query, maxResults, timeout.signal);
-			} catch {
-				try {
-					return await searchWikipedia(query, maxResults, timeout.signal);
-				} catch {
-					throw primaryError;
-				}
-			}
-		}
+		const primary = await attempt(provider === 'custom' ? 'Custom provider' : 'Tavily', () =>
+			searchTavilyOrCustom(query, maxResults, timeout.signal, customUrl, effectiveApiKey)
+		);
+		if (primary) return primary;
+		const ddg = await attempt('DuckDuckGo', () =>
+			searchDuckDuckGo(query, maxResults, timeout.signal)
+		);
+		if (ddg) return ddg;
+		const wikipedia = await attempt('Wikipedia', () =>
+			searchWikipedia(query, maxResults, timeout.signal)
+		);
+		return wikipedia ?? throwExhausted();
 	} finally {
 		clearTimeout(timer);
 		signal?.removeEventListener('abort', abort);
@@ -496,7 +609,21 @@ export function createWebSearchTool(
 		parameters,
 		execute: async (_toolCallId, params, signal) => {
 			const resolvedConfig = typeof config === 'function' ? await config() : config;
-			const result = await searchWeb(params, signal, resolvedConfig);
+			let result: WebSearchResult;
+			try {
+				result = await searchWeb(params, signal, resolvedConfig);
+			} catch (error) {
+				if (!(error instanceof WebSearchExhaustedError)) throw error;
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Sources:\nNo sources found. Search diagnostics: ${error.diagnostics.join('; ')}\n${BROWSER_SEARCH_HINT}`
+						}
+					],
+					details: { sources: [] }
+				};
+			}
 			const sourceText = result.sources.length
 				? result.sources
 						.map(
@@ -504,7 +631,7 @@ export function createWebSearchTool(
 								`[${index + 1}] ${source.title}\nURL: ${source.url}\n${source.snippet}`
 						)
 						.join('\n\n')
-				: 'No sources found.';
+				: `No sources found. Search diagnostics: ${result.diagnostics?.join('; ') || 'no results returned'}`;
 			return {
 				content: [
 					{
