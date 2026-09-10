@@ -613,6 +613,24 @@
 	}
 
 	/**
+	 * Injected into a tab to fingerprint the page before and after an interaction.
+	 *
+	 * A scripted interaction can be accepted by the DOM yet ignored by the site's
+	 * own code: Google Maps, for example, keeps its search box value but only
+	 * reacts to a real key press. Comparing two fingerprints lets the result say
+	 * "nothing changed" instead of reporting a success the model would repeat.
+	 */
+	function pageDigest() {
+		const text = (document.body?.innerText || '').replace(/\s+/g, ' ').slice(0, 20_000);
+		let hash = 2_166_136_261;
+		for (let index = 0; index < text.length; index += 1) {
+			hash ^= text.charCodeAt(index);
+			hash = Math.imul(hash, 16_777_619);
+		}
+		return { url: location.href, length: text.length, hash: hash >>> 0 };
+	}
+
+	/**
 	 * Injected into a tab to perform one interaction. Resolves targets through the
 	 * ref registry written by pageSnapshot, then falls back to selector or label text.
 	 */
@@ -762,6 +780,28 @@
 
 		return { ok: false, error: `Unsupported interaction: ${action}` };
 	}
+	/** True when the action is expected to alter the page. */
+	function shouldVerifyChange(args) {
+		const action = args?.action;
+		if (action === 'click' || action === 'select' || action === 'press') return true;
+		if (action === 'navigate' || action === 'back' || action === 'forward' || action === 'reload')
+			return true;
+		return action === 'type' && Boolean(args.submit);
+	}
+
+	/** Fingerprint a tab, or null when the page cannot be read. */
+	async function readPageDigest(tabId) {
+		try {
+			const executions = await apiCall(extensionApi.scripting, 'executeScript', {
+				target: { tabId },
+				func: pageDigest
+			});
+			return executions?.[0]?.result ?? null;
+		} catch {
+			return null;
+		}
+	}
+
 	async function readSnapshot(tabId, finalUrl, isGoogle) {
 		const executions = await apiCall(extensionApi.scripting, 'executeScript', {
 			target: { tabId },
@@ -1058,6 +1098,9 @@
 		// Track the tab for this conversation without adopting it: a user tab the
 		// agent clicked in must never become a reusable navigation target.
 		await persistTabId(tab.id);
+		// Actions that are supposed to change the page get fingerprinted first so
+		// the result can report when the site ignored the interaction.
+		const before = shouldVerifyChange(args) ? await readPageDigest(tab.id) : null;
 		if (args.action === 'navigate') {
 			const target = validatePublicUrl(args.url);
 			await apiCall(extensionApi.tabs, 'update', tab.id, { url: target });
@@ -1095,7 +1138,12 @@
 		await waitForTabSettled(tab.id, TAB_SETTLE_TIMEOUT_MS);
 		const current = await apiCall(extensionApi.tabs, 'get', tab.id).catch(() => null);
 		const settledUrl = validatePublicUrl(tabUrl(current?.url) || finalUrl);
-		return readSnapshot(tab.id, settledUrl, isReadableGoogleUrl(settledUrl));
+		const result = await readSnapshot(tab.id, settledUrl, isReadableGoogleUrl(settledUrl));
+		if (before) {
+			const after = await readPageDigest(tab.id);
+			if (after) result.changed = before.url !== after.url || before.hash !== after.hash;
+		}
+		return result;
 	}
 
 	async function handleRequest(request, sender) {
@@ -1171,6 +1219,7 @@
 	if (testHooks && typeof testHooks === 'object') {
 		Object.assign(testHooks, {
 			pageSnapshot,
+			pageDigest,
 			interactPage,
 			listTabs,
 			readTab,

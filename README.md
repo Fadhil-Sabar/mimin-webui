@@ -182,6 +182,10 @@ Mimin distinguishes these research and browser capabilities:
 
 Tab access is consented in the chat: the first time a turn needs the user's tabs, Mimin asks whether to **allow just once** or **allow for this conversation**. "Allow just once" covers that single tool call, so a turn that needs several tab actions asks again for each one. A conversation-scoped grant is remembered for that chat (12 hours, in-memory) and can be revoked with `DELETE /api/conversations/{id}/browser-consent`. Denying or not answering blocks the tab tools for that call; `browser_open` on a user-requested URL is not gated because the request itself is the instruction.
 
+An interaction result reports `changed: false` when the page accepted the action but the site did not react, so the
+agent says what happened instead of claiming success. Sites that only respond to real key presses (Google Maps' search
+box) need a direct URL instead of typing.
+
 Deterministic per-turn tool gating ensures the model never receives ambiguous interchangeable search tools. When an explicit browser search intent is detected, `web_search` is hidden for that turn and browser tools are exposed.
 
 The bridge is off by default and enabled per browser. Only a connected chat turn receives browser tools. By default, the extension has host permissions for Google and Google Scholar. For other public HTTP(S) websites and the user's other tabs, users can grant optional host permissions directly from the extension popup under **Tab reading & interaction**. Tab metadata is only listed for tabs the extension is permitted to read; internal pages and private or local addresses are skipped. If permission has not been granted, reading returns `{ readable: false, reason: "host_permission_required" }` without reading page content. Browsing history, cookies, accounts, and saved passwords are never read. CAPTCHA challenges require the user to complete them manually; Mimin never bypasses them. Keep the chat open while a browser tool runs.

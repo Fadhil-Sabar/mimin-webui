@@ -11,6 +11,12 @@ The bridge distinguishes these search and browsing capabilities:
 - **Browser Read Tab**: reads one tab by `tabId`, URL match, or the active tab. Returns the same bounded snapshot as Browser Open plus indexed interactive elements.
 - **Browser Interact**: clicks, types, selects, presses keys, scrolls, navigates (`navigate`, `back`, `forward`, `reload`), or re-reads inside a tab. Targets elements by the `ref` from a snapshot, or by CSS selector / visible label.
 
+An interaction that is supposed to change the page is fingerprinted before and after, and the result carries `changed`.
+`changed: false` means the DOM accepted the action but the site did not react. Google Maps is the clearest
+example: its search box keeps a scripted value but only searches on a real key press, which no extension can
+synthesize in Firefox. The chat relays this so the agent reports what happened instead of claiming success, and
+prefers a direct URL (`https://www.google.com/maps/search/<query>`) over typing in such a box.
+
 Every snapshot returns `elements`, a bounded list of visible interactive elements (`ref`, `tag`, `name`, `type`, `disabled`, `selector`). The bridge keeps the resolved elements in the tab's isolated world so a follow-up action can use `ref` even if the page re-renders; the CSS `selector` is a fallback. Reads and interactions are wrapped in `<untrusted-browser-page>` markers when they reach the model, and clicking/typing is never treated as trusted instruction.
 
 Mimin asks for the user's approval in the chat before the first tab access in a conversation: **allow just once** or **allow for this conversation**. "Allow just once" authorizes that single tool call, so a turn that needs several tab actions asks again. The extension itself has no notion of that grant; it only enforces host permissions and allowed origins.
@@ -44,7 +50,7 @@ window.postMessage(
 );
 ```
 
-Replies use `{ source: 'mimin-extension', id, ok, result, error }`. A page response contains `url`, `title`, `text`, `links`, `elements`, `readable: true`, and `tabId` (along with structured `results` for Google / Google Scholar); a tab listing returns `{ tabs, tabId }`. If website reading permission is missing or reading fails, `readable: false` is returned with a machine-readable `reason`.
+Replies use `{ source: 'mimin-extension', id, ok, result, error }`. A page response contains `url`, `title`, `text`, `links`, `elements`, `readable: true`, `tabId`, and `changed` for interactions (along with structured `results` for Google / Google Scholar); a tab listing returns `{ tabs, tabId }`. If website reading permission is missing or reading fails, `readable: false` is returned with a machine-readable `reason`.
 
 Runtime requirements: the popup must be granted **Tab reading & interaction** host permissions before Mimin can read or click in arbitrary tabs. Reload Mimin after granting so the bridge handshake reports the new capability.
 

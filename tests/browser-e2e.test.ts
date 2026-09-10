@@ -160,8 +160,56 @@ describe('browser tab flow end to end', () => {
 		expect(wire.dispatched).toEqual([
 			{ action: 'browser_tab_interact', args: { action: 'click', tabId: 11, ref: 0 } }
 		]);
-		expect(harness.executeCalls.map((call) => call.name)).toEqual(['interactPage', 'pageSnapshot']);
-		expect(harness.executeCalls[0].args[0]).toEqual({ action: 'click', tabId: 11, ref: 0 });
+		// A click is fingerprinted first so the result can report a site that ignored
+		// it. No digest is configured here, so there is nothing to compare against.
+		expect(harness.executeCalls.map((call) => call.name)).toEqual([
+			'pageDigest',
+			'interactPage',
+			'pageSnapshot'
+		]);
+		expect(harness.executeCalls[1].args[0]).toEqual({ action: 'click', tabId: 11, ref: 0 });
+		expect(text).toContain('Browser tab snapshot from');
+	});
+
+	it('reports that the page ignored the interaction instead of a success', async () => {
+		const harness = loadExtension({ tabs, granted: ['https://*/*'] });
+		// Same fingerprints before and after, which is what Google Maps looks like
+		// when scripted typing is accepted by the DOM but ignored by the site.
+		harness.digests.push({ url: 'https://example.com/docs', length: 120, hash: 4242 });
+		harness.digests.push({ url: 'https://example.com/docs', length: 120, hash: 4242 });
+		const wire = connect(harness);
+		const tool = createBrowserInteractTool(context, wire.emit);
+
+		const result = await tool.execute(
+			'call-e2e-ignored',
+			{ action: 'type', tabId: 11, ref: 0, text: 'cafe', submit: true },
+			new AbortController().signal
+		);
+		const text = textOf(result);
+
+		// The result schema must accept the new field, or the bridge rejects it.
+		expect(wire.schemaRejections).toEqual([]);
+		expect(text).toContain('Nothing on the page changed');
+		expect(text).toContain('Do not tell the user the action worked');
+		expect(text).not.toContain('Documentation body'.repeat(0) + 'was typed');
+	});
+
+	it('does not warn when the page did change', async () => {
+		const harness = loadExtension({ tabs, granted: ['https://*/*'] });
+		harness.digests.push({ url: 'https://example.com/docs', length: 120, hash: 4242 });
+		harness.digests.push({ url: 'https://example.com/search?q=cafe', length: 300, hash: 9001 });
+		const wire = connect(harness);
+		const tool = createBrowserInteractTool(context, wire.emit);
+
+		const result = await tool.execute(
+			'call-e2e-changed',
+			{ action: 'type', tabId: 11, ref: 0, text: 'cafe', submit: true },
+			new AbortController().signal
+		);
+		const text = textOf(result);
+
+		expect(wire.schemaRejections).toEqual([]);
+		expect(text).not.toContain('Nothing on the page changed');
 		expect(text).toContain('Browser tab snapshot from');
 	});
 

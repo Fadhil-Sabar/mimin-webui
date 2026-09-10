@@ -132,8 +132,12 @@ describe('extension tab actions', () => {
 		});
 
 		expect(reply.ok).toBe(true);
-		expect(harness.executeCalls.map((call) => call.name)).toEqual(['interactPage', 'pageSnapshot']);
-		expect(harness.executeCalls[0].args[0]).toMatchObject({ action: 'click', ref: 0 });
+		expect(harness.executeCalls.map((call) => call.name)).toEqual([
+			'pageDigest',
+			'interactPage',
+			'pageSnapshot'
+		]);
+		expect(harness.executeCalls[1].args[0]).toMatchObject({ action: 'click', ref: 0 });
 		expect((reply.result as AnyRecord).readable).toBe(true);
 	});
 
@@ -160,8 +164,9 @@ describe('extension tab actions', () => {
 
 		expect(reply.ok).toBe(true);
 		expect(harness.updateCalls).toEqual([{ id: 1, props: { url: 'https://example.com/next' } }]);
-		// Navigation does not need to inject the interaction function.
-		expect(harness.executeCalls.map((call) => call.name)).toEqual(['pageSnapshot']);
+		// Navigation does not need to inject the interaction function, only the
+		// fingerprint taken before it and the snapshot after it.
+		expect(harness.executeCalls.map((call) => call.name)).toEqual(['pageDigest', 'pageSnapshot']);
 
 		const blocked = await harness.send('browser_tab_interact', {
 			tabId: 1,

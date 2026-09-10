@@ -43,6 +43,11 @@ export type BrowserPageResult = {
 	tabId?: string | number;
 	reason?: string;
 	captcha?: boolean;
+	/**
+	 * Set by `browser_tab_interact` when the page should have changed: false means
+	 * the site accepted nothing, so the action must not be reported as effective.
+	 */
+	changed?: boolean;
 };
 
 /** Metadata for one open browser tab the extension is allowed to describe. */
@@ -231,7 +236,8 @@ export const browserPageResultSchema = z
 		tabId: z.union([z.string().max(200), z.number().int().nonnegative()]).optional(),
 		readable: z.boolean(),
 		reason: z.string().trim().max(1_000).optional(),
-		captcha: z.boolean().optional()
+		captcha: z.boolean().optional(),
+		changed: z.boolean().optional()
 	})
 	.strict();
 

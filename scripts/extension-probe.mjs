@@ -51,6 +51,8 @@ const injected = [
 	'// Generated from browser-extension/src/background-core.js. Do not edit.',
 	extractFunction(background, 'pageSnapshot'),
 	'',
+	extractFunction(background, 'pageDigest'),
+	'',
 	extractFunction(background, 'interactPage')
 ].join('\n');
 

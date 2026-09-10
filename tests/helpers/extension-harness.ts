@@ -53,6 +53,12 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 	const interactOutcome = {
 		value: { ok: true, action: 'click', performed: 'clicked' } as AnyRecord
 	};
+	/**
+	 * Fingerprints returned by the injected `pageDigest`, in call order, so a test
+	 * can show the page before and after an interaction. The last value repeats
+	 * once the queue is empty.
+	 */
+	const digests: AnyRecord[] = [];
 	const updateCalls: Array<{ id: number; props: AnyRecord }> = [];
 	const createCalls: AnyRecord[] = [];
 
@@ -114,6 +120,8 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 				executeCalls.push({ name, args: (injection.args as unknown[]) ?? [] });
 				if (name === 'pageSnapshot') return [{ result: snapshot.value }];
 				if (name === 'interactPage') return [{ result: interactOutcome.value }];
+				if (name === 'pageDigest')
+					return [{ result: digests.length > 1 ? digests.shift() : (digests[0] ?? null) }];
 				return [{ result: undefined }];
 			}
 		},
@@ -161,6 +169,7 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 		executeCalls,
 		snapshot,
 		interactOutcome,
+		digests,
 		tabs,
 		stored,
 		updateCalls,
