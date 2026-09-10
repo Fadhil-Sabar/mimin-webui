@@ -154,6 +154,8 @@ STORAGE_DRIVER=local
 STORAGE_PATH=./data/uploads
 ```
 
+DuckDuckGo is unreachable from some networks because its DNS is blocked by Indonesian ISPs. Mimin resolves the real address over DNS over HTTPS (DoH) to work around that. Its HTML endpoint can additionally rate-limit a server IP with a captcha challenge, in which case use a Tavily key, set `SEARXNG_URL` to a self-hosted SearXNG instance, or search through the user's own browser.
+
 Provider keys are read only on the server. Do not put them in source code or send them to the browser.
 
 Start PostgreSQL, apply the schema, seed initial data, and start the app:

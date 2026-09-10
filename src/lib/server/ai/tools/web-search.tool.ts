@@ -18,6 +18,7 @@ export type WebSearchResult = {
 	answer: string | null;
 	sources: WebSearchSource[];
 	diagnostics?: string[];
+	notice?: string;
 };
 
 const BROWSER_SEARCH_HINT =
@@ -82,6 +83,10 @@ function htmlText(value: string) {
 
 function isIspBlockPage(value: string) {
 	return /internetsehatku|internetpositif|aduanankonten/i.test(value);
+}
+
+function isDuckDuckGoAntiBotChallenge(value: string) {
+	return /bots use DuckDuckGo too/i.test(value);
 }
 
 function parseDuckDuckGo(html: string, maxResults: number): WebSearchSource[] {
@@ -215,8 +220,11 @@ async function parseDuckDuckGoResponse(
 	response: Response,
 	maxResults: number
 ): Promise<{ html: string; sources: WebSearchSource[] }> {
-	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
 	const html = await response.text();
+	if (isDuckDuckGoAntiBotChallenge(html)) {
+		throw new SearchEngineFailure('anti-bot challenge (server IP rate limited)');
+	}
+	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
 	if (isIspBlockPage(html)) throw new SearchEngineFailure('blocked by ISP');
 	const sources = parseDuckDuckGo(html, maxResults);
 	if (sources.length === 0) throw new SearchEngineFailure('zero results');
@@ -333,6 +341,13 @@ type WikiSearchResponse = {
 		search?: WikiSearchItem[];
 	};
 };
+
+const WIKIPEDIA_ONLY_NOTICE =
+	'Notice: Results come from Wikipedia only because the primary search engine was unavailable.';
+
+function markWikipediaFallback(result: WebSearchResult | null) {
+	return result ? { ...result, notice: WIKIPEDIA_ONLY_NOTICE } : null;
+}
 
 async function searchWikipedia(
 	query: string,
@@ -550,7 +565,7 @@ export async function searchWeb(
 			const wikipedia = await attempt('Wikipedia', () =>
 				searchWikipedia(query, maxResults, timeout.signal)
 			);
-			return wikipedia ?? throwExhausted();
+			return markWikipediaFallback(wikipedia) ?? throwExhausted();
 		}
 
 		if (provider === 'searxng') {
@@ -565,7 +580,7 @@ export async function searchWeb(
 			const wikipedia = await attempt('Wikipedia', () =>
 				searchWikipedia(query, maxResults, timeout.signal)
 			);
-			return wikipedia ?? throwExhausted();
+			return markWikipediaFallback(wikipedia) ?? throwExhausted();
 		}
 
 		if (!effectiveApiKey && !customUrl) {
@@ -576,7 +591,7 @@ export async function searchWeb(
 			const wikipedia = await attempt('Wikipedia', () =>
 				searchWikipedia(query, maxResults, timeout.signal)
 			);
-			return wikipedia ?? throwExhausted();
+			return markWikipediaFallback(wikipedia) ?? throwExhausted();
 		}
 
 		const primary = await attempt(provider === 'custom' ? 'Custom provider' : 'Tavily', () =>
@@ -590,7 +605,7 @@ export async function searchWeb(
 		const wikipedia = await attempt('Wikipedia', () =>
 			searchWikipedia(query, maxResults, timeout.signal)
 		);
-		return wikipedia ?? throwExhausted();
+		return markWikipediaFallback(wikipedia) ?? throwExhausted();
 	} finally {
 		clearTimeout(timer);
 		signal?.removeEventListener('abort', abort);
@@ -636,7 +651,7 @@ export function createWebSearchTool(
 				content: [
 					{
 						type: 'text',
-						text: `${result.answer ? `Search answer:\n${result.answer}\n\n` : ''}Sources:\n${sourceText}`
+						text: `${result.answer ? `Search answer:\n${result.answer}\n\n` : ''}Sources:\n${sourceText}${result.notice ? `\n\n${result.notice}` : ''}`
 					}
 				],
 				details: { sources: result.sources }

@@ -174,6 +174,34 @@ describe('web search', () => {
 		});
 	});
 
+	it('reports a DuckDuckGo anti-bot challenge instead of zero results', async () => {
+		const challenge =
+			'<html><body>bots use DuckDuckGo too <div class="captcha">Select the duck</div></body></html>';
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.includes('duckduckgo.com/html')) return new Response(challenge, { status: 202 });
+			if (value.includes('cloudflare-dns.com')) {
+				return new Response(JSON.stringify({ Answer: [{ type: 1, data: '20.43.161.105' }] }), {
+					status: 200
+				});
+			}
+			if (value.includes('wikipedia.org')) {
+				return new Response(JSON.stringify({ query: { search: [] } }), { status: 200 });
+			}
+			throw new Error(`Unexpected URL: ${value}`);
+		});
+		stubHttpsRequest(202, challenge);
+
+		await expect(searchWeb({ query: 'challenge response' })).rejects.toMatchObject({
+			diagnostics: expect.arrayContaining([
+				'DuckDuckGo: anti-bot challenge (server IP rate limited)'
+			])
+		});
+		await expect(searchWeb({ query: 'challenge response' })).rejects.not.toMatchObject({
+			diagnostics: expect.arrayContaining(['DuckDuckGo: zero results'])
+		});
+	});
+
 	it('exposes model-facing instructions to verify uncertain or current information', () => {
 		const tool = createWebSearchTool();
 		expect(tool.name).toBe('web_search');
@@ -361,9 +389,10 @@ describe('web search', () => {
 		expect(text).toContain('Primary');
 		expect(text).not.toContain('diagnostic');
 		expect(text).not.toContain('browser_search');
+		expect(text).not.toContain('Wikipedia only');
 	});
 
-	it('falls back to Wikipedia if DuckDuckGo fails or returns empty results', async () => {
+	it('falls back to Wikipedia if DuckDuckGo fails and marks the result as Wikipedia-only', async () => {
 		const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
 			const str = String(url);
 			if (str.includes('duckduckgo.com') || str.includes('dns')) {
@@ -386,6 +415,7 @@ describe('web search', () => {
 			}
 			throw new Error('Unexpected URL: ' + str);
 		});
+		stubHttpsRequest(200, '');
 
 		const result = await searchWeb({ query: 'TypeScript Programming' });
 		expect(fetchMock).toHaveBeenCalled();
@@ -396,5 +426,38 @@ describe('web search', () => {
 				snippet: 'TypeScript is a strongly typed programming language'
 			}
 		]);
+		expect(result.notice).toBe(
+			'Notice: Results come from Wikipedia only because the primary search engine was unavailable.'
+		);
+	});
+
+	it('includes the Wikipedia-only notice in the tool result text', async () => {
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			const str = String(url);
+			if (str.includes('duckduckgo.com') || str.includes('dns')) throw new Error('Network failure');
+			if (str.includes('wikipedia.org')) {
+				return new Response(
+					JSON.stringify({
+						query: {
+							search: [{ title: 'Wikipedia result', snippet: 'Encyclopedic result' }]
+						}
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			}
+			throw new Error('Unexpected URL: ' + str);
+		});
+		stubHttpsRequest(200, '');
+
+		const tool = createWebSearchTool();
+		const result = await tool.execute(
+			'test-call',
+			{ query: 'encyclopedic fallback' },
+			new AbortController().signal
+		);
+		const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
+		expect(text).toContain(
+			'Notice: Results come from Wikipedia only because the primary search engine was unavailable.'
+		);
 	});
 });
