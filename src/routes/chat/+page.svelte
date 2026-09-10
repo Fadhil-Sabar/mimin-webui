@@ -59,9 +59,11 @@
 	} from '$lib/components/BrowserConsentCard.svelte';
 	import {
 		applyConsentDecision,
-		attachConsent,
+		attachOrBufferConsent,
 		consentFromEvent,
-		isConsentPending
+		flushConsentBuffer,
+		isConsentPending,
+		type ConsentBuffer
 	} from '$lib/client/consent-state';
 	import { answerBrowserConsent, answerQuestion } from '$lib/client/api';
 	import Markdown from '$lib/components/Markdown.svelte';
@@ -212,6 +214,12 @@
 	let activeId = $state('');
 	let activeConversation = $state<Conversation | null>(null);
 	let messages = $state<ChatMessage[]>([]);
+	/**
+	 * Consent prompts that arrived before the tool call they belong to. The two
+	 * frames are sent by different server paths and can invert, so a prompt waits
+	 * here until its tool call exists rather than being dropped.
+	 */
+	let consentBuffer: ConsentBuffer = {};
 	let liveError = $state('');
 	let lastFailedSubmission = $state<{
 		conversationId: string;
@@ -913,6 +921,7 @@
 			abortController = undefined;
 			running = false;
 			messages = [];
+			consentBuffer = {};
 			availableTools = [];
 			toolsLoadToken += 1;
 		}
@@ -920,6 +929,7 @@
 		activeConversation = conversations.find((c) => c.id === id) ?? null;
 		if (!preserveLiveState) {
 			liveError = '';
+			consentBuffer = {};
 		}
 		updateChatUrl(id, replaceUrl);
 		try {
@@ -1342,6 +1352,11 @@
 					return { ...msg, toolCalls: currentCalls };
 				});
 			}
+			if (consentBuffer[toolCallId]) {
+				const flushed = flushConsentBuffer(messages, consentBuffer);
+				messages = flushed.messages;
+				consentBuffer = flushed.buffer;
+			}
 		} else if (event.type === 'tool.update') {
 			const toolCallId = String(event.toolCallId);
 			messages = messages.map((msg) => {
@@ -1355,7 +1370,14 @@
 			});
 		} else if (event.type === 'browser.consent.request') {
 			const consent = consentFromEvent(event);
-			if (consent) messages = attachConsent(messages, consent.requestId, consent);
+			if (consent) {
+				// The prompt is emitted from inside the tool and used to be able to
+				// beat the tool.start frame, so a prompt with no tool call yet is
+				// held until that call arrives instead of being dropped.
+				const next = attachOrBufferConsent(messages, consentBuffer, consent);
+				messages = next.messages;
+				consentBuffer = next.buffer;
+			}
 		} else if (event.type === 'tool.end') {
 			const toolCallId = String(event.toolCallId);
 			const status = event.status === 'failed' ? 'failed' : 'completed';
@@ -1408,6 +1430,7 @@
 			streamingDeltas.flush();
 			liveError = extractSseErrorMessage(event.error);
 			messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
+			consentBuffer = {};
 		}
 	}
 
@@ -1477,6 +1500,9 @@
 		} finally {
 			if (activeId === streamConversationId && abortController === streamAbortController) {
 				streamingDeltas.flush();
+				// A prompt whose tool call never arrived cannot be answered once
+				// the turn is over.
+				consentBuffer = {};
 				messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 				const completedLoadToken = conversationLoadToken;
 				await loadConversations();
@@ -1541,6 +1567,9 @@
 		} finally {
 			if (activeId === streamConversationId && abortController === streamAbortController) {
 				streamingDeltas.flush();
+				// A prompt whose tool call never arrived cannot be answered once
+				// the turn is over.
+				consentBuffer = {};
 				messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
 				const completedLoadToken = conversationLoadToken;
 				await loadConversations();

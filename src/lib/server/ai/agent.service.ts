@@ -744,6 +744,16 @@ export async function runConversationTurn(
 			.catch((error) => {
 				subscriberError ??= error;
 			});
+		// Hand the queue back to the SDK. `processEvents` awaits each subscriber
+		// promise, so returning it makes the loop wait for this event to be
+		// persisted and forwarded before it runs the tool call.
+		//
+		// That ordering is load-bearing: a tool can emit its own events (a
+		// browser consent prompt, for example) from inside `execute`, which runs
+		// as soon as this event is handled. Without the await, the prompt frame
+		// can reach the browser before the `tool.start` frame that creates the
+		// tool call it hangs off, and the client has nothing to attach it to.
+		return eventQueue;
 	});
 	async function drainEventQueue() {
 		while (true) {
@@ -816,8 +826,9 @@ export async function runConversationTurn(
 				.where(eq(schema.projects.id, conversation.projectId));
 		return lastAssistantMessageId;
 	} catch (error) {
-		// The SDK does not await subscriber promises. Drain queued persistence
-		// work before cleanup so a late event cannot write after a failed turn.
+		// Subscriber promises are handled in order, but the loop can still stop
+		// between events. Drain queued persistence work before cleanup so a late
+		// event cannot write after a failed turn.
 		await drainEventQueue().catch(() => {});
 		for (const msgId of createdAssistantMessageIds) {
 			const [msg] = await db

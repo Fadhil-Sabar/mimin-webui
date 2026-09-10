@@ -1,0 +1,35 @@
+{
+	"description": "SSE frames captured from a real server turn (Firefox decoded-body cache), in the order the browser received them. This is the reproduction for the consent prompt that was silently dropped: the prompt frame reached the client BEFORE the tool.start frame that creates the tool call it attaches to.",
+	"capturedAt": "2026-09-10T14:02:57Z",
+	"source": "local chat turn 'try search about cafe' -> browser_interact on tabId 5",
+	"frames": [
+		{
+			"type": "browser.consent.request",
+			"requestId": "call_00_KYpbYkJPePJMA2BI3fHI4613",
+			"conversationId": "4e25c973-53b5-4b27-8636-3d008115e29f",
+			"turnToken": "01818bd1-0a13-40e0-be42-ee26e718ada4",
+			"action": "browser_interact",
+			"tabId": 5,
+			"expiresInMs": 300000
+		},
+		{
+			"type": "message.end",
+			"messageId": "2a3ed3f0-0415-4e4c-8ca3-692c4a422f4d"
+		},
+		{
+			"type": "tool.start",
+			"messageId": "2a3ed3f0-0415-4e4c-8ca3-692c4a422f4d",
+			"toolCallId": "call_00_KYpbYkJPePJMA2BI3fHI4613",
+			"tool": "browser_interact",
+			"label": "browser_interact",
+			"input": {
+				"action": "type",
+				"tabId": 5,
+				"ref": 0,
+				"text": "cafe",
+				"submit": true
+			}
+		}
+	],
+	"observedOutcome": "The prompt was dropped, so the user saw a plain 'Browser Interact ... Running' tool card with no way to answer, and the tool failed 5 minutes later with BROWSER_CONSENT_TIMEOUT."
+}

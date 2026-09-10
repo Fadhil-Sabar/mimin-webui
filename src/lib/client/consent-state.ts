@@ -90,3 +90,59 @@ export function applyConsentDecision<T extends ConsentCarrier>(
 export function isConsentPending(consent?: ConsentState): boolean {
 	return Boolean(consent && !consent.decision);
 }
+
+/**
+ * Prompts that arrived before the tool call they belong to.
+ *
+ * The server sends `browser.consent.request` from inside the tool, while
+ * `tool.start` is emitted by the agent's event handler, which persists first and
+ * is queued separately. Either frame can reach the browser first, so a prompt
+ * must be held until its tool call exists instead of being dropped.
+ */
+export type ConsentBuffer = Record<string, ConsentState>;
+
+/** Hold a prompt until the tool call it belongs to shows up. */
+export function bufferConsent(buffer: ConsentBuffer, consent: ConsentState): ConsentBuffer {
+	return { ...buffer, [consent.requestId]: consent };
+}
+
+/**
+ * Attach an incoming prompt to its tool call, or hold it until that tool call
+ * arrives. This is the entry point for `browser.consent.request` frames: the
+ * prompt may legitimately be the first of the two frames to reach the browser.
+ */
+export function attachOrBufferConsent<T extends ConsentCarrier>(
+	messages: T[],
+	buffer: ConsentBuffer,
+	consent: ConsentState
+): { messages: T[]; buffer: ConsentBuffer } {
+	const attached = attachConsent(messages, consent.requestId, consent);
+	if (attached === messages) return { messages, buffer: bufferConsent(buffer, consent) };
+	if (!buffer[consent.requestId]) return { messages: attached, buffer };
+	const rest = { ...buffer };
+	delete rest[consent.requestId];
+	return { messages: attached, buffer: rest };
+}
+
+/**
+ * Attach any buffered prompt that now has a matching tool call, keeping the
+ * entries that are still waiting. Returns the original array and buffer when
+ * nothing changed so callers can skip a redundant state update.
+ */
+export function flushConsentBuffer<T extends ConsentCarrier>(
+	messages: T[],
+	buffer: ConsentBuffer
+): { messages: T[]; buffer: ConsentBuffer; attached: boolean } {
+	let nextMessages = messages;
+	const remaining: ConsentBuffer = {};
+	let attached = false;
+	for (const [requestId, consent] of Object.entries(buffer)) {
+		const next = attachConsent(nextMessages, requestId, consent);
+		if (next === nextMessages) remaining[requestId] = consent;
+		else {
+			nextMessages = next;
+			attached = true;
+		}
+	}
+	return { messages: nextMessages, buffer: remaining, attached };
+}
