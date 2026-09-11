@@ -7,10 +7,10 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-mimin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mimin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-mimin}
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - mimin-postgres:/var/lib/postgresql/data
     healthcheck:
@@ -49,9 +49,9 @@ services:
       - STORAGE_DRIVER=${STORAGE_DRIVER:-local}
       - STORAGE_PATH=${STORAGE_PATH:-/app/data/uploads}
       - PROVIDER_KEY_ENCRYPTION_SECRET=${PROVIDER_KEY_ENCRYPTION_SECRET}
-      - SEED_PASSWORD=${SEED_PASSWORD:-admin123}
+      - SEED_PASSWORD=${SEED_PASSWORD:-}
       - AUTO_MIGRATE=${AUTO_MIGRATE:-true}
-      - AUTO_SEED=${AUTO_SEED:-true}
+      - AUTO_SEED=${AUTO_SEED:-false}
     volumes:
       - mimin-data:/app/data
 

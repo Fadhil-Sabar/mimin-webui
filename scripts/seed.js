@@ -13,7 +13,15 @@ if (!url) {
 const sql = postgres(url);
 
 const DEFAULT_EMAIL = 'admin@mimin.local';
-const DEFAULT_PASSWORD = process.env.SEED_PASSWORD || 'admin123';
+const DEFAULT_PASSWORD = process.env.SEED_PASSWORD;
+if (
+	!DEFAULT_PASSWORD ||
+	DEFAULT_PASSWORD === 'admin123' ||
+	DEFAULT_PASSWORD.startsWith('replace-with-')
+) {
+	console.error('SEED_PASSWORD must be set to a non-default value');
+	process.exit(1);
+}
 
 async function hashPassword(password) {
 	const salt = randomBytes(16);
@@ -58,5 +66,5 @@ if (project) {
 	await sql`insert into conversations (user_id, project_id, title, model, enabled_tools) select ${user.id}, ${project.id}, 'Welcome to Mimin', 'openai/gpt-4o-mini', '["project_knowledge_search"]'::jsonb where not exists (select 1 from conversations where title = 'Welcome to Mimin')`;
 	console.log(`Seeded project ${project.id}`);
 }
-console.log(`Default user: ${DEFAULT_EMAIL} / ${DEFAULT_PASSWORD}`);
+console.log(`Default user: ${DEFAULT_EMAIL}`);
 await sql.end();

@@ -1,0 +1,8 @@
+Mimin WebUI
+Copyright (C) 2026 Mimin WebUI contributors
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE for details.
+
+Mimin WebUI includes third-party software distributed under its own license terms. The checked production dependency tree declares permissive licenses compatible with this distribution. The transitive `khroma` 2.1.0 package omits the `license` field from its installed package metadata; its upstream v2.1.0 source identifies the license as MIT: https://github.com/fabiospampinato/khroma/blob/v2.1.0/license. Operators and redistributors remain responsible for reviewing the exact dependency versions they ship.

@@ -14,19 +14,40 @@ fi
 STORAGE_DIR="${STORAGE_PATH:-/app/data/uploads}"
 mkdir -p "$STORAGE_DIR"
 
-# Warn and provide fallback if critical secrets are missing
-if [ -z "$BETTER_AUTH_SECRET" ]; then
-  echo "WARNING: BETTER_AUTH_SECRET is not set. Generating a random fallback secret for this session."
-  echo "         To maintain persistent sessions across container restarts, set BETTER_AUTH_SECRET in .env."
-  BETTER_AUTH_SECRET=$(node -e "import('node:crypto').then(c => console.log(c.randomBytes(32).toString('base64')))")
-  export BETTER_AUTH_SECRET
+# Stable secrets are required so sessions and encrypted provider keys survive restarts.
+case "${BETTER_AUTH_SECRET:-}" in
+  ''|replace-with-*)
+    echo "ERROR: Set BETTER_AUTH_SECRET to a stable random value." >&2
+    exit 1
+    ;;
+esac
+if [ "${#BETTER_AUTH_SECRET}" -lt 32 ]; then
+  echo "ERROR: BETTER_AUTH_SECRET must be at least 32 characters." >&2
+  exit 1
 fi
 
-if [ -z "$PROVIDER_KEY_ENCRYPTION_SECRET" ]; then
-  echo "WARNING: PROVIDER_KEY_ENCRYPTION_SECRET is not set. Generating a random fallback secret for this session."
-  echo "         To persist encrypted provider keys across restarts, set PROVIDER_KEY_ENCRYPTION_SECRET in .env."
-  PROVIDER_KEY_ENCRYPTION_SECRET=$(node -e "import('node:crypto').then(c => console.log(c.randomBytes(32).toString('hex')))")
-  export PROVIDER_KEY_ENCRYPTION_SECRET
+case "${PROVIDER_KEY_ENCRYPTION_SECRET:-}" in
+  ''|replace-with-*)
+    echo "ERROR: Set PROVIDER_KEY_ENCRYPTION_SECRET to a stable random value." >&2
+    exit 1
+    ;;
+esac
+if [ "${#PROVIDER_KEY_ENCRYPTION_SECRET}" -lt 32 ]; then
+  echo "ERROR: PROVIDER_KEY_ENCRYPTION_SECRET must be at least 32 characters." >&2
+  exit 1
+fi
+
+if [ "${AUTO_SEED:-false}" = "true" ]; then
+  case "${SEED_PASSWORD:-}" in
+    ''|admin123|replace-with-*)
+      echo "ERROR: AUTO_SEED=true requires a non-default SEED_PASSWORD." >&2
+      exit 1
+      ;;
+  esac
+  if [ "${#SEED_PASSWORD}" -lt 16 ]; then
+    echo "ERROR: SEED_PASSWORD must be at least 16 characters." >&2
+    exit 1
+  fi
 fi
 
 # Set SvelteKit adapter-node ORIGIN from BETTER_AUTH_URL if not explicitly set
@@ -69,7 +90,7 @@ if [ "${AUTO_MIGRATE:-true}" = "true" ]; then
 fi
 
 # Automatically seed the initial admin account and default project
-if [ "${AUTO_SEED:-true}" = "true" ]; then
+if [ "${AUTO_SEED:-false}" = "true" ]; then
   echo "Ensuring initial seed data..."
   node scripts/seed.js
 fi

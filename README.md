@@ -2,6 +2,8 @@
 
 Mimin WebUI is a project-based AI agent workspace. It combines chat, project knowledge, model discovery, tool execution, and persistent conversations in one minimal interface.
 
+[Documentation](#requirements) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [License](LICENSE)
+
 The frontend uses **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, and **Lucide**. The backend runs on SvelteKit server routes with **PostgreSQL**, **Drizzle ORM**, `@earendil-works/pi-agent-core`, and `@earendil-works/pi-ai`.
 
 ## Implementation status
@@ -115,18 +117,19 @@ To self-host the entire stack (PostgreSQL + Mimin WebUI) using Docker Compose:
    ```bash
    cp .env.example .env
    ```
+   Replace every `replace-with-...` value. Generate independent secrets with the commands documented in [`docs/deployment.md`](docs/deployment.md).
 2. Start the full application:
    ```bash
    docker compose up -d --build
    ```
-   The container automatically waits for PostgreSQL, applies schema migrations, and provisions the default admin account.
+   The container waits for PostgreSQL, applies schema migrations, and provisions the initial admin only when `AUTO_SEED=true` and a non-default `SEED_PASSWORD` is configured.
 3. Open `http://localhost:3000` (or `http://localhost:<PORT>` if `PORT` or `HOST_PORT` is customized).
-   Default login:
+   Initial login:
    ```text
    email:    admin@mimin.local
-   password: admin123
+   password: the value of SEED_PASSWORD
    ```
-   (Set `SEED_PASSWORD` in `.env` to override the initial password).
+   After the first successful bootstrap, set `AUTO_SEED=false` and remove `SEED_PASSWORD` from the runtime environment.
 4. Stop the services:
    ```bash
    docker compose down
@@ -136,9 +139,9 @@ To self-host the entire stack (PostgreSQL + Mimin WebUI) using Docker Compose:
 ## Local setup
 
 ```bash
-git clone git@github.com:Fadhil-Sabar/mimin-webui.git
+git clone https://github.com/Fadhil-Sabar/mimin-webui.git
 cd mimin-webui
-npm install
+npm ci --legacy-peer-deps
 cp .env.example .env
 ```
 
@@ -223,14 +226,14 @@ silently restoring a privacy grant. For multi-instance deployments, a grant give
 is not visible to another, so keep chat, consent, and browser-result traffic on the same instance
 (the same sticky routing the pending-request broker already requires).
 
-The seed script creates a default account:
+The seed script requires an explicit, non-default `SEED_PASSWORD` and creates an initial account:
 
 ```text
 email:    admin@mimin.local
-password: admin123
+password: the value of SEED_PASSWORD
 ```
 
-Set `SEED_PASSWORD` in the environment before running `npm run db:seed` to override the default password.
+Set `SEED_PASSWORD` in the environment before running `npm run db:seed`. The password is never printed to logs.
 
 Stop the local database with:
 
@@ -544,18 +547,7 @@ npm run db:seed
 
 ## Verification
 
-The latest verified commands:
-
-```text
-npm test
-19 tests passed
-
-npm run check
-0 errors, 0 warnings
-
-npm run build
-success
-```
+The CI workflow runs type checking, formatting and linting, unit tests, disposable PostgreSQL/pgvector integration tests, production build, browser-extension validation, bundle budgets, container build, and dependency audit. Run the same checks described in [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 PostgreSQL and API smoke tests verified:
 
@@ -576,8 +568,14 @@ Provider settings       save/encrypt/mask/delete verified
 1. Add registration and password reset flows.
 2. Add durable background indexing for high-volume installations.
 3. Add web fetch with SSRF protection and connect citation persistence to normalized web sources.
-4. Add integration tests with disposable PostgreSQL.
-5. Add a managed deployment guide (the production build uses the Node adapter).
+4. Add deployment recipes for managed platforms; the current production guide targets the Node adapter and single-host Docker Compose.
+
+## Community and license
+
+- Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
+- Report vulnerabilities privately using [SECURITY.md](SECURITY.md).
+- Review [PRIVACY.md](PRIVACY.md) before operating a deployment for other users.
+- Mimin WebUI is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE). Network deployments of modified versions must offer their corresponding source to users.
 
 ## Indonesian documentation
 

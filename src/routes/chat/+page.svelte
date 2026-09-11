@@ -1694,9 +1694,9 @@
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">
-				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span>
+				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'U'}</span>
 				<div class="user-meta">
-					<strong>{user?.name ?? 'Fadhil'}</strong>
+					<strong>{user?.name ?? 'User'}</strong>
 					<small>Personal workspace</small>
 				</div>
 				<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">

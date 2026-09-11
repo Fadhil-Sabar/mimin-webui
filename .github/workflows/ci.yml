@@ -48,7 +48,11 @@ jobs:
           DATABASE_URL: postgres://mimin:mimin@127.0.0.1:5432/mimin_test
       - name: Build
         run: npm run build
+      - name: Validate Firefox extension
+        run: npm run extension:validate
       - name: Check bundle budget
         run: npm run bundle:budget
+      - name: Build production container
+        run: docker build -t mimin-webui:ci .
       - name: Dependency audit
         run: npm audit --audit-level=high

@@ -2,6 +2,15 @@
 	"name": "mimin-webui",
 	"private": true,
 	"version": "0.1.0",
+	"license": "AGPL-3.0-or-later",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Fadhil-Sabar/mimin-webui.git"
+	},
+	"bugs": {
+		"url": "https://github.com/Fadhil-Sabar/mimin-webui/issues"
+	},
+	"homepage": "https://github.com/Fadhil-Sabar/mimin-webui#readme",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -56,6 +65,7 @@
 		"@earendil-works/pi-ai": "^0.84.4",
 		"@lucide/svelte": "^1.38.0",
 		"@napi-rs/canvas": "^1.0.8",
+		"@opentelemetry/api": "^1.9.1",
 		"@types/prismjs": "^1.26.6",
 		"better-auth": "^1.7.2",
 		"dotenv": "^16.6.1",

@@ -2,6 +2,8 @@
 
 Mimin WebUI adalah workspace AI agent berbasis project. Aplikasi ini menggabungkan chat, project knowledge, model discovery, tool execution, dan persistent conversation dalam satu antarmuka minimal.
 
+[Dokumentasi](#requirements) · [Kontribusi](CONTRIBUTING.md) · [Keamanan](SECURITY.md) · [Privasi](PRIVACY.md) · [Lisensi](LICENSE)
+
 Frontend menggunakan **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, dan **Lucide**. Backend berjalan di SvelteKit server routes dengan **PostgreSQL**, **Drizzle ORM**, `@earendil-works/pi-agent-core`, dan `@earendil-works/pi-ai`.
 
 ## Status implementasi
@@ -106,18 +108,19 @@ Untuk melakukan self-host seluruh sistem (PostgreSQL + Mimin WebUI) menggunakan 
    ```bash
    cp .env.example .env
    ```
+   Ganti semua nilai `replace-with-...`. Gunakan perintah pembuat secret yang terdokumentasi di [`docs/deployment.md`](docs/deployment.md).
 2. Jalankan seluruh aplikasi:
    ```bash
    docker compose up -d --build
    ```
-   Container akan otomatis menunggu kesiapan PostgreSQL, menerapkan migrasi database, dan membuat akun admin default.
+   Container menunggu PostgreSQL, menerapkan migrasi, dan hanya membuat admin awal ketika `AUTO_SEED=true` serta `SEED_PASSWORD` non-default sudah diatur.
 3. Buka `http://localhost:3000` (atau port yang disesuaikan pada `PORT` / `HOST_PORT`).
-   Login default:
+   Login awal:
    ```text
    email:    admin@mimin.local
-   password: admin123
+   password: nilai SEED_PASSWORD
    ```
-   (Atur `SEED_PASSWORD` di `.env` jika ingin mengubah password awal).
+   Setelah bootstrap berhasil, atur `AUTO_SEED=false` dan hapus `SEED_PASSWORD` dari environment runtime.
 4. Menghentikan service:
    ```bash
    docker compose down
@@ -127,9 +130,9 @@ Untuk melakukan self-host seluruh sistem (PostgreSQL + Mimin WebUI) menggunakan 
 ## Setup lokal
 
 ```bash
-git clone git@github.com:Fadhil-Sabar/mimin-webui.git
+git clone https://github.com/Fadhil-Sabar/mimin-webui.git
 cd mimin-webui
-npm install
+npm ci --legacy-peer-deps
 cp .env.example .env
 ```
 
@@ -413,18 +416,9 @@ npm run db:migrate
 npm run db:seed
 ```
 
-## Verification terakhir
+## Verifikasi
 
-```text
-npm test
-19 tests passed
-
-npm run check
-0 errors, 0 warnings
-
-npm run build
-success
-```
+Workflow CI menjalankan type checking, format dan lint, unit test, integration test PostgreSQL/pgvector disposable, production build, validasi extension, bundle budget, container build, serta dependency audit. Sebelum membuka pull request, jalankan pemeriksaan yang tercantum di [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Smoke-test PostgreSQL dan API:
 
@@ -442,10 +436,14 @@ Lihat [README.md](README.md).
 
 ## Limitasi dan next steps
 
-1. Tambahkan authentication dan ownership filter ke semua query.
-2. Tambahkan antrean indexing untuk instalasi berskala besar.
-3. Implementasikan adapter web search dan web fetch dengan SSRF protection.
-4. Perluas persistence sitasi ke sumber web.
-5. Migrasikan project overview dan chat history sepenuhnya ke shared API state.
-6. Tambahkan integration test dengan disposable PostgreSQL.
-7. Tambahkan deployment adapter eksplisit, seperti Node atau Cloudflare.
+1. Tambahkan registration dan password reset.
+2. Tambahkan antrean indexing durable untuk instalasi berskala besar.
+3. Tambahkan web fetch dengan SSRF protection dan persistence sitasi sumber web.
+4. Tambahkan resep deployment untuk platform managed; panduan saat ini menargetkan Node adapter dan Docker Compose satu host.
+
+## Komunitas dan lisensi
+
+- Kontribusi terbuka. Baca [CONTRIBUTING.md](CONTRIBUTING.md) dan [Code of Conduct](CODE_OF_CONDUCT.md).
+- Laporkan kerentanan secara privat melalui [SECURITY.md](SECURITY.md).
+- Baca [PRIVACY.md](PRIVACY.md) sebelum mengoperasikan deployment untuk pengguna lain.
+- Mimin WebUI menggunakan [GNU Affero General Public License v3.0 atau versi setelahnya](LICENSE). Deployment network dari versi modifikasi wajib menawarkan corresponding source kepada pengguna.

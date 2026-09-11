@@ -80,7 +80,8 @@
 			>
 		</form>
 		<p class="hint">
-			Default local account: <code>admin@mimin.local</code> / <code>admin123</code>
+			Initial local account: <code>admin@mimin.local</code>. The password is configured with
+			<code>SEED_PASSWORD</code> during bootstrap.
 		</p>
 	</div>
 </div>

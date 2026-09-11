@@ -314,7 +314,7 @@
 		</div>
 		<div class="sidebar-bottom">
 			<div class="user-row">
-				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span>
+				<span class="avatar">{user?.name?.[0]?.toUpperCase() ?? 'U'}</span>
 				<div class="user-meta">
 					<strong>{user?.name ?? 'User'}</strong>
 					<small>Personal workspace</small>
@@ -340,7 +340,7 @@
 				</div>
 			</div>
 			<div class="top-actions">
-				<ThemeToggle /><span class="avatar avatar-top">{user?.name?.[0]?.toUpperCase() ?? 'F'}</span
+				<ThemeToggle /><span class="avatar avatar-top">{user?.name?.[0]?.toUpperCase() ?? 'U'}</span
 				>
 			</div>
 		</header>
