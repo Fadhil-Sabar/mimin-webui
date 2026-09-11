@@ -295,21 +295,35 @@ describe('web search', () => {
 	});
 
 	it('names the missing JSON API when a SearXNG instance answers with HTML', async () => {
-		const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) =>
-			String(url).includes('searx')
-				? new Response('<!doctype html><html></html>', {
-						status: 200,
-						headers: { 'content-type': 'text/html' }
-					})
-				: new Response(JSON.stringify({ query: { search: [] } }), { status: 200 })
-		);
+		const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			const target = new URL(String(url));
+			if (target.hostname === 'searx.example.com') {
+				return new Response('<!doctype html><html></html>', {
+					status: 200,
+					headers: { 'content-type': 'text/html' }
+				});
+			}
+			if (target.hostname === 'html.duckduckgo.com') return new Response('', { status: 202 });
+			if (target.hostname === 'cloudflare-dns.com' || target.hostname === 'dns.google') {
+				return new Response(JSON.stringify({ Answer: [{ type: 1, data: '20.43.161.105' }] }), {
+					status: 200
+				});
+			}
+			if (target.hostname === 'en.wikipedia.org') {
+				return new Response(JSON.stringify({ query: { search: [] } }), { status: 200 });
+			}
+			throw new Error(`Unexpected URL: ${target.href}`);
+		});
+		stubHttpsRequest(202, '');
 
 		await expect(
 			searchWeb({ query: 'searx html instance' }, undefined, {
 				searchUrl: 'https://searx.example.com/search',
 				provider: 'searxng'
 			})
-		).rejects.toThrow(/JSON API/);
+		).rejects.toMatchObject({
+			diagnostics: expect.arrayContaining([expect.stringMatching(/SearXNG: .*JSON API/)])
+		});
 		expect(fetchMock).toHaveBeenCalled();
 	});
 
