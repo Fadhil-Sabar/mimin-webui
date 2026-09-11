@@ -29,12 +29,50 @@ export type PendingBrowserAction = {
 };
 
 /**
+ * `tab` and `google` are heavily overloaded words. A routing guess built on them has to ignore
+ * the senses that cannot mean a browser tab or a Google web search, or an ordinary question
+ * ("the tab key in vim", "google drive") reads as an explicit browser request.
+ */
+const NON_BROWSER_TAB_SENSE =
+	/\btabs?\b(?:\s*[-–]\s*(?:separated|delimited)\b|\s+(?:key|keys|character|characters|char|stop|stops|order|ordering|separator|separated|delimited|width|size|index|completion|focus|spacing|escape|bar|button|press|presses)\b|\s+(?:is|are|was|were)\s+(?:broken|missing|stuck|greyed|grayed|disabled|unavailable)\b)/gi;
+
+/** Product destinations that are not Google Search, even though the prompt says "google". */
+const GOOGLE_PRODUCT =
+	/\bgoogle\s+(?:drive|docs|sheets|slides|mail|gmail|maps|photos|translate|cloud|analytics|ads|workspace|forms|calendar|meet|classroom|earth|play|fonts|books|keep|chat)\b/gi;
+
+/**
+ * A clause the user negated ("jangan pakai google", "don't search on Google") must not be read
+ * as a request. "jangan lupa" / "don't forget" are politeness, not negation, so they are kept.
+ */
+const NEGATION_CUE =
+	/\b(?:jangan|bukan|tanpa|tidak|nggak|gak|don'?t|doesn'?t|do not|does not|no need to|without|never|avoid|instead of|rather than)\b/i;
+
+function stripNegatedClauses(text: string) {
+	return text
+		.replace(/\bjangan\s+lupa\b/gi, ' ')
+		.replace(/\bdon'?t\s+forget\b/gi, ' ')
+		.split(/(?<=[.!?,;:\n])\s+|\s+(?:but|tapi|tetapi|melainkan|namun)\s+/i)
+		.map((clause) => (NEGATION_CUE.test(clause) ? ' ' : clause))
+		.join(' ');
+}
+
+/** Drop `tab` mentions that can only mean the keyboard key, a separator, or a spreadsheet tab. */
+function stripNonBrowserTabSense(text: string) {
+	return text.replace(NON_BROWSER_TAB_SENSE, ' ');
+}
+
+/** Drop `google <product>` mentions; "cari di google drive" is not a Google web search. */
+function stripGoogleProducts(text: string) {
+	return text.replace(GOOGLE_PRODUCT, ' ');
+}
+
+/**
  * Deterministically detect whether the user prompt requests an explicit browser action.
  * Conservative: general research/search queries default to 'none' (web_search).
  */
 export function detectBrowserIntent(prompt: string): BrowserIntent {
-	const text = prompt.trim();
-	if (!text) return { type: 'none' };
+	const text = stripNegatedClauses(prompt.trim());
+	if (!text.trim()) return { type: 'none' };
 
 	// 1. Explicit Google Scholar search
 	const hasScholar = /\b(?:google\s+scholar|scholar)\b/i.test(text);
@@ -57,29 +95,30 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 		}
 	}
 
-	// 2. Explicit Google search
-	const hasGoogle = /\b(?:google|googling|google-kan|men-?google)\b/i.test(text);
+	// 2. Explicit Google search. Google Drive/Docs/Maps/... are products, not the search engine.
+	const googleText = stripGoogleProducts(text);
+	const hasGoogle = /\b(?:google|googling|google-kan|men-?google)\b/i.test(googleText);
 	if (hasGoogle) {
 		const isGoogleDefinitionalOnly =
 			/^(?:apa\s+itu|what\s+is|who\s+is|siapa\s+ceo\s+|who\s+founded\s+|jelaskan\s+(?:tentang\s+)?|explain\s+)google\??$/i.test(
-				text
+				googleText
 			);
 		if (!isGoogleDefinitionalOnly) {
 			const hasGoogleAction =
-				/^(?:google|google\s+search)$/i.test(text) ||
-				/\bgoogle\s+search\b/i.test(text) ||
+				/^(?:google|google\s+search)$/i.test(googleText) ||
+				/\bgoogle\s+search\b/i.test(googleText) ||
 				/\b(?:cari|search|find|lookup|look\s+up|temukan|research)\b.*\b(?:di|on|in|via|lewat|using|pakai|through)\s+google\b/i.test(
-					text
+					googleText
 				) ||
 				/\b(?:di|on|in|via|lewat|using|pakai|through)\s+google\b.*\b(?:cari|search|find|lookup|look\s+up|temukan)\b/i.test(
-					text
+					googleText
 				) ||
-				/\b(?:buka|open)\s+google\s+(?:dan|and)\s+(?:cari|search|find)\b/i.test(text) ||
-				/\bgoogle\s+(?:dan|and)\s+(?:cari|search|find)\b/i.test(text) ||
-				/\bsearch\s+(?:this\s+)?on\s+google\b/i.test(text) ||
-				/\bgoogle\s*:\s*\S+/i.test(text) ||
-				/\bgoogle\s+(?:tentang|about|for)\b/i.test(text) ||
-				/\b(?:googling|google-kan|men-?google)\b/i.test(text);
+				/\b(?:buka|open)\s+google\s+(?:dan|and)\s+(?:cari|search|find)\b/i.test(googleText) ||
+				/\bgoogle\s+(?:dan|and)\s+(?:cari|search|find)\b/i.test(googleText) ||
+				/\bsearch\s+(?:this\s+)?on\s+google\b/i.test(googleText) ||
+				/\bgoogle\s*:\s*\S+/i.test(googleText) ||
+				/\bgoogle\s+(?:tentang|about|for)\b/i.test(googleText) ||
+				/\b(?:googling|google-kan|men-?google)\b/i.test(googleText);
 
 			if (hasGoogleAction) {
 				return { type: 'google-search' };
@@ -89,7 +128,9 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 
 	// 3. Explicit browser open / navigation
 	const hasUrl = /https?:\/\/[^\s<>"')]+/i.test(text);
-	const hasBrowserOrTab = /\b(?:browser|tab)\b/i.test(text);
+	// "the tab key", "tab-separated", "tab order" cannot be a browser tab.
+	const tabText = stripNonBrowserTabSense(text);
+	const hasBrowserOrTab = /\bbrowser\b/i.test(text) || /\btabs?\b/i.test(tabText);
 	const hasOpenAction =
 		/\b(?:buka|open|read|baca|visit|kunjungi|navigate|browse|lihat|view)\b/i.test(text);
 
@@ -102,17 +143,17 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 
 	if (hasBrowserOrTab) {
 		const hasExplicitPageOrTabAction =
-			/\b(?:buka|open)\s+(?:tab|halaman|page|url|link)\b/i.test(text) ||
+			/\b(?:buka|open)\s+(?:tab|halaman|page|url|link)\b/i.test(tabText) ||
 			/\b(?:buka|open|read|baca)\s+(?:this\s+|ini\s+)?(?:di|in|lewat|via)\s+(?:browser|tab)\b/i.test(
-				text
+				tabText
 			) ||
 			/\b(?:open|buka)\s+(?:this\s+)?(?:url|link|page|halaman)\s+(?:in|di|lewat)\s+(?:browser|tab)\b/i.test(
-				text
+				tabText
 			) ||
 			/\b(?:baca\s+halaman\s+(?:ini\s+)?lewat\s+browser|read\s+this\s+page\s+(?:via|in|through)\s+browser)\b/i.test(
-				text
+				tabText
 			) ||
-			/\b(?:buka\s+tab|open\s+tab)\b/i.test(text);
+			/\b(?:buka\s+tab|open\s+tab)\b/i.test(tabText);
 
 		if (hasExplicitPageOrTabAction) {
 			return { type: 'browser-open' };
@@ -122,12 +163,12 @@ export function detectBrowserIntent(prompt: string): BrowserIntent {
 	// 4. Explicit reference to an already-open tab the user wants read or operated
 	// (e.g. "baca tab ini", "klik login di tab saya"). Opening a tab stays browser-open.
 	if (hasBrowserOrTab) {
-		const opensNewTab = /\b(?:buka|open|new|baru)\s+(?:\w+\s+){0,2}?tabs?\b/i.test(text);
+		const opensNewTab = /\b(?:buka|open|new|baru)\s+(?:\w+\s+){0,2}?tabs?\b/i.test(tabText);
 		const referencesOwnTab =
-			/\btabs?\s+(?:ini|itu|saya|ku|yang\s+(?:terbuka|aktif|sedang)|tersebut)\b/i.test(text) ||
-			/\b(?:this|current|the|my|active|other)\s+(?:\w+\s+){0,2}?tabs?\b/i.test(text) ||
+			/\btabs?\s+(?:ini|itu|saya|ku|yang\s+(?:terbuka|aktif|sedang)|tersebut)\b/i.test(tabText) ||
+			/\b(?:this|current|the|my|active|other)\s+(?:\w+\s+){0,2}?tabs?\b/i.test(tabText) ||
 			/\b(?:baca|read|lihat|view|cek|check|klik|click|isi|type|interact|kerjakan|gunakan|use|akses|access)\b[^.!?\n]{0,40}\btabs?\b/i.test(
-				text
+				tabText
 			);
 		if (referencesOwnTab && !opensNewTab) {
 			return { type: 'browser-tab' };
@@ -204,31 +245,21 @@ export function getPendingBrowserActionInstruction(action: PendingBrowserAction)
  */
 export function resolveTurnToolGating(options: TurnToolGatingOptions): ToolRouting {
 	const browserIntent = detectBrowserIntent(options.prompt);
+	const browserRequested = browserIntent.type !== 'none';
 
 	if (!options.browserBridgeEnabled) {
-		switch (browserIntent.type) {
-			case 'google-search':
-			case 'scholar-search':
-			case 'browser-open':
-			case 'browser-tab':
-				return {
-					browserIntent,
-					exposeWebSearch: false,
-					exposeBrowserSearch: false,
-					exposeBrowserOpen: false,
-					exposeBrowserTabs: false,
-					blockedReason: 'browser_bridge_unavailable'
-				};
-			case 'none':
-			default:
-				return {
-					browserIntent,
-					exposeWebSearch: options.hasWebSearch,
-					exposeBrowserSearch: false,
-					exposeBrowserOpen: false,
-					exposeBrowserTabs: false
-				};
-		}
+		// Browser tools cannot run without a connected bridge, so they stay hidden. But intent
+		// detection is a keyword guess and must never be the reason a turn fails: a false
+		// positive on "tab" or "google" would otherwise reject an ordinary question. Degrade to
+		// web_search and let the model explain the missing bridge in its own words.
+		return {
+			browserIntent,
+			exposeWebSearch: options.hasWebSearch,
+			exposeBrowserSearch: false,
+			exposeBrowserOpen: false,
+			exposeBrowserTabs: false,
+			...(browserRequested ? { blockedReason: 'browser_bridge_unavailable' as const } : {})
+		};
 	}
 
 	return {
@@ -257,4 +288,29 @@ export function getTurnRoutingInstruction(intent: BrowserIntent): string | null 
 		default:
 			return null;
 	}
+}
+
+/**
+ * Soft instruction used instead of failing the turn when browser intent is detected but no
+ * bridge is connected. Intent is a keyword guess, so the model is told it may be wrong and is
+ * left to answer the actual request.
+ */
+export function getBrowserUnavailableInstruction(intent: BrowserIntent): string | null {
+	if (intent.type === 'none') return null;
+
+	const requested =
+		intent.type === 'google-search'
+			? 'Google Search through their browser'
+			: intent.type === 'scholar-search'
+				? 'Google Scholar through their browser'
+				: intent.type === 'browser-tab'
+					? 'access to one of their open browser tabs'
+					: 'browser navigation';
+
+	return [
+		`The request mentions ${requested}, but the Mimin Browser Bridge is not connected, so no browser tool is available in this turn.`,
+		'Do not claim to have used a browser or to have seen any page or tab.',
+		'This detection is keyword-based and may be wrong: if the request does not actually need a browser, just answer it normally.',
+		'Otherwise say plainly that the bridge is not connected and that it can be enabled from Settings > Browser Extension, then offer what you can still do with web_search.'
+	].join(' ');
 }

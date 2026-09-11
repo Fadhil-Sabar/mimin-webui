@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	detectBrowserIntent,
+	getBrowserUnavailableInstruction,
 	getPendingBrowserAction,
 	getPendingBrowserActionInstruction,
 	getTurnRoutingInstruction,
@@ -136,6 +137,75 @@ describe('detectBrowserIntent', () => {
 		});
 		expect(detectBrowserIntent('open a new tab')).not.toEqual({ type: 'browser-tab' });
 	});
+
+	it('does not read the non-browser senses of "tab" as browser intent', () => {
+		const queries = [
+			'how do I use the tab key in vim?',
+			'what does the tab character mean in YAML?',
+			'read the tab-separated file please',
+			'my tab is broken in the spreadsheet',
+			'explain the tab order in HTML forms',
+			'set the tab width to four spaces',
+			'what is a tab stop in typography?'
+		];
+		for (const q of queries) {
+			expect(detectBrowserIntent(q), `Query: "${q}"`).toEqual({ type: 'none' });
+		}
+	});
+
+	it('does not treat Google products as Google Search', () => {
+		const queries = [
+			'cari di google drive file laporan',
+			'open google docs and find the budget',
+			'share the google sheet with me',
+			'check my google calendar for tomorrow',
+			'translate this with google translate'
+		];
+		for (const q of queries) {
+			expect(detectBrowserIntent(q), `Query: "${q}"`).toEqual({ type: 'none' });
+		}
+	});
+
+	it('ignores negated clauses but keeps the request around them', () => {
+		const negated = [
+			'jangan pakai google, cari pakai web search biasa',
+			"don't search on google, just answer from your knowledge",
+			'jangan baca tab saya, itu privat',
+			'tanpa google, jelaskan tentang WebMCP'
+		];
+		for (const q of negated) {
+			expect(detectBrowserIntent(q), `Query: "${q}"`).toEqual({ type: 'none' });
+		}
+
+		// Only the negated clause is dropped; the rest of the prompt still routes.
+		expect(detectBrowserIntent('cari di google, bukan di bing')).toEqual({
+			type: 'google-search'
+		});
+		// "jangan lupa" is politeness, not negation.
+		expect(detectBrowserIntent('tolong jangan lupa cari di google ya')).toEqual({
+			type: 'google-search'
+		});
+	});
+
+	it('never lets keyword routing withhold web_search when the bridge is unavailable', () => {
+		const routingRisks = [
+			'how do I use the tab key in vim?',
+			'read the tab-separated file please',
+			'cari di google drive file laporan',
+			"don't search on google",
+			'jangan baca tab saya',
+			'explain the tab order in HTML forms'
+		];
+		for (const prompt of routingRisks) {
+			const gating = resolveTurnToolGating({
+				prompt,
+				browserBridgeEnabled: false,
+				hasWebSearch: true
+			});
+			expect(gating.exposeWebSearch, `Prompt: "${prompt}"`).toBe(true);
+			expect(gating.blockedReason, `Prompt: "${prompt}"`).toBeUndefined();
+		}
+	});
 });
 
 describe('resolveTurnToolGating', () => {
@@ -194,7 +264,7 @@ describe('resolveTurnToolGating', () => {
 		expect(gating.exposeBrowserOpen).toBe(true);
 	});
 
-	it('blocks explicit browser intent and never falls back to web_search when bridge is unavailable', () => {
+	it('degrades explicit browser intent to web_search when the bridge is unavailable', () => {
 		const blockedQueries = [
 			'cari di Google tentang OpenAI',
 			'cari di Google tentang WebMCP',
@@ -212,7 +282,10 @@ describe('resolveTurnToolGating', () => {
 			});
 			expect(gating.exposeBrowserSearch, `Prompt: "${prompt}"`).toBe(false);
 			expect(gating.exposeBrowserOpen, `Prompt: "${prompt}"`).toBe(false);
-			expect(gating.exposeWebSearch, `Prompt: "${prompt}"`).toBe(false);
+			expect(gating.exposeBrowserTabs, `Prompt: "${prompt}"`).toBe(false);
+			// Intent detection is a keyword guess, so it must never fail the turn or hide
+			// web_search; the model explains the missing bridge instead.
+			expect(gating.exposeWebSearch, `Prompt: "${prompt}"`).toBe(true);
 			expect(gating.blockedReason, `Prompt: "${prompt}"`).toBe('browser_bridge_unavailable');
 		}
 
@@ -306,7 +379,7 @@ describe('resolveTurnToolGating', () => {
 		expect(tabIntent.exposeBrowserOpen).toBe(true);
 	});
 
-	it('blocks tab intent without falling back to web_search when the bridge is unavailable', () => {
+	it('degrades tab intent to web_search when the bridge is unavailable', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'baca tab ini',
 			browserBridgeEnabled: false,
@@ -315,7 +388,7 @@ describe('resolveTurnToolGating', () => {
 		expect(gating.exposeBrowserTabs).toBe(false);
 		expect(gating.exposeBrowserOpen).toBe(false);
 		expect(gating.exposeBrowserSearch).toBe(false);
-		expect(gating.exposeWebSearch).toBe(false);
+		expect(gating.exposeWebSearch).toBe(true);
 		expect(gating.blockedReason).toBe('browser_bridge_unavailable');
 	});
 });
@@ -396,5 +469,16 @@ describe('getTurnRoutingInstruction', () => {
 		);
 		expect(getTurnRoutingInstruction({ type: 'browser-tab' })).toContain('browser_read_tab');
 		expect(getTurnRoutingInstruction({ type: 'none' })).toBeNull();
+	});
+});
+
+describe('getBrowserUnavailableInstruction', () => {
+	it('names the bridge and admits the detection may be wrong', () => {
+		const instruction = getBrowserUnavailableInstruction({ type: 'browser-tab' });
+		expect(instruction).toContain('Browser Bridge is not connected');
+		expect(instruction).toContain('may be wrong');
+		expect(instruction).toContain('Do not claim to have used a browser');
+		expect(instruction).toContain('web_search');
+		expect(getBrowserUnavailableInstruction({ type: 'none' })).toBeNull();
 	});
 });

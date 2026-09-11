@@ -37,6 +37,7 @@ import {
 import { createAskQuestionTool } from './tools/question.tool';
 import { createCreateSkillTool } from './tools/skill.tool';
 import {
+	getBrowserUnavailableInstruction,
 	getPendingBrowserAction,
 	getPendingBrowserActionInstruction,
 	getTurnRoutingInstruction,
@@ -445,10 +446,6 @@ export async function runConversationTurn(
 		});
 	}
 
-	if (toolGating.blockedReason === 'browser_bridge_unavailable') {
-		throw new Error('BROWSER_BRIDGE_REQUIRED');
-	}
-
 	const browserContext: BrowserBridgeContext | null = effectiveUserId
 		? { userId: effectiveUserId, conversationId, turnToken }
 		: null;
@@ -494,7 +491,12 @@ export async function runConversationTurn(
 			: [])
 	];
 	let pendingToolFailureNotice: string | null = null;
-	const routingInstruction = getTurnRoutingInstruction(toolGating.browserIntent);
+	// Browser routing only applies when a bridge can serve it. Without one, the turn degrades to
+	// web_search with a note instead of failing on a keyword guess.
+	const routingInstruction =
+		toolGating.blockedReason === 'browser_bridge_unavailable'
+			? getBrowserUnavailableInstruction(toolGating.browserIntent)
+			: getTurnRoutingInstruction(toolGating.browserIntent);
 	let systemPrompt = buildUserSystemPrompt(AGENT_SYSTEM_PROMPT, userInstructions);
 	systemPrompt = buildProjectSystemPrompt(systemPrompt, project?.instructions);
 	systemPrompt = buildSkillSystemPrompt(systemPrompt, turnSkillSnapshot);
