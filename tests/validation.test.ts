@@ -37,7 +37,7 @@ describe('request validation', () => {
 		expect(parsed).toMatchObject({
 			projectId: null,
 			model: 'openai/gpt-4o-mini',
-			enabledTools: ['web_search']
+			enabledTools: ['web_search', 'web_fetch']
 		});
 		expect(
 			conversationInput.safeParse({

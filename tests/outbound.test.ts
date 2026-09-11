@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { assertAllowedOutboundUrl } from '../src/lib/server/outbound';
+import {
+	assertAllowedOutboundUrl,
+	isPrivateAddress,
+	isPrivateHostname
+} from '../src/lib/server/outbound';
 import {
 	fetchCustomProviderModels,
 	fetchProviderModels
@@ -8,6 +12,51 @@ import {
 vi.mock('$env/dynamic/private', () => ({ env: {} }));
 
 afterEach(() => vi.unstubAllEnvs());
+
+describe('private address classification', () => {
+	it.each([
+		'127.0.0.1',
+		'127.255.255.254',
+		'10.0.0.1',
+		'192.168.1.1',
+		'172.16.0.1',
+		'172.31.255.255',
+		'169.254.169.254',
+		'100.64.0.1',
+		'100.127.255.255',
+		'0.0.0.0',
+		'::1',
+		'::',
+		'::ffff:127.0.0.1',
+		'fd00::1',
+		'fc00::1',
+		'fe80::1'
+	])('treats %s as private', (address) => {
+		expect(isPrivateAddress(address)).toBe(true);
+	});
+
+	it.each([
+		'93.184.216.34',
+		'172.15.0.1',
+		'172.32.0.1',
+		'100.63.255.255',
+		'100.128.0.1',
+		'2606:2800:220:1:248:1893:25c8:1946'
+	])('treats %s as public', (address) => {
+		expect(isPrivateAddress(address)).toBe(false);
+	});
+
+	it.each(['localhost', 'api.localhost', 'wiki.local', 'db.internal'])(
+		'treats %s as local',
+		(name) => {
+			expect(isPrivateHostname(name)).toBe(true);
+		}
+	);
+
+	it('accepts a public hostname', () => {
+		expect(isPrivateHostname('example.com')).toBe(false);
+	});
+});
 
 describe('outbound endpoint policy', () => {
 	it.each([

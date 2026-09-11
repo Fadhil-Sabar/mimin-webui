@@ -120,6 +120,13 @@
 			"when": 1788841667215,
 			"tag": "0016_fenced_document_leases",
 			"breakpoints": true
+		},
+		{
+			"idx": 17,
+			"version": "7",
+			"when": 1789142954484,
+			"tag": "0017_bitter_yellowjacket",
+			"breakpoints": true
 		}
 	]
 }

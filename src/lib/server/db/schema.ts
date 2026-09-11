@@ -169,7 +169,7 @@ export const conversations = pgTable(
 		enabledTools: jsonb('enabled_tools')
 			.$type<string[]>()
 			.notNull()
-			.default(sql`'["web_search"]'::jsonb`),
+			.default(sql`'["web_search","web_fetch"]'::jsonb`),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},

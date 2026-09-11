@@ -25,6 +25,49 @@ export class OutboundUrlError extends Error {
 	}
 }
 
+/**
+ * Loopback, link-local (cloud metadata), and private-range addresses. A public HTTPS URL is
+ * otherwise allowed automatically, so this is what keeps a model-chosen fetch away from the
+ * server's own network and the host's metadata service.
+ */
+export function isPrivateAddress(value: string) {
+	const host = value
+		.toLowerCase()
+		.replace(/^\[|\]$/g, '')
+		.replace(/\.$/, '');
+	return (
+		host === '0.0.0.0' ||
+		host === '::' ||
+		host === '::1' ||
+		host.startsWith('127.') ||
+		host.startsWith('10.') ||
+		host.startsWith('192.168.') ||
+		/^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+		host.startsWith('169.254.') ||
+		/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host) ||
+		/^::ffff:(?:127\.|10\.|192\.168\.|169\.254\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|172\.(?:1[6-9]|2\d|3[0-1])\.)/.test(
+			host
+		) ||
+		/^(fc|fd)[0-9a-f]{2}:/i.test(host) ||
+		/^fe8[0-9a-f]:/i.test(host)
+	);
+}
+
+/** Names that only resolve inside a host, a local network, or a cloud metadata service. */
+export function isPrivateHostname(value: string) {
+	const hostname = value
+		.toLowerCase()
+		.replace(/^\[|\]$/g, '')
+		.replace(/\.$/, '');
+	return (
+		hostname === 'localhost' ||
+		hostname.endsWith('.localhost') ||
+		hostname.endsWith('.local') ||
+		hostname.endsWith('.internal') ||
+		isPrivateAddress(hostname)
+	);
+}
+
 function configuredOrigins() {
 	const values = [
 		process.env.OUTBOUND_ALLOWED_ORIGINS,

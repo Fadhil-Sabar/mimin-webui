@@ -1,0 +1,1 @@
+ALTER TABLE "conversations" ALTER COLUMN "enabled_tools" SET DEFAULT '["web_search","web_fetch"]'::jsonb;

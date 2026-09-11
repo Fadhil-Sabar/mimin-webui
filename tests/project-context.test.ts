@@ -9,6 +9,7 @@ describe('project conversation context', () => {
 	it('enables project knowledge for project conversations without duplicates', () => {
 		expect(getProjectConversationTools('project-id')).toEqual([
 			'web_search',
+			'web_fetch',
 			PROJECT_KNOWLEDGE_TOOL
 		]);
 		expect(getProjectConversationTools('project-id', [PROJECT_KNOWLEDGE_TOOL])).toEqual([
@@ -28,8 +29,8 @@ describe('project conversation context', () => {
 		expect(
 			getProjectConversationTools(null, ['web_search', 'web_search', PROJECT_KNOWLEDGE_TOOL])
 		).toEqual(['web_search']);
-		expect(getProjectConversationTools(undefined)).toEqual(['web_search']);
-		expect(getProjectConversationTools('')).toEqual(['web_search']);
+		expect(getProjectConversationTools(undefined)).toEqual(['web_search', 'web_fetch']);
+		expect(getProjectConversationTools('')).toEqual(['web_search', 'web_fetch']);
 	});
 
 	it('adds project instructions while preserving the base prompt', () => {

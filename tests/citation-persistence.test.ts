@@ -230,6 +230,7 @@ vi.mock('../src/lib/server/ai/tool-routing', () => ({
 	resolveTurnToolGating: vi.fn(() => ({
 		browserIntent: { type: 'none' },
 		exposeWebSearch: false,
+		exposeWebFetch: false,
 		exposeBrowserSearch: false,
 		exposeBrowserOpen: false,
 		blockedReason: null

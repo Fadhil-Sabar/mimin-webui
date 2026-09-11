@@ -8,6 +8,7 @@ export type BrowserIntent =
 export type ToolRouting = {
 	browserIntent: BrowserIntent;
 	exposeWebSearch: boolean;
+	exposeWebFetch: boolean;
 	exposeBrowserSearch: boolean;
 	exposeBrowserOpen: boolean;
 	exposeBrowserTabs: boolean;
@@ -194,6 +195,7 @@ export type TurnToolGatingOptions = {
 	prompt: string;
 	browserBridgeEnabled: boolean;
 	hasWebSearch: boolean;
+	hasWebFetch: boolean;
 };
 
 /**
@@ -234,7 +236,7 @@ export function getPendingBrowserActionInstruction(action: PendingBrowserAction)
 		'A previous browser action is pending because the browser extension required host permission.',
 		`Pending action: ${action.toolName} ${JSON.stringify(action.input)}.`,
 		"Use the conversation to interpret the user's latest message. If it indicates that the permission blocker is resolved or asks to continue that browser task, retry the pending action with the same arguments. Otherwise, ignore the pending action.",
-		'Do not substitute web_search for a pending browser action.'
+		'Do not substitute web_search or web_fetch for a pending browser action.'
 	].join(' ');
 }
 
@@ -251,10 +253,11 @@ export function resolveTurnToolGating(options: TurnToolGatingOptions): ToolRouti
 		// Browser tools cannot run without a connected bridge, so they stay hidden. But intent
 		// detection is a keyword guess and must never be the reason a turn fails: a false
 		// positive on "tab" or "google" would otherwise reject an ordinary question. Degrade to
-		// web_search and let the model explain the missing bridge in its own words.
+		// the server-side tools and let the model explain the missing bridge in its own words.
 		return {
 			browserIntent,
 			exposeWebSearch: options.hasWebSearch,
+			exposeWebFetch: options.hasWebFetch,
 			exposeBrowserSearch: false,
 			exposeBrowserOpen: false,
 			exposeBrowserTabs: false,
@@ -265,6 +268,7 @@ export function resolveTurnToolGating(options: TurnToolGatingOptions): ToolRouti
 	return {
 		browserIntent,
 		exposeWebSearch: browserIntent.type === 'none' && options.hasWebSearch,
+		exposeWebFetch: browserIntent.type === 'none' && options.hasWebFetch,
 		exposeBrowserSearch: true,
 		exposeBrowserOpen: true,
 		exposeBrowserTabs: true
@@ -311,6 +315,7 @@ export function getBrowserUnavailableInstruction(intent: BrowserIntent): string 
 		`The request mentions ${requested}, but the Mimin Browser Bridge is not connected, so no browser tool is available in this turn.`,
 		'Do not claim to have used a browser or to have seen any page or tab.',
 		'This detection is keyword-based and may be wrong: if the request does not actually need a browser, just answer it normally.',
+		'If web_fetch is available and the request names a public URL, read that URL server-side instead, and say the page was read by the server and not in their browser.',
 		'Otherwise say plainly that the bridge is not connected and that it can be enabled from Settings > Browser Extension, then offer what you can still do with web_search.'
 	].join(' ');
 }

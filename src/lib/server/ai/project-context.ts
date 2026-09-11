@@ -7,7 +7,7 @@ export const PROJECT_KNOWLEDGE_TOOL = 'project_knowledge_search';
  */
 export function getProjectConversationTools(
 	projectId: string | null | undefined,
-	enabledTools: string[] = ['web_search']
+	enabledTools: string[] = ['web_search', 'web_fetch']
 ) {
 	const tools = [...new Set(enabledTools)].filter(
 		(tool) => projectId || tool !== PROJECT_KNOWLEDGE_TOOL

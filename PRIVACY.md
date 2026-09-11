@@ -14,6 +14,7 @@ Content may leave the Mimin server when a user or operator enables an external s
 
 - chat messages, conversation context, project instructions, skills, and attachment excerpts may be sent to the selected AI model provider
 - search queries may be sent to Tavily, SearXNG, DuckDuckGo, or another configured search service
+- when `web_fetch` reads a URL, the request comes from the Mimin server, so the page's operator sees the server's address rather than the user's browser
 - extracted project passages may be sent to the configured embedding provider when semantic indexing is enabled
 - browser-tool requests are executed in the user's browser extension after the applicable permission or conversation consent
 

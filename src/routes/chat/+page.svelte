@@ -17,6 +17,7 @@
 		Bot,
 		Check,
 		ChevronDown,
+		FileDown,
 		FileText,
 		FolderKanban,
 		Globe,
@@ -204,7 +205,7 @@
 			activeSkill: conversation.activeSkill ?? null,
 			title: conversation.title,
 			model: conversation.model ?? 'openai/gpt-4o-mini',
-			enabledTools: ['web_search', 'ask_question', 'create_skill'],
+			enabledTools: ['web_search', 'web_fetch', 'ask_question', 'create_skill'],
 			createdAt: conversation.createdAt ?? new Date().toISOString(),
 			updatedAt: conversation.updatedAt ?? new Date().toISOString(),
 			projectId: conversation.projectId,
@@ -462,6 +463,14 @@
 				query
 			};
 		}
+		if (toolName === 'web_fetch') {
+			const url = typeof rawInput.url === 'string' ? rawInput.url : undefined;
+			return {
+				label: 'Web Fetch',
+				action: url ? `Reading ${url}` : 'Reading page...',
+				query: url
+			};
+		}
 		if (toolName === 'ask_question') {
 			const qs = Array.isArray(rawInput.questions) ? rawInput.questions : [];
 			const qText =
@@ -584,6 +593,17 @@
 		}
 		if (toolCall.toolName === 'browser_open') {
 			return 'Page opened';
+		}
+		if (toolCall.toolName === 'web_fetch') {
+			const output =
+				toolCall.output && typeof toolCall.output === 'object'
+					? (toolCall.output as Record<string, unknown>)
+					: {};
+			const details =
+				output.details && typeof output.details === 'object'
+					? (output.details as Record<string, unknown>)
+					: undefined;
+			return details?.truncated === true ? 'Page read (truncated)' : 'Page read';
 		}
 		if (toolCall.toolName === 'browser_tabs') {
 			const output =
@@ -962,7 +982,7 @@
 			const model = defaultModel();
 			const conversation = await createConversation({
 				model: model ?? undefined,
-				enabledTools: ['web_search', 'ask_question', 'create_skill']
+				enabledTools: ['web_search', 'web_fetch', 'ask_question', 'create_skill']
 			});
 			if (conversation.model) {
 				setLastUsedModel(conversation.model);
@@ -1880,6 +1900,8 @@
 												<div class="tool-call-icon">
 													{#if toolCall.toolName === 'project_knowledge_search'}
 														<FolderKanban size={13} />
+													{:else if toolCall.toolName === 'web_fetch'}
+														<FileDown size={13} />
 													{:else if toolCall.toolName === 'web_search' || BROWSER_BRIDGE_TOOLS.has(toolCall.toolName)}
 														<Globe size={13} />
 													{:else if toolCall.toolName === 'create_skill'}

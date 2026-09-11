@@ -33,7 +33,7 @@ Self-hosters are responsible for:
 - restricting PostgreSQL and storage access
 - backing up PostgreSQL and uploaded files
 - keeping Node.js, container images, system OCR packages, and dependencies updated
-- reviewing outbound provider and search origins
+- reviewing outbound provider, search, and fetch origins
 - rotating credentials after suspected exposure
 
 See [`docs/deployment.md`](docs/deployment.md) for the production checklist.

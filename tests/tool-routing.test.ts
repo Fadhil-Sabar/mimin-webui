@@ -200,7 +200,8 @@ describe('detectBrowserIntent', () => {
 			const gating = resolveTurnToolGating({
 				prompt,
 				browserBridgeEnabled: false,
-				hasWebSearch: true
+				hasWebSearch: true,
+				hasWebFetch: false
 			});
 			expect(gating.exposeWebSearch, `Prompt: "${prompt}"`).toBe(true);
 			expect(gating.blockedReason, `Prompt: "${prompt}"`).toBeUndefined();
@@ -213,10 +214,34 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'cari berita terbaru OpenAI',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: true
 		});
 		expect(gating.exposeWebSearch).toBe(true);
+		expect(gating.exposeWebFetch).toBe(true);
 		expect(gating.exposeBrowserSearch).toBe(true);
+		expect(gating.exposeBrowserOpen).toBe(true);
+	});
+
+	it('exposes web_fetch alone when web_search is switched off', () => {
+		const gating = resolveTurnToolGating({
+			prompt: 'baca https://example.com/docs',
+			browserBridgeEnabled: false,
+			hasWebSearch: false,
+			hasWebFetch: true
+		});
+		expect(gating.exposeWebSearch).toBe(false);
+		expect(gating.exposeWebFetch).toBe(true);
+	});
+
+	it('hides web_fetch for explicit browser intent so it cannot stand in for the browser', () => {
+		const gating = resolveTurnToolGating({
+			prompt: 'buka https://example.com',
+			browserBridgeEnabled: true,
+			hasWebSearch: true,
+			hasWebFetch: true
+		});
+		expect(gating.exposeWebFetch).toBe(false);
 		expect(gating.exposeBrowserOpen).toBe(true);
 	});
 
@@ -224,7 +249,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'cari penelitian tentang LLM hallucination',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeWebSearch).toBe(true);
 		expect(gating.exposeBrowserSearch).toBe(true);
@@ -235,7 +261,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'cari di Google tentang WebMCP',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeWebSearch).toBe(false);
 		expect(gating.exposeBrowserSearch).toBe(true);
@@ -246,7 +273,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'cari paper ini di Google Scholar',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeWebSearch).toBe(false);
 		expect(gating.exposeBrowserSearch).toBe(true);
@@ -257,7 +285,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'buka https://example.com',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeWebSearch).toBe(false);
 		expect(gating.exposeBrowserSearch).toBe(true);
@@ -278,7 +307,8 @@ describe('resolveTurnToolGating', () => {
 			const gating = resolveTurnToolGating({
 				prompt,
 				browserBridgeEnabled: false,
-				hasWebSearch: true
+				hasWebSearch: true,
+				hasWebFetch: false
 			});
 			expect(gating.exposeBrowserSearch, `Prompt: "${prompt}"`).toBe(false);
 			expect(gating.exposeBrowserOpen, `Prompt: "${prompt}"`).toBe(false);
@@ -293,7 +323,8 @@ describe('resolveTurnToolGating', () => {
 		const normalGating = resolveTurnToolGating({
 			prompt: 'cari berita terbaru OpenAI',
 			browserBridgeEnabled: false,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(normalGating.exposeWebSearch).toBe(true);
 		expect(normalGating.blockedReason).toBeUndefined();
@@ -303,7 +334,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'cari berita terbaru OpenAI',
 			browserBridgeEnabled: false,
-			hasWebSearch: false
+			hasWebSearch: false,
+			hasWebFetch: false
 		});
 		expect(gating.exposeWebSearch).toBe(false);
 		expect(gating.exposeBrowserSearch).toBe(false);
@@ -315,7 +347,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'i already enabled it',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeWebSearch).toBe(true);
 		expect(gating.exposeBrowserSearch).toBe(true);
@@ -327,7 +360,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'coba lagi sekarang',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeWebSearch).toBe(true);
 		expect(gating.exposeBrowserSearch).toBe(true);
@@ -339,7 +373,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'cari di web saja tentang benchmark lain',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeWebSearch).toBe(true);
 		expect(gating.exposeBrowserSearch).toBe(true);
@@ -351,7 +386,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'yes, dig it all',
 			browserBridgeEnabled: false,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeBrowserSearch).toBe(false);
 		expect(gating.exposeBrowserOpen).toBe(false);
@@ -364,14 +400,16 @@ describe('resolveTurnToolGating', () => {
 		const generic = resolveTurnToolGating({
 			prompt: 'cari berita terbaru OpenAI',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(generic.exposeBrowserTabs).toBe(true);
 
 		const tabIntent = resolveTurnToolGating({
 			prompt: 'klik tombol login di tab saya',
 			browserBridgeEnabled: true,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(tabIntent.browserIntent).toEqual({ type: 'browser-tab' });
 		expect(tabIntent.exposeBrowserTabs).toBe(true);
@@ -383,7 +421,8 @@ describe('resolveTurnToolGating', () => {
 		const gating = resolveTurnToolGating({
 			prompt: 'baca tab ini',
 			browserBridgeEnabled: false,
-			hasWebSearch: true
+			hasWebSearch: true,
+			hasWebFetch: false
 		});
 		expect(gating.exposeBrowserTabs).toBe(false);
 		expect(gating.exposeBrowserOpen).toBe(false);
@@ -479,6 +518,7 @@ describe('getBrowserUnavailableInstruction', () => {
 		expect(instruction).toContain('may be wrong');
 		expect(instruction).toContain('Do not claim to have used a browser');
 		expect(instruction).toContain('web_search');
+		expect(instruction).toContain('web_fetch');
 		expect(getBrowserUnavailableInstruction({ type: 'none' })).toBeNull();
 	});
 });

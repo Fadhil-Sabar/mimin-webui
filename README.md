@@ -18,6 +18,7 @@ Available:
 - Live model discovery for configured OpenAI, Anthropic, and Google providers
 - Normalized tool registry
 - `web_search` with Tavily support and a free DuckDuckGo fallback
+- `web_fetch` for reading one specific public URL (HTML, JSON, or text) with SSRF protection
 - Optional Chrome/Chromium and Firefox bridge for agent-driven tabs and Google/Scholar research
 - `project_knowledge_search` for project conversations
 - Project file upload and deletion
@@ -38,7 +39,7 @@ Available:
 Not yet available:
 
 - Registration and password reset
-- Provider adapter for web fetch
+- JavaScript rendering for `web_fetch`; a client-rendered page needs the browser bridge
 
 ## Architecture
 
@@ -179,6 +180,7 @@ Open **Settings → Browser Extension**, enable the bridge, and install the pack
 Mimin distinguishes these research and browser capabilities:
 
 - **Web Search (`web_search`)**: Default server-side research provider (Tavily with DuckDuckGo fallback). General queries (e.g. “cari berita terbaru OpenAI” or “research agentic coding benchmark”) automatically route to `web_search` without touching the browser.
+- **Web Fetch (`web_fetch`)**: Reads one specific public URL server-side (e.g. “baca https://example.com/docs” or a result from `web_search`) and returns its readable text, resolved title, and content type as a citation. HTML, JSON, XML, and plain text are supported.
 - **Browser Search (`browser_search`)**: Explicit Google or Google Scholar search through the user's real browser. Available only when the query explicitly targets Google or Scholar (e.g. “cari di Google tentang WebMCP” or “search Scholar for LLM hallucination”). Returns structured search results.
 - **Browser Open (`browser_open`)**: Opens and reads public HTTP/HTTPS web pages through the browser (e.g. “buka https://example.com” or inspecting search results). Generic page reading requires user-granted website reading permission in the extension popup.
 - **Browser Tabs (`browser_tabs`)**: Lists the open tabs the extension is allowed to describe (id, title, URL, active/pinned, readable).
@@ -196,7 +198,19 @@ report the new document as loaded long before they render, so the bridge waits a
 element and then returns whatever exists; if nothing rendered, the result says the page is still rendering instead of
 returning an empty snapshot that reads like a blank page. An explicit `waitMs` is respected as a minimum settle time.
 
-Deterministic per-turn tool gating ensures the model never receives ambiguous interchangeable search tools. When an explicit browser search intent is detected, `web_search` is hidden for that turn and browser tools are exposed.
+Deterministic per-turn tool gating ensures the model never receives ambiguous interchangeable search tools. When an explicit browser search intent is detected, `web_search` and `web_fetch` are hidden for that turn and browser tools are exposed.
+
+#### `web_fetch` limits
+
+`web_fetch` reads at most 2 MB of a response and returns at most 12 000 characters of text by default (the model may ask for up to 50 000), follows at most 5 redirects, and gives up after 15 seconds. It never runs JavaScript, so a page that builds its content client-side returns its loading shell plus a notice saying so; use the browser bridge for those pages.
+
+Because the URL is chosen by the model, the request is validated at every hop and cannot be aimed at the server's own network:
+
+- only `http(s)` URLs without embedded credentials are accepted, and the redirect chain is re-validated one hop at a time, so a public URL cannot bounce the request into a blocked address
+- loopback, link-local (including `169.254.169.254` cloud metadata), private (`10/8`, `172.16/12`, `192.168/16`), carrier-grade NAT (`100.64/10`), IPv6 unique-local, and link-local addresses are refused, along with `.localhost`, `.local`, and `.internal` names
+- the hostname is resolved before the request, so a public-looking name that points at a private address is refused
+- non-HTTPS origins must still be approved in `OUTBOUND_ALLOWED_ORIGINS`, the same policy `web_search` and provider discovery already use
+- binary responses such as PDFs are reported by content type instead of being returned as noise; attach the file to a chat instead
 
 The bridge is off by default and enabled per browser. Only a connected chat turn receives browser tools. By default, the extension has host permissions for Google and Google Scholar. For other public HTTP(S) websites and the user's other tabs, users can grant optional host permissions directly from the extension popup under **Tab reading & interaction**. Tab metadata is only listed for tabs the extension is permitted to read; internal pages and private or local addresses are skipped. If permission has not been granted, reading returns `{ readable: false, reason: "host_permission_required" }` without reading page content. Browsing history, cookies, accounts, and saved passwords are never read. CAPTCHA challenges require the user to complete them manually; Mimin never bypasses them. Keep the chat open while a browser tool runs.
 
@@ -567,7 +581,7 @@ Provider settings       save/encrypt/mask/delete verified
 
 1. Add registration and password reset flows.
 2. Add durable background indexing for high-volume installations.
-3. Add web fetch with SSRF protection and connect citation persistence to normalized web sources.
+3. Connect citation persistence to normalized web sources.
 4. Add deployment recipes for managed platforms; the current production guide targets the Node adapter and single-host Docker Compose.
 
 ## Community and license

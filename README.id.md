@@ -16,6 +16,7 @@ Sudah tersedia:
 - Discovery model live untuk provider OpenAI, Anthropic, dan Google yang dikonfigurasi
 - Tool registry ter-normalisasi
 - Bridge opsional Chrome/Chromium dan Firefox agar agent membuka tab dan mencari lewat Google/Scholar
+- `web_fetch` untuk membaca satu URL publik tertentu (HTML, JSON, atau teks) dengan proteksi SSRF
 - `project_knowledge_search` untuk project conversation
 - Upload dan delete file project
 - Text extraction sederhana untuk `.txt`, `.md`, dan `.json`
@@ -34,7 +35,8 @@ Sudah tersedia:
 
 Belum tersedia:
 
-- Provider adapter untuk web search dan web fetch
+- Registration dan password reset
+- Rendering JavaScript untuk `web_fetch`; halaman yang dirender di sisi klien memerlukan browser bridge
 
 ## Arsitektur
 
@@ -163,13 +165,26 @@ Buka `http://localhost:5173`.
 
 Buka **Settings → Browser Extension**, aktifkan bridge, lalu pasang paket sesuai browser. Muat ulang Mimin di browser yang sama dan pastikan status **Connected**.
 
-Mimin membedakan tiga kapabilitas pencarian dan browsing:
+Mimin membedakan beberapa kapabilitas riset dan browser:
 
 - **Web Search (`web_search`)**: Provider riset server-side default (Tavily dengan fallback DuckDuckGo). Permintaan riset umum (misalnya “cari berita terbaru OpenAI” atau “research agentic coding benchmark”) otomatis diarahkan ke `web_search` tanpa membuka browser.
+- **Web Fetch (`web_fetch`)**: Membaca satu URL publik tertentu di sisi server (misalnya “baca https://example.com/docs” atau salah satu hasil `web_search`) dan mengembalikan teks yang dapat dibaca beserta judul dan content type sebagai sitasi. Mendukung HTML, JSON, XML, dan teks biasa.
 - **Browser Search (`browser_search`)**: Pencarian Google atau Google Scholar melalui browser asli pengguna. Hanya aktif jika permintaan secara eksplisit menyebut Google atau Scholar (misalnya “cari di Google tentang WebMCP” atau “cari paper ini di Google Scholar”). Mengembalikan hasil pencarian terstruktur.
 - **Browser Open (`browser_open`)**: Membuka dan membaca halaman web publik HTTP/HTTPS melalui browser (misalnya “buka https://example.com” atau meninjau hasil pencarian). Membaca website umum memerlukan izin baca website publik yang diberikan pengguna di popup extension.
 
-Gating tool deterministik per-turn memastikan model tidak menerima dua tool pencarian yang saling tumpang tindih. Ketika intent browser terdeteksi, `web_search` disembunyikan untuk giliran tersebut dan tool browser ditampilkan.
+Gating tool deterministik per-turn memastikan model tidak menerima dua tool pencarian yang saling tumpang tindih. Ketika intent browser terdeteksi, `web_search` dan `web_fetch` disembunyikan untuk giliran tersebut dan tool browser ditampilkan.
+
+#### Batasan `web_fetch`
+
+`web_fetch` membaca maksimal 2 MB per respons dan mengembalikan maksimal 12 000 karakter teks secara default (model dapat meminta hingga 50 000), mengikuti maksimal 5 redirect, dan berhenti setelah 15 detik. Tool ini tidak menjalankan JavaScript, jadi halaman yang membangun kontennya di sisi klien hanya mengembalikan kerangka loading beserta catatan bahwa kontennya tidak terbaca; gunakan browser bridge untuk halaman seperti itu.
+
+Karena URL ditentukan oleh model, setiap hop divalidasi dan permintaannya tidak dapat diarahkan ke jaringan server sendiri:
+
+- hanya URL `http(s)` tanpa kredensial yang diterima, dan rantai redirect divalidasi ulang satu per satu, sehingga URL publik tidak dapat memantulkan permintaan ke alamat yang diblokir
+- alamat loopback, link-local (termasuk metadata cloud `169.254.169.254`), privat (`10/8`, `172.16/12`, `192.168/16`), carrier-grade NAT (`100.64/10`), IPv6 unique-local, dan link-local ditolak, begitu juga nama `.localhost`, `.local`, dan `.internal`
+- hostname di-resolve sebelum permintaan dikirim, sehingga nama yang terlihat publik tetapi mengarah ke alamat privat tetap ditolak
+- origin non-HTTPS tetap harus disetujui di `OUTBOUND_ALLOWED_ORIGINS`, kebijakan yang sama dengan `web_search` dan provider discovery
+- respons biner seperti PDF dilaporkan lewat content type-nya alih-alih dikembalikan sebagai teks acak; lampirkan filenya ke chat
 
 Fitur mati secara default dan diaktifkan per browser. Tool browser hanya tersedia untuk giliran chat yang terhubung. Secara default, extension memiliki host permissions untuk Google dan Google Scholar. Untuk membaca website publik lainnya, pengguna dapat memberikan izin opsional melalui popup extension pada bagian **Public website reading**. Jika izin belum diberikan, `browser_open` menavigasi ke halaman tetapi mengembalikan `{ readable: false, reason: "host_permission_required" }` tanpa membaca konten halaman. Tab yang sudah ada, riwayat browsing, serta alamat lokal/jaringan privat tetap terlindungi dan tidak pernah diakses. Jika muncul CAPTCHA, selesaikan sendiri; Mimin tidak mencoba membypass CAPTCHA. Biarkan chat terbuka selama tool bekerja.
 
@@ -438,7 +453,7 @@ Lihat [README.md](README.md).
 
 1. Tambahkan registration dan password reset.
 2. Tambahkan antrean indexing durable untuk instalasi berskala besar.
-3. Tambahkan web fetch dengan SSRF protection dan persistence sitasi sumber web.
+3. Hubungkan persistence sitasi ke sumber web yang ter-normalisasi.
 4. Tambahkan resep deployment untuk platform managed; panduan saat ini menargetkan Node adapter dan Docker Compose satu host.
 
 ## Komunitas dan lisensi

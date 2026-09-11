@@ -21,7 +21,7 @@ const tools: AppTool[] = [
 	{
 		name: 'web_fetch',
 		label: 'Web Fetch',
-		description: 'Fetch readable content from a URL.',
+		description: 'Read a specific public URL and return its readable text.',
 		category: 'research',
 		enabled: true
 	},
