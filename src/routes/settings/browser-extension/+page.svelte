@@ -40,10 +40,16 @@
 	let checking = $state(false);
 	let status = $state('Checking connection…');
 	let permissions = $state<{ google?: boolean; publicWebsites?: boolean } | undefined>(undefined);
+	let shippedOrigins = $state<string[]>([]);
+	let originMismatch = $state(false);
+	let pageOrigin = $state('');
 
 	onMount(() => {
 		enabled = isBrowserBridgeEnabled();
 		browser = /firefox/i.test(navigator.userAgent) ? 'firefox' : 'chromium';
+		shippedOrigins = data.shippedExtensionOrigins ?? [];
+		pageOrigin = window.location.origin;
+		originMismatch = shippedOrigins.length > 0 && !shippedOrigins.includes(pageOrigin);
 		hydrated = true;
 		void checkConnection();
 	});
@@ -255,6 +261,16 @@
 							extension popup in your browser toolbar and click <strong>Grant</strong> under
 							<em>Tab reading &amp; interaction</em>. Mimin still asks you in the chat the first
 							time it needs your tabs.
+						</p>
+					{/if}
+
+					{#if enabled && !connected && !updateRequired && originMismatch}
+						<p class="footnote-perm warning">
+							This instance is served from <code>{pageOrigin}</code>, but the downloadable package
+							only bridges {shippedOrigins.join(', ')}. Rebuild with
+							<code>MIMIN_EXTENSION_ORIGINS={pageOrigin}</code> (Docker Compose also accepts
+							<code>BETTER_AUTH_URL</code>) and download the package again. Reloading the installed
+							extension cannot fix this on its own.
 						</p>
 					{/if}
 				</div>

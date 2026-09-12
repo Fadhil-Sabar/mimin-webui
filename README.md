@@ -118,7 +118,7 @@ To self-host the entire stack (PostgreSQL + Mimin WebUI) using Docker Compose:
    ```bash
    cp .env.example .env
    ```
-   Replace every `replace-with-...` value. Generate independent secrets with the commands documented in [`docs/deployment.md`](docs/deployment.md).
+   Replace every `replace-with-...` value. Generate independent secrets with the commands documented in [`docs/deployment.md`](docs/deployment.md). Set `BETTER_AUTH_URL` and `ORIGIN` to the exact origin you open Mimin at — the browser extension package is built for that origin, and it cannot bridge a different one. If Mimin is reachable at more than one origin, list all of them in `MIMIN_EXTENSION_ORIGINS`.
 2. Start the full application:
    ```bash
    docker compose up -d --build
@@ -214,7 +214,7 @@ Because the URL is chosen by the model, the request is validated at every hop an
 
 The bridge is off by default and enabled per browser. Only a connected chat turn receives browser tools. By default, the extension has host permissions for Google and Google Scholar. For other public HTTP(S) websites and the user's other tabs, users can grant optional host permissions directly from the extension popup under **Tab reading & interaction**. Tab metadata is only listed for tabs the extension is permitted to read; internal pages and private or local addresses are skipped. If permission has not been granted, reading returns `{ readable: false, reason: "host_permission_required" }` without reading page content. Browsing history, cookies, accounts, and saved passwords are never read. CAPTCHA challenges require the user to complete them manually; Mimin never bypasses them. Keep the chat open while a browser tool runs.
 
-If you installed an earlier Mimin Search popup, replace/reload it with the new package and reload Mimin. For hosted instances, build with `MIMIN_EXTENSION_ORIGINS` set to the comma-separated exact Mimin origins. Default origins are `http://localhost:5173` and `http://127.0.0.1:5173`.
+If you installed an earlier Mimin Search popup, replace/reload it with the new package and reload Mimin. For hosted instances, build with `MIMIN_EXTENSION_ORIGINS` set to the comma-separated exact Mimin origins; the extension refuses to bridge any other origin, so the settings page reports a mismatch instead of a missing extension when the package does not cover the origin you open Mimin at. Default origins are `http://localhost:5173` and `http://127.0.0.1:5173`.
 
 The packages are generated automatically for development and production builds. You can also
 generate them directly:

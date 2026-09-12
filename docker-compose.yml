@@ -23,6 +23,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # Baked into the downloadable browser extension package, which may only bridge
+        # these exact origins. Defaults to this instance's public origin so a hosted
+        # deployment works without extra configuration.
+        MIMIN_EXTENSION_ORIGINS: ${MIMIN_EXTENSION_ORIGINS:-${BETTER_AUTH_URL:-${ORIGIN:-http://localhost:${HOST_PORT:-${PORT:-3000}}}}}
     restart: unless-stopped
     ports:
       - '${HOST_PORT:-${PORT:-3000}}:3000'

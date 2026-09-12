@@ -10,6 +10,13 @@ RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 # Copy full application source
 COPY . .
 
+# Exact Mimin origins the downloadable browser extension may bridge. Baked into the
+# package at build time, so a hosted instance must pass its public origin here
+# (for example http://203.0.113.5:3000) or the extension never injects into the app.
+# Unset means the local development origins only.
+ARG MIMIN_EXTENSION_ORIGINS
+ENV MIMIN_EXTENSION_ORIGINS=${MIMIN_EXTENSION_ORIGINS}
+
 # Build browser extensions and SvelteKit application, then enforce the client budget
 RUN npm run build && npm run bundle:budget
 
