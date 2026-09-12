@@ -15,6 +15,23 @@ export function setBrowserBridgeEnabled(enabled: boolean) {
 	localStorage.setItem(BROWSER_BRIDGE_STORAGE_KEY, String(enabled));
 }
 
+/**
+ * crypto.randomUUID is only exposed in secure contexts, so a Mimin served over plain HTTP
+ * on a LAN IP or Docker host would throw here. Build the v4 id from getRandomValues instead.
+ */
+function randomRequestId(): string {
+	const webCrypto = globalThis.crypto;
+	if (typeof webCrypto?.randomUUID === 'function') return webCrypto.randomUUID();
+	if (typeof webCrypto?.getRandomValues === 'function') {
+		const bytes = webCrypto.getRandomValues(new Uint8Array(16));
+		bytes[6] = (bytes[6] & 0x0f) | 0x40;
+		bytes[8] = (bytes[8] & 0x3f) | 0x80;
+		const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+		return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+	}
+	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 /** Only the content script on this Mimin origin relays these messages to the extension. */
 export function requestBrowserBridge(
 	action:
@@ -30,7 +47,7 @@ export function requestBrowserBridge(
 	if (!isBrowserBridgeEnabled()) return Promise.reject(new Error('Browser bridge is disabled.'));
 	if (signal?.aborted) return Promise.reject(new Error('Browser request canceled.'));
 	return new Promise((resolve, reject) => {
-		const id = crypto.randomUUID();
+		const id = randomRequestId();
 		const timeout = setTimeout(
 			() =>
 				finish(
