@@ -21,7 +21,8 @@ const tools: AppTool[] = [
 	{
 		name: 'web_fetch',
 		label: 'Web Fetch',
-		description: 'Read a specific public URL and return its readable text.',
+		description:
+			'Read a specific public URL and return its readable text. Pages that only JavaScript can fill in are read through the browser extension when it is connected.',
 		category: 'research',
 		enabled: true
 	},
@@ -106,8 +107,14 @@ const tools: AppTool[] = [
 		enabled: false
 	}
 ];
-export function listTools(projectId?: string) {
-	return tools.filter((tool) => !tool.projectOnly || Boolean(projectId));
+export type ToolListOptions = {
+	/** Include project-only tools for a caller that is not scoped to one project. */
+	includeProjectTools?: boolean;
+};
+
+export function listTools(projectId?: string, options: ToolListOptions = {}) {
+	const includeProjectTools = Boolean(projectId) || options.includeProjectTools === true;
+	return tools.filter((tool) => !tool.projectOnly || includeProjectTools);
 }
 export function getTool(name: string, projectId?: string) {
 	return listTools(projectId).find((tool) => tool.name === name);
