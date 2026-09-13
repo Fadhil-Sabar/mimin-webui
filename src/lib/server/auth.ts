@@ -4,6 +4,7 @@ import { betterAuth } from 'better-auth';
 import { admin } from 'better-auth/plugins';
 import { getDb, schema } from '$lib/server/db/client';
 import { hashPassword, verifyPassword } from './password';
+import { PASSWORD_RESET_TTL_SECONDS, deliverPasswordResetLink } from './password-reset';
 
 /** The single Better Auth instance used by the SvelteKit handler and server APIs. */
 export const auth = betterAuth({
@@ -27,6 +28,11 @@ export const auth = betterAuth({
 		password: {
 			hash: hashPassword,
 			verify: ({ hash, password }) => verifyPassword(password, hash)
+		},
+		resetPasswordTokenExpiresIn: PASSWORD_RESET_TTL_SECONDS,
+		revokeSessionsOnPasswordReset: true,
+		sendResetPassword: async ({ user, url, token }) => {
+			await deliverPasswordResetLink({ email: user.email, url, token });
 		}
 	},
 	session: {

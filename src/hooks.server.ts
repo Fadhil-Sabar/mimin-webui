@@ -5,7 +5,9 @@ import { auth } from '$lib/server/auth';
 
 import { runDocumentWorker } from '$lib/server/files/document-processing';
 
-const PUBLIC_PAGES = new Set(['/login']);
+const PUBLIC_PAGES = new Set(['/login', '/forgot-password', '/reset-password']);
+/** Signed-in visitors go straight to the workspace, except on the reset page itself. */
+const REDIRECT_WHEN_AUTHENTICATED = new Set(['/login', '/forgot-password']);
 
 // The web process also owns a DB-leased worker. Multiple instances safely share the queue.
 if (!building && process.env.DOCUMENT_WORKER_ENABLED !== 'false') void runDocumentWorker();
@@ -29,7 +31,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	if (!user && !PUBLIC_PAGES.has(url.pathname)) {
 		return Response.redirect(new URL('/login', url), 303);
 	}
-	if (user && PUBLIC_PAGES.has(url.pathname)) {
+	if (user && REDIRECT_WHEN_AUTHENTICATED.has(url.pathname)) {
 		return Response.redirect(new URL('/', url), 303);
 	}
 

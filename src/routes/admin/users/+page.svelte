@@ -2,9 +2,12 @@
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import {
+		Check,
+		Copy,
 		FileText,
 		FolderKanban,
 		Globe,
+		KeyRound,
 		LogOut,
 		MessageSquare,
 		PanelLeft,
@@ -44,6 +47,12 @@
 	let role = $state<'user' | 'admin'>('user');
 	let { data } = $props();
 	let user = $derived(data.user);
+
+	type ResetLink = { email: string; url: string; expiresAt: string };
+	let resetLink = $state<ResetLink | null>(null);
+	let resetLinkBusyId = $state('');
+	let resetLinkError = $state('');
+	let resetLinkCopied = $state(false);
 
 	function messageFrom(errorValue: unknown, fallback: string) {
 		return errorValue && typeof errorValue === 'object' && 'message' in errorValue
@@ -117,6 +126,41 @@
 	async function logout() {
 		await authClient.signOut();
 		window.location.href = '/login';
+	}
+
+	async function createResetLink(managedUser: ManagedUser) {
+		resetLinkError = '';
+		resetLinkCopied = false;
+		resetLinkBusyId = managedUser.id;
+		try {
+			const response = await fetch(`/api/admin/users/${managedUser.id}/reset-link`, {
+				method: 'POST'
+			});
+			const payload = await response.json().catch(() => null);
+			if (!response.ok) {
+				resetLinkError = payload?.error?.message ?? 'Could not create a reset link.';
+				return;
+			}
+			resetLink = {
+				email: managedUser.email,
+				url: payload.url,
+				expiresAt: payload.expiresAt
+			};
+		} catch {
+			resetLinkError = 'Could not reach the server.';
+		} finally {
+			resetLinkBusyId = '';
+		}
+	}
+
+	async function copyResetLink() {
+		if (!resetLink) return;
+		try {
+			await navigator.clipboard.writeText(resetLink.url);
+			resetLinkCopied = true;
+		} catch {
+			resetLinkError = 'Copying failed. Select the link and copy it manually.';
+		}
 	}
 
 	onMount(async () => {
@@ -274,9 +318,36 @@
 									<span class:admin-role={managedUser.role === 'admin'} class="role"
 										>{managedUser.role ?? 'user'}</span
 									>
+									<button
+										type="button"
+										class="ghost"
+										onclick={() => createResetLink(managedUser)}
+										disabled={resetLinkBusyId === managedUser.id}
+									>
+										{resetLinkBusyId === managedUser.id ? 'Creating…' : 'Reset link'}
+									</button>
 								</div>
 							{/each}
 						</div>
+						{#if resetLinkError}<p class="message error" role="alert">{resetLinkError}</p>{/if}
+						{#if resetLink}
+							<div class="reset-link">
+								<div class="reset-link-head">
+									<KeyRound size={15} />
+									<strong>Reset link for {resetLink.email}</strong>
+								</div>
+								<p class="muted">
+									Give it to the user privately. It works once and expires at
+									{new Date(resetLink.expiresAt).toLocaleTimeString()}.
+								</p>
+								<div class="reset-link-row">
+									<input readonly value={resetLink.url} aria-label="Password reset link" />
+									<button type="button" class="copy" onclick={copyResetLink}>
+										{#if resetLinkCopied}<Check size={14} /> Copied{:else}<Copy size={14} /> Copy{/if}
+									</button>
+								</div>
+							</div>
+						{/if}
 						<div class="pagination">
 							<button
 								type="button"
@@ -470,6 +541,58 @@
 	.admin-role {
 		color: var(--accent-fg);
 		background: var(--accent-bg);
+	}
+	.ghost {
+		padding: 7px 11px;
+		color: var(--text-body);
+		background: var(--surface-subtle);
+		border: 1px solid var(--border);
+		border-radius: 6px;
+		font-size: var(--text-xs);
+		white-space: nowrap;
+	}
+	.ghost:hover {
+		background: var(--surface-hover);
+	}
+	.ghost:disabled {
+		opacity: 0.5;
+	}
+	.reset-link {
+		margin-top: 16px;
+		padding: 14px;
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: 10px;
+	}
+	.reset-link-head {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		color: var(--text-strong);
+		font-size: var(--text-sm);
+	}
+	.reset-link .muted {
+		margin: 8px 0 10px;
+	}
+	.reset-link-row {
+		display: flex;
+		gap: 8px;
+	}
+	.reset-link-row input {
+		margin-top: 0;
+		font-size: var(--text-xs);
+	}
+	.copy {
+		display: flex;
+		flex: 0 0 auto;
+		align-items: center;
+		gap: 6px;
+		padding: 0 12px;
+		color: var(--text-body);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: 7px;
+		font-size: var(--text-xs);
 	}
 	.pagination {
 		display: flex;
