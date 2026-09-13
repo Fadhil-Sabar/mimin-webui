@@ -456,7 +456,16 @@ export async function runConversationTurn(
 
 	const tools = [
 		...(toolGating.exposeWebSearch ? [createWebSearchTool(searchSettings)] : []),
-		...(toolGating.exposeWebFetch ? [createWebFetchTool()] : []),
+		...(toolGating.exposeWebFetch
+			? [
+					createWebFetchTool(
+						// A JavaScript shell is read through the user's browser when that bridge is available.
+						browserContext && browserBridgeEnabled
+							? { context: browserContext, emit: browserEmit }
+							: undefined
+					)
+				]
+			: []),
 		...(conversation.projectId && enabledTools.includes('project_knowledge_search')
 			? [createProjectKnowledgeTool(conversation.projectId, effectiveUserId)]
 			: []),

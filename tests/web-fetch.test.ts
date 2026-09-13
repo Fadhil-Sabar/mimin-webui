@@ -3,12 +3,43 @@ import {
 	classifyContentType,
 	createWebFetchTool,
 	decodeEntities,
+	detectClientRenderedPage,
 	extractHtmlTitle,
 	fetchWebPage,
 	htmlToReadableText,
 	WEB_FETCH_MAX_BYTES,
 	WebFetchError
 } from '../src/lib/server/ai/tools/web-fetch.tool';
+
+const bridge = vi.hoisted(() => ({
+	open: vi.fn(),
+	// The real helper narrows a bridge result; the tests hand it plain page objects.
+	expectPageResult: (value: unknown) => value as { text?: string; title?: string; url?: string }
+}));
+
+vi.mock('../src/lib/server/browser/bridge', () => ({
+	requestBrowserAction: bridge.open,
+	expectPageResult: bridge.expectPageResult
+}));
+
+/** A bridge whose extension answers with rendered text. */
+function workingBridge() {
+	bridge.open.mockImplementation(
+		async (_context: unknown, _action: string, args: { url: string }) => ({
+			url: args.url,
+			title: 'Rendered in the browser',
+			text: 'Rendered body text'
+		})
+	);
+	return {
+		context: { userId: 'user-1', conversationId: 'conversation-1', turnToken: 'turn-1' },
+		emit: () => undefined
+	};
+}
+
+function appShell() {
+	return '<html><head><title>Dashboard</title><script src="/app.js"></script><script>window.__DATA__={}</script></head><body><div id="root"></div></body></html>';
+}
 
 const PUBLIC_HOST = '93.184.216.34';
 const lookupPublic = async () => [PUBLIC_HOST];
@@ -345,6 +376,46 @@ describe('fetchWebPage', () => {
 	});
 });
 
+describe('client-rendered page detection', () => {
+	it('flags an empty application shell', () => {
+		expect(detectClientRenderedPage(appShell(), '')).toMatchObject({ clientRendered: true });
+	});
+
+	it('flags a page that says it needs JavaScript', () => {
+		const signal = detectClientRenderedPage(
+			'<html><body><noscript>Please enable JavaScript to continue.</noscript><div id="root"></div></body></html>',
+			'Please enable JavaScript to continue.'
+		);
+		expect(signal.clientRendered).toBe(true);
+		expect(signal.reason).toContain('JavaScript');
+	});
+
+	it('flags a script-heavy document with almost no text', () => {
+		const html = `<html><body>Loading…<script>${'const x = 1;'.repeat(400)}</script></body></html>`;
+		expect(detectClientRenderedPage(html, 'Loading…').clientRendered).toBe(true);
+	});
+
+	it('leaves ordinary pages and non-HTML alone', () => {
+		const article = `<html><body><article><p>${'Real content. '.repeat(40)}</p></article></body></html>`;
+		expect(detectClientRenderedPage(article, 'Real content. '.repeat(40)).clientRendered).toBe(
+			false
+		);
+		expect(detectClientRenderedPage('{"ok":true}', '{\n  "ok": true\n}').clientRendered).toBe(
+			false
+		);
+	});
+
+	it('marks a fetched shell so the caller can explain it', async () => {
+		const result = await fetchWebPage(
+			{ url: 'https://example.com/app' },
+			{ fetcher: async () => response(appShell()), lookupHost: lookupPublic }
+		);
+		expect(result.text).toBe('');
+		expect(result.clientRendered).toBe(true);
+		expect(result.clientRenderedReason).toBeTruthy();
+	});
+});
+
 describe('web_fetch tool', () => {
 	it('describes itself as a server-side reader that cannot run JavaScript', () => {
 		const tool = createWebFetchTool();
@@ -376,8 +447,82 @@ describe('web_fetch tool', () => {
 				url: 'https://example.com/notes',
 				title: 'Release notes',
 				contentType: 'text/html',
-				truncated: false
+				truncated: false,
+				renderedBy: 'server'
 			});
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it('reads a JavaScript shell through the browser bridge', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => response(appShell()))
+		);
+		bridge.open.mockReset();
+		try {
+			const tool = createWebFetchTool(workingBridge());
+			const result = (await tool.execute(
+				'call-2',
+				{ url: 'https://example.com/dashboard' },
+				undefined as unknown as AbortSignal
+			)) as { content: Array<{ text: string }>; details: Record<string, unknown> };
+
+			expect(bridge.open).toHaveBeenCalledWith(
+				expect.objectContaining({ conversationId: 'conversation-1' }),
+				'browser_open',
+				{ url: 'https://example.com/dashboard' },
+				expect.any(Function),
+				undefined
+			);
+			expect(result.content[0]?.text).toContain("Fetched page in the user's browser");
+			expect(result.content[0]?.text).toContain('Rendered body text');
+			expect(result.details.renderedBy).toBe('browser');
+			expect(result.details.title).toBe('Rendered in the browser');
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it('explains a failed bridge instead of inventing the page', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => response(appShell()))
+		);
+		bridge.open.mockReset();
+		const fetchBridge = workingBridge();
+		bridge.open.mockRejectedValue(new Error('BROWSER_BRIDGE_TIMEOUT'));
+		try {
+			const tool = createWebFetchTool(fetchBridge);
+			const result = (await tool.execute(
+				'call-3',
+				{ url: 'https://example.com/dashboard' },
+				undefined as unknown as AbortSignal
+			)) as { content: Array<{ text: string }>; details: Record<string, unknown> };
+
+			expect(result.content[0]?.text).toContain('did not work');
+			expect(result.details.renderedBy).toBe('server');
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it('points at the browser extension when no bridge is connected', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => response(appShell()))
+		);
+		try {
+			const tool = createWebFetchTool();
+			const result = (await tool.execute(
+				'call-4',
+				{ url: 'https://example.com/dashboard' },
+				undefined as unknown as AbortSignal
+			)) as { content: Array<{ text: string }> };
+
+			expect(result.content[0]?.text).toContain('Settings > Browser Extension');
+			expect(result.content[0]?.text).toContain('cannot run scripts');
 		} finally {
 			vi.unstubAllGlobals();
 		}
