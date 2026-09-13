@@ -248,6 +248,7 @@ password: the value of SEED_PASSWORD
 ```
 
 Set `SEED_PASSWORD` in the environment before running `npm run db:seed`. The password is never printed to logs.
+Re-running the seed resets `admin@mimin.local` to the current `SEED_PASSWORD`, so changing the value and seeding again is how you rotate it. Pass `SEED_KEEP_PASSWORD=true` to keep an existing password that was changed from the UI instead.
 
 Stop the local database with:
 

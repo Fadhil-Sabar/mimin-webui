@@ -52,7 +52,7 @@ Port 587 upgrades with STARTTLS, and the client refuses to send credentials or c
 docker compose up -d --build
 ```
 
-With `AUTO_SEED=true`, startup creates `admin@mimin.local` using `SEED_PASSWORD`. Sign in immediately, create a named administrator account if needed, then set `AUTO_SEED=false` and remove `SEED_PASSWORD` from the runtime environment. Do not expose a deployment using example credentials.
+With `AUTO_SEED=true`, startup creates `admin@mimin.local` using `SEED_PASSWORD`, and re-running it resets that account to the current `SEED_PASSWORD`. Sign in immediately, create a named administrator account if needed, then set `AUTO_SEED=false` and remove `SEED_PASSWORD` from the runtime environment. Do not expose a deployment using example credentials.
 
 `AUTO_MIGRATE=true` is convenient for a single instance. For controlled or multi-instance releases, run migrations once as a release step and set `AUTO_MIGRATE=false` for application replicas.
 

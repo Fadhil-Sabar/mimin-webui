@@ -1,5 +1,5 @@
 import postgres from 'postgres';
-import { randomBytes, scrypt as scryptCb } from 'node:crypto';
+import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
 const scrypt = promisify(scryptCb) as (
@@ -29,6 +29,20 @@ async function hashPassword(password: string) {
 	return `scrypt:${salt.toString('hex')}:${derived.toString('hex')}`;
 }
 
+async function verifyPassword(password: string, stored: string | null) {
+	if (!stored) return false;
+	const [algo, saltHex, hashHex] = stored.split(':');
+	if (algo !== 'scrypt' || !saltHex || !hashHex) return false;
+	const expected = Buffer.from(hashHex, 'hex');
+	const derived = await scrypt(password, Buffer.from(saltHex, 'hex'), expected.length);
+	return derived.length === expected.length && timingSafeEqual(derived, expected);
+}
+
+// Re-running the seed is the documented way to change the bootstrap password, so
+// SEED_PASSWORD is authoritative. Set SEED_KEEP_PASSWORD=true to preserve an
+// intentional password change instead.
+const keepPassword = /^(1|true|yes)$/i.test(process.env.SEED_KEEP_PASSWORD ?? '');
+
 const passwordHash = await hashPassword(DEFAULT_PASSWORD);
 await sql`
 	insert into users (email, name, email_verified, role)
@@ -42,13 +56,30 @@ await sql`
 const [user] = await sql`select id from users where email = ${DEFAULT_EMAIL} limit 1`;
 if (!user) throw new Error('Failed to create default user');
 
-await sql`
-	insert into accounts (provider_id, issuer, account_id, user_id, password)
-	values ('credential', 'local:credential', ${user.id}, ${user.id}, ${passwordHash})
-	on conflict (issuer, account_id) do update set
-		password = coalesce(accounts.password, excluded.password),
-		updated_at = now()
-`;
+const [existing] =
+	await sql`select password from accounts where issuer = 'local:credential' and account_id = ${user.id} limit 1`;
+const passwordAlreadyMatches = existing
+	? await verifyPassword(DEFAULT_PASSWORD, existing.password)
+	: false;
+
+if (existing && !passwordAlreadyMatches && keepPassword) {
+	await sql`update accounts set updated_at = now() where issuer = 'local:credential' and account_id = ${user.id}`;
+	console.warn(
+		`SEED_KEEP_PASSWORD is set, so the existing password for ${DEFAULT_EMAIL} was left unchanged.`
+	);
+	console.warn('Unset SEED_KEEP_PASSWORD and re-run the seed to set it to SEED_PASSWORD.');
+} else {
+	await sql`
+		insert into accounts (provider_id, issuer, account_id, user_id, password)
+		values ('credential', 'local:credential', ${user.id}, ${user.id}, ${passwordHash})
+		on conflict (issuer, account_id) do update set
+			password = excluded.password,
+			updated_at = now()
+	`;
+	if (existing && !passwordAlreadyMatches) {
+		console.log(`Reset the password for ${DEFAULT_EMAIL} to the configured SEED_PASSWORD.`);
+	}
+}
 
 // Claim existing unowned data for the default user so nothing is lost.
 await sql`update projects set user_id = ${user.id} where user_id is null`;
