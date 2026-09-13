@@ -11,6 +11,7 @@ The frontend uses **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, and **Lu
 Available:
 
 - Authentication with email/password and session cookies
+- Password reset with single-use, one-hour links: emailed when SMTP is configured, otherwise an administrator copies the link from `/admin/users`
 - Ownership filters on all projects, conversations, and files
 - Home workspace with chat composer
 - Chat room with SSE response streaming
@@ -18,7 +19,7 @@ Available:
 - Live model discovery for configured OpenAI, Anthropic, and Google providers
 - Normalized tool registry
 - `web_search` with Tavily support and a free DuckDuckGo fallback
-- `web_fetch` for reading one specific public URL (HTML, JSON, or text) with SSRF protection
+- `web_fetch` for reading one specific public URL (HTML, JSON, or text) with SSRF protection, falling back to the browser bridge when a page only JavaScript can fill in
 - Optional Chrome/Chromium and Firefox bridge for agent-driven tabs and Google/Scholar research
 - `project_knowledge_search` for project conversations
 - Project file upload and deletion
@@ -38,8 +39,7 @@ Available:
 
 Not yet available:
 
-- Registration and password reset
-- JavaScript rendering for `web_fetch`; a client-rendered page needs the browser bridge
+- Registration
 
 ## Architecture
 
@@ -202,7 +202,7 @@ Deterministic per-turn tool gating ensures the model never receives ambiguous in
 
 #### `web_fetch` limits
 
-`web_fetch` reads at most 2 MB of a response and returns at most 12 000 characters of text by default (the model may ask for up to 50 000), follows at most 5 redirects, and gives up after 15 seconds. It never runs JavaScript, so a page that builds its content client-side returns its loading shell plus a notice saying so; use the browser bridge for those pages.
+`web_fetch` reads at most 2 MB of a response and returns at most 12 000 characters of text by default (the model may ask for up to 50 000), follows at most 5 redirects, and gives up after 15 seconds. It never runs JavaScript itself. When the returned HTML looks like a JavaScript shell (an empty application root, a script-heavy document with almost no text, or a `noscript` notice asking for JavaScript), and the browser bridge is connected for that conversation, the page is read once through the user's own browser instead and the result is labelled `renderedBy: browser`. If the bridge is unavailable, the tool returns the shell plus an explanation instead of guessing at the page contents.
 
 Because the URL is chosen by the model, the request is validated at every hop and cannot be aimed at the server's own network:
 
@@ -306,14 +306,17 @@ Authentication uses Better Auth 1.7.x with email/password, the Drizzle PostgreSQ
 POST /api/auth/sign-in/email
 POST /api/auth/sign-out
 GET  /api/auth/get-session
+POST /api/auth/request-password-reset
+POST /api/auth/reset-password
 ```
 
 - Passwords are hashed with scrypt and a per-user salt; migrated hashes remain usable without resets.
 - Better Auth owns `/api/auth/*`, including CSRF/origin protections and HTTP-only session cookies.
 - `src/hooks.server.ts` redirects unauthenticated page requests to `/login` and exposes `event.locals.user` plus `event.locals.session`.
 - Public registration is disabled. Administrators provision users from `/admin/users`; the page supports only listing and initial account creation.
+- Password reset is enabled for everyone. Any visitor can request a link from `/forgot-password`; the link is single-use, expires after one hour, and signs out every existing session when it is used. With `SMTP_HOST` configured the app emails the link itself. Without it, no email is sent: the link is written to the server log and administrators can create and copy one from `/admin/users`. The response to a reset request is always the same, so it never reveals whether an address exists. `/api/admin/users/:id/reset-link` is administrator-only, and Better Auth's rate limiting (three reset requests per minute per client, active in production) covers the public endpoint.
 - Every data API route requires a valid session and filters rows by `user_id`. Cross-user access returns `404` for list, read, update, and delete operations, so ownership cannot be probed.
-- `/api/models` and `/api/tools` stay public because they expose no user data.
+- `/api/models` stays public because it exposes no user data and doubles as setup information for the sign-in screen.
 
 Deploy the migration and the Better Auth environment variables together. Every user must sign in again after cutover because legacy session cookies are deliberately not accepted.
 
@@ -324,11 +327,12 @@ Deploy the migration and the Better Auth environment variables together. Every u
 ```text
 GET /api/models
 GET /api/tools?projectId=:projectId
+GET /api/tools?includeProjectTools=true
 ```
 
 `/api/models` queries each configured provider's model-list endpoint and returns normalized model metadata, including provider, context window, capabilities, source (`live` or `catalog`), and server-side configuration status. Unconfigured providers retain their bundled catalog metadata for setup UI, while configured providers expose only models returned by their API. When a session is present, it also reports whether the user saved their own key for each provider (`userConfigured`). Provider discovery failures are returned in an `errors` array.
 
-Project-only tools such as `project_knowledge_search` are returned only when `projectId` is provided.
+Project-only tools such as `project_knowledge_search` are returned only when `projectId` is provided. `/api/tools` requires a session, and `projectId` must reference a project the signed-in user owns; any other id returns `404`. Callers that are not scoped to a single project, such as the skills editor, request the project-only entries with `includeProjectTools=true`.
 
 ### Providers
 
@@ -535,6 +539,8 @@ Implementation references: [pgvector cosine search and HNSW](https://github.com/
 
 ```text
 /login                             Sign in
+/forgot-password                   Request a password reset link
+/reset-password?token=...          Choose a new password
 /                                  Home composer
 /chat                              Chat room and SSE response
 /projects                          Project dashboard
@@ -568,7 +574,7 @@ PostgreSQL and API smoke tests verified:
 ```text
 GET /api/projects       401 without session
 GET /api/models         200
-GET /api/tools          200
+GET /api/tools          401 without session
 Login                   200 with default account
 Cross-user project      404
 Cross-user conversation 404

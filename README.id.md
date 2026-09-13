@@ -10,13 +10,15 @@ Frontend menggunakan **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, dan *
 
 Sudah tersedia:
 
+- Autentikasi email/password dengan session cookie
+- Reset password dengan tautan sekali pakai yang berlaku satu jam: dikirim lewat email bila SMTP dikonfigurasi, atau disalin administrator dari `/admin/users`
 - Home workspace dengan chat composer
 - Chat room dengan SSE response streaming
 - Project dan conversation yang tersimpan secara persistent
 - Discovery model live untuk provider OpenAI, Anthropic, dan Google yang dikonfigurasi
 - Tool registry ter-normalisasi
 - Bridge opsional Chrome/Chromium dan Firefox agar agent membuka tab dan mencari lewat Google/Scholar
-- `web_fetch` untuk membaca satu URL publik tertentu (HTML, JSON, atau teks) dengan proteksi SSRF
+- `web_fetch` untuk membaca satu URL publik tertentu (HTML, JSON, atau teks) dengan proteksi SSRF, dan beralih ke browser bridge bila halaman hanya terisi lewat JavaScript
 - `project_knowledge_search` untuk project conversation
 - Upload dan delete file project
 - Text extraction sederhana untuk `.txt`, `.md`, dan `.json`
@@ -35,8 +37,9 @@ Sudah tersedia:
 
 Belum tersedia:
 
-- Registration dan password reset
-- Rendering JavaScript untuk `web_fetch`; halaman yang dirender di sisi klien memerlukan browser bridge
+- Registration (pendaftaran akun mandiri)
+
+Reset password memakai tautan sekali pakai yang berlaku satu jam dan mengakhiri semua sesi yang ada saat dipakai. Isi `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, dan `SMTP_USER`/`SMTP_PASSWORD` agar tautan dikirim lewat email; tanpa konfigurasi itu tautan tetap dibuat, ditulis ke log server, dan dapat disalin administrator dari `/admin/users`. Port 587 memakai STARTTLS dan klien menolak mengirim kredensial bila relay tidak menawarkan TLS; `SMTP_ALLOW_INSECURE=true` hanya untuk relay lokal yang Anda kendalikan.
 
 ## Arsitektur
 
@@ -176,7 +179,7 @@ Gating tool deterministik per-turn memastikan model tidak menerima dua tool penc
 
 #### Batasan `web_fetch`
 
-`web_fetch` membaca maksimal 2 MB per respons dan mengembalikan maksimal 12 000 karakter teks secara default (model dapat meminta hingga 50 000), mengikuti maksimal 5 redirect, dan berhenti setelah 15 detik. Tool ini tidak menjalankan JavaScript, jadi halaman yang membangun kontennya di sisi klien hanya mengembalikan kerangka loading beserta catatan bahwa kontennya tidak terbaca; gunakan browser bridge untuk halaman seperti itu.
+`web_fetch` membaca maksimal 2 MB per respons dan mengembalikan maksimal 12 000 karakter teks secara default (model dapat meminta hingga 50 000), mengikuti maksimal 5 redirect, dan berhenti setelah 15 detik. Tool ini tidak menjalankan JavaScript sendiri. Bila HTML yang dikembalikan terlihat seperti kerangka JavaScript (elemen root aplikasi yang kosong, dokumen penuh script tanpa teks, atau pesan `noscript` yang meminta JavaScript) dan browser bridge tersambung pada percakapan itu, halaman dibaca sekali lewat browser pengguna dan hasilnya ditandai `renderedBy: browser`. Bila bridge tidak tersedia, tool mengembalikan kerangka tersebut beserta penjelasannya, bukan menebak isi halaman.
 
 Karena URL ditentukan oleh model, setiap hop divalidasi dan permintaannya tidak dapat diarahkan ke jaringan server sendiri:
 
@@ -255,11 +258,12 @@ Seed script membuat project awal `Mimin Coding Agent` dan conversation `Welcome 
 ```text
 GET /api/models
 GET /api/tools?projectId=:projectId
+GET /api/tools?includeProjectTools=true
 ```
 
 `/api/models` menanyakan endpoint daftar model provider yang dikonfigurasi dan mengembalikan metadata model yang dinormalisasi, termasuk provider, context window, capabilities, source (`live` atau `catalog`), dan status konfigurasi server. Provider yang belum dikonfigurasi tetap mengembalikan metadata catalog bawaan untuk UI setup, sedangkan provider yang dikonfigurasi hanya menampilkan model yang dikembalikan API-nya. Jika ada sesi, endpoint ini juga melaporkan apakah pengguna menyimpan key sendiri untuk tiap provider (`userConfigured`). Kegagalan discovery provider dikembalikan dalam array `errors`.
 
-Tool khusus project seperti `project_knowledge_search` hanya dikembalikan jika `projectId` diberikan.
+Tool khusus project seperti `project_knowledge_search` hanya dikembalikan jika `projectId` diberikan. Endpoint `/api/tools` memerlukan sesi, dan `projectId` harus merujuk ke project milik pengguna yang sedang masuk; id lain mengembalikan `404`. Pemanggil yang tidak terikat pada satu project, seperti editor skill, meminta tool khusus project dengan `includeProjectTools=true`.
 
 ### Providers
 
@@ -408,6 +412,9 @@ Panduan konfigurasi, batas OCR, keamanan, migrasi, dan pemulihan tersedia di [Kn
 ## Frontend routes
 
 ```text
+/login                             Sign in
+/forgot-password                   Meminta tautan reset password
+/reset-password?token=...          Memilih password baru
 /                                  Home composer
 /chat                              Chat room dan SSE response
 /projects                          Project dashboard
@@ -440,7 +447,7 @@ Smoke-test PostgreSQL dan API:
 ```text
 GET /api/projects       200
 GET /api/models         200
-GET /api/tools          200
+GET /api/tools          401 tanpa sesi
 Project CRUD            create/read/delete verified
 SSE provider guard      normalized error, no secret leak
 ```

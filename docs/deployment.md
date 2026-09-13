@@ -29,6 +29,23 @@ build-time configuration is required. If the app is reachable at more than one o
 package should bridge all of them, list the extra origins in `MIMIN_EXTENSION_ORIGINS`; users then
 re-download the package from **Settings → Browser Extension**.
 
+### Password reset email
+
+Password reset works without any mail configuration: the request page tells users to ask an administrator, and administrators create and copy a single-use link from **Users**. The link is also written to the server log.
+
+To email reset links instead, configure an SMTP relay:
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587            # 465 with SMTP_SECURE=true
+SMTP_SECURE=false
+SMTP_USER=mailer@example.com
+SMTP_PASSWORD=...
+SMTP_FROM=Mimin WebUI <no-reply@example.com>
+```
+
+Port 587 upgrades with STARTTLS, and the client refuses to send credentials or content when the relay offers no TLS. Only set `SMTP_ALLOW_INSECURE=true` for a relay you control on a trusted network, such as a local Postfix container. Check the container logs after the first request: a rejected login or an unverified sender appears there, while the user always sees the same neutral response.
+
 ## 2. Start and bootstrap
 
 ```bash
