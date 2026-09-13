@@ -1,0 +1,85 @@
+<script lang="ts">
+	import { RotateCcw } from '@lucide/svelte';
+
+	type Props = {
+		error?: string;
+		canRetry?: boolean;
+		retryDisabled?: boolean;
+		onretry?: () => void;
+	};
+
+	let { error = '', canRetry = false, retryDisabled = false, onretry }: Props = $props();
+</script>
+
+{#if error}
+	<div class="inline-error" role="alert">
+		<div class="inline-error-content">
+			<strong>Agent error</strong>
+			<span class="inline-error-text">{error}</span>
+		</div>
+		{#if canRetry}
+			<button
+				type="button"
+				class="inline-error-retry"
+				onclick={onretry}
+				disabled={retryDisabled}
+				title="Retry last message"
+				aria-label="Retry last message"
+			>
+				<RotateCcw size={13} aria-hidden="true" />
+				<span>Retry</span>
+			</button>
+		{/if}
+	</div>
+{/if}
+
+<style>
+	.inline-error {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		background: rgba(141, 47, 38, 0.09);
+		border: 1px solid rgba(141, 47, 38, 0.35);
+		color: var(--danger-text);
+		border-radius: 6px;
+		padding: 10px 12px;
+		margin: 18px 0 0;
+		font-size: var(--text-sm);
+	}
+	.inline-error-content {
+		min-width: 0;
+		flex: 1;
+	}
+	.inline-error strong {
+		display: block;
+		font-size: var(--text-sm);
+		margin-bottom: 2px;
+	}
+	.inline-error-text {
+		word-break: break-word;
+	}
+	.inline-error-retry {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+		padding: 6px 12px;
+		font-size: var(--text-xs);
+		font-weight: 500;
+		color: var(--danger-text);
+		background: rgba(141, 47, 38, 0.12);
+		border: 1px solid rgba(141, 47, 38, 0.4);
+		border-radius: 5px;
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+	.inline-error-retry:hover:not(:disabled) {
+		background: rgba(141, 47, 38, 0.22);
+		border-color: rgba(141, 47, 38, 0.6);
+	}
+	.inline-error-retry:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+</style>
