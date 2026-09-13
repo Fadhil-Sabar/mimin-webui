@@ -33,7 +33,7 @@ Mimin asks for the user's approval in the chat before the first tab access in a 
 - **User-controlled grant**: Page reading and interaction are not enabled silently. The user must explicitly click **Grant** under **Tab reading & interaction** in the extension popup.
 - If public website reading permission has not been granted, `browser_open` navigates to the page but returns `{ readable: false, reason: "host_permission_required" }`.
 - Tab listing only returns tabs whose URLs the extension is permitted to see; internal pages (`chrome://`, `about:`, extensions) and private or local addresses are skipped. Reading a tab without host permission returns `{ readable: false, reason: "host_permission_required" }`.
-- The bridge accepts requests only from the exact origins configured at build time (`MIMIN_EXTENSION_ORIGINS`). It never reads browsing history, cookies, accounts, or saved passwords.
+- The bridge answers only the exact origins baked into the package it was installed from. The settings page rebuilds the package for the origin you download it from, so it always matches where you opened Mimin; `MIMIN_EXTENSION_ORIGINS` adds more origins when one install must bridge several hostnames. It never reads browsing history, cookies, accounts, or saved passwords.
 
 The page protocol is:
 
@@ -65,11 +65,18 @@ Runtime requirements: the popup must be granted **Tab reading & interaction** ho
 npm run extension:build
 ```
 
-This creates unpacked builds and downloadable ZIP archives in `static/extensions/`. Set `MIMIN_EXTENSION_ORIGINS` to a comma-separated list of exact app origins when building for a deployed Mimin instance, for example:
+This creates unpacked builds and ZIP archives in `static/extensions/`. The unpacked directories are what
+local tooling loads (`npm run extension:probe`, `npm run extension:e2e:chrome`, `web-ext run`), and their
+matches default to `http://localhost:5173` and `http://127.0.0.1:5173`. Set `MIMIN_EXTENSION_ORIGINS` to a
+comma-separated list of exact origins to build them for somewhere else:
 
 ```bash
 MIMIN_EXTENSION_ORIGINS=https://mimin.example.com npm run extension:build
 ```
+
+That ZIP is not what a hosted Mimin serves. **Settings → Browser Extension** regenerates the archive per
+download for the origin the browser is on (`GET /api/browser/extension/{chrome|firefox}`), so an instance
+reached at a LAN IP, a Tailscale name, or a domain works without a rebuild or any extra configuration.
 
 ## Test locally
 

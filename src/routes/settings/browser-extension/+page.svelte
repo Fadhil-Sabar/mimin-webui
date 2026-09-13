@@ -40,16 +40,22 @@
 	let checking = $state(false);
 	let status = $state('Checking connection…');
 	let permissions = $state<{ google?: boolean; publicWebsites?: boolean } | undefined>(undefined);
-	let shippedOrigins = $state<string[]>([]);
-	let originMismatch = $state(false);
 	let pageOrigin = $state('');
+
+	// The package is built for the origin it is downloaded from, so it always bridges the browser
+	// actually open here. `data.origin` only covers the pre-hydration markup.
+	let downloadOrigin = $derived(pageOrigin || data.origin);
+	let chromeDownload = $derived(
+		`${resolve('/')}api/browser/extension/chrome?origin=${encodeURIComponent(downloadOrigin)}`
+	);
+	let firefoxDownload = $derived(
+		`${resolve('/')}api/browser/extension/firefox?origin=${encodeURIComponent(downloadOrigin)}`
+	);
 
 	onMount(() => {
 		enabled = isBrowserBridgeEnabled();
 		browser = /firefox/i.test(navigator.userAgent) ? 'firefox' : 'chromium';
-		shippedOrigins = data.shippedExtensionOrigins ?? [];
 		pageOrigin = window.location.origin;
-		originMismatch = shippedOrigins.length > 0 && !shippedOrigins.includes(pageOrigin);
 		hydrated = true;
 		void checkConnection();
 	});
@@ -263,16 +269,6 @@
 							time it needs your tabs.
 						</p>
 					{/if}
-
-					{#if enabled && !connected && !updateRequired && originMismatch}
-						<p class="footnote-perm warning">
-							This instance is served from <code>{pageOrigin}</code>, but the downloadable package
-							only bridges {shippedOrigins.join(', ')}. Rebuild with
-							<code>MIMIN_EXTENSION_ORIGINS={pageOrigin}</code> (Docker Compose also accepts
-							<code>BETTER_AUTH_URL</code>) and download the package again. Reloading the installed
-							extension cannot fix this on its own.
-						</p>
-					{/if}
 				</div>
 
 				<div class="privacy-note">
@@ -302,11 +298,7 @@
 							{#if browser === 'chromium'}<span class="badge ok">Recommended</span>{/if}
 						</div>
 						<p>Chrome, Edge, Brave, Arc, Opera, and other Chromium browsers.</p>
-						<a
-							class="button primary"
-							href={`${resolve('/')}extensions/mimin-search-chrome.zip`}
-							download
-						>
+						<a class="button primary" href={chromeDownload} download>
 							<Download size={15} /> Download Chrome package
 						</a>
 						<ol>
@@ -323,11 +315,7 @@
 							{#if browser === 'firefox'}<span class="badge ok">Recommended</span>{/if}
 						</div>
 						<p>Firefox 109 or newer using a temporary local add-on.</p>
-						<a
-							class="button primary"
-							href={`${resolve('/')}extensions/mimin-search-firefox.zip`}
-							download
-						>
+						<a class="button primary" href={firefoxDownload} download>
 							<Download size={15} /> Download Firefox package
 						</a>
 						<ol>
@@ -339,9 +327,12 @@
 				</div>
 
 				<p class="footnote">
-					Already installed the earlier search popup? Replace it with this package, reload the
-					extension, then reload Mimin in the same Chrome or Firefox browser. Keep the chat open
-					while Mimin works. If Google shows a CAPTCHA, complete it yourself and ask Mimin to retry.
+					Already installed an earlier package? Download this one again, replace it in
+					<code>chrome://extensions</code> or <code>about:debugging</code>, reload the extension,
+					then reload Mimin in the same browser. A package only bridges the origin it was downloaded
+					from, so an extension installed for a different address (for example
+					<code>localhost</code>) reports <em>Not connected</em> here. Keep the chat open while Mimin
+					works. If Google shows a CAPTCHA, complete it yourself and ask Mimin to retry.
 				</p>
 				<p class="footnote">
 					Local packages are intended for testing and managed internal use. Publish signed builds to

@@ -10,10 +10,10 @@ RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 # Copy full application source
 COPY . .
 
-# Exact Mimin origins the downloadable browser extension may bridge. Baked into the
-# package at build time, so a hosted instance must pass its public origin here
-# (for example http://203.0.113.5:3000) or the extension never injects into the app.
-# Unset means the local development origins only.
+# Origins for the unpacked packages in static/extensions, which local tooling loads
+# (npm run extension:probe, npm run extension:e2e:chrome, web-ext run). The package a
+# user downloads from Settings → Browser Extension is rebuilt for the origin they are
+# on, so a hosted instance does not need this. Unset means the local development origins.
 ARG MIMIN_EXTENSION_ORIGINS
 ENV MIMIN_EXTENSION_ORIGINS=${MIMIN_EXTENSION_ORIGINS}
 

@@ -24,9 +24,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        # Baked into the downloadable browser extension package, which may only bridge
-        # these exact origins. Defaults to this instance's public origin so a hosted
-        # deployment works without extra configuration.
+        # Unpacked development packages only; the package a user downloads is rebuilt
+        # for the origin their browser is on. Defaults to this instance's public origin.
         MIMIN_EXTENSION_ORIGINS: ${MIMIN_EXTENSION_ORIGINS:-${BETTER_AUTH_URL:-${ORIGIN:-http://localhost:${HOST_PORT:-${PORT:-3000}}}}}
     restart: unless-stopped
     ports:

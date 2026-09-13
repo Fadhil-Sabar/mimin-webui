@@ -24,10 +24,10 @@ BETTER_AUTH_URL=https://mimin.example.com
 ORIGIN=https://mimin.example.com
 ```
 
-Compose bakes `BETTER_AUTH_URL` into the downloadable browser extension as its allowed origin, so the
-package only bridges the origin you set here. If the app is reachable at another origin as well (a bare
-IP and port, for example), list every origin in `MIMIN_EXTENSION_ORIGINS` instead. Changing it requires a
-rebuild, and users must download the extension package again from **Settings → Browser Extension**.
+The downloadable browser extension is built when you download it, for the origin you are on, so no
+build-time configuration is required. If the app is reachable at more than one origin and one installed
+package should bridge all of them, list the extra origins in `MIMIN_EXTENSION_ORIGINS`; users then
+re-download the package from **Settings → Browser Extension**.
 
 ## 2. Start and bootstrap
 
