@@ -41,6 +41,11 @@ describe('per-conversation drafts', () => {
 		clearConversationDraft('conversation-a');
 		expect(getConversationDraft('conversation-a')).toBe('');
 	});
+
+	it('ignores malformed stored draft values', () => {
+		store.setItem('mimin_conversation_drafts', JSON.stringify({ 'conversation-a': 42 }));
+		expect(getConversationDraft('conversation-a')).toBe('');
+	});
 });
 
 describe('one-time navigation handoff', () => {

@@ -25,7 +25,8 @@ function writeDrafts(drafts: DraftMap) {
 
 export function getConversationDraft(conversationId: string | null | undefined): string {
 	if (!conversationId) return '';
-	return readDrafts()[conversationId] ?? '';
+	const draft = readDrafts()[conversationId];
+	return typeof draft === 'string' ? draft : '';
 }
 
 export function setConversationDraft(conversationId: string | null | undefined, draft: string) {
