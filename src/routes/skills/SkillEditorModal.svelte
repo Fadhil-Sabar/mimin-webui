@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick, onMount } from 'svelte';
 	import { Check, Info, X } from '@lucide/svelte';
 	import ToolGrid from './ToolGrid.svelte';
 	import TriggerPhraseEditor from './TriggerPhraseEditor.svelte';
@@ -47,6 +48,17 @@
 	} = $props();
 
 	let formElement = $state<HTMLFormElement>();
+	let opener: HTMLElement | null = null;
+
+	onMount(() => {
+		opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+	});
+
+	async function close() {
+		onclose();
+		await tick();
+		opener?.focus();
+	}
 
 	$effect(() => {
 		const element = formElement;
@@ -60,9 +72,9 @@
 	aria-modal="true"
 	aria-labelledby="skill-editor-title"
 	tabindex="-1"
-	onclick={(event) => event.target === event.currentTarget && onclose()}
+	onclick={(event) => event.target === event.currentTarget && void close()}
 	onkeydown={(event) => {
-		if (event.key === 'Escape') onclose();
+		if (event.key === 'Escape') void close();
 		trapModalFocus(event, formElement);
 	}}
 >
@@ -78,8 +90,11 @@
 			<div>
 				<h2 id="skill-editor-title">{skill ? 'Edit skill' : 'Create a skill'}</h2>
 			</div>
-			<button type="button" class="icon-button" onclick={onclose} aria-label="Close dialog"
-				><X size={18} /></button
+			<button
+				type="button"
+				class="icon-button"
+				onclick={() => void close()}
+				aria-label="Close dialog"><X size={18} /></button
 			>
 		</div>
 		<div class="editor-grid">
@@ -130,7 +145,8 @@
 		/>
 		{#if formError}<div class="form-error" role="alert"><Info size={15} /> {formError}</div>{/if}
 		<div class="modal-actions">
-			<button type="button" class="button" onclick={onclose} disabled={saving}>Cancel</button
+			<button type="button" class="button" onclick={() => void close()} disabled={saving}
+				>Cancel</button
 			><button type="submit" class="button primary" disabled={saving}
 				>{#if saving}Saving...{:else}<Check size={15} />
 					{skill ? 'Save changes' : 'Create skill'}{/if}</button

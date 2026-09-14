@@ -159,13 +159,13 @@
 							</div>
 						</div>
 					{:else}
-						<div
+						<button
+							type="button"
 							class="tool-item"
 							class:active={isEnabled}
 							onclick={() => toggleTool(tool.name)}
-							role="button"
-							tabindex="0"
-							onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && toggleTool(tool.name)}
+							onkeydown={(event) => event.key === ' ' && event.preventDefault()}
+							aria-pressed={isEnabled}
 						>
 							<div class="tool-info">
 								<div class="tool-name-row">
@@ -176,7 +176,7 @@
 							<div class="tool-switch" class:checked={isEnabled} aria-hidden="true">
 								<div class="tool-switch-handle"></div>
 							</div>
-						</div>
+						</button>
 					{/if}
 				{/each}
 				{#if tools.length === 0}
@@ -296,6 +296,11 @@
 		transition: 0.15s ease;
 		background: transparent;
 		user-select: none;
+		width: 100%;
+		border: 0;
+		font: inherit;
+		color: inherit;
+		text-align: left;
 	}
 	.tool-item:hover {
 		background: var(--surface-hover);

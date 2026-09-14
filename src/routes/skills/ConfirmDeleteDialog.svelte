@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick, onMount } from 'svelte';
 	import { X } from '@lucide/svelte';
 	import { focusModalPrimary, trapModalFocus } from './skills-focus';
 	import type { Skill } from './skills-types';
@@ -16,6 +17,17 @@
 	} = $props();
 
 	let dialogElement = $state<HTMLDivElement>();
+	let opener: HTMLElement | null = null;
+
+	onMount(() => {
+		opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+	});
+
+	async function close() {
+		onclose();
+		await tick();
+		opener?.focus();
+	}
 
 	$effect(() => {
 		const element = dialogElement;
@@ -27,9 +39,9 @@
 	class="modal-backdrop"
 	role="presentation"
 	tabindex="-1"
-	onclick={(event) => !deleting && event.target === event.currentTarget && onclose()}
+	onclick={(event) => !deleting && event.target === event.currentTarget && void close()}
 	onkeydown={(event) => {
-		if (event.key === 'Escape' && !deleting) onclose();
+		if (event.key === 'Escape' && !deleting) void close();
 	}}
 >
 	<div
@@ -45,8 +57,11 @@
 			<div>
 				<h2 id="delete-skill-title">Delete skill?</h2>
 			</div>
-			<button class="icon-button" onclick={onclose} disabled={deleting} aria-label="Close dialog"
-				><X size={18} /></button
+			<button
+				class="icon-button"
+				onclick={() => void close()}
+				disabled={deleting}
+				aria-label="Close dialog"><X size={18} /></button
 			>
 		</div>
 		<p class="modal-text">
@@ -54,7 +69,7 @@
 			instructions, while future activations will no longer find this skill.
 		</p>
 		<div class="modal-actions">
-			<button class="button" onclick={onclose} disabled={deleting} data-modal-primary
+			<button class="button" onclick={() => void close()} disabled={deleting} data-modal-primary
 				>Keep skill</button
 			><button class="button danger" onclick={onconfirm} disabled={deleting}
 				>{deleting ? 'Deleting...' : 'Delete skill'}</button

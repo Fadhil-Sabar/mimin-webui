@@ -23,6 +23,7 @@
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import { focusModalPrimary, trapModalFocus } from '../skills/skills-focus';
 
 	type Project = {
 		id: string;
@@ -42,6 +43,8 @@
 	let newDescription = $state('');
 	let newInstructions = $state('');
 	let creating = $state(false);
+	let createProjectTrigger = $state<HTMLButtonElement>();
+	let createProjectForm = $state<HTMLFormElement>();
 	let { data } = $props();
 	let user = $derived(data.user);
 	let loading = $state(true);
@@ -51,6 +54,16 @@
 			`${project.name} ${project.description}`.toLowerCase().includes(query.trim().toLowerCase())
 		)
 	);
+
+	function closeCreateProject() {
+		showCreate = false;
+		createProjectTrigger?.focus();
+	}
+
+	$effect(() => {
+		const form = createProjectForm;
+		if (showCreate && form) void focusModalPrimary(form);
+	});
 
 	function notify(v: string) {
 		toast = v;
@@ -99,7 +112,7 @@
 			newName = '';
 			newDescription = '';
 			newInstructions = '';
-			showCreate = false;
+			closeCreateProject();
 			notify('Project created');
 			await loadProjects();
 		} catch (error) {
@@ -202,8 +215,10 @@
 					<h1>Projects</h1>
 					<p>Persistent context for the work you return to.</p>
 				</div>
-				<button class="button primary" onclick={() => (showCreate = true)}
-					><Plus size={16} /> New project</button
+				<button
+					class="button primary"
+					bind:this={createProjectTrigger}
+					onclick={() => (showCreate = true)}><Plus size={16} /> New project</button
 				>
 			</div>
 			<div class="toolbar">
@@ -282,11 +297,15 @@
 		aria-modal="true"
 		aria-labelledby="create-project-title"
 		tabindex="-1"
-		onclick={(event) => event.target === event.currentTarget && (showCreate = false)}
-		onkeydown={(event) => event.key === 'Escape' && (showCreate = false)}
+		onclick={(event) => event.target === event.currentTarget && closeCreateProject()}
+		onkeydown={(event) => {
+			if (event.key === 'Escape') closeCreateProject();
+			trapModalFocus(event, createProjectForm);
+		}}
 	>
 		<form
 			class="modal"
+			bind:this={createProjectForm}
 			onsubmit={(event) => {
 				event.preventDefault();
 				createProject();
@@ -301,7 +320,7 @@
 					class="icon-button"
 					aria-label="Close"
 					title="Close dialog"
-					onclick={() => (showCreate = false)}><X size={18} /></button
+					onclick={closeCreateProject}><X size={18} /></button
 				>
 			</div>
 			<label
@@ -325,17 +344,16 @@
 					placeholder="How should the agent help with this project?"></textarea></label
 			>
 			<div class="modal-actions">
-				<button type="button" class="button" onclick={() => (showCreate = false)}>Cancel</button
-				><button type="submit" class="button primary" disabled={creating}
-					>{creating ? 'Creating...' : 'Create project'}</button
+				<button type="button" class="button" onclick={closeCreateProject}>Cancel</button><button
+					type="submit"
+					class="button primary"
+					disabled={creating}>{creating ? 'Creating...' : 'Create project'}</button
 				>
 			</div>
 		</form>
 	</div>
 {/if}
 {#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
-
-<svelte:window onkeydown={(event) => event.key === 'Escape' && (showCreate = false)} />
 
 <style>
 	.projects-wrap {

@@ -164,13 +164,13 @@
 						<div class="skill-group-label">{project ? 'Project skills' : 'Personal skills'}</div>
 						{#each group as skill (skill.id)}
 							{@const isEnabled = skill.id === currentActiveId}
-							<div
+							<button
+								type="button"
 								class="skill-item"
 								class:active={isEnabled}
 								onclick={() => handleToggle(skill.id)}
-								role="button"
-								tabindex="0"
-								onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleToggle(skill.id)}
+								onkeydown={(event) => event.key === ' ' && event.preventDefault()}
+								aria-pressed={isEnabled}
 							>
 								<div class="skill-info">
 									<div class="skill-name-row">
@@ -186,7 +186,7 @@
 								<div class="skill-switch" class:checked={isEnabled} aria-hidden="true">
 									<div class="skill-switch-handle"></div>
 								</div>
-							</div>
+							</button>
 						{/each}
 					{/if}
 				{/each}
@@ -379,6 +379,11 @@
 		transition: 0.15s ease;
 		background: transparent;
 		user-select: none;
+		width: 100%;
+		border: 0;
+		font: inherit;
+		color: inherit;
+		text-align: left;
 	}
 
 	.skill-item:hover {
