@@ -128,12 +128,12 @@
 					class="message-action-btn"
 					onclick={copyResponse}
 					aria-label="Copy response"
+					data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
 				>
 					{#if copyStatus === 'copied'}<Check size={12} aria-hidden="true" />{:else}<Clipboard
 							size={12}
 							aria-hidden="true"
 						/>{/if}
-					<span>{copyStatus === 'copied' ? 'Copied' : 'Copy response'}</span>
 				</button>
 				{#if isLast && canRegenerate}
 					<button
@@ -142,9 +142,9 @@
 						onclick={onregenerate}
 						disabled={regenerateDisabled}
 						aria-label="Regenerate response"
+						data-tooltip="Regenerate"
 					>
 						<RotateCcw size={12} aria-hidden="true" />
-						<span>Regenerate</span>
 					</button>
 				{/if}
 				{#if copyStatus !== 'idle'}
@@ -334,10 +334,13 @@
 		margin-top: 10px;
 	}
 	.message-action-btn {
+		position: relative;
 		display: inline-flex;
 		align-items: center;
-		gap: 5px;
-		padding: 4px 7px;
+		justify-content: center;
+		width: 22px;
+		height: 22px;
+		padding: 0;
 		border: 1px solid var(--border);
 		border-radius: 4px;
 		background: var(--surface-subtle);
@@ -352,6 +355,32 @@
 	.message-action-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
+	}
+	/* Icon-only buttons reveal their label on hover/focus. The tooltip sits in a
+	   pseudo-element so it stays out of the accessibility tree (the aria-label
+	   already names the button) and cannot be clipped by the label gutter. */
+	.message-action-btn[data-tooltip]::after {
+		content: attr(data-tooltip);
+		position: absolute;
+		bottom: calc(100% + 6px);
+		left: 50%;
+		padding: 3px 7px;
+		border-radius: 4px;
+		background: var(--accent-bg);
+		color: var(--accent-fg);
+		font-size: var(--text-xs);
+		line-height: 1.3;
+		white-space: nowrap;
+		opacity: 0;
+		pointer-events: none;
+		transform: translateX(-50%);
+		transition: opacity 0.12s ease;
+		z-index: 20;
+	}
+	.message-action-btn[data-tooltip]:hover::after,
+	.message-action-btn[data-tooltip]:focus-visible::after {
+		opacity: 1;
+		transition-delay: 0.3s;
 	}
 	.sr-only {
 		position: absolute;
