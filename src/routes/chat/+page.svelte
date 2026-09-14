@@ -29,6 +29,8 @@
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
+	import { getConversationDraft, setConversationDraft } from '$lib/client/drafts';
+	import { peekNavigationHandoff, consumeNavigationHandoff } from '$lib/client/navigation-handoff';
 	import type { SkillSummary } from '$lib/skills';
 	import ChatComposer from './ChatComposer.svelte';
 	import ChatHeader from './ChatHeader.svelte';
@@ -365,6 +367,10 @@
 		setTimeout(() => (toast = ''), 1800);
 	}
 
+	$effect(() => {
+		if (activeId) setConversationDraft(activeId, message);
+	});
+
 	async function loadConversations() {
 		try {
 			const response = await fetch('/api/conversations');
@@ -418,12 +424,14 @@
 		conversationLoading = true;
 		const switching = id !== activeId;
 		if (switching) {
+			setConversationDraft(activeId, message);
 			conversationNavigationToken += 1;
 			stream.reset();
 			pendingAttachments = [];
 			settings.resetTools();
 		}
 		activeId = id;
+		message = getConversationDraft(id);
 		activeConversation = conversations.find((c) => c.id === id) ?? null;
 		if (!preserveLiveState) {
 			stream.resetLiveState();
@@ -576,7 +584,9 @@
 			]);
 			const params = new URL(window.location.href).searchParams;
 			const requested = params.get('id');
-			const pendingPrompt = params.get('prompt');
+			const handoff = peekNavigationHandoff();
+			const handoffPrompt = handoff?.returnTo === `/chat?id=${requested}` ? handoff.prompt : '';
+			if (handoffPrompt) consumeNavigationHandoff();
 			const isNew = params.get('new') === '1';
 
 			if (requested) {
@@ -597,8 +607,8 @@
 				await startNewConversation(true);
 			}
 			busy = false;
-			if (pendingPrompt) {
-				message = pendingPrompt;
+			if (handoffPrompt) {
+				message = handoffPrompt;
 				await stream.send();
 			}
 		})();

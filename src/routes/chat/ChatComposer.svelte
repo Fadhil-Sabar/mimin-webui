@@ -163,8 +163,9 @@
 		<textarea
 			bind:value={message}
 			aria-label="Message Mimin"
-			placeholder={running ? 'Mimin is responding...' : 'Ask Mimin to think, write, or plan...'}
-			disabled={running}
+			placeholder={running
+				? 'Prepare your next message...'
+				: 'Ask Mimin to think, write, or plan...'}
 			onkeydown={handleKeydown}></textarea>
 		<div class="composer-row">
 			<div class="composer-tools">

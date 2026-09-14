@@ -27,6 +27,11 @@
 		setLastUsedModel,
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
+	import {
+		consumeNavigationHandoff,
+		createNavigationHandoff,
+		peekNavigationHandoff
+	} from '$lib/client/navigation-handoff';
 	let prompt = $state('');
 	let toast = $state('');
 	let { data } = $props();
@@ -99,7 +104,8 @@
 			if (conversation.model) {
 				setLastUsedModel(conversation.model);
 			}
-			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}&prompt=${encodeURIComponent(content)}`;
+			createNavigationHandoff({ prompt: content, returnTo: `/chat?id=${conversation.id}` });
+			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}`;
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not start a conversation');
 		}
@@ -113,6 +119,11 @@
 	}
 
 	onMount(async () => {
+		const handoff = peekNavigationHandoff();
+		if (handoff?.returnTo === '/') {
+			prompt = handoff.prompt;
+			consumeNavigationHandoff();
+		}
 		await loadModels();
 		try {
 			const response = await fetch('/api/conversations');
@@ -131,6 +142,12 @@
 			/* ignore */
 		}
 	});
+
+	function openProviderSetup(event: MouseEvent) {
+		event.preventDefault();
+		createNavigationHandoff({ prompt: prompt.trim(), returnTo: '/' });
+		window.location.href = resolve('/settings');
+	}
 
 	async function logout() {
 		await authClient.signOut();
@@ -223,7 +240,7 @@
 				the next step.
 			</p>
 			{#if !modelsLoading && !selectedModel}
-				<a class="setup-callout" href={resolve('/settings')}
+				<a class="setup-callout" href={resolve('/settings')} onclick={openProviderSetup}
 					>Connect a model before starting a chat <span>→</span></a
 				>
 			{/if}

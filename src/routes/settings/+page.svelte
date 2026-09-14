@@ -20,6 +20,7 @@
 	import RecentChats from '$lib/components/RecentChats.svelte';
 	import ProviderCard from './ProviderCard.svelte';
 	import ProviderFormModal from './ProviderFormModal.svelte';
+	import { peekNavigationHandoff } from '$lib/client/navigation-handoff';
 	import {
 		isModelFree,
 		PROTOCOLS,
@@ -68,6 +69,7 @@
 	let modelFilter = $state('');
 	let manualModelId = $state('');
 	let textEditMode = $state(false);
+	let returnTarget = $state<string | null>(null);
 
 	function notify(message: string) {
 		toast = message;
@@ -115,6 +117,8 @@
 	}
 
 	onMount(async () => {
+		const handoff = peekNavigationHandoff();
+		returnTarget = handoff?.returnTo === '/' ? '/' : null;
 		try {
 			await loadProviders();
 		} catch (error) {
@@ -305,6 +309,7 @@
 			editing = null;
 			creatingCustom = false;
 			await loadProviders();
+			if (returnTarget) window.location.href = returnTarget;
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not save provider');
 		} finally {
