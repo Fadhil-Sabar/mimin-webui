@@ -44,4 +44,13 @@ describe('modal and picker keyboard accessibility', () => {
 		expect(source).toContain('trapModalFocus');
 		expect(source).toContain('createProjectTrigger?.focus()');
 	});
+
+	it('manages initial focus, trapping, and opener return for every project dialog', () => {
+		const source = read('src/routes/projects/[id]/ProjectDialogs.svelte');
+		expect(source).toContain('focusModalPrimary');
+		expect(source).toContain('trapModalFocus');
+		expect(source).toContain('restoreFocusTo?.focus()');
+		expect(source.match(/bind:this=\{activeModal\}/g)).toHaveLength(3);
+		expect(source.match(/trapModalFocus\(event, activeModal\)/g)).toHaveLength(3);
+	});
 });

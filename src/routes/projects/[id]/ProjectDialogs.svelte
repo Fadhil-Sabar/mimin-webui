@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { X } from '@lucide/svelte';
+	import { focusModalPrimary, trapModalFocus } from '../../skills/skills-focus';
 	import type { Project, ProjectFile } from './project-types';
 
 	let {
@@ -37,6 +39,35 @@
 		onclosedeletefile: () => void;
 		onconfirmdeletefile: () => void;
 	} = $props();
+
+	let activeModal = $state<HTMLElement>();
+	let previousDialog: 'edit' | 'delete-project' | 'delete-file' | null = null;
+	let restoreFocusTo: HTMLElement | null = null;
+	let openDialog: 'edit' | 'delete-project' | 'delete-file' | null = $derived(
+		editingProject
+			? 'edit'
+			: deletingProject && project
+				? 'delete-project'
+				: deletingFile
+					? 'delete-file'
+					: null
+	);
+
+	$effect(() => {
+		const dialog = openDialog;
+		if (dialog && dialog !== previousDialog) {
+			if (!previousDialog && document.activeElement instanceof HTMLElement) {
+				restoreFocusTo = document.activeElement;
+			}
+			void focusModalPrimary(activeModal);
+		} else if (!dialog && previousDialog) {
+			void tick().then(() => {
+				restoreFocusTo?.focus();
+				restoreFocusTo = null;
+			});
+		}
+		previousDialog = dialog;
+	});
 </script>
 
 {#if editingProject}
@@ -46,8 +77,12 @@
 		aria-modal="true"
 		aria-labelledby="edit-project-title"
 		tabindex="-1"
+		bind:this={activeModal}
 		onclick={(event) => event.target === event.currentTarget && oncloseedit()}
-		onkeydown={(event) => event.key === 'Escape' && oncloseedit()}
+		onkeydown={(event) => {
+			if (event.key === 'Escape') oncloseedit();
+			else trapModalFocus(event, activeModal);
+		}}
 	>
 		<form
 			class="modal"
@@ -62,7 +97,14 @@
 					><X size={16} /></button
 				>
 			</div>
-			<label>Project name<input bind:value={editName} maxlength="120" required /></label>
+			<label
+				>Project name<input
+					bind:value={editName}
+					maxlength="120"
+					required
+					data-modal-primary
+				/></label
+			>
 			<label>Description<textarea bind:value={editDescription} maxlength="2000"></textarea></label>
 			<label
 				>Instructions<textarea
@@ -88,8 +130,12 @@
 		aria-modal="true"
 		aria-labelledby="delete-project-title"
 		tabindex="-1"
+		bind:this={activeModal}
 		onclick={(event) => event.target === event.currentTarget && onclosedeleteproject()}
-		onkeydown={(event) => event.key === 'Escape' && onclosedeleteproject()}
+		onkeydown={(event) => {
+			if (event.key === 'Escape') onclosedeleteproject();
+			else trapModalFocus(event, activeModal);
+		}}
 	>
 		<div class="modal" role="document">
 			<div class="modal-head">
@@ -103,8 +149,11 @@
 				knowledge files. Its conversations will remain available as standalone chats.
 			</p>
 			<div class="modal-actions">
-				<button class="button" onclick={onclosedeleteproject} disabled={deleteProjectLoading}
-					>Cancel</button
+				<button
+					class="button"
+					onclick={onclosedeleteproject}
+					disabled={deleteProjectLoading}
+					data-modal-primary>Cancel</button
 				>
 				<button
 					class="button danger"
@@ -123,8 +172,12 @@
 		aria-modal="true"
 		aria-labelledby="delete-file-title"
 		tabindex="-1"
+		bind:this={activeModal}
 		onclick={(event) => event.target === event.currentTarget && onclosedeletefile()}
-		onkeydown={(event) => event.key === 'Escape' && onclosedeletefile()}
+		onkeydown={(event) => {
+			if (event.key === 'Escape') onclosedeletefile();
+			else trapModalFocus(event, activeModal);
+		}}
 	>
 		<div class="modal" role="document">
 			<div class="modal-head">
@@ -138,8 +191,11 @@
 				be able to use it.
 			</p>
 			<div class="modal-actions">
-				<button class="button" onclick={onclosedeletefile} disabled={deleteFileLoading}
-					>Cancel</button
+				<button
+					class="button"
+					onclick={onclosedeletefile}
+					disabled={deleteFileLoading}
+					data-modal-primary>Cancel</button
 				>
 				<button
 					class="button danger"
