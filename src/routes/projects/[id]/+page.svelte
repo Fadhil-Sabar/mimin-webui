@@ -47,6 +47,7 @@
 		appendConversations?: boolean;
 		updateFiles?: boolean;
 		updateConversations?: boolean;
+		fileQuery?: string;
 	};
 
 	let { data } = $props();
@@ -108,9 +109,6 @@
 	}
 
 	let projectId = $derived((page.params.id as string) ?? '');
-	let filteredFiles = $derived(
-		files.filter((file) => file.filename.toLowerCase().includes(projectQuery.trim().toLowerCase()))
-	);
 	let filteredConversations = $derived(
 		conversations.filter((conversation) =>
 			`${conversation.title} ${conversation.model}`
@@ -144,17 +142,20 @@
 		const filesPage = options.filesPage ?? (reset ? 1 : filePagination.page);
 		const conversationsPage =
 			options.conversationsPage ?? (reset ? 1 : conversationPagination.page);
+		const fileQuery = options.fileQuery ?? projectQuery.trim();
+		const requestSequence = ++loadSequence;
 		const query = new URLSearchParams({
 			filesPage: String(filesPage),
 			filesPageSize: String(filePagination.pageSize),
 			conversationsPage: String(conversationsPage),
-			conversationsPageSize: String(conversationPagination.pageSize)
+			conversationsPageSize: String(conversationPagination.pageSize),
+			...(fileQuery ? { fileQuery } : {})
 		});
 		const response = await fetch(`/api/projects/${id}?${query}`);
 		if (!response.ok) throw new Error('Could not load project');
 		const data = await response.json();
 		if (!data.project) throw new Error('Project not found');
-		if (id !== projectId) return;
+		if (id !== projectId || requestSequence !== loadSequence) return;
 		project = data.project;
 		const nextFiles = data.files ?? [];
 		const nextConversations = data.conversations ?? [];
@@ -197,6 +198,7 @@
 				reset: false,
 				filesPage: filePagination.page + 1,
 				conversationsPage: conversationPagination.page,
+				fileQuery: projectQuery.trim(),
 				appendFiles: true,
 				updateConversations: false
 			});
@@ -227,20 +229,24 @@
 
 	$effect(() => {
 		const id = projectId;
+		const query = projectQuery.trim();
 		if (!id) return;
-		const sequence = ++loadSequence;
-		loading = true;
-		loadError = '';
-		// Pagination is updated by load(); only a route ID change should restart this effect.
-		void untrack(() => load(id))
-			.catch((error) => {
-				if (sequence === loadSequence) {
-					loadError = error instanceof Error ? error.message : 'Could not load project';
-				}
-			})
-			.finally(() => {
-				if (sequence === loadSequence) loading = false;
-			});
+		const timer = setTimeout(
+			() => {
+				loading = true;
+				loadError = '';
+				void untrack(() => load(id, { fileQuery: query }))
+					.catch((error) => {
+						if (id === projectId && query === projectQuery.trim())
+							loadError = error instanceof Error ? error.message : 'Could not load project';
+					})
+					.finally(() => {
+						if (id === projectId && query === projectQuery.trim()) loading = false;
+					});
+			},
+			query ? 250 : 0
+		);
+		return () => clearTimeout(timer);
 	});
 
 	onMount(async () => {});
@@ -541,7 +547,7 @@
 				<ProjectCanvases canvases={projectCanvases} oncreatecanvas={createProjectCanvas} />
 				<ProjectSkills {projectId} />
 				<ProjectKnowledge
-					{filteredFiles}
+					filteredFiles={files}
 					loadedCount={files.length}
 					query={projectQuery}
 					pagination={filePagination}

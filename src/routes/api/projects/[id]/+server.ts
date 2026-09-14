@@ -1,12 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { and, count, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, ilike } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
 import { projectInput } from '$lib/server/validation';
 import { cleanupStoredFiles } from '$lib/server/files/storage';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
 import { toPublicConversation } from '$lib/server/skill-runtime';
+import { escapeLikePattern, parseProjectFileQuery } from '$lib/server/projects/search';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -49,22 +50,27 @@ export const GET: RequestHandler = async (event) => {
 		if (filesPagination instanceof Response) return filesPagination;
 		const conversationsPagination = parsePagination(event, 'conversations');
 		if (conversationsPagination instanceof Response) return conversationsPagination;
+		const fileQuery = parseProjectFileQuery(event.url.searchParams.get('fileQuery'));
+		if (fileQuery instanceof Response) return fileQuery;
 		const db = getDb();
 		const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, id));
 		if (!project || project.userId !== user.id)
 			return apiError('PROJECT_NOT_FOUND', 'Project not found.', 404);
+		const fileWhere = fileQuery
+			? and(
+					eq(schema.projectFiles.projectId, id),
+					ilike(schema.projectFiles.filename, `%${escapeLikePattern(fileQuery)}%`)
+				)
+			: eq(schema.projectFiles.projectId, id);
 		const [files, fileTotals, conversations, conversationTotals] = await Promise.all([
 			db
 				.select()
 				.from(schema.projectFiles)
-				.where(eq(schema.projectFiles.projectId, id))
+				.where(fileWhere)
 				.orderBy(desc(schema.projectFiles.createdAt), desc(schema.projectFiles.id))
 				.limit(filesPagination.pageSize)
 				.offset(filesPagination.offset),
-			db
-				.select({ count: count() })
-				.from(schema.projectFiles)
-				.where(eq(schema.projectFiles.projectId, id)),
+			db.select({ count: count() }).from(schema.projectFiles).where(fileWhere),
 			db
 				.select()
 				.from(schema.conversations)

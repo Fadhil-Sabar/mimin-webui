@@ -179,6 +179,7 @@ const { POST: createConversation } = await import('../src/routes/api/conversatio
 const projectListRoute = await import('../src/routes/api/projects/+server');
 const projectRoute = await import('../src/routes/api/projects/[id]/+server');
 const projectFilesRoute = await import('../src/routes/api/projects/[id]/files/+server');
+const { parseProjectFileQuery } = await import('../src/lib/server/projects/search');
 
 function event(request?: Request, params: Record<string, string> = {}) {
 	return {
@@ -200,6 +201,12 @@ beforeEach(() => {
 });
 
 describe('Projects API routes', () => {
+	it('normalizes valid file searches and rejects oversized searches', () => {
+		expect(parseProjectFileQuery('  Notes.MD  ')).toBe('Notes.MD');
+		expect(parseProjectFileQuery('')).toBe('');
+		expect(parseProjectFileQuery('x'.repeat(201))).toBeInstanceOf(Response);
+	});
+
 	it('automatically persists project knowledge search on a project conversation', async () => {
 		const request = new Request('http://localhost/api/conversations', {
 			method: 'POST',
@@ -283,6 +290,17 @@ describe('Projects API routes', () => {
 		const response = await projectRoute.GET(
 			event(new Request('http://localhost/api/projects/project-1?filesPage=0'), { id: 'project-1' })
 		);
+		const body = await response.json();
+
+		expect(response.status).toBe(400);
+		expect(body.error.code).toBe('INVALID_INPUT');
+	});
+
+	it('rejects an oversized project file search before querying files', async () => {
+		const request = new Request(
+			`http://localhost/api/projects/project-1?fileQuery=${'x'.repeat(201)}`
+		);
+		const response = await projectRoute.GET(event(request, { id: 'project-1' }));
 		const body = await response.json();
 
 		expect(response.status).toBe(400);

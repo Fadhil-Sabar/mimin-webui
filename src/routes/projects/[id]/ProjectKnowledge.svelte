@@ -39,7 +39,7 @@
 		<div>
 			<h2>Knowledge</h2>
 			<p>Files available to the agent in this project.</p>
-			{#if query.trim()}<small class="search-scope">Search filters loaded files only.</small>{/if}
+			{#if query.trim()}<small class="search-scope">Searching all project files…</small>{/if}
 		</div>
 	</div>
 	<ProjectUpload {uploading} {indexingNotice} {uploadSummary} {onupload} />
@@ -49,7 +49,7 @@
 				<ProjectFileRow {file} {reindexing} {onreindex} {ondelete} />
 			{/each}
 		</div>
-	{:else if loadedCount > 0}
+	{:else if query.trim() || loadedCount > 0}
 		<div class="empty-state filtered-empty">No files match “{query}”.</div>
 	{/if}
 	{#if pagination.hasMore}

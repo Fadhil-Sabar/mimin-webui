@@ -7,7 +7,7 @@
 <label class="project-search">
 	<Search size={15} aria-hidden="true" />
 	<span id="project-search-note" class="sr-only"
-		>Search filters the loaded files and conversations only.</span
+		>Searches all project files on the server and filters loaded conversations.</span
 	>
 	<input
 		bind:value
