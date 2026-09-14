@@ -28,6 +28,7 @@
 	let open = $state(false);
 	let root = $state<HTMLDivElement | undefined>();
 	let trigger = $state<HTMLButtonElement | undefined>();
+	let menu = $state<HTMLDivElement | undefined>();
 	let placement = $state<'top' | 'bottom'>('top');
 	let maxHeight = $state<string | undefined>(undefined);
 
@@ -51,12 +52,26 @@
 		}
 	}
 
-	function toggle() {
+	function focusFirst() {
+		const first = menu?.querySelector<HTMLElement>(
+			'button, a, input, [tabindex]:not([tabindex="-1"])'
+		);
+		(first ?? menu)?.focus();
+	}
+
+	function close() {
+		open = false;
+		trigger?.focus();
+	}
+
+	async function toggle() {
 		if (disabled || loading) return;
 		open = !open;
 		if (open) {
 			updatePlacement();
-			tick().then(updatePlacement);
+			await tick();
+			updatePlacement();
+			focusFirst();
 		}
 	}
 
@@ -70,7 +85,27 @@
 	function closeOnOutsideClick(event: MouseEvent) {
 		if (!open || !root) return;
 		if (event.target instanceof Node && !root.contains(event.target)) {
-			open = false;
+			close();
+		}
+	}
+
+	function trapFocus(event: KeyboardEvent) {
+		if (!open || event.key !== 'Tab' || !menu) return;
+		const focusable = [
+			...menu.querySelectorAll<HTMLElement>('button, a, input, [tabindex]:not([tabindex="-1"])')
+		].filter((element) => !element.hasAttribute('disabled'));
+		if (focusable.length === 0) {
+			event.preventDefault();
+			menu.focus();
+			return;
+		}
+		const index = focusable.indexOf(document.activeElement as HTMLElement);
+		if (event.shiftKey && (index <= 0 || index === -1)) {
+			event.preventDefault();
+			focusable.at(-1)?.focus();
+		} else if (!event.shiftKey && (index === focusable.length - 1 || index === -1)) {
+			event.preventDefault();
+			focusable[0]?.focus();
 		}
 	}
 
@@ -82,7 +117,13 @@
 	}
 </script>
 
-<svelte:window onclick={closeOnOutsideClick} onkeydown={handleKeydown} />
+<svelte:window
+	onclick={closeOnOutsideClick}
+	onkeydown={(event) => {
+		handleKeydown(event);
+		trapFocus(event);
+	}}
+/>
 
 <div class="tool-picker" bind:this={root}>
 	<button
@@ -118,7 +159,10 @@
 			class:placement-bottom={placement === 'bottom'}
 			style:max-height={maxHeight}
 			role="dialog"
+			aria-modal="true"
 			aria-label="Available tools"
+			tabindex="-1"
+			bind:this={menu}
 		>
 			<div class="tool-menu-header">
 				<span class="tool-menu-title">Agent Tools</span>

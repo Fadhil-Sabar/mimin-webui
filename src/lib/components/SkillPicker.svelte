@@ -29,6 +29,7 @@
 	let root = $state<HTMLDivElement>();
 	let trigger = $state<HTMLButtonElement>();
 	let searchInput = $state<HTMLInputElement>();
+	let menu = $state<HTMLDivElement>();
 
 	let placement = $state<'top' | 'bottom'>('top');
 	let maxHeight = $state<string | undefined>(undefined);
@@ -66,9 +67,7 @@
 			query = '';
 			await tick();
 			updatePlacement();
-			if (skills.length > 3) {
-				searchInput?.focus();
-			}
+			focusFirst();
 		}
 	}
 
@@ -76,6 +75,17 @@
 		open = false;
 		query = '';
 		trigger?.focus();
+	}
+
+	function focusFirst() {
+		if (skills.length > 3) {
+			searchInput?.focus();
+			return;
+		}
+		const first = menu?.querySelector<HTMLElement>(
+			'button, a, input, [tabindex]:not([tabindex="-1"])'
+		);
+		(first ?? menu)?.focus();
 	}
 
 	function handleToggle(id: string) {
@@ -87,9 +97,26 @@
 		}
 	}
 
-	function handleKeydown(event: KeyboardEvent) {
+	function trapFocus(event: KeyboardEvent) {
 		if (event.key === 'Escape' && open) {
 			close();
+		}
+		if (!open || event.key !== 'Tab' || !menu) return;
+		const focusable = [
+			...menu.querySelectorAll<HTMLElement>('button, a, input, [tabindex]:not([tabindex="-1"])')
+		].filter((element) => !element.hasAttribute('disabled'));
+		if (focusable.length === 0) {
+			event.preventDefault();
+			menu.focus();
+			return;
+		}
+		const index = focusable.indexOf(document.activeElement as HTMLElement);
+		if (event.shiftKey && (index <= 0 || index === -1)) {
+			event.preventDefault();
+			focusable.at(-1)?.focus();
+		} else if (!event.shiftKey && (index === focusable.length - 1 || index === -1)) {
+			event.preventDefault();
+			focusable[0]?.focus();
 		}
 	}
 </script>
@@ -98,7 +125,7 @@
 	onclick={(event) => {
 		if (open && event.target instanceof Node && !root?.contains(event.target)) close();
 	}}
-	onkeydown={handleKeydown}
+	onkeydown={trapFocus}
 />
 
 <div class="skill-picker" bind:this={root}>
@@ -137,6 +164,7 @@
 			aria-modal="true"
 			aria-label="Agent skills"
 			tabindex="-1"
+			bind:this={menu}
 		>
 			<div class="skill-menu-header">
 				<span class="skill-menu-title">Skills</span>

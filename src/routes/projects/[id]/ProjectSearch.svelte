@@ -12,6 +12,7 @@
 	<input
 		bind:value
 		placeholder="Search project"
+		maxlength="200"
 		aria-label="Search files and conversations"
 		aria-describedby="project-search-note"
 	/>

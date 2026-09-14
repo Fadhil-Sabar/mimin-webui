@@ -6,9 +6,25 @@ const root = resolve(import.meta.dirname, '..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
 
 describe('modal and picker keyboard accessibility', () => {
+	it('constrains project search to the server query limit', () => {
+		const source = read('src/routes/projects/[id]/ProjectSearch.svelte');
+		expect(source).toContain('maxlength="200"');
+	});
+
+	it('consumes provider handoff on settings entry and recreates it only on save', () => {
+		const source = read('src/routes/settings/+page.svelte');
+		expect(source).toContain('consumeNavigationHandoff');
+		expect(source).toContain('createNavigationHandoff');
+		expect(source).toContain(
+			'createNavigationHandoff({ prompt: returnPrompt, returnTo: returnTarget })'
+		);
+	});
+
 	it('uses native toggle buttons and prevents Space from double toggling tools', () => {
 		const source = read('src/lib/components/ToolPicker.svelte');
 		expect(source).toContain('aria-pressed={isEnabled}');
+		expect(source).toContain('aria-modal="true"');
+		expect(source).toContain('trapFocus');
 		expect(source).toContain("onkeydown={(event) => event.key === ' ' && event.preventDefault()}");
 		expect(source).not.toContain('role="button"\n\t\t\t\t\t\t\ttabindex="0"');
 	});
@@ -16,6 +32,8 @@ describe('modal and picker keyboard accessibility', () => {
 	it('uses native toggle buttons and prevents Space from double toggling skills', () => {
 		const source = read('src/lib/components/SkillPicker.svelte');
 		expect(source).toContain('aria-pressed={isEnabled}');
+		expect(source).toContain('aria-modal="true"');
+		expect(source).toContain('trapFocus');
 		expect(source).toContain("onkeydown={(event) => event.key === ' ' && event.preventDefault()}");
 		expect(source).not.toContain('role="button"\n\t\t\t\t\t\t\ttabindex="0"');
 	});
