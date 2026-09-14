@@ -42,6 +42,26 @@
 		onquestionsubmit,
 		onconsentsubmit
 	}: Props = $props();
+
+	// While the thinking block streams it renders as a fixed-height scroller, so
+	// follow the text down like the transcript does — but stop once the reader
+	// scrolls back up, and resume when they return to the bottom.
+	const THINKING_SCROLL_THRESHOLD = 24;
+	let thinkingEl = $state<HTMLDivElement | null>(null);
+	let thinkingPinned = $state(true);
+
+	function handleThinkingScroll() {
+		if (!thinkingEl) return;
+		thinkingPinned =
+			thinkingEl.scrollHeight - thinkingEl.scrollTop - thinkingEl.clientHeight <
+			THINKING_SCROLL_THRESHOLD;
+	}
+
+	$effect(() => {
+		const streaming = message.isStreaming && !contentText(message.content);
+		if (!streaming || !thinkingText(message.content) || !thinkingPinned) return;
+		if (thinkingEl) thinkingEl.scrollTop = thinkingEl.scrollHeight;
+	});
 </script>
 
 <article
@@ -117,7 +137,9 @@
 					{/if}
 					<ChevronDown size={13} class="chevron" />
 				</summary>
-				<div class="thinking-content">{thinkingText(message.content)}</div>
+				<div class="thinking-content" bind:this={thinkingEl} onscroll={handleThinkingScroll}>
+					{thinkingText(message.content)}
+				</div>
 			</details>
 		{/if}
 		{#if contentText(message.content)}
@@ -151,10 +173,14 @@
 		font-size: var(--text-xs);
 		font-weight: 500;
 	}
+	/* Wraps by available width, not viewport width: a wide window with a narrow
+	   chat column (sidebar + split canvas) must stack the label above the body
+	   too. The label keeps its 130px gutter while the body still gets a
+	   readable measure, then the label moves onto its own line. */
 	.message {
-		display: grid;
-		grid-template-columns: 130px 1fr;
-		gap: 24px;
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px 24px;
 		padding: 24px 0;
 		border-bottom: 1px solid var(--border);
 	}
@@ -176,7 +202,11 @@
 		gap: 3px;
 		color: var(--text-dim);
 		font-size: var(--text-xs);
-		flex-shrink: 0;
+		flex: 0 0 130px;
+		min-width: 0;
+	}
+	.message-body {
+		flex: 1 1 320px;
 		min-width: 0;
 	}
 	.message-label-header {
@@ -229,9 +259,6 @@
 	}
 	.message-attachments {
 		margin-bottom: 12px;
-	}
-	.assistant-message > div:last-child {
-		min-width: 0;
 	}
 	.response-text {
 		margin: 0;
@@ -346,9 +373,8 @@
 		}
 	}
 	@media (max-width: 760px) {
-		.message {
-			grid-template-columns: 1fr;
-			gap: 6px;
+		.message-label {
+			flex: 1 1 100%;
 		}
 	}
 </style>

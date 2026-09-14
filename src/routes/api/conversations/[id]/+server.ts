@@ -135,9 +135,15 @@ export const GET: RequestHandler = async (event) => {
 		};
 		for (const citations of citationsByMessage.values())
 			citations.sort((a, b) => citationOrder(a.metadata) - citationOrder(b.metadata));
+		const [linkedCanvas] = await db
+			.select({ id: schema.canvases.id })
+			.from(schema.canvases)
+			.where(and(eq(schema.canvases.conversationId, id), eq(schema.canvases.userId, user.id)))
+			.limit(1);
 		return json({
 			conversation: {
-				...toPublicConversation(conversation)
+				...toPublicConversation(conversation),
+				canvasId: linkedCanvas?.id ?? null
 			},
 			messages: rows.map((row) => ({
 				...toPublicMessage(row),

@@ -11,6 +11,7 @@ export type Conversation = {
 	updatedAt: string;
 	projectId: string | null;
 	projectName?: string | null;
+	canvasId?: string | null;
 };
 
 export type ToolCall = {

@@ -100,6 +100,55 @@ const tools: AppTool[] = [
 		enabled: true
 	},
 	{
+		name: 'inspect_canvas',
+		label: 'Inspect Canvas',
+		description: 'Inspect style guidelines and scenes in the current visual Canvas workspace.',
+		category: 'canvas',
+		enabled: true
+	},
+	{
+		name: 'create_scene',
+		label: 'Create Scene',
+		description: 'Create a new mockup scene/screen in the Canvas.',
+		category: 'canvas',
+		enabled: true
+	},
+	{
+		name: 'edit_scene',
+		label: 'Edit Scene',
+		description: 'Update the HTML/CSS/JS or viewport of an existing Canvas scene.',
+		category: 'canvas',
+		enabled: true
+	},
+	{
+		name: 'delete_scene',
+		label: 'Delete Scene',
+		description: 'Delete a scene from the Canvas.',
+		category: 'canvas',
+		enabled: true
+	},
+	{
+		name: 'create_connection',
+		label: 'Create Connection',
+		description: 'Create a directed navigation flow between two Canvas scenes.',
+		category: 'canvas',
+		enabled: true
+	},
+	{
+		name: 'delete_connection',
+		label: 'Delete Connection',
+		description: 'Delete a directed navigation flow from the Canvas.',
+		category: 'canvas',
+		enabled: true
+	},
+	{
+		name: 'update_style_guideline',
+		label: 'Update Style Guideline',
+		description: 'Update design tokens, rules, avoidances, or direction for the Canvas.',
+		category: 'canvas',
+		enabled: true
+	},
+	{
 		name: 'code_execution',
 		label: 'Code Execution',
 		description: 'Run isolated code tasks.',

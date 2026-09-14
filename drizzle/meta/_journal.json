@@ -127,6 +127,20 @@
 			"when": 1789142954484,
 			"tag": "0017_bitter_yellowjacket",
 			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "7",
+			"when": 1789362785284,
+			"tag": "0018_zippy_ben_parker",
+			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "7",
+			"when": 1789370999914,
+			"tag": "0019_mysterious_photon",
+			"breakpoints": true
 		}
 	]
 }

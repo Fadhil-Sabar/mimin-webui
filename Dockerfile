@@ -29,14 +29,19 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
 ENV BODY_SIZE_LIMIT=30M
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-# Install curl for container healthcheck and OCR runtimes
+# Install curl for the container healthcheck and OCR runtimes.
 RUN apt-get update && apt-get install -y --no-install-recommends curl tesseract-ocr tesseract-ocr-eng tesseract-ocr-ind \
     && rm -rf /var/lib/apt/lists/*
 
 # Install production dependencies only
 COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --legacy-peer-deps \
+    && npx playwright install --with-deps chromium \
+    && chmod -R a+rX /ms-playwright \
+    && npm cache clean --force \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy built application and assets
 COPY --from=builder --chown=node:node /app/build ./build

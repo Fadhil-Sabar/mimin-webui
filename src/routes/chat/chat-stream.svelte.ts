@@ -46,6 +46,7 @@ export type ChatStreamDeps = {
 		preserveLiveState?: boolean
 	) => Promise<unknown>;
 	loadSkills: () => Promise<void>;
+	onCanvasEvent?: (event: SseEvent) => void;
 };
 
 /**
@@ -279,6 +280,8 @@ export function createChatStream(deps: ChatStreamDeps) {
 				messages = messages.map((msg) =>
 					msg.id === msgId ? { ...msg, citations: event.citations as MessageCitation[] } : msg
 				);
+		} else if (event.type.startsWith('canvas.')) {
+			deps.onCanvasEvent?.(event);
 		} else if (event.type === 'error') {
 			streamingDeltas.flush();
 			liveError = extractSseErrorMessage(event.error);

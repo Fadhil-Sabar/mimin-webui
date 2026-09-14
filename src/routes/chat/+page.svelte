@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { SvelteFlowProvider } from '@xyflow/svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import {
 		answerBrowserConsent,
@@ -6,8 +7,18 @@
 		createConversation,
 		deleteConversation,
 		updateConversation,
+		fetchCanvas,
+		createCanvasApi,
+		updateCanvasApi,
+		addCanvasSceneApi,
+		updateCanvasSceneApi,
+		deleteCanvasSceneApi,
+		createCanvasConnectionApi,
+		deleteCanvasConnectionApi,
 		type BrowserConsentDecision
 	} from '$lib/client/api';
+	import type { CanvasDetail, CanvasScene, StyleGuideline, ViewportDevice } from '$lib/canvas';
+	import CanvasWorkspace from '$lib/components/CanvasWorkspace.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import {
@@ -21,6 +32,7 @@
 	import type { SkillSummary } from '$lib/skills';
 	import ChatComposer from './ChatComposer.svelte';
 	import ChatHeader from './ChatHeader.svelte';
+	import ChatTitle from './ChatTitle.svelte';
 	import ChatInlineError from './ChatInlineError.svelte';
 	import ChatMessage from './ChatMessage.svelte';
 	import ChatSidebar from './ChatSidebar.svelte';
@@ -63,6 +75,159 @@
 	let conversationLoading = $state(false);
 	let browserBridgeEnabled = $state(false);
 
+	// Canvas workspace state
+	let activeCanvas = $state<CanvasDetail | null>(null);
+	let canvasLoading = $state(false);
+	let canvasOpen = $state(false);
+	let mobileTab = $state<'chat' | 'canvas'>('chat');
+	let splitRatio = $state(50); // percentage for chat in split view
+	let isDraggingSplit = $state(false);
+	let splitEl: HTMLDivElement | undefined;
+
+	function handleSplitPointerDown(event: PointerEvent) {
+		if (!splitEl || !(event.currentTarget instanceof HTMLElement)) return;
+		isDraggingSplit = true;
+		event.currentTarget.setPointerCapture(event.pointerId);
+	}
+
+	function handleSplitPointerMove(event: PointerEvent) {
+		if (!isDraggingSplit || !splitEl) return;
+		const bounds = splitEl.getBoundingClientRect();
+		const availableWidth = bounds.width - 6;
+		if (availableWidth <= 0) return;
+		const localX = event.clientX - bounds.left - 3;
+		splitRatio = Math.round(Math.max(20, Math.min(80, (localX / availableWidth) * 100)));
+	}
+
+	function handleSplitPointerUp(event: PointerEvent) {
+		isDraggingSplit = false;
+		if (
+			event.currentTarget instanceof HTMLElement &&
+			event.currentTarget.hasPointerCapture(event.pointerId)
+		) {
+			event.currentTarget.releasePointerCapture(event.pointerId);
+		}
+	}
+
+	async function loadCanvasForConversation(canvasId?: string | null) {
+		const targetId = canvasId ?? activeConversation?.canvasId;
+		if (!targetId) {
+			activeCanvas = null;
+			return;
+		}
+		canvasLoading = true;
+		try {
+			activeCanvas = await fetchCanvas(targetId);
+		} catch (error) {
+			console.error('Failed to load canvas:', error);
+			activeCanvas = null;
+		} finally {
+			canvasLoading = false;
+		}
+	}
+
+	async function handleToggleCanvas() {
+		if (activeCanvas) {
+			canvasOpen = !canvasOpen;
+			if (canvasOpen && mobileTab === 'chat') mobileTab = 'canvas';
+			return;
+		}
+		// If no canvas exists for this conversation yet, create one
+		if (!activeId) return;
+		canvasLoading = true;
+		try {
+			const created = await createCanvasApi({
+				title: `${activeConversation?.title ?? 'Chat'} Mockup`,
+				conversationId: activeId,
+				projectId: activeConversation?.projectId ?? null
+			});
+			activeCanvas = created;
+			canvasOpen = true;
+			mobileTab = 'canvas';
+			if (activeConversation) {
+				activeConversation.canvasId = created.id;
+			}
+			notify('Canvas workspace created!');
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not create canvas');
+		} finally {
+			canvasLoading = false;
+		}
+	}
+
+	async function handleUpdateScene(sceneId: string, updates: Partial<CanvasScene>) {
+		if (!activeCanvas) return;
+		try {
+			activeCanvas = await updateCanvasSceneApi(activeCanvas.id, sceneId, updates);
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not update scene');
+		}
+	}
+
+	async function handleCreateScene(scene: {
+		name: string;
+		viewport: ViewportDevice;
+		positionX?: number;
+		positionY?: number;
+		html?: string;
+		css?: string;
+	}) {
+		if (!activeCanvas) return;
+		try {
+			const res = await addCanvasSceneApi(activeCanvas.id, scene);
+			activeCanvas = res.canvas;
+			notify(`Scene "${scene.name}" created!`);
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not create scene');
+		}
+	}
+
+	async function handleDeleteScene(sceneId: string) {
+		if (!activeCanvas) return;
+		try {
+			activeCanvas = await deleteCanvasSceneApi(activeCanvas.id, sceneId);
+			notify('Scene deleted');
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not delete scene');
+		}
+	}
+
+	async function handleCreateConnection(sourceSceneId: string, targetSceneId: string) {
+		if (!activeCanvas) return;
+		try {
+			activeCanvas = (
+				await createCanvasConnectionApi(activeCanvas.id, { sourceSceneId, targetSceneId })
+			).canvas;
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not create connection');
+		}
+	}
+
+	async function handleDeleteConnection(connectionId: string) {
+		if (!activeCanvas) return;
+		try {
+			activeCanvas = await deleteCanvasConnectionApi(activeCanvas.id, connectionId);
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not delete connection');
+		}
+	}
+
+	async function handleUpdateGuideline(guideline: StyleGuideline) {
+		if (!activeCanvas) return;
+		try {
+			activeCanvas = await updateCanvasApi(activeCanvas.id, { styleGuideline: guideline });
+			notify('Style guideline updated');
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not update style guideline');
+		}
+	}
+
+	function handleCanvasSseEvent(event: { type: string; [key: string]: unknown }) {
+		if (!activeCanvas || !event.canvasId || event.canvasId !== activeCanvas.id) return;
+		// Refresh canvas from server on any agent update
+		void loadCanvasForConversation(activeCanvas.id);
+	}
+
 	/**
 	 * The transcript and SSE state machine of the active conversation. One
 	 * instance per page load, created here so its state belongs to this page.
@@ -90,7 +255,8 @@
 		},
 		loadConversations,
 		loadConversation,
-		loadSkills: () => settings.loadSkills()
+		loadSkills: () => settings.loadSkills(),
+		onCanvasEvent: handleCanvasSseEvent
 	});
 
 	/** Model, thinking level, skill and tool preferences of the active conversation. */
@@ -266,6 +432,7 @@
 			);
 			if (activeConversation?.projectId) void settings.loadTools(activeConversation.projectId);
 			else void settings.loadTools(null);
+			void loadCanvasForConversation(activeConversation?.canvasId);
 		} catch (error) {
 			if (loadToken !== conversationLoadToken || activeId !== id) return;
 			notify(error instanceof Error ? error.message : 'Could not load conversation');
@@ -516,73 +683,160 @@
 		onsaverename={saveRename}
 		oncancelrename={cancelRename}
 	/>
-	<main class="main-content" bind:this={scrollEl} onscroll={handleScroll}>
+	<main class="main-content" class:canvas-mode-active={canvasOpen}>
 		<ChatHeader
 			conversation={activeConversation}
-			running={stream.running}
-			activity={stream.activeAgentActivity}
+			{canvasOpen}
+			hasCanvas={!!activeCanvas}
+			{canvasLoading}
+			ontogglecanvas={handleToggleCanvas}
 		/>
-		<div class="chat-wrap">
-			{#if busy}
-				<div class="empty-state" role="status">Loading conversations...</div>
-			{:else if stream.messages.length === 0}
-				<div class="empty-state">Ask something to start a conversation.</div>
-			{/if}
-			{#each stream.messages as msg, i (msg.id)}
-				<ChatMessage
-					message={msg}
-					skill={messageSkill(i)}
-					sources={getTurnSources(stream.messages, i)}
-					isLast={i === stream.messages.length - 1}
-					canRetry={stream.canRetry}
+
+		<!-- Mobile Tab Switcher when Canvas is open on narrow screens -->
+		{#if canvasOpen && activeCanvas}
+			<div class="mobile-tabs" role="tablist">
+				<button
+					class="mobile-tab"
+					class:active={mobileTab === 'chat'}
+					onclick={() => (mobileTab = 'chat')}
+					role="tab"
+					aria-selected={mobileTab === 'chat'}
+				>
+					Chat
+				</button>
+				<button
+					class="mobile-tab"
+					class:active={mobileTab === 'canvas'}
+					onclick={() => (mobileTab = 'canvas')}
+					role="tab"
+					aria-selected={mobileTab === 'canvas'}
+				>
+					Canvas Mockup
+				</button>
+			</div>
+		{/if}
+
+		<div
+			class="workspace-split"
+			class:canvas-visible={canvasOpen && !!activeCanvas}
+			style:grid-template-columns={canvasOpen && !!activeCanvas
+				? `minmax(0, ${splitRatio}fr) 6px minmax(0, ${100 - splitRatio}fr)`
+				: 'minmax(0, 1fr)'}
+			bind:this={splitEl}
+		>
+			<!-- Left/Top: Chat Column -->
+			<div
+				class="split-pane chat-pane"
+				class:mobile-hidden={canvasOpen && !!activeCanvas && mobileTab === 'canvas'}
+				bind:this={scrollEl}
+				onscroll={handleScroll}
+			>
+				<ChatTitle
+					conversation={activeConversation}
 					running={stream.running}
-					{retryDisabled}
-					onretry={stream.retry}
-					onquestionsubmit={handleQuestionSubmit}
-					onconsentsubmit={handleConsentSubmit}
+					activity={stream.activeAgentActivity}
 				/>
-			{/each}
-			<ChatInlineError
-				error={stream.liveError}
-				canRetry={stream.canRetry}
-				{retryDisabled}
-				onretry={stream.retry}
-			/>
-			<ChatComposer
-				bind:message
-				attachments={pendingAttachments}
-				running={stream.running}
-				{conversationLoading}
-				skillSaving={settings.skillSaving}
-				toolsSaving={settings.toolsSaving}
-				modelSaving={settings.modelSaving}
-				thinkingSaving={settings.thinkingSaving}
-				hasActiveId={!!activeId}
-				conversation={activeConversation}
-				models={settings.pickerModels}
-				modelsLoading={settings.modelsLoading}
-				modelLoadError={settings.modelLoadError}
-				configuredModels={settings.configuredModels}
-				thinkingLevels={settings.availableThinkingLevels}
-				thinkingLevel={settings.selectedThinkingLevel}
-				skills={settings.eligibleSkills}
-				skillsLoading={settings.skillsLoading}
-				tools={settings.displayTools}
-				toolsLoading={settings.toolsLoading}
-				suggestion={settings.suggestion}
-				suggestionDismissed={settings.suggestionDismissed}
-				onattach={addAttachments}
-				onremoveattachment={removeAttachment}
-				onsend={stream.send}
-				onstop={stream.stop}
-				onremoveskill={() => settings.selectSkill(null)}
-				onapplysuggestion={applySkillSuggestion}
-				ondisksuggestion={settings.dismissSuggestion}
-				onselectmodel={settings.selectModel}
-				onselectthinkinglevel={settings.selectThinkingLevel}
-				ontoggleskill={settings.toggleSkill}
-				ontoggletool={settings.toggleTool}
-			/>
+				<div class="chat-wrap">
+					{#if busy}
+						<div class="empty-state" role="status">Loading conversations...</div>
+					{:else if stream.messages.length === 0}
+						<div class="empty-state">Ask something to start a conversation.</div>
+					{/if}
+					{#each stream.messages as msg, i (msg.id)}
+						<ChatMessage
+							message={msg}
+							skill={messageSkill(i)}
+							sources={getTurnSources(stream.messages, i)}
+							isLast={i === stream.messages.length - 1}
+							canRetry={stream.canRetry}
+							running={stream.running}
+							{retryDisabled}
+							onretry={stream.retry}
+							onquestionsubmit={handleQuestionSubmit}
+							onconsentsubmit={handleConsentSubmit}
+						/>
+					{/each}
+					<ChatInlineError
+						error={stream.liveError}
+						canRetry={stream.canRetry}
+						{retryDisabled}
+						onretry={stream.retry}
+					/>
+					<ChatComposer
+						bind:message
+						attachments={pendingAttachments}
+						running={stream.running}
+						{conversationLoading}
+						skillSaving={settings.skillSaving}
+						toolsSaving={settings.toolsSaving}
+						modelSaving={settings.modelSaving}
+						thinkingSaving={settings.thinkingSaving}
+						hasActiveId={!!activeId}
+						conversation={activeConversation}
+						models={settings.pickerModels}
+						modelsLoading={settings.modelsLoading}
+						modelLoadError={settings.modelLoadError}
+						configuredModels={settings.configuredModels}
+						thinkingLevels={settings.availableThinkingLevels}
+						thinkingLevel={settings.selectedThinkingLevel}
+						skills={settings.eligibleSkills}
+						skillsLoading={settings.skillsLoading}
+						tools={settings.displayTools}
+						toolsLoading={settings.toolsLoading}
+						suggestion={settings.suggestion}
+						suggestionDismissed={settings.suggestionDismissed}
+						onattach={addAttachments}
+						onremoveattachment={removeAttachment}
+						onsend={stream.send}
+						onstop={stream.stop}
+						onremoveskill={() => settings.selectSkill(null)}
+						onapplysuggestion={applySkillSuggestion}
+						ondisksuggestion={settings.dismissSuggestion}
+						onselectmodel={settings.selectModel}
+						onselectthinkinglevel={settings.selectThinkingLevel}
+						ontoggleskill={settings.toggleSkill}
+						ontoggletool={settings.toggleTool}
+					/>
+				</div>
+			</div>
+
+			<!-- Splitter Divider -->
+			{#if canvasOpen && !!activeCanvas}
+				<button
+					type="button"
+					class="split-divider"
+					aria-label="Resize split panes"
+					onpointerdown={handleSplitPointerDown}
+					onpointermove={handleSplitPointerMove}
+					onpointerup={handleSplitPointerUp}
+					onpointercancel={handleSplitPointerUp}
+					onkeydown={(event) => {
+						if (event.key === 'ArrowLeft') splitRatio = Math.max(20, splitRatio - 5);
+						if (event.key === 'ArrowRight') splitRatio = Math.min(80, splitRatio + 5);
+					}}
+				>
+					<span class="split-handle"></span>
+				</button>
+
+				<!-- Right/Bottom: Canvas Workspace Column -->
+				<div
+					class="split-pane canvas-pane"
+					class:mobile-hidden={canvasOpen && !!activeCanvas && mobileTab === 'chat'}
+				>
+					<SvelteFlowProvider
+						><CanvasWorkspace
+							canvas={activeCanvas}
+							onupdatescene={handleUpdateScene}
+							oncreatescene={handleCreateScene}
+							ondeletescene={handleDeleteScene}
+							oncreateconnection={handleCreateConnection}
+							ondeleteconnection={handleDeleteConnection}
+							onupdateguideline={handleUpdateGuideline}
+							onrefresh={() => loadCanvasForConversation(activeCanvas?.id)}
+						/></SvelteFlowProvider
+					>
+				</div>
+			{/if}
 		</div>
 	</main>
 </div>
@@ -595,13 +849,103 @@
 <ChatToast message={toast} />
 
 <style>
+	.main-content {
+		display: flex;
+		flex-direction: column;
+		height: 100dvh;
+		overflow: hidden;
+	}
+
+	.workspace-split {
+		display: grid;
+		flex: 1;
+		height: calc(100dvh - 66px);
+		overflow: hidden;
+		position: relative;
+		min-width: 0;
+	}
+
+	.split-pane {
+		overflow-y: auto;
+		height: 100%;
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+
+	.chat-pane {
+		min-width: 0;
+	}
+
+	.canvas-pane {
+		min-width: 0;
+		background: var(--bg);
+	}
+
+	.split-divider {
+		width: 6px;
+		background: var(--border);
+		cursor: col-resize;
+		position: relative;
+		flex-shrink: 0;
+		padding: 0;
+		border: 0;
+		touch-action: none;
+		transition: background 0.15s;
+	}
+
+	.split-divider:hover {
+		background: var(--focus);
+	}
+
+	.split-handle {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		width: 2px;
+		height: 24px;
+		background: var(--border-strong);
+		border-radius: 2px;
+	}
+
+	.mobile-tabs {
+		display: none;
+		background: var(--surface);
+		border-bottom: 1px solid var(--border);
+		padding: 4px 12px;
+		gap: 6px;
+		flex-shrink: 0;
+	}
+
+	.mobile-tab {
+		flex: 1;
+		padding: 6px 12px;
+		border: none;
+		background: var(--surface-2);
+		border-radius: 6px;
+		font-size: var(--text-xs);
+		font-weight: 500;
+		color: var(--text-muted);
+		cursor: pointer;
+	}
+
+	.mobile-tab.active {
+		background: var(--surface-3);
+		color: var(--text-strong);
+		font-weight: 600;
+	}
+
 	.chat-wrap {
 		width: 100%;
-		min-height: calc(100dvh - 66px);
+		min-width: 0;
+		min-height: 0;
+		flex: 1 0 auto;
 		display: flex;
 		flex-direction: column;
 		padding: 34px 44px 20px;
 	}
+
 	.empty-state {
 		flex: 1;
 		display: flex;
@@ -612,11 +956,33 @@
 		font-size: var(--text-sm);
 		padding: 42px 0 10px;
 	}
-	@media (max-width: 760px) {
+
+	@media (max-width: 900px) {
+		.mobile-tabs {
+			display: flex;
+		}
+
+		.workspace-split.canvas-visible {
+			grid-template-columns: minmax(0, 1fr) !important;
+		}
+
+		.split-divider {
+			display: none;
+		}
+
+		.split-pane {
+			width: 100%;
+		}
+
+		.mobile-hidden {
+			display: none !important;
+		}
+
 		.chat-wrap {
-			padding: 24px 14px 20px;
+			padding: 24px 16px 20px;
 		}
 	}
+
 	@media (max-width: 420px) {
 		.chat-wrap {
 			padding-inline: 12px;

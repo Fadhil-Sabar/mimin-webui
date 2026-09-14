@@ -28,6 +28,8 @@
 	import ProjectKnowledge from './ProjectKnowledge.svelte';
 	import ProjectSearch from './ProjectSearch.svelte';
 	import ProjectSkills from './ProjectSkills.svelte';
+	import ProjectCanvases from './ProjectCanvases.svelte';
+	import type { CanvasSummary } from '$lib/canvas';
 	import { extractionNeedsAttention } from './project-format';
 	import type {
 		Conversation,
@@ -52,6 +54,7 @@
 	let project = $state<Project | null>(null);
 	let files = $state<ProjectFile[]>([]);
 	let conversations = $state<Conversation[]>([]);
+	let projectCanvases = $state<CanvasSummary[]>([]);
 	let loading = $state(true);
 	let loadError = $state('');
 	let toast = $state('');
@@ -174,6 +177,15 @@
 				total: conversations.length,
 				hasMore: false
 			};
+		}
+		try {
+			const cRes = await fetch(`/api/canvases?projectId=${id}`);
+			if (cRes.ok) {
+				const cData = await cRes.json();
+				projectCanvases = cData.canvases ?? [];
+			}
+		} catch {
+			/* canvases fetch non-critical */
 		}
 	}
 
@@ -372,6 +384,44 @@
 		}
 	}
 
+	async function createProjectCanvas() {
+		try {
+			const lastModel = getLastUsedModel();
+			// First create conversation linked to this project
+			const convRes = await fetch('/api/conversations', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					projectId,
+					title: `${project?.name ?? 'Project'} Canvas`,
+					...(lastModel ? { model: lastModel } : {})
+				})
+			});
+			if (!convRes.ok) throw new Error('Could not start canvas conversation');
+			const conv = (await convRes.json()).conversation;
+
+			// Next create canvas linked to both
+			const canvasRes = await fetch('/api/canvases', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					projectId,
+					conversationId: conv.id,
+					title: `${project?.name ?? 'Project'} Canvas`
+				})
+			});
+			if (!canvasRes.ok) throw new Error('Could not create canvas');
+			await canvasRes.json();
+
+			if (conv.model) {
+				setLastUsedModel(conv.model);
+			}
+			window.location.href = `/chat?id=${encodeURIComponent(conv.id)}`;
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not create canvas');
+		}
+	}
+
 	async function logout() {
 		await authClient.signOut();
 		window.location.href = '/login';
@@ -488,6 +538,7 @@
 					ondelete={promptDeleteProject}
 				/>
 				<ProjectInstructions {project} onedit={openEdit} />
+				<ProjectCanvases canvases={projectCanvases} oncreatecanvas={createProjectCanvas} />
 				<ProjectSkills {projectId} />
 				<ProjectKnowledge
 					{filteredFiles}

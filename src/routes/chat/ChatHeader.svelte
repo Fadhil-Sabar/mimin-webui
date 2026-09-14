@@ -1,18 +1,25 @@
 <script lang="ts">
-	import { ChevronDown, PanelLeft, Search } from '@lucide/svelte';
+	import { ChevronDown, LayoutTemplate, PanelLeft, Search } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { conversationSearch } from '$lib/client/conversations.svelte';
-	import { modelId } from './chat-format';
 	import type { Conversation } from './chat-types';
 
 	type Props = {
 		conversation?: Conversation | null;
-		running?: boolean;
-		activity?: string;
+		canvasOpen?: boolean;
+		hasCanvas?: boolean;
+		canvasLoading?: boolean;
+		ontogglecanvas?: () => void;
 	};
 
-	let { conversation = null, running = false, activity = '' }: Props = $props();
+	let {
+		conversation = null,
+		canvasOpen = false,
+		hasCanvas = false,
+		canvasLoading = false,
+		ontogglecanvas
+	}: Props = $props();
 </script>
 
 <header class="topbar">
@@ -30,6 +37,20 @@
 		</div>
 	</div>
 	<div class="top-actions">
+		{#if ontogglecanvas}
+			<button
+				class="canvas-toggle-btn"
+				class:active={canvasOpen}
+				disabled={canvasLoading}
+				title={canvasOpen ? 'Close Canvas' : hasCanvas ? 'Open Canvas' : 'Create Canvas'}
+				aria-label="Toggle Canvas"
+				onclick={ontogglecanvas}
+			>
+				<LayoutTemplate size={16} />
+				<span class="canvas-btn-text">{canvasLoading ? 'Loading…' : 'Canvas'}</span>
+				{#if hasCanvas}<span class="canvas-active-dot"></span>{/if}
+			</button>
+		{/if}
 		<button
 			class="icon-button"
 			aria-label="Search conversations"
@@ -39,64 +60,56 @@
 		<ThemeToggle />
 	</div>
 </header>
-<div class="chat-title">
-	<span class="ready" class:working={running}>
-		<i></i>
-		{running ? (activity ? `working · ${activity.toLowerCase()}` : 'working') : 'ready'}
-	</span>
-	<h1>{conversation?.title ?? 'New conversation'}</h1>
-	<p>
-		{conversation?.model ? modelId(conversation.model) : 'Pick a model'}{conversation &&
-		conversation.enabledTools?.length
-			? ` · ${conversation.enabledTools.join(', ')}`
-			: ''}
-	</p>
-</div>
 
 <style>
-	.chat-title {
-		padding-bottom: 24px;
-		border-bottom: 1px solid var(--border);
-	}
-	.chat-title h1 {
-		font-family: var(--font-body);
-		font-size: var(--text-xl);
-		font-weight: 600;
-		line-height: 1.25;
-		letter-spacing: -0.02em;
-		color: var(--text-strong);
-		margin: 8px 0 4px;
-	}
-	.chat-title p {
-		color: var(--text-muted);
-		font-size: var(--text-sm);
-		margin: 0;
-	}
-	.ready {
-		float: right;
-		color: var(--status-ok-text);
-		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 35%, transparent);
-		padding: 4px 7px;
-		border-radius: 5px;
+	.canvas-toggle-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 32px;
+		padding: 0 10px;
+		border: 1px solid var(--border);
+		background: var(--surface);
+		border-radius: 6px;
 		font-size: var(--text-xs);
-		line-height: 1.2;
+		font-weight: 500;
+		color: var(--text-muted);
+		cursor: pointer;
+		position: relative;
+		transition:
+			color 0.16s ease,
+			background 0.16s ease,
+			border-color 0.16s ease;
 	}
-	.ready i {
-		display: inline-block;
-		width: 6px;
-		height: 6px;
-		background: var(--status-ok-dot);
+
+	.canvas-toggle-btn:hover:not(:disabled) {
+		background: var(--surface-hover);
+		color: var(--text-strong);
+		border-color: var(--border-strong);
+	}
+
+	.canvas-toggle-btn.active {
+		background: var(--surface-3);
+		border-color: var(--border-strong);
+		color: var(--text-strong);
+		font-weight: 550;
+	}
+
+	.canvas-toggle-btn:disabled {
+		opacity: 0.6;
+		cursor: wait;
+	}
+
+	.canvas-active-dot {
+		width: 5px;
+		height: 5px;
 		border-radius: 50%;
-		margin-right: 4px;
+		background: var(--status-ok-dot);
 	}
-	.ready.working {
-		color: var(--status-working-text);
-		border-color: color-mix(in srgb, var(--status-working-dot) 40%, transparent);
-	}
-	@media (max-width: 760px) {
-		.ready {
-			float: none;
-			display: inline-flex;
+
+	@media (max-width: 500px) {
+		.canvas-btn-text {
+			display: none;
 		}
 	}
 </style>

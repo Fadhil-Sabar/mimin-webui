@@ -6,6 +6,7 @@
 		FileText,
 		FolderKanban,
 		Globe,
+		LayoutTemplate,
 		WandSparkles,
 		Wrench
 	} from '@lucide/svelte';
@@ -64,6 +65,8 @@
 							<Globe size={13} />
 						{:else if toolCall.toolName === 'create_skill'}
 							<WandSparkles size={13} />
+						{:else if toolCall.toolName.includes('canvas') || toolCall.toolName.includes('scene') || toolCall.toolName === 'update_style_guideline'}
+							<LayoutTemplate size={13} />
 						{:else}
 							<Wrench size={13} />
 						{/if}

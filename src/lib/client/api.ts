@@ -1,4 +1,5 @@
 import { getBrowserBridgeStatus, handleBrowserRequest } from './browser-bridge';
+import type { CanvasConnection, CanvasDetail, StyleGuideline } from '$lib/canvas';
 
 export type SseEvent = { type: string; [key: string]: unknown };
 
@@ -281,4 +282,145 @@ export async function revokeBrowserConsent(conversationId: string) {
 	if (!response.ok) return false;
 	const data = (await response.json().catch(() => null)) as { revoked?: boolean } | null;
 	return Boolean(data?.revoked);
+}
+
+export async function fetchCanvas(canvasId: string) {
+	const response = await fetch(`/api/canvases/${canvasId}`);
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to load canvas');
+	}
+	return (await response.json()).canvas;
+}
+
+export async function createCanvasApi(input: {
+	title: string;
+	description?: string;
+	projectId?: string | null;
+	conversationId?: string | null;
+	styleGuideline?: StyleGuideline;
+}) {
+	const response = await fetch('/api/canvases', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(input)
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to create canvas');
+	}
+	return (await response.json()).canvas;
+}
+
+export async function updateCanvasApi(
+	canvasId: string,
+	input: {
+		title?: string;
+		description?: string;
+		activeSceneId?: string | null;
+		styleGuideline?: StyleGuideline;
+	}
+) {
+	const response = await fetch(`/api/canvases/${canvasId}`, {
+		method: 'PATCH',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(input)
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to update canvas');
+	}
+	return (await response.json()).canvas;
+}
+
+export async function addCanvasSceneApi(
+	canvasId: string,
+	scene: {
+		name: string;
+		viewport?: string;
+		description?: string;
+		positionX?: number;
+		positionY?: number;
+		html?: string;
+		css?: string;
+		js?: string;
+	}
+) {
+	const response = await fetch(`/api/canvases/${canvasId}/scenes`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(scene)
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to add scene');
+	}
+	return await response.json();
+}
+
+export async function updateCanvasSceneApi(
+	canvasId: string,
+	sceneId: string,
+	updates: {
+		name?: string;
+		viewport?: string;
+		description?: string;
+		positionX?: number;
+		positionY?: number;
+		html?: string;
+		css?: string;
+		js?: string;
+	}
+) {
+	const response = await fetch(`/api/canvases/${canvasId}/scenes/${sceneId}`, {
+		method: 'PATCH',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(updates)
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to update scene');
+	}
+	return (await response.json()).canvas;
+}
+
+export async function deleteCanvasSceneApi(canvasId: string, sceneId: string) {
+	const response = await fetch(`/api/canvases/${canvasId}/scenes/${sceneId}`, {
+		method: 'DELETE'
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to delete scene');
+	}
+	return (await response.json()).canvas;
+}
+
+export async function createCanvasConnectionApi(
+	canvasId: string,
+	connection: { sourceSceneId: string; targetSceneId: string }
+): Promise<{ canvas: CanvasDetail; connection: CanvasConnection }> {
+	const response = await fetch(`/api/canvases/${canvasId}/connections`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify(connection)
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to create connection');
+	}
+	return (await response.json()) as { canvas: CanvasDetail; connection: CanvasConnection };
+}
+
+export async function deleteCanvasConnectionApi(
+	canvasId: string,
+	connectionId: string
+): Promise<CanvasDetail> {
+	const response = await fetch(`/api/canvases/${canvasId}/connections/${connectionId}`, {
+		method: 'DELETE'
+	});
+	if (!response.ok) {
+		const err = await response.json().catch(() => ({}));
+		throw new Error(err.error?.message ?? 'Failed to delete connection');
+	}
+	return (await response.json()).canvas;
 }

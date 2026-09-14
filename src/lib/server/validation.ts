@@ -117,3 +117,54 @@ export const webSearchSettingsInput = z.object({
 		.optional(),
 	provider: z.enum(['tavily', 'searxng', 'duckduckgo', 'custom']).optional()
 });
+
+export const styleGuidelineInput = z.object({
+	tokens: z.record(z.string(), z.any()).default({}),
+	rules: z.array(z.string().trim().min(1).max(2000)).max(50).default([]),
+	avoidances: z.array(z.string().trim().min(1).max(2000)).max(50).default([]),
+	direction: z.string().trim().max(5000).default('')
+});
+
+export const canvasInput = z.object({
+	title: z.string().trim().min(1).max(120),
+	description: z.string().trim().max(2000).default(''),
+	projectId: z.string().uuid().nullable().optional(),
+	conversationId: z.string().uuid().nullable().optional(),
+	styleGuideline: styleGuidelineInput.optional()
+});
+
+export const canvasPatchInput = z.object({
+	title: z.string().trim().min(1).max(120).optional(),
+	description: z.string().trim().max(2000).optional(),
+	activeSceneId: z.string().uuid().nullable().optional(),
+	styleGuideline: styleGuidelineInput.optional()
+});
+
+export const canvasSceneInput = z.object({
+	name: z.string().trim().min(1).max(120),
+	description: z.string().trim().max(2000).optional(),
+	viewport: z.enum(['mobile', 'tablet', 'desktop']).default('desktop'),
+	order: z.number().int().min(0).optional(),
+	positionX: z.number().finite().optional(),
+	positionY: z.number().finite().optional(),
+	html: z.string().default(''),
+	css: z.string().default(''),
+	js: z.string().default('')
+});
+
+// PATCH must not apply the creation defaults to fields the caller did not send.
+export const canvasScenePatchInput = canvasSceneInput.partial().extend({
+	viewport: z.enum(['mobile', 'tablet', 'desktop']).optional(),
+	html: z.string().optional(),
+	css: z.string().optional(),
+	js: z.string().optional()
+});
+
+export const canvasConnectionInput = z
+	.object({
+		sourceSceneId: z.string().uuid(),
+		targetSceneId: z.string().uuid()
+	})
+	.refine((value) => value.sourceSceneId !== value.targetSceneId, {
+		message: 'A scene cannot connect to itself.'
+	});

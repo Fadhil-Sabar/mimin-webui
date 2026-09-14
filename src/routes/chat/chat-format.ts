@@ -123,6 +123,44 @@ export function formatToolLabel(
 			query: skillName
 		};
 	}
+	if (toolName === 'inspect_canvas') {
+		return {
+			label: 'Inspect Canvas',
+			action: 'Inspecting Canvas style guideline and scenes...'
+		};
+	}
+	if (toolName === 'create_scene') {
+		const sceneName = typeof rawInput.name === 'string' ? rawInput.name : undefined;
+		const viewport = typeof rawInput.viewport === 'string' ? rawInput.viewport : '';
+		return {
+			label: 'Create Scene',
+			action: sceneName ? `Creating scene "${sceneName}" (${viewport})...` : 'Creating scene...',
+			query: sceneName
+		};
+	}
+	if (toolName === 'edit_scene') {
+		const sceneId = typeof rawInput.sceneId === 'string' ? rawInput.sceneId : undefined;
+		const name = typeof rawInput.name === 'string' ? rawInput.name : undefined;
+		return {
+			label: 'Edit Scene',
+			action: name ? `Updating scene "${name}"...` : 'Updating Canvas scene...',
+			query: name || sceneId
+		};
+	}
+	if (toolName === 'delete_scene') {
+		const sceneId = typeof rawInput.sceneId === 'string' ? rawInput.sceneId : undefined;
+		return {
+			label: 'Delete Scene',
+			action: 'Deleting Canvas scene...',
+			query: sceneId
+		};
+	}
+	if (toolName === 'update_style_guideline') {
+		return {
+			label: 'Update Style Guideline',
+			action: 'Updating Canvas style guideline contract...'
+		};
+	}
 	if (toolName === 'browser_tabs') {
 		return { label: 'Browser Tabs', action: 'Listing open browser tabs...' };
 	}

@@ -143,6 +143,7 @@ To self-host the entire stack (PostgreSQL + Mimin WebUI) using Docker Compose:
 git clone https://github.com/Fadhil-Sabar/mimin-webui.git
 cd mimin-webui
 npm ci --legacy-peer-deps
+npm run playwright:install
 cp .env.example .env
 ```
 

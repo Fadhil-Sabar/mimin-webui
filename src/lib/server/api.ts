@@ -56,3 +56,12 @@ export async function getOwnedConversation(conversationId: string, userId: strin
 		);
 	return conversation;
 }
+
+/** Returns the canvas row only when it exists and belongs to the user. */
+export async function getOwnedCanvas(canvasId: string, userId: string) {
+	const [canvas] = await getDb()
+		.select()
+		.from(schema.canvases)
+		.where(and(eq(schema.canvases.id, canvasId), eq(schema.canvases.userId, userId)));
+	return canvas;
+}

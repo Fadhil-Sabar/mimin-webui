@@ -138,6 +138,7 @@ Untuk melakukan self-host seluruh sistem (PostgreSQL + Mimin WebUI) menggunakan 
 git clone https://github.com/Fadhil-Sabar/mimin-webui.git
 cd mimin-webui
 npm ci --legacy-peer-deps
+npm run playwright:install
 cp .env.example .env
 ```
 

@@ -6,6 +6,7 @@ import {
 	uuid,
 	jsonb,
 	integer,
+	real,
 	index,
 	boolean,
 	primaryKey,
@@ -13,6 +14,7 @@ import {
 	vector
 } from 'drizzle-orm/pg-core';
 import type { SkillSnapshot } from '$lib/skills';
+import type { StyleGuideline } from '$lib/canvas';
 
 export const users = pgTable('users', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -392,5 +394,102 @@ export const projectFileChunks = pgTable(
 			'hnsw',
 			table.embedding.op('vector_cosine_ops')
 		)
+	})
+);
+
+export const canvases = pgTable(
+	'canvases',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
+		conversationId: uuid('conversation_id').references(() => conversations.id, {
+			onDelete: 'set null'
+		}),
+		title: text('title').notNull().default('New Canvas'),
+		description: text('description').notNull().default(''),
+		styleGuideline: jsonb('style_guideline').$type<StyleGuideline>().notNull(),
+		activeSceneId: uuid('active_scene_id'),
+		revision: integer('revision').notNull().default(1),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		userIdx: index('canvases_user_idx').on(table.userId),
+		projectIdx: index('canvases_project_idx').on(table.projectId),
+		conversationIdx: uniqueIndex('canvases_conversation_idx').on(table.conversationId),
+		userUpdatedIdx: index('canvases_user_updated_idx').on(table.userId, table.updatedAt, table.id)
+	})
+);
+
+export const canvasScenes = pgTable(
+	'canvas_scenes',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		canvasId: uuid('canvas_id')
+			.notNull()
+			.references(() => canvases.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		description: text('description'),
+		viewport: text('viewport').notNull().default('desktop'),
+		order: integer('order').notNull().default(0),
+		positionX: real('position_x').notNull().default(0),
+		positionY: real('position_y').notNull().default(0),
+		html: text('html').notNull().default(''),
+		css: text('css').notNull().default(''),
+		js: text('js').notNull().default(''),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		canvasIdx: index('canvas_scenes_canvas_idx').on(table.canvasId),
+		canvasOrderIdx: index('canvas_scenes_canvas_order_idx').on(table.canvasId, table.order)
+	})
+);
+
+export const canvasConnections = pgTable(
+	'canvas_connections',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		canvasId: uuid('canvas_id')
+			.notNull()
+			.references(() => canvases.id, { onDelete: 'cascade' }),
+		sourceSceneId: uuid('source_scene_id')
+			.notNull()
+			.references(() => canvasScenes.id, { onDelete: 'cascade' }),
+		targetSceneId: uuid('target_scene_id')
+			.notNull()
+			.references(() => canvasScenes.id, { onDelete: 'cascade' }),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		canvasIdx: index('canvas_connections_canvas_idx').on(table.canvasId),
+		sourceIdx: index('canvas_connections_source_idx').on(table.sourceSceneId),
+		targetIdx: index('canvas_connections_target_idx').on(table.targetSceneId),
+		uniqueDirection: uniqueIndex('canvas_connections_direction_idx').on(
+			table.canvasId,
+			table.sourceSceneId,
+			table.targetSceneId
+		)
+	})
+);
+
+export const canvasAssets = pgTable(
+	'canvas_assets',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		canvasId: uuid('canvas_id')
+			.notNull()
+			.references(() => canvases.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		type: text('type').notNull().default('css'),
+		content: text('content').notNull().default(''),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		canvasIdx: index('canvas_assets_canvas_idx').on(table.canvasId)
 	})
 );
