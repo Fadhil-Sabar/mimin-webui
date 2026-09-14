@@ -1,5 +1,14 @@
 <script lang="ts">
-	import { Bot, ChevronDown, Paperclip, RotateCcw, Sparkles, UserRound } from '@lucide/svelte';
+	import {
+		Bot,
+		Check,
+		Clipboard,
+		ChevronDown,
+		Paperclip,
+		RotateCcw,
+		Sparkles,
+		UserRound
+	} from '@lucide/svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import type { SkillSummary } from '$lib/skills';
 	import ToolCallPanel from './ToolCallPanel.svelte';
@@ -26,6 +35,9 @@
 		running?: boolean;
 		retryDisabled?: boolean;
 		onretry?: () => void;
+		canRegenerate?: boolean;
+		regenerateDisabled?: boolean;
+		onregenerate?: () => void;
 		onquestionsubmit?: QuestionSubmitHandler;
 		onconsentsubmit?: ConsentSubmitHandler;
 	};
@@ -39,6 +51,9 @@
 		running = false,
 		retryDisabled = false,
 		onretry,
+		canRegenerate = false,
+		regenerateDisabled = false,
+		onregenerate,
 		onquestionsubmit,
 		onconsentsubmit
 	}: Props = $props();
@@ -62,6 +77,18 @@
 		if (!streaming || !thinkingText(message.content) || !thinkingPinned) return;
 		if (thinkingEl) thinkingEl.scrollTop = thinkingEl.scrollHeight;
 	});
+
+	let copyStatus = $state<'idle' | 'copied' | 'failed'>('idle');
+
+	async function copyResponse() {
+		try {
+			if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+			await navigator.clipboard.writeText(contentText(message.content));
+			copyStatus = 'copied';
+		} catch {
+			copyStatus = 'failed';
+		}
+	}
 </script>
 
 <article
@@ -93,6 +120,41 @@
 				<RotateCcw size={11} aria-hidden="true" />
 				<span>Retry</span>
 			</button>
+		{/if}
+		{#if message.role === 'assistant' && !message.isStreaming && contentText(message.content)}
+			<div class="message-actions" aria-label="Response actions">
+				<button
+					type="button"
+					class="message-action-btn"
+					onclick={copyResponse}
+					aria-label="Copy response"
+				>
+					{#if copyStatus === 'copied'}<Check size={12} aria-hidden="true" />{:else}<Clipboard
+							size={12}
+							aria-hidden="true"
+						/>{/if}
+					<span>{copyStatus === 'copied' ? 'Copied' : 'Copy response'}</span>
+				</button>
+				{#if isLast && canRegenerate}
+					<button
+						type="button"
+						class="message-action-btn"
+						onclick={onregenerate}
+						disabled={regenerateDisabled}
+						aria-label="Regenerate response"
+					>
+						<RotateCcw size={12} aria-hidden="true" />
+						<span>Regenerate</span>
+					</button>
+				{/if}
+				{#if copyStatus !== 'idle'}
+					<span class="sr-only" role="status" aria-live="polite">
+						{copyStatus === 'copied'
+							? 'Response copied to clipboard.'
+							: 'Could not copy response. Try again.'}
+					</span>
+				{/if}
+			</div>
 		{/if}
 		{#if message.role === 'assistant' && message.isStreaming}
 			<span class="live-tag">
@@ -264,6 +326,43 @@
 		margin: 0;
 		line-height: 1.6;
 		white-space: pre-wrap;
+	}
+	.message-actions {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 10px;
+	}
+	.message-action-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px 7px;
+		border: 1px solid var(--border);
+		border-radius: 4px;
+		background: var(--surface-subtle);
+		color: var(--text-muted);
+		font-size: var(--text-xs);
+		cursor: pointer;
+	}
+	.message-action-btn:hover:not(:disabled) {
+		color: var(--text);
+		background: var(--surface-hover);
+	}
+	.message-action-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
 	.message-retry-btn {
 		display: inline-flex;

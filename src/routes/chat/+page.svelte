@@ -40,7 +40,7 @@
 	import DeleteChatDialog from './DeleteChatDialog.svelte';
 	import { createChatSettings } from './chat-settings.svelte';
 	import { createChatStream } from './chat-stream.svelte';
-	import { getTurnSources } from './chat-format';
+	import { getTurnSources, contentText } from './chat-format';
 	import type { Conversation, ConversationMessage, QuestionPayload } from './chat-types';
 
 	let { data } = $props();
@@ -321,6 +321,19 @@
 			settings.toolsSaving ||
 			settings.modelSaving
 	);
+
+	let canRegenerate = $derived.by(() => {
+		const latest = stream.messages.at(-1);
+		if (
+			!latest ||
+			latest.role !== 'assistant' ||
+			latest.isStreaming ||
+			!contentText(latest.content)
+		) {
+			return false;
+		}
+		return stream.messages.slice(0, -1).some((item) => item.role === 'user');
+	});
 
 	const SCROLL_THRESHOLD = 80;
 
@@ -752,6 +765,9 @@
 							running={stream.running}
 							{retryDisabled}
 							onretry={stream.retry}
+							{canRegenerate}
+							regenerateDisabled={retryDisabled}
+							onregenerate={stream.retry}
 							onquestionsubmit={handleQuestionSubmit}
 							onconsentsubmit={handleConsentSubmit}
 						/>
