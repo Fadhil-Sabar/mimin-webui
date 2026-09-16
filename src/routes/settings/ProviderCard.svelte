@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { KeyRound, Trash2 } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import type { ProviderState } from './provider-types';
 
 	type Props = {
@@ -42,14 +43,15 @@
 	</div>
 	<div class="provider-actions">
 		{#if provider.fromUser || provider.customConfig}
-			<button
-				class="button danger"
+			<Button
+				variant="destructive"
+				class="max-[700px]:flex-1"
 				onclick={() => onremove(provider.provider)}
-				aria-label="Remove key"><Trash2 size={14} /> Remove</button
+				aria-label="Remove key"><Trash2 size={14} /> Remove</Button
 			>
 		{/if}
-		<button class="button primary" onclick={() => onmanage(provider.provider)}
-			>{provider.configured || provider.fromUser ? 'Manage' : 'Connect'}</button
+		<Button variant="default" class="max-[700px]:flex-1" onclick={() => onmanage(provider.provider)}
+			>{provider.configured || provider.fromUser ? 'Manage' : 'Connect'}</Button
 		>
 	</div>
 </article>
@@ -160,39 +162,6 @@
 		gap: 8px;
 		flex: 0 0 auto;
 	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		min-height: 40px;
-		padding: 8px 11px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-size: var(--text-sm);
-		transition: 0.18s ease;
-	}
-	.button:hover {
-		color: var(--text);
-		border-color: var(--text-dim);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover {
-		background: var(--accent-bg-hover);
-	}
-	.button.danger {
-		color: var(--danger-text);
-		border-color: color-mix(in srgb, #a8433a 45%, transparent);
-	}
-	.button.danger:hover {
-		color: var(--danger-text);
-		border-color: var(--danger-text);
-	}
 	@media (max-width: 700px) {
 		.provider-card {
 			flex-direction: column;
@@ -201,10 +170,6 @@
 		.provider-actions {
 			justify-content: flex-end;
 			flex-wrap: wrap;
-		}
-		.provider-actions .button {
-			flex: 1;
-			justify-content: center;
 		}
 	}
 </style>

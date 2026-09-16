@@ -19,6 +19,8 @@
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 
@@ -111,12 +113,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -243,21 +240,21 @@
 					</p>
 					<div class="form-actions">
 						{#if savedInstructions}
-							<button
+							<Button
+								variant="destructive"
 								type="button"
-								class="button danger"
 								onclick={clearInstructions}
-								disabled={saving}><RotateCcw size={15} /> Clear</button
+								disabled={saving}><RotateCcw size={15} /> Clear</Button
 							>
 						{/if}
 						<span class="save-state" aria-live="polite"
 							>{changed ? 'Unsaved changes' : 'Up to date'}</span
 						>
-						<button type="submit" class="button primary" disabled={saving || !changed}>
+						<Button type="submit" variant="default" class="ml-auto" disabled={saving || !changed}>
 							{#if saving}<span class="spin"><Loader2 size={16} /></span> Saving...{:else}<Check
 									size={16}
 								/> Save instructions{/if}
-						</button>
+						</Button>
 					</div>
 				</form>
 			{/if}
@@ -421,9 +418,6 @@
 		margin-top: 20px;
 		padding-top: 17px;
 		border-top: 1px solid var(--border);
-	}
-	.form-actions .primary {
-		margin-left: auto;
 	}
 	.save-state {
 		color: var(--text-faint);

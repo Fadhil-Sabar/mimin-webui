@@ -18,6 +18,8 @@
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import ProviderCard from './ProviderCard.svelte';
 	import ProviderFormModal from './ProviderFormModal.svelte';
 	import {
@@ -349,12 +351,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -430,8 +427,8 @@
 						conversations.
 					</p>
 				</div>
-				<button class="button primary add-provider" onclick={openCustomEditor}
-					><Plus size={15} /> Add provider</button
+				<Button variant="default" class="ml-5 max-[700px]:ml-0" onclick={openCustomEditor}
+					><Plus size={15} /> Add provider</Button
 				>
 			</div>
 			{#if loading}
@@ -504,10 +501,6 @@
 		font-size: var(--text-sm);
 		line-height: 1.5;
 	}
-	.add-provider {
-		flex: 0 0 auto;
-		margin-left: 20px;
-	}
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
@@ -520,31 +513,6 @@
 		flex-direction: column;
 		gap: 11px;
 		padding-top: 24px;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		min-height: 40px;
-		padding: 8px 11px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-size: var(--text-sm);
-		transition: 0.18s ease;
-	}
-	.button:hover {
-		color: var(--text);
-		border-color: var(--text-dim);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover {
-		background: var(--accent-bg-hover);
 	}
 	.footnote {
 		margin: 22px 0 0;
@@ -561,9 +529,6 @@
 			align-items: flex-start;
 			flex-direction: column;
 			gap: 18px;
-		}
-		.add-provider {
-			margin-left: 0;
 		}
 	}
 </style>

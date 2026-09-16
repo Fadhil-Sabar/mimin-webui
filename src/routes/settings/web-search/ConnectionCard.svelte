@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { LucideIcon } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	type Props = {
 		icon: LucideIcon;
@@ -48,9 +49,13 @@
 	</div>
 	<div class="connection-actions">
 		{#if fromUser}
-			<button class="button primary" type="button" onclick={onconnect}>Manage</button>
+			<Button variant="default" class="max-[700px]:w-full" type="button" onclick={onconnect}>
+				Manage
+			</Button>
 		{:else}
-			<button class="button primary" type="button" onclick={onconnect}>Connect</button>
+			<Button variant="default" class="max-[700px]:w-full" type="button" onclick={onconnect}>
+				Connect
+			</Button>
 		{/if}
 	</div>
 </article>
@@ -145,10 +150,6 @@
 		}
 		.connection-actions {
 			justify-content: flex-end;
-		}
-		.connection-actions .button {
-			justify-content: center;
-			width: 100%;
 		}
 	}
 </style>

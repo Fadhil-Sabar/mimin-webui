@@ -2,6 +2,7 @@
 	import { LayoutTemplate, Plus, ExternalLink, Calendar, Layers } from '@lucide/svelte';
 	import type { CanvasSummary } from '$lib/canvas';
 	import { resolve } from '$app/paths';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	type Props = {
 		canvases: CanvasSummary[];
@@ -35,16 +36,16 @@
 				Visual design workspaces with style guidelines and mockups for this project
 			</p>
 		</div>
-		<button class="button small" onclick={oncreatecanvas}>
+		<Button variant="outline" size="sm" onclick={oncreatecanvas}>
 			<Plus size={14} /> New Canvas
-		</button>
+		</Button>
 	</div>
 
 	{#if canvases.length === 0}
 		<div class="empty-canvases">
 			<LayoutTemplate size={24} class="empty-icon" />
 			<p>No visual canvases created for this project yet.</p>
-			<button class="button small primary" onclick={oncreatecanvas}>Create First Canvas</button>
+			<Button variant="default" size="sm" onclick={oncreatecanvas}>Create First Canvas</Button>
 		</div>
 	{:else}
 		<div class="canvases-grid">
@@ -226,10 +227,5 @@
 	.open-canvas-link:hover {
 		color: var(--text-strong);
 		text-decoration: underline;
-	}
-
-	.button.small {
-		padding: 4px 10px;
-		font-size: var(--text-xs);
 	}
 </style>

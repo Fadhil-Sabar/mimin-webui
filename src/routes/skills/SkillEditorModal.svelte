@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Check, Info, X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import ToolGrid from './ToolGrid.svelte';
 	import TriggerPhraseEditor from './TriggerPhraseEditor.svelte';
@@ -77,8 +78,12 @@
 				>
 					{skill ? 'Edit skill' : 'Create a skill'}
 				</Dialog.Title>
-				<button type="button" class="icon-button" onclick={onclose} aria-label="Close dialog"
-					><X size={18} /></button
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					type="button"
+					onclick={onclose}
+					aria-label="Close dialog"><X size={18} /></Button
 				>
 			</Dialog.Header>
 			<div class="editor-grid">
@@ -132,10 +137,10 @@
 			<Dialog.Footer
 				class="mx-0 mt-[22px] mb-0 flex flex-row justify-end gap-2 rounded-none border-t-0 bg-transparent p-0"
 			>
-				<button type="button" class="button" onclick={onclose} disabled={saving}>Cancel</button
-				><button type="submit" class="button primary" disabled={saving}
+				<Button variant="outline" type="button" onclick={onclose} disabled={saving}>Cancel</Button
+				><Button variant="default" type="submit" disabled={saving}
 					>{#if saving}Saving...{:else}<Check size={15} />
-						{skill ? 'Save changes' : 'Create skill'}{/if}</button
+						{skill ? 'Save changes' : 'Create skill'}{/if}</Button
 				>
 			</Dialog.Footer>
 		</form>
@@ -235,51 +240,6 @@
 		border-radius: 6px;
 		font-size: var(--text-xs);
 		line-height: 1.45;
-	}
-	.icon-button {
-		display: grid;
-		place-items: center;
-		width: 32px;
-		height: 32px;
-		padding: 0;
-		color: var(--text-muted);
-		background: transparent;
-		border: 0;
-		border-radius: 5px;
-		transition: 0.15s ease;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button:hover:not(:disabled) {
-		color: var(--text-strong);
-		background: var(--surface-hover);
-		border-color: var(--text-dim);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover:not(:disabled) {
-		background: var(--accent-bg-hover);
-		border-color: var(--accent-bg-hover);
-	}
-	.button:disabled {
-		opacity: 0.6;
-		cursor: wait;
 	}
 	@media (max-width: 560px) {
 		.editor-grid {

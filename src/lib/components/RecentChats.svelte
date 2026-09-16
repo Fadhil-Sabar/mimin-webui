@@ -9,6 +9,7 @@
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { Check, Pencil, Search, Trash2, X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	let {
 		conversations,
@@ -180,18 +181,19 @@
 						}}
 						use:focusInput
 					/>
-					<button type="submit" class="item-action-btn check" title="Save" aria-label="Save title">
+					<Button type="submit" variant="ghost" size="icon-sm" title="Save" aria-label="Save title">
 						<Check size={13} />
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
-						class="item-action-btn cancel"
+						variant="ghost"
+						size="icon-sm"
 						onclick={cancelRename}
 						title="Cancel"
 						aria-label="Cancel rename"
 					>
 						<X size={13} />
-					</button>
+					</Button>
 				</form>
 			{:else}
 				{#if onSelectChat}
@@ -229,9 +231,10 @@
 					</a>
 				{/if}
 				<div class="chat-item-actions">
-					<button
+					<Button
 						type="button"
-						class="item-action-btn"
+						variant="ghost"
+						size="icon-sm"
 						title="Rename chat"
 						aria-label="Rename chat"
 						onclick={(e) => {
@@ -240,10 +243,11 @@
 						}}
 					>
 						<Pencil size={13} />
-					</button>
-					<button
+					</Button>
+					<Button
 						type="button"
-						class="item-action-btn danger"
+						variant="ghost"
+						size="icon-sm"
 						title="Delete chat"
 						aria-label="Delete chat"
 						onclick={(e) => {
@@ -252,7 +256,7 @@
 						}}
 					>
 						<Trash2 size={13} />
-					</button>
+					</Button>
 				</div>
 			{/if}
 		</div>

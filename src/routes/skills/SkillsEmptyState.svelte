@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { Button } from '$lib/components/ui/button/index.js';
+
 	let {
 		loading,
 		error,
@@ -20,9 +22,10 @@
 	<div class="empty-state" role="status">Loading skills...</div>
 {:else if error}
 	<div class="empty-state error-state" role="alert">
-		<strong>Couldn’t load skills</strong><span>{error}</span><button
-			class="button"
-			onclick={onretry}>Try again</button
+		<strong>Couldn’t load skills</strong><span>{error}</span><Button
+			variant="outline"
+			class="mt-[15px]"
+			onclick={onretry}>Try again</Button
 		>
 	</div>
 {:else if skillCount === 0}
@@ -42,8 +45,7 @@
 		line-height: 1.5;
 	}
 	.error-state strong,
-	.error-state span,
-	.error-state .button {
+	.error-state span {
 		display: block;
 		margin: 0 auto;
 	}
@@ -53,28 +55,5 @@
 	}
 	.error-state span {
 		margin-top: 5px;
-	}
-	.error-state .button {
-		margin-top: 15px;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button:hover:not(:disabled) {
-		color: var(--text-strong);
-		background: var(--surface-hover);
-		border-color: var(--text-dim);
 	}
 </style>

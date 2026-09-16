@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Project } from './project-types';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	let { project, onedit }: { project: Project; onedit: () => void } = $props();
 </script>
@@ -10,8 +11,8 @@
 		>
 		<p>{project.instructions || 'No project-specific instructions set.'}</p>
 	</div>
-	<button class="button" onclick={onedit}
-		>{project.instructions ? 'Update instructions' : 'Add instructions'}</button
+	<Button variant="outline" class="instructions-action" onclick={onedit}
+		>{project.instructions ? 'Update instructions' : 'Add instructions'}</Button
 	>
 </section>
 
@@ -46,31 +47,8 @@
 		line-height: 1.55;
 		white-space: pre-wrap;
 	}
-	.instructions-band .button {
+	.instructions-band :global(.instructions-action) {
 		flex: 0 0 auto;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 7px;
-		min-height: 36px;
-		padding: 7px 12px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		line-height: 1;
-		white-space: nowrap;
-		transition: 0.15s ease;
-	}
-	.button:hover {
-		color: var(--text-strong);
-		border-color: var(--text-dim);
-		background: var(--surface-hover);
 	}
 	@media (max-width: 760px) {
 		.instructions-band {
@@ -78,8 +56,7 @@
 			flex-direction: column;
 			gap: 12px;
 		}
-		.instructions-band .button {
-			justify-content: center;
+		.instructions-band :global(.instructions-action) {
 			width: 100%;
 		}
 	}

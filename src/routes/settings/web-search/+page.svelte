@@ -19,6 +19,7 @@
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
 	import ConnectionCard from './ConnectionCard.svelte';
 	import ConnectionEditorModal from './ConnectionEditorModal.svelte';
 	import FormActions from './FormActions.svelte';
@@ -258,12 +259,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">

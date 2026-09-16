@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { MessageSquare, Plus } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { formatDate } from './project-format';
 	import type { Conversation, PageInfo } from './project-types';
 
@@ -31,7 +32,7 @@
 			{#if query.trim()}<small class="search-scope">Search filters loaded conversations only.</small
 				>{/if}
 		</div>
-		<button class="button primary" onclick={onstartchat}><Plus size={15} /> New chat</button>
+		<Button variant="default" onclick={onstartchat}><Plus size={15} /> New chat</Button>
 	</div>
 	<div class="conversation-list">
 		{#each filteredConversations as conversation (conversation.id)}
@@ -98,38 +99,6 @@
 		margin-top: 4px;
 		color: var(--text-dim);
 		font-size: var(--text-xs);
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 7px;
-		min-height: 36px;
-		padding: 7px 12px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		line-height: 1;
-		white-space: nowrap;
-		transition: 0.15s ease;
-	}
-	.button:hover {
-		color: var(--text-strong);
-		border-color: var(--text-dim);
-		background: var(--surface-hover);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover {
-		background: var(--accent-bg-hover);
-		border-color: var(--accent-bg-hover);
 	}
 	.conversation-list {
 		overflow: hidden;

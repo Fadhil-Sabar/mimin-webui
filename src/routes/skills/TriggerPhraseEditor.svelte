@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Plus, X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { MAX_TRIGGER_LENGTH, MAX_TRIGGERS } from './skills-constants';
 
 	let {
@@ -35,8 +36,11 @@
 					onadd();
 				}
 			}}
-		/><button type="button" class="button" onclick={onadd} disabled={phrases.length >= MAX_TRIGGERS}
-			><Plus size={14} /> Add</button
+		/><Button
+			variant="outline"
+			type="button"
+			onclick={onadd}
+			disabled={phrases.length >= MAX_TRIGGERS}><Plus size={14} /> Add</Button
 		>
 	</div>
 	{#if phrases.length > 0}<div class="trigger-list">
@@ -130,29 +134,5 @@
 	.trigger-chip button:hover {
 		color: var(--danger-text);
 		background: var(--surface-hover);
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button:hover:not(:disabled) {
-		color: var(--text-strong);
-		background: var(--surface-hover);
-		border-color: var(--text-dim);
-	}
-	.button:disabled {
-		opacity: 0.6;
-		cursor: wait;
 	}
 </style>

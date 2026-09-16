@@ -1,5 +1,4 @@
 <script lang="ts">
-	/* eslint-disable svelte/no-navigation-without-resolve -- package downloads are static build assets */
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import {
@@ -22,6 +21,8 @@
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import {
 		getBrowserBridgeStatus,
 		isBrowserBridgeEnabled,
@@ -97,12 +98,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -218,8 +214,8 @@
 									: 'Disabled'}</span
 				>
 				<span>{status}</span>
-				{#if enabled}<button class="button" onclick={checkConnection} disabled={checking}
-						>Check connection</button
+				{#if enabled}<Button variant="outline" onclick={checkConnection} disabled={checking}
+						>Check connection</Button
 					>{/if}
 			</div>
 
@@ -298,9 +294,9 @@
 							{#if browser === 'chromium'}<span class="badge ok">Recommended</span>{/if}
 						</div>
 						<p>Chrome, Edge, Brave, Arc, Opera, and other Chromium browsers.</p>
-						<a class="button primary" href={chromeDownload} download>
+						<Button variant="default" class="package-download" href={chromeDownload} download>
 							<Download size={15} /> Download Chrome package
-						</a>
+						</Button>
 						<ol>
 							<li>Unzip the downloaded package.</li>
 							<li>Open <code>chrome://extensions</code> and enable Developer mode.</li>
@@ -315,9 +311,9 @@
 							{#if browser === 'firefox'}<span class="badge ok">Recommended</span>{/if}
 						</div>
 						<p>Firefox 109 or newer using a temporary local add-on.</p>
-						<a class="button primary" href={firefoxDownload} download>
+						<Button variant="default" class="package-download" href={firefoxDownload} download>
 							<Download size={15} /> Download Firefox package
-						</a>
+						</Button>
 						<ol>
 							<li>Unzip the downloaded package.</li>
 							<li>Open <code>about:debugging#/runtime/this-firefox</code>.</li>
@@ -567,7 +563,7 @@
 		min-height: 43px;
 		margin-top: 6px;
 	}
-	article .button {
+	:global(.package-download) {
 		width: 100%;
 		margin: 16px 0 14px;
 		text-decoration: none;

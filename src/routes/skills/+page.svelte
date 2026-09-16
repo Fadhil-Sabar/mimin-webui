@@ -18,6 +18,8 @@
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import ConfirmDeleteDialog from './ConfirmDeleteDialog.svelte';
@@ -349,12 +351,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -427,8 +424,8 @@
 					<h1>Skills</h1>
 					<p>Specialized instructions and workflows for your assistant.</p>
 				</div>
-				<button class="button primary" onclick={() => openCreate(null)}
-					><Plus size={16} /> New skill</button
+				<Button variant="default" class="page-heading-action" onclick={() => openCreate(null)}
+					><Plus size={16} /> New skill</Button
 				>
 			</div>
 
@@ -539,35 +536,6 @@
 		font-size: var(--text-sm);
 		line-height: 1.5;
 	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button:hover:not(:disabled) {
-		color: var(--text-strong);
-		background: var(--surface-hover);
-		border-color: var(--text-dim);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover:not(:disabled) {
-		background: var(--accent-bg-hover);
-		border-color: var(--accent-bg-hover);
-	}
 	@media (max-width: 720px) {
 		.skills-wrap {
 			padding: 28px 18px 60px;
@@ -577,7 +545,7 @@
 			flex-direction: column;
 			gap: 20px;
 		}
-		.page-heading > .button {
+		.page-heading > :global(.page-heading-action) {
 			width: 100%;
 		}
 	}

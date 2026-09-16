@@ -23,6 +23,8 @@
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
 	type Project = {
@@ -136,12 +138,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -213,10 +210,11 @@
 					<h1>Projects</h1>
 					<p>Persistent context for the work you return to.</p>
 				</div>
-				<button
-					class="button primary"
-					bind:this={createProjectTrigger}
-					onclick={() => (showCreate = true)}><Plus size={16} /> New project</button
+				<Button
+					variant="default"
+					class="page-heading-button"
+					bind:ref={createProjectTrigger}
+					onclick={() => (showCreate = true)}><Plus size={16} /> New project</Button
 				>
 			</div>
 			<div class="toolbar">
@@ -308,12 +306,12 @@
 				>
 					Create a project
 				</Dialog.Title>
-				<button
-					type="button"
-					class="icon-button"
+				<Button
+					variant="ghost"
+					size="icon"
 					aria-label="Close"
 					title="Close dialog"
-					onclick={closeCreateProject}><X size={18} /></button
+					onclick={closeCreateProject}><X size={18} /></Button
 				>
 			</Dialog.Header>
 			<label
@@ -337,10 +335,10 @@
 					placeholder="How should the agent help with this project?"></textarea></label
 			>
 			<div class="modal-actions">
-				<button type="button" class="button" onclick={closeCreateProject}>Cancel</button><button
+				<Button variant="outline" onclick={closeCreateProject}>Cancel</Button><Button
+					variant="default"
 					type="submit"
-					class="button primary"
-					disabled={creating}>{creating ? 'Creating...' : 'Create project'}</button
+					disabled={creating}>{creating ? 'Creating...' : 'Create project'}</Button
 				>
 			</div>
 		</form>
@@ -375,29 +373,6 @@
 		color: var(--text-muted);
 		font-size: var(--text-sm);
 		line-height: 1.5;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button:disabled {
-		opacity: 0.6;
 	}
 	.toolbar {
 		display: flex;
@@ -602,7 +577,7 @@
 			gap: 18px;
 			flex-direction: column;
 		}
-		.page-heading .button {
+		:global(.page-heading-button) {
 			width: 100%;
 		}
 	}

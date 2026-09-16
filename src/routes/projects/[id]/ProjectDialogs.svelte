@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { X } from '@lucide/svelte';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import type { Project, ProjectFile } from './project-types';
 
@@ -115,8 +116,8 @@
 				>
 					Edit project
 				</Dialog.Title>
-				<button type="button" class="icon-button" onclick={oncloseedit} aria-label="Close dialog"
-					><X size={16} /></button
+				<Button variant="ghost" size="icon" onclick={oncloseedit} aria-label="Close dialog"
+					><X size={16} /></Button
 				>
 			</Dialog.Header>
 			<label
@@ -136,11 +137,9 @@
 					placeholder="How should the agent help with this project?"></textarea></label
 			>
 			<div class="modal-actions">
-				<button type="button" class="button" onclick={oncloseedit} disabled={savingProject}
-					>Cancel</button
-				>
-				<button type="submit" class="button primary" disabled={savingProject}
-					>{savingProject ? 'Saving...' : 'Save changes'}</button
+				<Button variant="outline" onclick={oncloseedit} disabled={savingProject}>Cancel</Button>
+				<Button variant="default" type="submit" disabled={savingProject}
+					>{savingProject ? 'Saving...' : 'Save changes'}</Button
 				>
 			</div>
 		</form>
@@ -276,37 +275,5 @@
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 22px;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 7px;
-		min-height: 36px;
-		padding: 7px 12px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		line-height: 1;
-		white-space: nowrap;
-		transition: 0.15s ease;
-	}
-	.button:hover {
-		color: var(--text-strong);
-		border-color: var(--text-dim);
-		background: var(--surface-hover);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover {
-		background: var(--accent-bg-hover);
-		border-color: var(--accent-bg-hover);
 	}
 </style>

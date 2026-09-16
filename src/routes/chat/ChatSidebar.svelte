@@ -14,6 +14,7 @@
 		User
 	} from '@lucide/svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import type { ConversationSummary } from '$lib/client/conversations.svelte';
 	import type { Conversation } from './chat-types';
@@ -53,12 +54,7 @@
 	}: Props = $props();
 </script>
 
-<button
-	class="sidebar-backdrop"
-	onclick={() => sidebar.closeMobile()}
-	aria-label="Close sidebar"
-	tabindex="-1"
-></button>
+<SidebarBackdrop />
 <aside class="sidebar">
 	<div class="sidebar-top-row">
 		<div class="brand">
