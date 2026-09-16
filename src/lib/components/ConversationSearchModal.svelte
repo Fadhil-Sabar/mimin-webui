@@ -7,6 +7,8 @@
 	} from '$lib/client/conversations.svelte';
 	import { searchConversations } from '$lib/client/api';
 	import { sidebar } from '$lib/client/sidebar.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { CornerDownLeft, FolderKanban, Loader2, MessageSquare, Search, X } from '@lucide/svelte';
 
 	let inputEl: HTMLInputElement | undefined = $state();
@@ -162,184 +164,164 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-{#if conversationSearch.isOpen}
-	<div
-		class="modal-backdrop conversation-search-backdrop"
-		role="dialog"
-		aria-modal="true"
+<!--
+	Command-palette shell. Dialog.Content reproduces the old `.search-modal-card` box
+	(min(620px, 94vw) wide, max 80vh tall — 90vh under 600px, `--surface`, 1px
+	`--border-strong`, 12px radius, `0 24px 60px --shadow`, flex column, overflow hidden)
+	and the old top-anchored backdrop (`top: min(10vh, 80px)`, horizontally centred).
+	Escape and outside-click still close it — that is Dialog's default, matching the
+	backdrop's previous `onkeydown`/`onclick` handlers — so they are not re-declared here.
+-->
+<Dialog.Root
+	open={conversationSearch.isOpen}
+	onOpenChange={(open) => {
+		if (!open) conversationSearch.close();
+	}}
+>
+	<Dialog.Content
+		showCloseButton={false}
 		aria-label="Search conversations"
-		tabindex="-1"
-		onclick={(e) => {
-			if (e.target === e.currentTarget) conversationSearch.close();
-		}}
-		onkeydown={(e) => {
-			if (e.key === 'Escape') conversationSearch.close();
-		}}
+		class="top-[min(10vh,80px)] flex max-h-[80vh] w-[min(620px,94vw)] max-w-none! translate-y-0 flex-col gap-0 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-0 text-[16px] shadow-[0_24px_60px_var(--shadow)] ring-0 max-[600px]:max-h-[90vh]"
 	>
-		<div class="search-modal-card" role="document">
-			<div class="search-input-wrapper">
-				<Search size={18} class="search-lead-icon" aria-hidden="true" />
-				<input
-					bind:this={inputEl}
-					bind:value={query}
-					type="text"
-					class="search-input"
-					placeholder="Search conversations by title or message..."
-					aria-label="Search conversations"
-					autocomplete="off"
-					spellcheck="false"
-				/>
-				{#if searching}
-					<Loader2 size={16} class="search-spinner animate-spin" aria-hidden="true" />
-				{/if}
-				{#if query}
+		<div class="search-input-wrapper">
+			<Search size={18} class="search-lead-icon" aria-hidden="true" />
+			<input
+				bind:this={inputEl}
+				bind:value={query}
+				type="text"
+				class="search-input"
+				placeholder="Search conversations by title or message..."
+				aria-label="Search conversations"
+				autocomplete="off"
+				spellcheck="false"
+			/>
+			{#if searching}
+				<Loader2 size={16} class="search-spinner animate-spin" aria-hidden="true" />
+			{/if}
+			{#if query}
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					class="hover:bg-[var(--surface-subtle)] hover:text-[var(--text-strong)]"
+					title="Clear query"
+					aria-label="Clear query"
+					onclick={() => {
+						query = '';
+						inputEl?.focus();
+					}}
+				>
+					<X size={14} />
+				</Button>
+			{/if}
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon-sm"
+				class="hover:bg-[var(--surface-subtle)] hover:text-[var(--text-strong)]"
+				title="Close dialog (Esc)"
+				aria-label="Close dialog"
+				onclick={() => conversationSearch.close()}
+			>
+				<X size={16} />
+			</Button>
+		</div>
+
+		<div class="search-results-list" bind:this={resultsContainerEl} role="listbox">
+			{#if displayResults.length > 0}
+				<div class="results-header">
+					<span>{query.trim() ? 'Search results' : 'Recent conversations'}</span>
+					<span class="results-count">{displayResults.length}</span>
+				</div>
+				{#each displayResults as item, index (item.id)}
 					<button
 						type="button"
-						class="icon-button clear-btn"
-						title="Clear query"
-						aria-label="Clear query"
-						onclick={() => {
-							query = '';
-							inputEl?.focus();
-						}}
+						class="search-result-item"
+						class:selected={index === selectedIndex}
+						role="option"
+						aria-selected={index === selectedIndex}
+						onmouseenter={() => (selectedIndex = index)}
+						onclick={() => selectItem(item.id)}
 					>
-						<X size={14} />
+						<div class="result-icon-col">
+							<MessageSquare size={16} class="chat-icon" />
+						</div>
+						<div class="result-body">
+							<div class="result-top-line">
+								<span class="result-title">
+									{#each tokenizeMatch(item.title, query) as token, tokenIndex (tokenIndex)}
+										{#if token.matched}
+											<mark class="search-highlight">{token.text}</mark>
+										{:else}
+											{token.text}
+										{/if}
+									{/each}
+								</span>
+								{#if item.projectName}
+									<span class="project-pill" title="Project: {item.projectName}">
+										<FolderKanban size={11} />
+										<span>{item.projectName}</span>
+									</span>
+								{/if}
+							</div>
+							{#if item.snippet}
+								<p class="result-snippet">
+									{#each tokenizeMatch(item.snippet, query) as token, tokenIndex (tokenIndex)}
+										{#if token.matched}
+											<mark class="search-highlight">{token.text}</mark>
+										{:else}
+											{token.text}
+										{/if}
+									{/each}
+								</p>
+							{/if}
+						</div>
+						<div class="result-meta-col">
+							{#if item.updatedAt}
+								<span class="result-time">{formatRelativeTime(item.updatedAt)}</span>
+							{/if}
+							{#if index === selectedIndex}
+								<span class="select-badge" aria-hidden="true">
+									<CornerDownLeft size={11} />
+								</span>
+							{/if}
+						</div>
 					</button>
-				{/if}
-				<button
-					type="button"
-					class="icon-button close-btn"
-					title="Close dialog (Esc)"
-					aria-label="Close dialog"
-					onclick={() => conversationSearch.close()}
-				>
-					<X size={16} />
-				</button>
-			</div>
-
-			<div class="search-results-list" bind:this={resultsContainerEl} role="listbox">
-				{#if displayResults.length > 0}
-					<div class="results-header">
-						<span>{query.trim() ? 'Search results' : 'Recent conversations'}</span>
-						<span class="results-count">{displayResults.length}</span>
-					</div>
-					{#each displayResults as item, index (item.id)}
-						<button
-							type="button"
-							class="search-result-item"
-							class:selected={index === selectedIndex}
-							role="option"
-							aria-selected={index === selectedIndex}
-							onmouseenter={() => (selectedIndex = index)}
-							onclick={() => selectItem(item.id)}
-						>
-							<div class="result-icon-col">
-								<MessageSquare size={16} class="chat-icon" />
-							</div>
-							<div class="result-body">
-								<div class="result-top-line">
-									<span class="result-title">
-										{#each tokenizeMatch(item.title, query) as token, tokenIndex (tokenIndex)}
-											{#if token.matched}
-												<mark class="search-highlight">{token.text}</mark>
-											{:else}
-												{token.text}
-											{/if}
-										{/each}
-									</span>
-									{#if item.projectName}
-										<span class="project-pill" title="Project: {item.projectName}">
-											<FolderKanban size={11} />
-											<span>{item.projectName}</span>
-										</span>
-									{/if}
-								</div>
-								{#if item.snippet}
-									<p class="result-snippet">
-										{#each tokenizeMatch(item.snippet, query) as token, tokenIndex (tokenIndex)}
-											{#if token.matched}
-												<mark class="search-highlight">{token.text}</mark>
-											{:else}
-												{token.text}
-											{/if}
-										{/each}
-									</p>
-								{/if}
-							</div>
-							<div class="result-meta-col">
-								{#if item.updatedAt}
-									<span class="result-time">{formatRelativeTime(item.updatedAt)}</span>
-								{/if}
-								{#if index === selectedIndex}
-									<span class="select-badge" aria-hidden="true">
-										<CornerDownLeft size={11} />
-									</span>
-								{/if}
-							</div>
-						</button>
-					{/each}
-				{:else if searching}
-					<div class="search-empty-state">
-						<Loader2 size={20} class="animate-spin" />
-						<p>Searching conversation history...</p>
-					</div>
-				{:else if query.trim()}
-					<div class="search-empty-state">
-						<Search size={22} class="empty-icon" />
-						<p class="empty-heading">No conversations found</p>
-						<p class="empty-sub">No conversations or messages matched “{query.trim()}”.</p>
-					</div>
-				{:else}
-					<div class="search-empty-state">
-						<MessageSquare size={22} class="empty-icon" />
-						<p class="empty-heading">No conversations yet</p>
-						<p class="empty-sub">Start a new chat to begin your first conversation.</p>
-					</div>
-				{/if}
-			</div>
-
-			<div class="search-footer">
-				<div class="footer-shortcuts">
-					<span class="shortcut-tag"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-					<span class="shortcut-tag"><kbd>↵</kbd> open</span>
-					<span class="shortcut-tag"><kbd>esc</kbd> close</span>
+				{/each}
+			{:else if searching}
+				<div class="search-empty-state">
+					<Loader2 size={20} class="animate-spin" />
+					<p>Searching conversation history...</p>
 				</div>
+			{:else if query.trim()}
+				<div class="search-empty-state">
+					<Search size={22} class="empty-icon" />
+					<p class="empty-heading">No conversations found</p>
+					<p class="empty-sub">No conversations or messages matched “{query.trim()}”.</p>
+				</div>
+			{:else}
+				<div class="search-empty-state">
+					<MessageSquare size={22} class="empty-icon" />
+					<p class="empty-heading">No conversations yet</p>
+					<p class="empty-sub">Start a new chat to begin your first conversation.</p>
+				</div>
+			{/if}
+		</div>
+
+		<div class="search-footer">
+			<div class="footer-shortcuts">
+				<span class="shortcut-tag"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+				<span class="shortcut-tag"><kbd>↵</kbd> open</span>
+				<span class="shortcut-tag"><kbd>esc</kbd> close</span>
 			</div>
 		</div>
-	</div>
-{/if}
+	</Dialog.Content>
+</Dialog.Root>
 
 <style>
-	.conversation-search-backdrop {
-		align-items: flex-start;
-		padding-top: min(10vh, 80px);
-		z-index: 100;
-	}
-
-	.search-modal-card {
-		width: min(620px, 94vw);
-		max-height: 80vh;
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		box-shadow: 0 24px 60px var(--shadow);
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-		animation: modalFadeIn 0.15s ease-out;
-	}
-
-	@keyframes modalFadeIn {
-		from {
-			opacity: 0;
-			transform: scale(0.98) translateY(-6px);
-		}
-		to {
-			opacity: 1;
-			transform: scale(1) translateY(0);
-		}
-	}
-
+	/* The palette shell (`.conversation-search-backdrop` + `.search-modal-card`) is now
+	   shadcn's Dialog.Content, box-styled with Tailwind utilities on the element. Only the
+	   card's inner content is styled here. */
 	.search-input-wrapper {
 		display: flex;
 		align-items: center;
@@ -386,29 +368,6 @@
 		to {
 			transform: rotate(360deg);
 		}
-	}
-
-	.clear-btn,
-	.close-btn {
-		width: 28px;
-		height: 28px;
-		border-radius: 6px;
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		color: var(--text-muted);
-		background: transparent;
-		border: 0;
-		cursor: pointer;
-		transition:
-			background-color 0.15s ease,
-			color 0.15s ease;
-	}
-
-	.clear-btn:hover,
-	.close-btn:hover {
-		background: var(--surface-subtle);
-		color: var(--text-strong);
 	}
 
 	.search-results-list {
@@ -616,13 +575,6 @@
 	}
 
 	@media (max-width: 600px) {
-		.conversation-search-backdrop {
-			padding: 12px;
-		}
-		.search-modal-card {
-			width: 100%;
-			max-height: 90vh;
-		}
 		.footer-shortcuts {
 			display: none;
 		}

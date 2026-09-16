@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Check, Eye, EyeOff, Loader2, X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import type { ConnectionField, SearchProviderType, WebSearchSettingsState } from './types';
 
@@ -68,12 +69,13 @@
 							: 'Add a custom endpoint without changing your selected search provider.'}
 					</p>
 				</div>
-				<button
+				<Button
 					type="button"
-					class="icon-button"
+					variant="ghost"
+					size="icon"
 					aria-label="Close"
 					title="Close dialog"
-					onclick={onclose}><X size={18} /></button
+					onclick={onclose}><X size={18} /></Button
 				>
 			</div>
 
@@ -124,17 +126,18 @@
 
 			<div class="modal-actions">
 				{#if (field === 'apiKey' && settings.apiKeyFromUser) || (field === 'searchUrl' && settings.searchUrlFromUser)}
-					<button
+					<Button
 						type="button"
-						class="button danger remove-connection"
+						variant="destructive"
+						class="remove-connection"
 						onclick={() => onremove(field)}
-						disabled={saving}>Remove</button
+						disabled={saving}>Remove</Button
 					>
 				{/if}
-				<button type="button" class="button" onclick={onclose}>Cancel</button>
-				<button type="submit" class="button primary" disabled={saving}>
+				<Button type="button" variant="outline" onclick={onclose}>Cancel</Button>
+				<Button type="submit" variant="default" disabled={saving}>
 					{#if saving}<Loader2 size={15} class="spin" /> Saving...{:else}<Check size={15} /> Save connection{/if}
-				</button>
+				</Button>
 			</div>
 		</form>
 	</Dialog.Content>
@@ -153,7 +156,7 @@
 		font-size: var(--text-sm);
 		line-height: 1.45;
 	}
-	.remove-connection {
+	:global(.remove-connection) {
 		margin-right: auto;
 	}
 

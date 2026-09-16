@@ -10,6 +10,7 @@
 	} from '$lib/client/conversations.svelte';
 	import { Check, Pencil, Search, Trash2, X } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 
 	let {
 		conversations,
@@ -37,6 +38,7 @@
 	let localDeletingConversation = $state<ConversationSummary | null>(null);
 	let localDeleteLoading = $state(false);
 	let localStatus = $state('');
+	let deleteViaAction = false;
 	let statusTimeout: ReturnType<typeof setTimeout> | undefined;
 	let effectiveEditingId = $derived(editingId ?? localEditingId);
 
@@ -118,6 +120,20 @@
 		} finally {
 			localDeleteLoading = false;
 		}
+	}
+
+	function handleDeleteAction() {
+		deleteViaAction = true;
+		void confirmDelete();
+	}
+
+	function handleDeleteOpenChange(open: boolean) {
+		if (open) return;
+		if (deleteViaAction) {
+			deleteViaAction = false;
+			return;
+		}
+		if (!localDeleteLoading) localDeletingConversation = null;
 	}
 
 	function fadeIfOverflow(node: HTMLElement) {
@@ -264,45 +280,45 @@
 {/if}
 
 {#if localDeletingConversation}
-	<div
-		class="modal-backdrop"
-		role="dialog"
-		aria-modal="true"
-		tabindex="-1"
-		onclick={(event) => {
-			if (event.target === event.currentTarget) localDeletingConversation = null;
-		}}
-		onkeydown={(event) => {
-			if (event.key === 'Escape') localDeletingConversation = null;
-		}}
-	>
-		<div class="modal" role="document">
-			<div class="modal-head">
-				<h2>Delete chat</h2>
-				<button
-					class="icon-button"
-					onclick={() => (localDeletingConversation = null)}
+	<AlertDialog.Root open={true} onOpenChange={handleDeleteOpenChange}>
+		<AlertDialog.Content
+			class="w-[min(470px,100%)] max-w-none! gap-0 border border-[var(--border-strong)] p-6 shadow-[0_20px_50px_var(--shadow)] ring-0"
+		>
+			<AlertDialog.Header class="flex items-start justify-between gap-4 text-left">
+				<AlertDialog.Title
+					class="ui-text-lg font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
+				>
+					Delete chat
+				</AlertDialog.Title>
+				<AlertDialog.Cancel
+					variant="ghost"
+					size="icon-sm"
+					disabled={localDeleteLoading}
 					aria-label="Close dialog"
 				>
 					<X size={16} />
-				</button>
-			</div>
-			<p class="modal-text">
+				</AlertDialog.Cancel>
+			</AlertDialog.Header>
+			<AlertDialog.Description class="ui-text-sm mt-[18px] text-[var(--text-body)]">
 				Are you sure you want to delete <strong>"{localDeletingConversation.title}"</strong>? This
 				will permanently remove all messages in this conversation.
-			</p>
-			<div class="modal-actions">
-				<button
-					class="button"
-					onclick={() => (localDeletingConversation = null)}
-					disabled={localDeleteLoading}>Cancel</button
+			</AlertDialog.Description>
+			<AlertDialog.Footer
+				class="mx-0 mt-[22px] mb-0 flex flex-row justify-end gap-2 rounded-none border-t-0 bg-transparent p-0"
+			>
+				<AlertDialog.Cancel variant="outline" disabled={localDeleteLoading}
+					>Cancel</AlertDialog.Cancel
 				>
-				<button class="button danger" onclick={confirmDelete} disabled={localDeleteLoading}>
+				<AlertDialog.Action
+					variant="destructive"
+					disabled={localDeleteLoading}
+					onclick={handleDeleteAction}
+				>
 					{localDeleteLoading ? 'Deleting...' : 'Delete'}
-				</button>
-			</div>
-		</div>
-	</div>
+				</AlertDialog.Action>
+			</AlertDialog.Footer>
+		</AlertDialog.Content>
+	</AlertDialog.Root>
 {/if}
 {#if localStatus}<div class="toast" role="status" aria-live="polite">{localStatus}</div>{/if}
 
@@ -331,11 +347,5 @@
 	.nav-label-action:hover {
 		color: var(--text-strong);
 		background: var(--surface-subtle);
-	}
-	.modal-text {
-		margin: 0 0 16px;
-		color: var(--text-body);
-		font-size: var(--text-sm);
-		line-height: 1.55;
 	}
 </style>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import ModelSelector from './ModelSelector.svelte';
 	import { PROTOCOLS, type ModelItem, type Protocol, type ProviderState } from './provider-types';
@@ -73,12 +74,13 @@
 				<div>
 					<h2 id="provider-dialog-title">{title}</h2>
 				</div>
-				<button
+				<Button
 					type="button"
-					class="icon-button"
+					variant="ghost"
+					size="icon"
 					aria-label="Close"
 					title="Close dialog"
-					onclick={onclose}><X size={18} /></button
+					onclick={onclose}><X size={18} /></Button
 				>
 			</div>
 			{#if isCustom}
@@ -121,9 +123,9 @@
 				/>
 			{/if}
 			<div class="modal-actions">
-				<button type="button" class="button" onclick={onclose}>Cancel</button>
-				<button type="submit" class="button primary" disabled={saving}
-					>{saving ? 'Saving...' : 'Save connection'}</button
+				<Button type="button" variant="outline" onclick={onclose}>Cancel</Button>
+				<Button type="submit" variant="default" disabled={saving}
+					>{saving ? 'Saving...' : 'Save connection'}</Button
 				>
 			</div>
 		</form>
@@ -153,30 +155,5 @@
 		font-size: var(--text-xs);
 		font-weight: 400;
 		margin-left: 4px;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		min-height: 40px;
-		padding: 8px 11px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-size: var(--text-sm);
-		transition: 0.18s ease;
-	}
-	.button:hover {
-		color: var(--text);
-		border-color: var(--text-dim);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover {
-		background: var(--accent-bg-hover);
 	}
 </style>

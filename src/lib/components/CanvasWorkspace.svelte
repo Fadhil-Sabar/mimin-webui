@@ -41,6 +41,8 @@
 	import CanvasPreview from './CanvasPreview.svelte';
 	import StyleGuidelineEditor from './StyleGuidelineEditor.svelte';
 	import SceneFrameNode from './SceneFrameNode.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
 	type Props = {
 		canvas: CanvasDetail;
@@ -464,8 +466,8 @@
 					</SvelteFlow>
 					{#if canvas.scenes.length === 0}
 						<div class="empty-canvas">
-							<button class="button primary" onclick={() => (showNewSceneModal = true)}
-								><Plus size={14} /> Add first scene</button
+							<Button variant="default" onclick={() => (showNewSceneModal = true)}
+								><Plus size={14} /> Add first scene</Button
 							>
 						</div>
 					{/if}
@@ -503,9 +505,9 @@
 							<button class="icon-btn" onclick={copyCurrentCode} title="Copy Code">
 								{#if copiedCode}<Check size={13} />{:else}<Copy size={13} />{/if}
 							</button>
-							<button class="button small primary" onclick={saveCodeChanges} disabled={codeSaving}>
+							<Button variant="default" size="sm" onclick={saveCodeChanges} disabled={codeSaving}>
 								{codeSaving ? 'Saving...' : 'Apply Code'}
-							</button>
+							</Button>
 						</div>
 					</div>
 
@@ -533,8 +535,8 @@
 				</div>
 			{:else}
 				<div class="empty-canvas">
-					<button class="button primary" onclick={() => (showNewSceneModal = true)}
-						><Plus size={14} /> Add first scene</button
+					<Button variant="default" onclick={() => (showNewSceneModal = true)}
+						><Plus size={14} /> Add first scene</Button
 					>
 				</div>
 			{/if}
@@ -552,23 +554,12 @@
 		{/if}
 	</div>
 
-	{#if previewOpen && activeScene}
-		<div
-			class="preview-overlay"
-			role="presentation"
-			onclick={() => (previewOpen = false)}
-			onkeydown={(event) => {
-				if (event.key === 'Escape') previewOpen = false;
-			}}
-		>
-			<div
-				class="preview-dialog"
-				role="dialog"
-				aria-modal="true"
+	{#if activeScene}
+		<Dialog.Root bind:open={previewOpen}>
+			<Dialog.Content
+				showCloseButton={false}
 				aria-label="Interactive preview of {activeScene.name}"
-				tabindex="-1"
-				onclick={(event) => event.stopPropagation()}
-				onkeydown={(event) => event.stopPropagation()}
+				class="flex! max-h-[96vh] w-fit! max-w-[min(96vw,1300px)]! min-w-[min(320px,96vw)] flex-col gap-0 overflow-hidden rounded-xl bg-[var(--surface)] p-0 leading-[normal] shadow-[0_24px_70px_var(--shadow)] ring-0"
 			>
 				<div class="preview-dialog-bar">
 					<strong>{activeScene.name}</strong><span
@@ -625,90 +616,79 @@
 					</div>
 				</div>
 				<div class="preview-dialog-actions">
-					<button
-						class="button"
+					<Button
+						variant="outline"
 						onclick={handleDeleteActiveScene}
-						disabled={canvas.scenes.length <= 1}><Trash2 size={13} /> Delete scene</button
-					><button
-						class="button"
+						disabled={canvas.scenes.length <= 1}><Trash2 size={13} /> Delete scene</Button
+					><Button
+						variant="outline"
 						onclick={() => {
 							previewOpen = false;
 							viewMode = 'code';
-						}}><Code2 size={13} /> Edit code</button
+						}}><Code2 size={13} /> Edit code</Button
 					>
 				</div>
-			</div>
-		</div>
+			</Dialog.Content>
+		</Dialog.Root>
 	{/if}
 
 	<!-- Modal for New Scene -->
-	{#if showNewSceneModal}
-		<div
-			class="modal-backdrop"
-			role="presentation"
-			onclick={() => (showNewSceneModal = false)}
-			onkeydown={(e) => {
-				if (e.key === 'Escape') showNewSceneModal = false;
-			}}
+	<Dialog.Root bind:open={showNewSceneModal}>
+		<Dialog.Content
+			showCloseButton={false}
+			class="w-[min(440px,90%)] max-w-none! gap-0 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-0 leading-[normal] shadow-[0_20px_25px_-5px_rgba(0,0,0,0.2)] ring-0"
 		>
-			<div
-				class="modal-card"
-				role="dialog"
-				aria-modal="true"
-				tabindex="-1"
-				onclick={(e) => e.stopPropagation()}
-				onkeydown={(e) => e.stopPropagation()}
-			>
-				<div class="modal-header">
-					<h3 class="modal-title">Create Scene Mockup</h3>
-					<button
-						class="icon-btn"
-						onclick={() => (showNewSceneModal = false)}
-						aria-label="Close dialog"><Plus style="transform: rotate(45deg)" size={14} /></button
-					>
+			<div class="modal-header">
+				<Dialog.Title level={3} class="ui-text-base font-semibold text-[var(--text-strong)]"
+					>Create Scene Mockup</Dialog.Title
+				>
+				<button
+					class="icon-btn"
+					onclick={() => (showNewSceneModal = false)}
+					aria-label="Close dialog"><Plus style="transform: rotate(45deg)" size={14} /></button
+				>
+			</div>
+			<div class="modal-body">
+				<div class="form-group">
+					<label for="scene-name" class="label">Scene Name</label>
+					<input
+						id="scene-name"
+						type="text"
+						class="text-input"
+						bind:value={newSceneName}
+						placeholder="e.g. Mobile Signup, Desktop Dashboard..."
+					/>
 				</div>
-				<div class="modal-body">
-					<div class="form-group">
-						<label for="scene-name" class="label">Scene Name</label>
-						<input
-							id="scene-name"
-							type="text"
-							class="text-input"
-							bind:value={newSceneName}
-							placeholder="e.g. Mobile Signup, Desktop Dashboard..."
-						/>
+				<div class="form-group">
+					<span class="label">Initial Viewport</span>
+					<div class="viewport-radios">
+						<label class="radio-label">
+							<input type="radio" bind:group={newSceneViewport} value="mobile" />
+							<span>Mobile (375px)</span>
+						</label>
+						<label class="radio-label">
+							<input type="radio" bind:group={newSceneViewport} value="tablet" />
+							<span>Tablet (768px)</span>
+						</label>
+						<label class="radio-label">
+							<input type="radio" bind:group={newSceneViewport} value="desktop" />
+							<span>Desktop (1200px)</span>
+						</label>
 					</div>
-					<div class="form-group">
-						<span class="label">Initial Viewport</span>
-						<div class="viewport-radios">
-							<label class="radio-label">
-								<input type="radio" bind:group={newSceneViewport} value="mobile" />
-								<span>Mobile (375px)</span>
-							</label>
-							<label class="radio-label">
-								<input type="radio" bind:group={newSceneViewport} value="tablet" />
-								<span>Tablet (768px)</span>
-							</label>
-							<label class="radio-label">
-								<input type="radio" bind:group={newSceneViewport} value="desktop" />
-								<span>Desktop (1200px)</span>
-							</label>
-						</div>
-					</div>
-				</div>
-				<div class="modal-footer">
-					<button class="button" onclick={() => (showNewSceneModal = false)}>Cancel</button>
-					<button
-						class="button primary"
-						onclick={submitNewScene}
-						disabled={creating || !newSceneName.trim()}
-					>
-						{creating ? 'Creating...' : 'Create Scene'}
-					</button>
 				</div>
 			</div>
-		</div>
-	{/if}
+			<div class="modal-footer">
+				<Button variant="outline" onclick={() => (showNewSceneModal = false)}>Cancel</Button>
+				<Button
+					variant="default"
+					onclick={submitNewScene}
+					disabled={creating || !newSceneName.trim()}
+				>
+					{creating ? 'Creating...' : 'Create Scene'}
+				</Button>
+			</div>
+		</Dialog.Content>
+	</Dialog.Root>
 </div>
 
 <style>
@@ -765,26 +745,6 @@
 		background: transparent;
 		color: inherit;
 		cursor: pointer;
-	}
-	.preview-overlay {
-		position: fixed;
-		inset: 0;
-		z-index: 999;
-		display: grid;
-		place-items: center;
-		padding: 20px;
-		background: var(--overlay);
-	}
-	.preview-dialog {
-		display: flex;
-		flex-direction: column;
-		max-width: min(96vw, 1300px);
-		max-height: 96vh;
-		min-width: min(320px, 96vw);
-		background: var(--surface);
-		border-radius: 12px;
-		overflow: hidden;
-		box-shadow: 0 24px 70px var(--shadow);
 	}
 	.preview-dialog-bar {
 		display: flex;
@@ -848,11 +808,6 @@
 		justify-content: flex-end;
 		border-top: 1px solid var(--border);
 		padding: 10px 14px;
-	}
-	.preview-dialog-actions .button {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
 	}
 	.canvas-workspace {
 		display: flex;
@@ -1219,11 +1174,6 @@
 		color: var(--text-muted);
 	}
 
-	.button.small {
-		padding: 4px 10px;
-		font-size: var(--text-xs);
-	}
-
 	:global(.spin) {
 		animation: spin 1s linear infinite;
 	}
@@ -1238,37 +1188,12 @@
 	}
 
 	/* Modal Styles */
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		background: var(--overlay);
-		display: grid;
-		place-items: center;
-		z-index: 1000;
-	}
-
-	.modal-card {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		width: 90%;
-		max-width: 440px;
-		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
-	}
-
 	.modal-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		padding: 14px 18px;
 		border-bottom: 1px solid var(--border);
-	}
-
-	.modal-title {
-		margin: 0;
-		font-size: var(--text-base);
-		font-weight: 600;
-		color: var(--text-strong);
 	}
 
 	.modal-body {

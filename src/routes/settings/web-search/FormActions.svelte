@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Check, Loader2, RotateCcw } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	type Props = {
 		saving: boolean;
@@ -11,18 +12,18 @@
 </script>
 
 <div class="form-actions">
-	<button type="submit" class="button primary" disabled={saving}>
+	<Button type="submit" variant="default" disabled={saving}>
 		{#if saving}
 			<Loader2 size={16} class="spin" /> Saving...
 		{:else}
 			<Check size={16} /> Save provider
 		{/if}
-	</button>
+	</Button>
 
 	{#if showReset}
-		<button type="button" class="button danger" onclick={onreset} disabled={saving}>
+		<Button type="button" variant="destructive" onclick={onreset} disabled={saving}>
 			<RotateCcw size={15} /> Reset to default
-		</button>
+		</Button>
 	{/if}
 </div>
 

@@ -14,6 +14,7 @@
 		X,
 		CircleAlert
 	} from '@lucide/svelte';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { highlightCode } from '$lib/client/highlighter';
 	import { themeState } from '$lib/client/theme.svelte';
 	import { renderMermaid, getCachedMermaidSvg, downloadSvg } from '$lib/client/mermaid';
@@ -294,99 +295,110 @@
 	{/if}
 </div>
 
-{#if isZoomed}
-	<div
-		class="mermaid-modal-backdrop"
-		role="dialog"
-		aria-modal="true"
+<!--
+	Fullscreen viewer shell. Dialog.Content paints the exact box the old
+	`.mermaid-modal-container` did (95vw x 90vh, `--surface`, 1px `--border-strong`,
+	12px radius, `0 20px 45px --shadow`, flex column, overflow hidden) and is centred by
+	its own `top-1/2 left-1/2 -translate-*` positioning, matching the old centred backdrop.
+	`interactOutsideBehavior="ignore"` keeps the previous rule that clicking the backdrop
+	does NOT close the viewer (only Esc / the close button did).
+-->
+<Dialog.Root
+	open={isZoomed}
+	onOpenChange={(open) => {
+		if (!open) closeModal();
+	}}
+>
+	<Dialog.Content
+		showCloseButton={false}
+		interactOutsideBehavior="ignore"
 		aria-label="Mermaid Diagram Fullscreen View"
+		class="flex h-[90vh] w-[95vw] max-w-none! flex-col gap-0 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-0 shadow-[0_20px_45px_var(--shadow)] ring-0"
 	>
-		<div class="mermaid-modal-container">
-			<div class="mermaid-modal-header">
-				<div class="modal-title-area">
-					<Workflow size={15} />
-					<span class="modal-title">Mermaid Diagram</span>
-					<span class="zoom-badge">{Math.round(zoomScale * 100)}%</span>
-				</div>
+		<div class="mermaid-modal-header">
+			<div class="modal-title-area">
+				<Workflow size={15} />
+				<span class="modal-title">Mermaid Diagram</span>
+				<span class="zoom-badge">{Math.round(zoomScale * 100)}%</span>
+			</div>
 
-				<div class="modal-actions">
-					<div class="zoom-controls">
-						<button
-							type="button"
-							class="modal-btn"
-							onclick={zoomOut}
-							title="Zoom out"
-							aria-label="Zoom out"
-						>
-							<ZoomOut size={14} />
-						</button>
-						<button
-							type="button"
-							class="modal-btn"
-							onclick={resetZoom}
-							title="Reset zoom (100%)"
-							aria-label="Reset zoom"
-						>
-							<RotateCcw size={13} />
-						</button>
-						<button
-							type="button"
-							class="modal-btn"
-							onclick={zoomIn}
-							title="Zoom in"
-							aria-label="Zoom in"
-						>
-							<ZoomIn size={14} />
-						</button>
-					</div>
-
+			<div class="modal-actions">
+				<div class="zoom-controls">
 					<button
 						type="button"
 						class="modal-btn"
-						onclick={handleDownload}
-						title="Download SVG"
-						aria-label="Download SVG"
+						onclick={zoomOut}
+						title="Zoom out"
+						aria-label="Zoom out"
 					>
-						<Download size={14} />
+						<ZoomOut size={14} />
 					</button>
-
 					<button
 						type="button"
-						class="modal-btn close-btn"
-						onclick={closeModal}
-						title="Close modal (Esc)"
-						aria-label="Close modal"
+						class="modal-btn"
+						onclick={resetZoom}
+						title="Reset zoom (100%)"
+						aria-label="Reset zoom"
 					>
-						<X size={15} />
+						<RotateCcw size={13} />
+					</button>
+					<button
+						type="button"
+						class="modal-btn"
+						onclick={zoomIn}
+						title="Zoom in"
+						aria-label="Zoom in"
+					>
+						<ZoomIn size={14} />
 					</button>
 				</div>
-			</div>
 
-			<div
-				class="mermaid-modal-canvas"
-				class:panning={isPanning}
-				onwheel={handleWheel}
-				onpointerdown={handlePointerDown}
-				onpointermove={handlePointerMove}
-				onpointerup={handlePointerUp}
-				role="region"
-				aria-label="Pan and zoom canvas"
-			>
-				<div
-					class="mermaid-transform-target"
-					style="transform: translate({panX}px, {panY}px) scale({zoomScale}); transform-origin: center center;"
+				<button
+					type="button"
+					class="modal-btn"
+					onclick={handleDownload}
+					title="Download SVG"
+					aria-label="Download SVG"
 				>
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					{@html svgHtml}
-				</div>
-			</div>
+					<Download size={14} />
+				</button>
 
-			<div class="modal-footer-hint">
-				<span>Drag to pan &bull; Scroll to zoom &bull; Esc to close</span>
+				<button
+					type="button"
+					class="modal-btn close-btn"
+					onclick={closeModal}
+					title="Close modal (Esc)"
+					aria-label="Close modal"
+				>
+					<X size={15} />
+				</button>
 			</div>
 		</div>
-	</div>
-{/if}
+
+		<div
+			class="mermaid-modal-canvas"
+			class:panning={isPanning}
+			onwheel={handleWheel}
+			onpointerdown={handlePointerDown}
+			onpointermove={handlePointerMove}
+			onpointerup={handlePointerUp}
+			role="region"
+			aria-label="Pan and zoom canvas"
+		>
+			<div
+				class="mermaid-transform-target"
+				style="transform: translate({panX}px, {panY}px) scale({zoomScale}); transform-origin: center center;"
+			>
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+				{@html svgHtml}
+			</div>
+		</div>
+
+		<div class="modal-footer-hint">
+			<span>Drag to pan &bull; Scroll to zoom &bull; Esc to close</span>
+		</div>
+	</Dialog.Content>
+</Dialog.Root>
 
 <style>
 	.mermaid-diagram-card {
@@ -620,30 +632,10 @@
 	}
 
 	/* ---------- Fullscreen / Zoom Modal ---------- */
-	.mermaid-modal-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 100;
-		background: var(--overlay);
-		backdrop-filter: blur(4px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 24px;
-	}
-
-	.mermaid-modal-container {
-		width: 95vw;
-		height: 90vh;
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		box-shadow: 0 20px 45px var(--shadow);
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-	}
-
+	/* The shell (backdrop + container) is now shadcn's Dialog.Content, styled with
+	   Tailwind utilities on the element, so the old `.mermaid-modal-backdrop` /
+	   `.mermaid-modal-container` box rules are gone. Everything below styles only the
+	   modal's inner content, which Dialog.Content renders verbatim. */
 	.mermaid-modal-header {
 		display: flex;
 		align-items: center;

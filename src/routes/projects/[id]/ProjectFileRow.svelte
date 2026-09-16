@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { FileJson2, FileText, RefreshCw, Trash2 } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import {
 		extractionLabel,
 		extractionNeedsAttention,
@@ -37,13 +38,15 @@
 	</div>
 	<span class="muted desktop-only">{formatSize(file.sizeBytes)}</span>
 	<span class="muted desktop-only">{formatDate(file.createdAt)}</span>
-	<button
-		class="icon-button"
+	<Button
+		variant="ghost"
+		size="icon"
+		class="h-9 w-auto min-w-9 px-2"
 		aria-label={`Reindex ${file.filename}`}
 		title="Extract text and rebuild knowledge index"
 		disabled={reindexing !== null}
 		onclick={() => onreindex(file)}
-		><RefreshCw size={16} />{reindexing === file.id ? 'Indexing…' : ''}</button
+		><RefreshCw size={16} />{reindexing === file.id ? 'Indexing…' : ''}</Button
 	>
 	<button class="row-menu" aria-label={`Delete ${file.filename}`} onclick={() => ondelete(file)}
 		><Trash2 size={16} /></button
