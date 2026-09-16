@@ -57,6 +57,8 @@ export type ChatStreamDeps = {
 export function createChatStream(deps: ChatStreamDeps) {
 	let running = $state(false);
 	let liveError = $state('');
+	/** Set when a turn finished without an answer, e.g. the output budget ran out. */
+	let turnNotice = $state('');
 	let messages = $state<ConversationMessage[]>([]);
 	/**
 	 * Consent prompts that arrived before the tool call they belong to. The two
@@ -280,6 +282,15 @@ export function createChatStream(deps: ChatStreamDeps) {
 				messages = messages.map((msg) =>
 					msg.id === msgId ? { ...msg, citations: event.citations as MessageCitation[] } : msg
 				);
+		} else if (event.type === 'turn.incomplete') {
+			streamingDeltas.flush();
+			turnNotice = typeof event.notice === 'string' ? event.notice : '';
+			const msgId = String(event.messageId);
+			messages = messages.map((msg) =>
+				msg.id === msgId
+					? { ...msg, stopReason: event.kind === 'truncated' ? 'length' : 'no-answer' }
+					: msg
+			);
 		} else if (event.type.startsWith('canvas.')) {
 			deps.onCanvasEvent?.(event);
 		} else if (event.type === 'error') {
@@ -311,6 +322,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 		deps.bumpConversationLoadToken();
 		running = true;
 		liveError = '';
+		turnNotice = '';
 		deps.setDraft('');
 		deps.setAttachments([]);
 		deps.setUserAtBottom(true);
@@ -407,6 +419,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 		deps.bumpConversationLoadToken();
 		running = true;
 		liveError = '';
+		turnNotice = '';
 		deps.setUserAtBottom(true);
 		abortController = new AbortController();
 		const streamAbortController = abortController;
@@ -481,12 +494,14 @@ export function createChatStream(deps: ChatStreamDeps) {
 		abortController = undefined;
 		running = false;
 		messages = [];
+		turnNotice = '';
 		consentBuffer = {};
 	}
 
 	/** Forget turn-scoped error state without touching the transcript. */
 	function resetLiveState() {
 		liveError = '';
+		turnNotice = '';
 		consentBuffer = {};
 	}
 
@@ -512,6 +527,12 @@ export function createChatStream(deps: ChatStreamDeps) {
 		},
 		get liveError() {
 			return liveError;
+		},
+		get turnNotice() {
+			return turnNotice;
+		},
+		dismissTurnNotice: () => {
+			turnNotice = '';
 		},
 		get canRetry() {
 			return canRetry;

@@ -3,7 +3,13 @@ import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { clampThinkingLevel, type ModelThinkingLevel } from '@earendil-works/pi-ai';
 import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
-import { listAvailableModels, modelRegistry, resolveModel, splitModelRef } from './model.service';
+import {
+	configuredModelMaxTokens,
+	listAvailableModels,
+	modelRegistry,
+	resolveModel,
+	splitModelRef
+} from './model.service';
 import { getProviderCredential, type ProviderCredential } from './provider-settings.service';
 import { getWebSearchSettings } from './web-search-settings.service';
 import { createProjectKnowledgeTool } from './tools/project-knowledge.tool';
@@ -11,6 +17,8 @@ import { createWebSearchTool } from './tools/web-search.tool';
 import { createWebFetchTool } from './tools/web-fetch.tool';
 import { getModelThinkingPreference } from './model-preferences.service';
 import { createAgentEventQueue } from './agent-event-queue';
+import { describeTurnOutcome, persistedStopReason, type TurnOutcome } from './turn-outcome';
+import type { MessageUsage } from '$lib/server/db/schema';
 import { buildUserSystemPrompt, getUserInstructions } from './user-instructions.service';
 import type { SkillSnapshot } from '$lib/skills';
 import { getTurnSkillSnapshot } from '../skill-runtime';
@@ -104,7 +112,12 @@ type AgentEvent = {
 	result: unknown;
 	isError: boolean;
 	assistantMessageEvent?: { type?: string; delta?: string };
-	message?: { role?: string };
+	message?: {
+		role?: string;
+		stopReason?: string;
+		rawStopReason?: string;
+		usage?: unknown;
+	};
 };
 
 type ProjectKnowledgeCitation = {
@@ -583,6 +596,18 @@ Instructions for Canvas Mockups:
 			systemPrompt = `${systemPrompt} Browser tools are not available in this request because the browser bridge is not connected. Do not substitute another tool for the pending action; explain that the bridge still is not detected.`;
 		}
 	}
+	// A custom provider gets an output cap only when its model entry declares one.
+	// Reasoning and the answer share that budget, and an uncapped reasoning phase can
+	// consume the whole response (see the "no answer" outcome in turn-outcome.ts).
+	const registry = modelRegistry();
+	const registryStream = registry.streamSimple.bind(registry);
+	const configuredMaxTokens = configuredModelMaxTokens(credential, modelId);
+	const streamFn: typeof registryStream = (model, context, options) =>
+		registryStream(
+			model,
+			context,
+			configuredMaxTokens ? { ...options, maxTokens: configuredMaxTokens } : options
+		);
 	const agent = new Agent({
 		initialState: {
 			systemPrompt,
@@ -591,7 +616,7 @@ Instructions for Canvas Mockups:
 			messages: toAgentMessages(history, toolCallsByMessage),
 			tools
 		},
-		streamFn: modelRegistry().streamSimple.bind(modelRegistry()),
+		streamFn,
 		toolExecution: 'sequential',
 		afterToolCall: async ({ toolCall, isError }) => {
 			const policy = getToolFailurePolicy(toolCall.name, isError);
@@ -605,6 +630,10 @@ Instructions for Canvas Mockups:
 	let currentAssistantMessageId: string | null = null;
 	let currentAssistantText = '';
 	let currentThinkingText = '';
+	/** Tool calls requested by the assistant message that is currently open. */
+	let currentToolCallCount = 0;
+	/** Outcome of the last finalised assistant message, reported once the turn ends. */
+	const turnOutcome: { last: (TurnOutcome & { messageId: string }) | null } = { last: null };
 	let lastAssistantMessageId: string | null = null;
 	let lastTextAssistantMessageId: string | null = null;
 	const createdAssistantMessageIds: string[] = [];
@@ -703,7 +732,13 @@ Instructions for Canvas Mockups:
 		return msg.id;
 	}
 
-	async function finalizeCurrentAssistantMessage() {
+	async function finalizeCurrentAssistantMessage(
+		finish: {
+			stopReason?: string;
+			rawStopReason?: string;
+			usage?: MessageUsage;
+		} = {}
+	) {
 		if (!currentAssistantMessageId) return;
 		const msgId = currentAssistantMessageId;
 		const text = currentAssistantText;
@@ -714,7 +749,21 @@ Instructions for Canvas Mockups:
 					{ type: 'text', text }
 				]
 			: text;
-		await db.update(schema.messages).set({ content }).where(eq(schema.messages.id, msgId));
+		const outcome = describeTurnOutcome({
+			stopReason: finish.stopReason,
+			rawStopReason: finish.rawStopReason,
+			text,
+			toolCallCount: currentToolCallCount
+		});
+		await db
+			.update(schema.messages)
+			.set({
+				content,
+				stopReason: persistedStopReason(outcome, finish.stopReason),
+				usage: finish.usage ?? null
+			})
+			.where(eq(schema.messages.id, msgId));
+		turnOutcome.last = outcome.incomplete ? { ...outcome, messageId: msgId } : null;
 		if (text.trim()) lastTextAssistantMessageId = msgId;
 		emit({
 			type: 'message.end',
@@ -724,6 +773,7 @@ Instructions for Canvas Mockups:
 		currentAssistantMessageId = null;
 		currentAssistantText = '';
 		currentThinkingText = '';
+		currentToolCallCount = 0;
 	}
 
 	let subscriberError: unknown;
@@ -751,12 +801,19 @@ Instructions for Canvas Mockups:
 			}
 		}
 		if (e.type === 'message_end') {
-			const role = (e.message as { role?: string })?.role;
-			if (role === 'assistant') {
-				await finalizeCurrentAssistantMessage();
+			const message = e.message as
+				| { role?: string; stopReason?: string; rawStopReason?: string; usage?: MessageUsage }
+				| undefined;
+			if (message?.role === 'assistant') {
+				await finalizeCurrentAssistantMessage({
+					stopReason: message.stopReason,
+					rawStopReason: message.rawStopReason,
+					usage: message.usage
+				});
 			}
 		}
 		if (e.type === 'tool_execution_start') {
+			currentToolCallCount += 1;
 			const parentMessageId = lastAssistantMessageId ?? (await ensureAssistantMessage());
 			await db.insert(schema.toolCalls).values({
 				messageId: parentMessageId,
@@ -823,6 +880,17 @@ Instructions for Canvas Mockups:
 		await agentEvents.drain();
 		if (subscriberError) throw subscriberError;
 		await finalizeCurrentAssistantMessage();
+		// A turn can end cleanly with reasoning only (the provider reported `length`,
+		// or stopped without an answer). Tell the client instead of leaving a reply
+		// that still looks like it is thinking.
+		if (turnOutcome.last) {
+			emit({
+				type: 'turn.incomplete',
+				messageId: turnOutcome.last.messageId,
+				kind: turnOutcome.last.kind,
+				notice: turnOutcome.last.notice
+			});
+		}
 		if (agent.state.errorMessage) {
 			throw new Error(agent.state.errorMessage);
 		}

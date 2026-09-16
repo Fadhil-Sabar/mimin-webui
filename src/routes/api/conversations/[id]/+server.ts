@@ -145,12 +145,17 @@ export const GET: RequestHandler = async (event) => {
 				...toPublicConversation(conversation),
 				canvasId: linkedCanvas?.id ?? null
 			},
-			messages: rows.map((row) => ({
-				...toPublicMessage(row),
-				attachments: attachmentsByMessage.get(row.id) ?? [],
-				toolCalls: toolCallsByMessage.get(row.id) ?? [],
-				citations: citationsByMessage.get(row.id) ?? []
-			})),
+			messages: rows.map((row) => {
+				// `usage` is diagnostic data for the server; keep it out of the payload.
+				const message = toPublicMessage(row) as Record<string, unknown> & { usage?: unknown };
+				delete message.usage;
+				return {
+					...message,
+					attachments: attachmentsByMessage.get(row.id) ?? [],
+					toolCalls: toolCallsByMessage.get(row.id) ?? [],
+					citations: citationsByMessage.get(row.id) ?? []
+				};
+			}),
 			toolCalls: calls,
 			nextCursor:
 				hasMore && rows.length

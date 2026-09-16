@@ -189,6 +189,21 @@ export function mergeCustomModelMetadata(
 	};
 }
 
+/**
+ * Output cap declared on a custom provider's model entry, when the user set one.
+ * The agent loop never forwards `model.maxTokens`, so a configured value only
+ * reaches the provider when the stream call passes it explicitly.
+ */
+export function configuredModelMaxTokens(
+	credential: ProviderCredential | undefined,
+	modelId: string
+): number | undefined {
+	const configured = credential?.customConfig?.models.find((model) => model.id === modelId);
+	const value = configured?.maxTokens;
+	if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+	return Math.floor(value);
+}
+
 function customRuntimeModel(
 	protocol: CustomProviderProtocol,
 	provider: string,

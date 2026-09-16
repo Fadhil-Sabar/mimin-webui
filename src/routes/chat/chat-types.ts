@@ -61,6 +61,12 @@ export type ConversationMessage = {
 	role: 'user' | 'assistant';
 	content: unknown;
 	createdAt: string;
+	/**
+	 * Terminal state of the turn, when the server recorded one: pi's stop reason
+	 * ("stop", "length", "toolUse") or "no-answer" for a turn that produced only
+	 * reasoning. Used to mark replies that stopped before writing an answer.
+	 */
+	stopReason?: string | null;
 	attachments?: MessageAttachment[];
 	toolCalls?: ToolCall[];
 	citations?: MessageCitation[];

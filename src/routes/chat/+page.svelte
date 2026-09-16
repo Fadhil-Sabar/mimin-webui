@@ -36,6 +36,7 @@
 	import ChatHeader from './ChatHeader.svelte';
 	import ChatTitle from './ChatTitle.svelte';
 	import ChatInlineError from './ChatInlineError.svelte';
+	import ChatTurnNotice from './ChatTurnNotice.svelte';
 	import ChatMessage from './ChatMessage.svelte';
 	import ChatSidebar from './ChatSidebar.svelte';
 	import ChatToast from './ChatToast.svelte';
@@ -663,6 +664,14 @@
 		await answerQuestion(activeId, toolCallId, payload.answers, payload.skipped);
 	}
 
+	/** Send a follow-up prompt for a turn that ended without an answer. */
+	function continueTurn() {
+		if (stream.running || retryDisabled) return;
+		message = 'continue';
+		stream.dismissTurnNotice();
+		void stream.send();
+	}
+
 	async function handleConsentSubmit(
 		toolCallId: string | undefined,
 		decision: BrowserConsentDecision
@@ -787,6 +796,12 @@
 						canRetry={stream.canRetry}
 						{retryDisabled}
 						onretry={stream.retry}
+					/>
+					<ChatTurnNotice
+						notice={stream.turnNotice}
+						continueDisabled={retryDisabled}
+						oncontinue={continueTurn}
+						ondismiss={stream.dismissTurnNotice}
 					/>
 					<ChatComposer
 						bind:message

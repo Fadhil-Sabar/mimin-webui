@@ -183,6 +183,7 @@ vi.mock('$lib/server/ai/model.service', () => ({
 	splitModelRef: () => ({ provider: 'openai', id: 'test' }),
 	resolveModel: () => ({ input: ['text'] }),
 	listAvailableModels: vi.fn(async () => []),
+	configuredModelMaxTokens: () => undefined,
 	modelRegistry: () => ({ streamSimple: vi.fn() })
 }));
 vi.mock('$lib/server/ai/provider-settings.service', () => ({

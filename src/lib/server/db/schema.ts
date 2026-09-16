@@ -220,6 +220,15 @@ export const userInstructions = pgTable('user_instructions', {
 	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export type MessageUsage = {
+	input?: number;
+	output?: number;
+	cacheRead?: number;
+	cacheWrite?: number;
+	reasoning?: number;
+	totalTokens?: number;
+};
+
 export const messages = pgTable(
 	'messages',
 	{
@@ -231,6 +240,12 @@ export const messages = pgTable(
 		content: jsonb('content').notNull(),
 		// Only user messages carry this immutable per-turn skill context.
 		skillSnapshot: jsonb('skill_snapshot').$type<SkillSnapshot>(),
+		// Terminal state of the turn that produced the message. `stop_reason` is pi's
+		// normalised reason ("stop", "length", "toolUse", ...) and is stored as
+		// "no-answer" when the model stopped with reasoning only. `usage` keeps the
+		// provider token counts so a truncated reply can be diagnosed afterwards.
+		stopReason: text('stop_reason'),
+		usage: jsonb('usage').$type<MessageUsage>(),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => ({

@@ -65,6 +65,17 @@
 	let thinkingEl = $state<HTMLDivElement | null>(null);
 	let thinkingPinned = $state(true);
 
+	/**
+	 * A finished assistant reply with no text and no tool call: the turn ended
+	 * before an answer was written (see the server's turn outcome).
+	 */
+	const incompleteReply = $derived(
+		message.role === 'assistant' &&
+			!message.isStreaming &&
+			!contentText(message.content).trim() &&
+			(message.toolCalls?.length ?? 0) === 0
+	);
+
 	function handleThinkingScroll() {
 		if (!thinkingEl) return;
 		thinkingPinned =
@@ -214,6 +225,12 @@
 			{/if}
 		{:else if message.role === 'assistant' && message.isStreaming && !thinkingText(message.content) && (!message.toolCalls || message.toolCalls.length === 0)}
 			<p class="response-text thinking"><span class="pulse-dot"></span> Thinking...</p>
+		{:else if incompleteReply}
+			<p class="response-text incomplete-reply">
+				{message.stopReason === 'length'
+					? 'This reply stopped before writing an answer: the model used its whole output budget on reasoning.'
+					: 'This reply stopped before writing an answer: only reasoning was produced.'}
+			</p>
 		{/if}
 		{#if message.toolCalls && message.toolCalls.length > 0}
 			<ToolCallPanel toolCalls={message.toolCalls} {running} {onquestionsubmit} {onconsentsubmit} />
@@ -326,6 +343,10 @@
 		margin: 0;
 		line-height: 1.6;
 		white-space: pre-wrap;
+	}
+	.incomplete-reply {
+		color: var(--status-working-text);
+		font-size: var(--text-sm);
 	}
 	.message-actions {
 		display: flex;
