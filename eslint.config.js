@@ -34,6 +34,14 @@ export default defineConfig(
 		}
 	},
 	{
+		// shadcn-svelte components are generic building blocks: their `href` props
+		// accept arbitrary values, so they cannot use SvelteKit's typed resolve().
+		files: ['src/lib/components/ui/**'],
+		rules: {
+			'svelte/no-navigation-without-resolve': 'off'
+		}
+	},
+	{
 		// Override or add rule settings here, such as:
 		// 'svelte/button-has-type': 'error'
 		rules: {}

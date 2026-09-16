@@ -1,4 +1,50 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is([data-theme='dark'] *));
+
+/* ---------- shadcn-svelte token bridge ----------
+ * The project's own tokens stay the source of truth; shadcn's expected names are
+ * aliases onto them, so the existing look is preserved exactly. `inline` makes the
+ * emitted utilities resolve var(--bg) etc. at use time, which is what lets
+ * [data-theme='dark'] flip shadcn components automatically.
+ *
+ * shadcn's --accent is a subtle hover surface, NOT this project's --accent-bg
+ * (a near-black primary). Mapping them together would turn every menu hover black.
+ */
+@theme inline {
+	/* radii: match the literals already in use (4/6/8/12px), not the calc() formula */
+	--radius-sm: 4px;
+	--radius-md: 6px;
+	--radius-lg: 8px;
+	--radius-xl: 12px;
+
+	--color-background: var(--bg);
+	--color-foreground: var(--text);
+	--color-card: var(--surface);
+	--color-card-foreground: var(--text-strong);
+	--color-popover: var(--surface);
+	--color-popover-foreground: var(--text);
+	--color-primary: var(--accent-bg);
+	--color-primary-foreground: var(--accent-fg);
+	--color-secondary: var(--surface-2);
+	--color-secondary-foreground: var(--text-body);
+	--color-muted: var(--surface-2);
+	--color-muted-foreground: var(--text-muted);
+	--color-accent: var(--surface-hover);
+	--color-accent-foreground: var(--text);
+	--color-destructive: var(--danger-bg);
+	--color-destructive-foreground: #ffffff;
+	--color-border: var(--border);
+	--color-input: var(--input-border);
+	--color-ring: var(--focus);
+}
+
+/* Focus treatment: this project uses outline + offset, not a box-shadow ring. */
+@utility focus-outline {
+	outline: 2px solid var(--focus);
+	outline-offset: 3px;
+}
 
 /* ---------- Type scale (16px base) ---------- */
 :root {

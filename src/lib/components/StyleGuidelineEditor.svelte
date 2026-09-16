@@ -136,7 +136,7 @@
 					<div class="list-item-row">
 						<input
 							type="text"
-							class="text-input row-input"
+							class="row-input text-input"
 							bind:value={editRules[i]}
 							placeholder="Rule description..."
 							aria-label="Rule {i + 1}"
@@ -164,7 +164,7 @@
 					<div class="list-item-row">
 						<input
 							type="text"
-							class="text-input row-input"
+							class="row-input text-input"
 							bind:value={editAvoidances[i]}
 							placeholder="What to avoid..."
 							aria-label="Avoidance {i + 1}"
