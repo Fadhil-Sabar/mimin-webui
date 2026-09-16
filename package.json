@@ -26,7 +26,7 @@
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-		"db:generate": "drizzle-kit generate && prettier --write drizzle",
+		"db:generate": "drizzle-kit generate",
 		"db:migrate": "node scripts/migrate.js",
 		"db:seed": "node scripts/seed.js",
 		"test": "vitest run",

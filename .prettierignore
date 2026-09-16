@@ -5,6 +5,9 @@ yarn.lock
 bun.lock
 bun.lockb
 
+# Generated (drizzle-kit writes 2-space JSON, not this repo's prettier style)
+drizzle/
+
 # Miscellaneous
 /static/
 pi-session-*.html
