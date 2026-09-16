@@ -40,7 +40,9 @@
 		color: var(--text-strong);
 		background: transparent;
 		font-family: var(--font-body);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.project-search:focus-within {
 		border-color: var(--focus);

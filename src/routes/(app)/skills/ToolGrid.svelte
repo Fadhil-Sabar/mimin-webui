@@ -58,19 +58,24 @@
 	.section-label-row h3 {
 		margin: 0 0 3px;
 		color: var(--text-strong);
-		font-size: var(--text-sm);
-		font-weight: 650;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 	}
 	.section-label-row p {
 		margin: 0;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		line-height: 1.4;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.section-label-row > span {
 		flex: 0 0 auto;
 		color: var(--text-faint);
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 	}
 	.tool-grid {
 		display: grid;
@@ -115,21 +120,25 @@
 	}
 	.tool-copy strong {
 		color: var(--text-body);
-		font-size: var(--text-xs);
-		font-weight: 600;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 	}
 	.tool-copy small {
 		margin-top: 2px;
 		color: var(--text-dim);
-		font-size: 10px;
-		line-height: 1.35;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 	}
 	.tool-copy em {
 		margin-top: 3px;
 		color: var(--status-working-text);
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-style: normal;
-		line-height: 1.3;
 	}
 	@media (max-width: 560px) {
 		.tool-grid {

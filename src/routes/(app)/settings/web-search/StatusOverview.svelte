@@ -72,8 +72,10 @@
 		margin-bottom: 4px;
 	}
 	.status-title-row strong {
-		font-size: var(--text-base);
-		font-weight: 600;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.status-details {
@@ -82,10 +84,12 @@
 		flex-wrap: wrap;
 		gap: 8px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.mono-badge {
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-family: var(--font-mono);
 		background: var(--surface-2);
 		padding: 2px 6px;
 		border-radius: 4px;

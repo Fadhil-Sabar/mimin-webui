@@ -102,15 +102,18 @@
 		gap: 9px;
 	}
 	.connection-name strong {
-		font-size: var(--text-base);
-		font-weight: 600;
-		letter-spacing: -0.015em;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.connection-info p {
 		margin: 5px 0 8px;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.connection-meta {
 		display: flex;
@@ -122,7 +125,9 @@
 		width: 100%;
 		color: var(--text-dim);
 		cursor: pointer;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		list-style: none;
 	}
 	.connection-meta summary::-webkit-details-marker {

@@ -33,16 +33,18 @@
 	}
 	.chat-title h1 {
 		font-family: var(--font-body);
-		font-size: var(--text-xl);
-		font-weight: 600;
-		line-height: 1.25;
-		letter-spacing: -0.02em;
+		font-size: var(--text-headline-sm);
+		line-height: var(--text-headline-sm--line-height);
+		letter-spacing: var(--text-headline-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 		margin: 8px 0 4px;
 	}
 	.chat-title p {
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		margin: 0;
 	}
 	.ready {
@@ -51,8 +53,9 @@
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 35%, transparent);
 		padding: 4px 7px;
 		border-radius: 5px;
-		font-size: var(--text-xs);
-		line-height: 1.2;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.ready i {
 		display: inline-block;

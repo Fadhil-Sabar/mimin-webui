@@ -280,7 +280,9 @@
 		border-radius: 6px;
 		background: var(--surface-subtle);
 		color: var(--text);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
 	.skill-badge :global(svg.skill-badge-icon) {
@@ -317,7 +319,9 @@
 	}
 	.skill-status-hint {
 		color: var(--text-faint);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.skill-suggestion-banner {
 		display: flex;
@@ -329,7 +333,9 @@
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		background: var(--surface-subtle);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text);
 	}
 	.skill-suggestion-content {
@@ -349,7 +355,7 @@
 	}
 	.skill-suggestion-text strong {
 		color: var(--text-strong);
-		font-weight: 600;
+		font-weight: 500;
 	}
 	.skill-suggestion-actions {
 		display: flex;
@@ -363,8 +369,10 @@
 		border-radius: 4px;
 		background: var(--surface);
 		color: var(--text-strong);
-		font-size: var(--text-xs);
-		font-weight: 550;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		cursor: pointer;
 		transition:
 			background 0.15s ease,
@@ -409,7 +417,9 @@
 		border-radius: 6px;
 		background: var(--surface-subtle);
 		color: var(--text-body);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.attachment-chip span {
 		max-width: 220px;
@@ -458,7 +468,10 @@
 		border: 0;
 		outline: 0;
 		resize: none;
-		font: var(--text-base)/1.5 inherit;
+		font-family: inherit;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
 		background: transparent;
 	}
 	.chat-composer textarea:disabled {
@@ -491,7 +504,9 @@
 		background: var(--surface-subtle);
 		padding: 7px 9px;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		transition: 0.18s ease;
 	}
 	.control:hover {
@@ -538,7 +553,9 @@
 		.control {
 			min-height: 34px;
 			padding: 5px 8px;
-			font-size: var(--text-xs);
+			font-size: var(--text-body-sm);
+			line-height: var(--text-body-sm--line-height);
+			letter-spacing: var(--text-body-sm--letter-spacing);
 		}
 		.thinking-level-control {
 			max-width: 110px;

@@ -78,7 +78,9 @@
 		align-items: center;
 		gap: 8px;
 		min-width: 0;
-		font-size: 12px;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.frame-title strong {
 		overflow: hidden;
@@ -87,7 +89,9 @@
 	}
 	.frame-heading span {
 		color: var(--text-muted);
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		text-transform: capitalize;
 	}
 	.frame-preview {
@@ -106,7 +110,9 @@
 		justify-content: space-between;
 		padding: 0 12px 11px;
 		color: var(--text-muted);
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 	}
 	:global(.scene-frame .svelte-flow__handle) {
 		width: 12px;

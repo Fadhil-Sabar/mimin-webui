@@ -426,17 +426,18 @@
 	.page-heading h1 {
 		margin: 0 0 6px;
 		font-family: var(--font-body);
-		font-size: var(--text-2xl);
-		font-weight: 600;
-		line-height: 1.2;
-		letter-spacing: -0.025em;
+		font-size: var(--text-headline-md);
+		line-height: var(--text-headline-md--line-height);
+		letter-spacing: var(--text-headline-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.page-heading p {
 		margin: 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
-		line-height: 1.5;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	@media (max-width: 720px) {
 		.skills-wrap {

@@ -111,7 +111,9 @@
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		white-space: nowrap;
 	}
@@ -122,15 +124,18 @@
 	.skill-card h2 {
 		margin: 14px 0 6px;
 		font-family: var(--font-body);
-		font-size: var(--text-base);
-		font-weight: 600;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.skill-description {
 		margin: 0 0 14px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-muted);
-		line-height: 1.5;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
@@ -141,7 +146,9 @@
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 	}
 	.card-meta {
@@ -149,7 +156,9 @@
 		align-items: center;
 		gap: 6px;
 		color: var(--text-dim);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.trigger-preview {
 		display: flex;
@@ -158,7 +167,9 @@
 		min-width: 0;
 		overflow: hidden;
 		color: var(--text-body);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-style: italic;
 		white-space: nowrap;
 		text-overflow: ellipsis;
@@ -170,7 +181,9 @@
 	}
 	.updated {
 		color: var(--text-dim);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.card-actions {
 		display: flex;
@@ -181,7 +194,9 @@
 		border-top: 1px solid var(--border);
 	}
 	.card-actions :global(.card-edit-button) {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.icon-action {
 		display: grid;

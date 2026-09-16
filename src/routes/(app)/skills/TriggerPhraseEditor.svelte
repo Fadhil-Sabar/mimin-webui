@@ -69,19 +69,24 @@
 	.section-label-row h3 {
 		margin: 0 0 3px;
 		color: var(--text-strong);
-		font-size: var(--text-sm);
-		font-weight: 650;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 	}
 	.section-label-row p {
 		margin: 0;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		line-height: 1.4;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.section-label-row > span {
 		flex: 0 0 auto;
 		color: var(--text-faint);
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 	}
 	.trigger-input {
 		display: flex;
@@ -97,7 +102,9 @@
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		outline: 0;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.trigger-input input:focus {
 		border-color: var(--focus);
@@ -118,7 +125,9 @@
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 		border-radius: 5px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.trigger-chip button {
 		display: grid;

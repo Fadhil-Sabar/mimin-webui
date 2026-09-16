@@ -35,16 +35,18 @@
 	.instructions-band-title {
 		display: block;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		font-weight: 600;
-		letter-spacing: 0.02em;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 	}
 	.instructions-band p {
 		max-width: 650px;
 		margin: 5px 0 0;
 		color: var(--text-body);
-		font-size: var(--text-sm);
-		line-height: 1.55;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		white-space: pre-wrap;
 	}
 	.instructions-band :global(.instructions-action) {

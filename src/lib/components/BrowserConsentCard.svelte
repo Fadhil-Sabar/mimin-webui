@@ -253,8 +253,10 @@
 	}
 
 	.header-title {
-		font-size: var(--text-sm, 13px);
-		font-weight: 600;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 
@@ -262,7 +264,9 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		font-size: 0.6875rem;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		padding: 2px 7px;
 		border-radius: 4px;
@@ -310,9 +314,10 @@
 
 	.header-sub {
 		margin: 0;
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
-		line-height: 1.35;
 	}
 
 	.consent-body {
@@ -329,7 +334,9 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-strong);
 		word-break: break-all;
 	}
@@ -340,7 +347,9 @@
 
 	.input-summary {
 		margin: 0;
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-muted);
 		word-break: break-word;
 	}
@@ -359,7 +368,9 @@
 		gap: 5px;
 		padding: 6px 12px;
 		border-radius: 6px;
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		cursor: pointer;
 		border: 1px solid var(--border);
@@ -405,7 +416,9 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-muted);
 	}
 
@@ -415,7 +428,9 @@
 	}
 
 	.submit-error {
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--danger-text);
 	}
 </style>

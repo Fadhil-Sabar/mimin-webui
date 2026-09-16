@@ -187,17 +187,19 @@
 	h1 {
 		margin: 0 0 7px;
 		color: var(--text-strong);
-		font-size: var(--text-2xl);
-		font-weight: 600;
-		letter-spacing: -0.025em;
+		font-size: var(--text-headline-md);
+		line-height: var(--text-headline-md--line-height);
+		letter-spacing: var(--text-headline-md--letter-spacing);
+		font-weight: 500;
 	}
 	.page-heading p,
 	.field-heading p,
 	.privacy-note {
 		margin: 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
-		line-height: 1.55;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.notification {
 		margin-top: 20px;
@@ -206,7 +208,9 @@
 		background: color-mix(in srgb, var(--status-ok-dot) 8%, var(--surface));
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 24%, var(--border));
 		border-radius: 8px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.notification.error {
 		color: var(--danger-text);
@@ -237,13 +241,15 @@
 		height: 20px;
 		border: 1px solid var(--border-strong);
 		border-radius: 50%;
-		font-size: 10px;
+		font-size: var(--text-label-sm);
 		font-style: normal;
-		font-weight: 650;
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 	}
 	.scope-strip .current {
 		color: var(--text-strong);
-		font-weight: 600;
+		font-weight: 500;
 	}
 	.scope-strip .current span {
 		color: var(--accent-fg);
@@ -251,7 +257,9 @@
 		border-color: var(--accent-bg);
 	}
 	.scope-strip small {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		white-space: nowrap;
 	}
 	.scope-strip i {
@@ -276,13 +284,17 @@
 		display: block;
 		margin-bottom: 3px;
 		color: var(--text-strong);
-		font-size: var(--text-base);
-		font-weight: 600;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 	}
 	.field-heading > span {
 		flex: 0 0 auto;
 		color: var(--text-faint);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-variant-numeric: tabular-nums;
 	}
 	.field-heading > span.near-limit {
@@ -298,8 +310,9 @@
 		background: var(--surface-subtle);
 		border: 1px solid var(--input-border);
 		border-radius: 8px;
-		font-size: var(--text-base);
-		line-height: 1.65;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
 	}
 	textarea:focus {
 		border-color: var(--focus);
@@ -319,7 +332,9 @@
 	}
 	.save-state {
 		color: var(--text-faint);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.spin {
 		animation: spin 0.8s linear infinite;

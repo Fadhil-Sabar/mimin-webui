@@ -73,9 +73,7 @@
 			}}
 		>
 			<Dialog.Header class="flex flex-row items-start justify-between gap-4">
-				<Dialog.Title
-					class="ui-text-lg font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
-				>
+				<Dialog.Title class="text-headline-sm text-[var(--text-strong)]">
 					{skill ? 'Edit skill' : 'Create a skill'}
 				</Dialog.Title>
 				<Button
@@ -162,8 +160,9 @@
 		overflow: visible;
 		padding: 0;
 		color: var(--text);
-		font-size: 16px;
-		line-height: normal;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
 		background: transparent;
 		border: 0;
 		border-radius: 0;
@@ -179,8 +178,10 @@
 		display: block;
 		min-width: 0;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		font-weight: 550;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 	}
 	.field.full {
 		grid-column: 1 / -1;
@@ -188,9 +189,11 @@
 	.field-count {
 		float: right;
 		color: var(--text-faint);
-		font-size: 10px;
+		font-size: var(--text-label-sm);
 		font-variant-numeric: tabular-nums;
-		font-weight: 450;
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 400;
 	}
 	.field input,
 	.field textarea,
@@ -204,13 +207,14 @@
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		outline: 0;
-		font-size: var(--text-sm);
-		line-height: 1.45;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.field textarea {
 		min-height: 150px;
 		resize: vertical;
-		line-height: 1.6;
+		line-height: var(--text-body-md--line-height);
 	}
 	.field select {
 		appearance: auto;
@@ -225,8 +229,10 @@
 		display: block;
 		margin-top: 5px;
 		color: var(--text-dim);
-		font-size: 10px;
-		font-weight: 450;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 400;
 	}
 	.form-error {
 		display: flex;
@@ -238,8 +244,9 @@
 		background: color-mix(in srgb, var(--danger-text) 8%, var(--surface));
 		border: 1px solid color-mix(in srgb, var(--danger-text) 25%, var(--border));
 		border-radius: 6px;
-		font-size: var(--text-xs);
-		line-height: 1.45;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	@media (max-width: 560px) {
 		.editor-grid {

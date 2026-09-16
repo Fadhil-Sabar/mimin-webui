@@ -285,12 +285,16 @@
 		flex-wrap: wrap;
 	}
 	.field-title {
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 		color: var(--text);
 	}
 	.models-count-badge {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		background: var(--surface-2);
 		padding: 2px 7px;
@@ -299,7 +303,9 @@
 	}
 	.optional {
 		color: var(--text-faint);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 400;
 		margin-left: 4px;
 	}
@@ -312,7 +318,9 @@
 		background: transparent;
 		border: none;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		cursor: pointer;
 		padding: 3px 6px;
 		text-decoration: underline;
@@ -326,7 +334,9 @@
 		border: 1px solid var(--border);
 		border-radius: 4px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		padding: 3px 9px;
 		cursor: pointer;
 		transition: 0.15s ease;
@@ -360,7 +370,9 @@
 		border: none;
 		border-right: 1px solid var(--border);
 		color: var(--text-body);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		padding: 5px 9px;
 		cursor: pointer;
@@ -400,7 +412,9 @@
 		outline: none;
 		background: transparent;
 		color: var(--text);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		padding: 0;
 		min-height: auto;
 		margin: 0;
@@ -468,42 +482,49 @@
 		flex-wrap: wrap;
 	}
 	.mono {
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: var(--text-xs);
+		font-family: var(--font-mono);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-body);
 	}
 	.model-row-id {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-strong);
 		word-break: break-all;
 	}
 	.model-row-name {
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-dim);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.model-badge-free {
-		font-size: 10px;
-		font-weight: 600;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 0.03em;
 		padding: 1px 5px;
 		border-radius: 4px;
 		color: var(--status-ok-text);
 		background: color-mix(in srgb, var(--status-ok-dot) 15%, transparent);
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 30%, transparent);
-		line-height: 1.2;
 	}
 	.model-badge-meta {
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		padding: 1px 5px;
 		border-radius: 4px;
 		color: var(--text-dim);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		line-height: 1.2;
 	}
 	.model-remove-btn {
 		background: transparent;
@@ -535,14 +556,17 @@
 	}
 	.models-empty-state p {
 		margin: 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
-		line-height: 1.5;
 	}
 	.models-empty-filter {
 		padding: 16px;
 		text-align: center;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 	}
 	.model-add-row {
@@ -555,10 +579,14 @@
 		flex: 1;
 		min-height: 34px;
 		padding: 6px 10px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		margin: 0;
 	}
 	:global(.add-model-btn) {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 </style>

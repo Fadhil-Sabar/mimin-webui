@@ -40,9 +40,10 @@
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		padding: 40px 0;
-		line-height: 1.5;
 	}
 	.error-state strong,
 	.error-state span {
@@ -51,7 +52,7 @@
 	}
 	.error-state strong {
 		color: var(--text-strong);
-		font-weight: 600;
+		font-weight: 500;
 	}
 	.error-state span {
 		margin-top: 5px;

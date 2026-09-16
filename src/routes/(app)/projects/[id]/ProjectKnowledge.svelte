@@ -79,23 +79,26 @@
 	.section-heading h2 {
 		margin: 0;
 		font-family: var(--font-body);
-		font-size: var(--text-base);
-		font-weight: 600;
-		letter-spacing: -0.015em;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
-		line-height: 1.3;
 	}
 	.section-heading p {
 		margin: 3px 0 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
-		line-height: 1.4;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.search-scope {
 		display: block;
 		margin-top: 4px;
 		color: var(--text-dim);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.file-list {
 		overflow: hidden;
@@ -106,9 +109,10 @@
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		padding: 34px 0;
-		line-height: 1.5;
 	}
 	.filtered-empty {
 		padding: 24px 0;

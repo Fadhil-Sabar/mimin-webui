@@ -144,7 +144,9 @@
 		border: 1px solid var(--border);
 		background: var(--surface-subtle);
 		border-radius: 7px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		overflow: hidden;
 		transition:
 			border-color 0.16s ease,
@@ -169,7 +171,9 @@
 		user-select: none;
 		list-style: none;
 		color: var(--text-body);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.tool-call-summary::-webkit-details-marker {
 		display: none;
@@ -200,7 +204,7 @@
 		overflow: hidden;
 	}
 	.tool-call-label {
-		font-weight: 600;
+		font-weight: 500;
 		color: var(--text-strong);
 		white-space: nowrap;
 		flex-shrink: 0;
@@ -225,7 +229,9 @@
 		gap: 4px;
 		padding: 2px 6px;
 		border-radius: 4px;
-		font-size: 0.6875rem;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 	}
 	.tool-status-badge.running {
@@ -261,10 +267,11 @@
 		gap: 4px;
 	}
 	.tool-detail-heading {
-		font-size: 0.6875rem;
-		font-weight: 600;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
 		color: var(--text-faint);
 	}
 	.tool-json {
@@ -274,9 +281,10 @@
 		background: var(--surface-3);
 		border: 1px solid var(--border);
 		color: var(--text-dim);
-		font-family: var(--font-mono, monospace);
-		font-size: 0.6875rem;
-		line-height: 1.4;
+		font-family: var(--font-mono);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		white-space: pre-wrap;
 		word-break: break-word;
 		max-height: 160px;
@@ -295,7 +303,9 @@
 		border-radius: 5px;
 		background: var(--surface-3);
 		border: 1px solid var(--border);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-body);
 	}
 	.tool-source-chip a {
