@@ -89,22 +89,25 @@
 		white-space: nowrap;
 	}
 	.file-name strong {
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 		color: var(--text-strong);
-		line-height: 1.35;
 	}
 	.file-name small {
 		color: var(--text-dim);
-		font-size: var(--text-xs);
-		line-height: 1.3;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		margin-top: 1px;
 	}
 	.muted {
 		color: var(--text-dim);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-variant-numeric: tabular-nums;
-		line-height: 1.3;
 	}
 	.row-menu {
 		display: grid;
@@ -127,9 +130,10 @@
 		display: inline-block;
 		margin-top: 3px;
 		color: var(--status-ok-text);
-		font-size: var(--text-xs);
-		font-weight: 450;
-		line-height: 1.3;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 400;
 	}
 	.extraction-state.danger,
 	.extraction-error {
@@ -138,8 +142,9 @@
 	.extraction-error {
 		display: block;
 		margin-top: 2px;
-		font-size: var(--text-xs);
-		line-height: 1.35;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		white-space: normal;
 	}
 	@media (max-width: 760px) {

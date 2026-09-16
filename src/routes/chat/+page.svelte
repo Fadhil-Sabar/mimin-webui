@@ -959,17 +959,19 @@
 	}
 
 	/* Tabs.Trigger renders a <button>, and the project's unlayered
-	   `button { font: inherit }` reset (layout.css) outranks every layered Tailwind font
+	   `button {font: inherit;}` reset (layout.css) outranks every layered Tailwind font
 	   utility, so the tab's type is declared here — the same values the old `.mobile-tab`
 	   rule used. The active weight has to live here for the same reason:
-	   `data-[state=active]:font-semibold` would never apply. */
+	   `data-[state=active]:font-medium` would never apply. */
 	:global(.mobile-tab) {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
 
 	:global(.mobile-tab[data-state='active']) {
-		font-weight: 600;
+		font-weight: 500;
 	}
 
 	.chat-wrap {
@@ -989,7 +991,9 @@
 		justify-content: center;
 		text-align: center;
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		padding: 42px 0 10px;
 	}
 

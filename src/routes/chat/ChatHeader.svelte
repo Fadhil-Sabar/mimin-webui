@@ -62,7 +62,9 @@
 		border: 1px solid var(--border);
 		background: var(--surface);
 		border-radius: 6px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-muted);
 		cursor: pointer;
@@ -83,7 +85,7 @@
 		background: var(--surface-3);
 		border-color: var(--border-strong);
 		color: var(--text-strong);
-		font-weight: 550;
+		font-weight: 500;
 	}
 
 	.canvas-toggle-btn:disabled {

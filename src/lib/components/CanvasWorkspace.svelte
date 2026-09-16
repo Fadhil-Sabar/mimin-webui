@@ -639,7 +639,7 @@
 			class="w-[min(440px,90%)] max-w-none! gap-0 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-0 leading-[normal] shadow-[0_20px_25px_-5px_rgba(0,0,0,0.2)] ring-0"
 		>
 			<div class="modal-header">
-				<Dialog.Title level={3} class="ui-text-base font-semibold text-[var(--text-strong)]"
+				<Dialog.Title level={3} class="text-headline-sm text-[var(--text-strong)]"
 					>Create Scene Mockup</Dialog.Title
 				>
 				<button
@@ -713,7 +713,9 @@
 		flex-shrink: 0;
 	}
 	.scene-count {
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-muted);
 		white-space: nowrap;
 	}
@@ -732,7 +734,9 @@
 		background: var(--surface);
 		color: var(--text-strong);
 		box-shadow: 0 4px 16px var(--shadow-softer);
-		font-size: 12px;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		cursor: pointer;
 	}
 	.canvas-error {
@@ -752,11 +756,15 @@
 		gap: 12px;
 		padding: 10px 14px;
 		border-bottom: 1px solid var(--border);
-		font-size: 13px;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.preview-dialog-bar span {
 		color: var(--text-muted);
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 	}
 	.preview-dialog-bar > button {
 		margin-left: auto;
@@ -846,8 +854,10 @@
 
 	.canvas-title {
 		margin: 0;
-		font-size: var(--text-sm);
-		font-weight: 600;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 		white-space: nowrap;
 		overflow: hidden;
@@ -856,7 +866,9 @@
 	}
 
 	.revision-tag {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-faint);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
@@ -900,7 +912,9 @@
 		border-radius: 4px;
 		background: transparent;
 		color: var(--text-strong);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		text-align: left;
 		cursor: pointer;
 	}
@@ -919,7 +933,9 @@
 		padding: 7px 16px;
 		background: var(--surface);
 		color: var(--danger-text);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.export-error button {
 		border: 0;
@@ -970,7 +986,9 @@
 		border: 1px solid var(--border);
 		background: var(--surface);
 		border-radius: 6px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-muted);
 		cursor: pointer;
@@ -990,7 +1008,7 @@
 		background: var(--surface-3);
 		border-color: var(--border-strong);
 		color: var(--text-strong);
-		font-weight: 550;
+		font-weight: 500;
 	}
 
 	.icon-btn {
@@ -1045,7 +1063,9 @@
 		border: 1px dashed var(--border-strong);
 		background: transparent;
 		border-radius: 5px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		cursor: pointer;
 		white-space: nowrap;
@@ -1103,7 +1123,9 @@
 		padding: 4px 10px;
 		border: none;
 		background: transparent;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-muted);
 		border-radius: 4px;
@@ -1120,7 +1142,7 @@
 	.code-tab.active {
 		background: var(--surface);
 		color: var(--text-strong);
-		font-weight: 550;
+		font-weight: 500;
 		box-shadow: 0 1px 2px var(--shadow-softer);
 	}
 
@@ -1142,9 +1164,10 @@
 		border: 1px solid var(--border);
 		border-radius: 6px;
 		padding: 12px;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 12px;
-		line-height: 1.55;
+		font-family: var(--font-mono);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		background: var(--surface-subtle);
 		color: var(--text);
 		resize: none;
@@ -1210,8 +1233,10 @@
 	}
 
 	.label {
-		font-size: var(--text-xs);
-		font-weight: 600;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 
@@ -1219,7 +1244,9 @@
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		padding: 8px 10px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		background: var(--surface);
 		color: var(--text);
 	}
@@ -1240,7 +1267,9 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-body);
 		cursor: pointer;
 	}

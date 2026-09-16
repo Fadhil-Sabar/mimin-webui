@@ -192,7 +192,7 @@
 			<Dialog.Header class="flex flex-row items-start justify-between gap-4 text-left">
 				<Dialog.Title
 					id="create-project-title"
-					class="ui-text-lg mb-4 font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
+					class="mb-4 text-headline-sm text-[var(--text-strong)]"
 				>
 					Create a project
 				</Dialog.Title>
@@ -251,17 +251,18 @@
 	.page-heading h1 {
 		margin: 0 0 6px;
 		font-family: var(--font-body);
-		font-size: var(--text-2xl);
-		font-weight: 600;
-		line-height: 1.2;
-		letter-spacing: -0.025em;
+		font-size: var(--text-headline-md);
+		line-height: var(--text-headline-md--line-height);
+		letter-spacing: var(--text-headline-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.page-heading p {
 		margin: 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
-		line-height: 1.5;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.toolbar {
 		display: flex;
@@ -269,7 +270,9 @@
 		justify-content: space-between;
 		padding: 20px 0;
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.toolbar-right {
 		display: flex;
@@ -294,7 +297,9 @@
 		outline: 0;
 		color: var(--text-strong);
 		font-family: var(--font-body);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		background: transparent;
 	}
 	.view-button {
@@ -315,9 +320,10 @@
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		padding: 40px 0;
-		line-height: 1.5;
 	}
 	.project-grid {
 		display: grid;
@@ -360,17 +366,19 @@
 	.project-card h2 {
 		margin: 20px 0 6px;
 		font-family: var(--font-body);
-		font-size: var(--text-base);
-		font-weight: 600;
-		letter-spacing: -0.015em;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.project-card p {
 		min-height: 52px;
 		margin: 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
-		line-height: 1.55;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.card-footer {
 		display: flex;
@@ -380,7 +388,9 @@
 		padding-top: 12px;
 		border-top: 1px solid var(--border);
 		color: var(--text-dim);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.card-arrow {
 		float: right;
@@ -399,18 +409,24 @@
 	}
 	.empty-card strong {
 		color: var(--text-strong);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 	}
 	.empty-card span {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 	}
 	.dialog-shell label {
 		display: block;
 		margin-top: 14px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
 	.dialog-shell input,
@@ -424,7 +440,9 @@
 		border-radius: 6px;
 		outline: 0;
 		font-family: var(--font-body);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-strong);
 		background: var(--surface);
 	}

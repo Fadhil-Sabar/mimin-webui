@@ -67,7 +67,7 @@ export async function renderMermaid(code: string, isDark: boolean): Promise<stri
 			securityLevel: 'loose',
 			suppressErrorRendering: true,
 			fontFamily:
-				'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+				'Roboto, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
 			theme: themeName,
 			themeVariables: isDark
 				? {

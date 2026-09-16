@@ -268,9 +268,10 @@
 	h1 {
 		margin: 0 0 7px;
 		color: var(--text-strong);
-		font-size: var(--text-2xl);
-		font-weight: 600;
-		letter-spacing: -0.025em;
+		font-size: var(--text-headline-md);
+		line-height: var(--text-headline-md--line-height);
+		letter-spacing: var(--text-headline-md--letter-spacing);
+		font-weight: 500;
 	}
 	.page-heading p,
 	.enable-card p,
@@ -279,8 +280,9 @@
 	.footnote {
 		margin: 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
-		line-height: 1.55;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.enable-card {
 		display: flex;
@@ -309,12 +311,16 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-strong);
 	}
 	.footnote-perm {
 		margin-top: 10px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 	}
 	.title-row,
@@ -330,15 +336,19 @@
 	.card-title strong,
 	.privacy-note strong {
 		color: var(--text-strong);
-		font-size: var(--text-base);
-		font-weight: 600;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 	}
 	.footnote-perm.warning {
 		color: #eab308;
 	}
 	.version-tag {
-		font-family: var(--font-mono, monospace);
-		font-size: 11px;
+		font-family: var(--font-mono);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-body);
 		background: var(--surface-2);
 		padding: 2px 6px;
@@ -351,7 +361,9 @@
 		gap: 9px;
 		flex: 0 0 auto;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.privacy-note {
 		display: flex;
@@ -371,7 +383,9 @@
 		gap: 10px;
 		margin: 14px 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.privacy-note p {
 		margin-top: 3px;
@@ -413,15 +427,18 @@
 		margin: 0;
 		padding-left: 20px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		line-height: 1.65;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	code {
 		padding: 1px 4px;
 		color: var(--text-body);
 		background: var(--surface-2);
 		border-radius: 4px;
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		word-break: break-all;
 	}
 	.footnote {

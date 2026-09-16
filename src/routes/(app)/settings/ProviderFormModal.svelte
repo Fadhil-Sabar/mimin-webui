@@ -145,14 +145,18 @@
 		background: var(--surface);
 		color: var(--text-strong);
 		font-family: var(--font-body);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.modal select:focus {
 		border-color: var(--focus);
 	}
 	.modal .optional {
 		color: var(--text-faint);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 400;
 		margin-left: 4px;
 	}

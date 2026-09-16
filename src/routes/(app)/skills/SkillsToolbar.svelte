@@ -62,7 +62,9 @@
 		justify-content: space-between;
 		padding: 20px 0;
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.scope-tabs {
 		display: flex;
@@ -80,7 +82,9 @@
 		background: transparent;
 		border: 0;
 		border-radius: 5px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		transition: 0.15s ease;
 	}
@@ -95,7 +99,9 @@
 	.scope-tabs span {
 		margin-left: 4px;
 		color: var(--text-faint);
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-variant-numeric: tabular-nums;
 	}
 	.toolbar-tools {
@@ -126,7 +132,9 @@
 		background: transparent;
 		border: 0;
 		outline: 0;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.search-field input {
 		width: 100%;

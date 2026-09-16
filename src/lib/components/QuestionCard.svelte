@@ -385,8 +385,10 @@
 	}
 
 	.header-title {
-		font-size: var(--text-sm, 13px);
-		font-weight: 600;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 
@@ -394,7 +396,9 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		font-size: 0.6875rem;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		padding: 2px 7px;
 		border-radius: 4px;
@@ -444,9 +448,10 @@
 
 	.header-sub {
 		margin: 0;
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
-		line-height: 1.35;
 	}
 
 	.question-body {
@@ -471,21 +476,24 @@
 		align-items: center;
 		gap: 6px;
 		flex-wrap: wrap;
-		font-size: var(--text-sm, 13px);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 		color: var(--text-strong);
 	}
 
 	.q-number {
 		color: var(--text-muted);
-		font-weight: 600;
+		font-weight: 500;
 	}
 
 	.multi-tag {
-		font-size: 10px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
 		padding: 1px 5px;
 		border-radius: 4px;
 		background: var(--surface-3);
@@ -560,16 +568,18 @@
 	}
 
 	.option-label {
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-strong);
-		line-height: 1.3;
 	}
 
 	.option-desc {
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-muted);
-		line-height: 1.25;
 	}
 
 	.custom-input-wrapper {
@@ -583,7 +593,9 @@
 		border: 1px solid var(--border);
 		background: var(--surface);
 		color: var(--text);
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		outline: none;
 		transition: border-color 0.15s ease;
 	}
@@ -610,7 +622,9 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		padding: 2px 7px;
 		border-radius: 4px;
@@ -620,7 +634,9 @@
 	}
 
 	.completed-custom-note {
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-muted);
 		font-style: italic;
 	}
@@ -634,7 +650,9 @@
 	.skipped-tag,
 	.no-answer-tag,
 	.expired-tag {
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-muted);
 		font-style: italic;
 	}
@@ -661,7 +679,9 @@
 		border: 1px solid var(--border);
 		background: transparent;
 		color: var(--text-muted);
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		cursor: pointer;
 		transition:
 			background 0.15s ease,
@@ -684,7 +704,9 @@
 		border: 1px solid var(--accent-bg);
 		background: var(--accent-bg);
 		color: var(--accent-fg);
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		cursor: pointer;
 		transition:
@@ -706,12 +728,16 @@
 	}
 
 	.submit-error {
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--danger-text);
 	}
 
 	.empty-notice {
-		font-size: var(--text-xs, 12px);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		margin: 0;
 	}

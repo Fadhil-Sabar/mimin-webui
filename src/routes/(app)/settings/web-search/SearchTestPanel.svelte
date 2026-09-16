@@ -116,7 +116,9 @@
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		color: var(--text-strong);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		outline: none;
 		transition: border-color 0.15s ease;
 	}
@@ -132,14 +134,18 @@
 	}
 	.test-header h3 {
 		margin: 0 0 4px;
-		font-size: var(--text-base);
-		font-weight: 600;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.test-header p {
 		margin: 0 0 16px;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.test-input-row {
 		display: flex;
@@ -172,7 +178,9 @@
 		border: 1px solid color-mix(in srgb, var(--danger-bg) 40%, transparent);
 		border-radius: 8px;
 		color: var(--danger-text);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 
 	.test-notice-box {
@@ -185,7 +193,9 @@
 		border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 		border-radius: 8px;
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 
 	.test-result-box {
@@ -204,28 +214,31 @@
 	}
 	.answer-label {
 		display: block;
-		font-size: var(--text-xs);
-		font-weight: 600;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-muted);
 		margin-bottom: 6px;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
 	}
 	.answer-box p {
 		margin: 0;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-strong);
-		line-height: 1.5;
 	}
 
 	.sources-label {
 		display: block;
-		font-size: var(--text-xs);
-		font-weight: 600;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-muted);
 		margin-bottom: 10px;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
 	}
 	.sources-list {
 		list-style: none;
@@ -247,13 +260,17 @@
 		gap: 8px;
 	}
 	.source-num {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
 		color: var(--text-dim);
-		font-weight: 600;
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 	}
 	.source-link {
-		font-size: var(--text-sm);
-		font-weight: 600;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 		text-decoration: none;
 		display: inline-flex;
@@ -266,9 +283,11 @@
 	}
 	.source-url-text {
 		display: block;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-family: var(--font-mono);
 		margin: 2px 0 6px;
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -276,13 +295,16 @@
 	}
 	.source-snippet {
 		margin: 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-body);
-		line-height: 1.45;
 	}
 	.no-sources {
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		margin: 0;
 	}
 </style>

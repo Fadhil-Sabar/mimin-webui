@@ -220,7 +220,9 @@
 		background: var(--surface-subtle);
 		padding: 7px 11px;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		cursor: pointer;
 		transition: 0.18s ease;
 	}
@@ -252,9 +254,10 @@
 		border-radius: 9px;
 		background: var(--accent-bg);
 		color: var(--accent-fg);
-		font-size: var(--text-xs);
-		font-weight: 600;
-		line-height: 1;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 	}
 
 	:global(.skill-trigger svg:last-child) {
@@ -282,15 +285,18 @@
 	}
 
 	.skill-menu-title {
-		font-size: var(--text-xs);
-		font-weight: 600;
-		letter-spacing: 0.04em;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
 		color: var(--text-muted);
 	}
 
 	.skill-menu-subtitle {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 	}
 
@@ -320,7 +326,9 @@
 		outline: 0;
 		background: transparent;
 		font: inherit;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-body);
 	}
 
@@ -338,9 +346,10 @@
 		padding: 6px 8px 3px;
 		margin-top: 4px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		font-weight: 600;
-		letter-spacing: 0.04em;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
 	}
 
@@ -386,38 +395,43 @@
 	}
 
 	.skill-name-row strong {
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 		color: var(--text);
 	}
 
 	.skill-desc {
 		margin: 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
-		line-height: 1.35;
 	}
 
 	.skill-scope-badge {
 		display: inline-flex;
 		align-items: center;
-		font-size: 10px;
-		font-weight: 600;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 0.03em;
 		padding: 1px 5px;
 		border-radius: 4px;
 		background: var(--surface-3);
 		color: var(--text-dim);
 		border: 1px solid var(--border);
-		line-height: 1.2;
 	}
 
 	.skill-empty {
 		padding: 16px 8px;
 		text-align: center;
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 
 	.skill-menu-footer {
@@ -434,7 +448,9 @@
 		padding: 6px 8px;
 		border-radius: 6px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		text-decoration: none;
 		transition: 0.15s ease;
@@ -449,7 +465,9 @@
 		:global(.skill-trigger) {
 			min-height: 34px;
 			padding: 5px 8px;
-			font-size: var(--text-xs);
+			font-size: var(--text-body-sm);
+			line-height: var(--text-body-sm--line-height);
+			letter-spacing: var(--text-body-sm--letter-spacing);
 		}
 
 		:global(.skill-menu) {

@@ -96,14 +96,18 @@
 
 	.header-title-row h3 {
 		margin: 0;
-		font-size: var(--text-base);
-		font-weight: 600;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 	}
 
 	.count-badge {
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		padding: 1px 6px;
 		border-radius: 10px;
 		color: var(--text-muted);
@@ -111,7 +115,9 @@
 
 	.header-desc {
 		margin: 4px 0 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 	}
 
@@ -124,7 +130,9 @@
 		padding: 32px 16px;
 		text-align: center;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		border: 1px dashed var(--border);
 		border-radius: 8px;
 	}
@@ -157,7 +165,9 @@
 	}
 
 	.canvas-card-badge {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		display: inline-flex;
 		align-items: center;
@@ -166,23 +176,28 @@
 	}
 
 	.canvas-rev {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-faint);
 		font-variant-numeric: tabular-nums;
 	}
 
 	.canvas-card-title {
 		margin: 0;
-		font-size: var(--text-sm);
-		font-weight: 600;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 
 	.canvas-card-desc {
 		margin: 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
-		line-height: 1.4;
 		flex: 1;
 	}
 
@@ -190,7 +205,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		font-size: 11px;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-dim);
 		padding-top: 8px;
 		border-top: 1px solid var(--border);
@@ -205,7 +222,9 @@
 
 	.open-canvas-link {
 		margin-top: 4px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-body);
 		text-decoration: none;

@@ -96,15 +96,18 @@
 	}
 	.provider-name strong {
 		font-family: var(--font-body);
-		font-size: var(--text-base);
-		font-weight: 600;
-		letter-spacing: -0.015em;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.provider-info p {
 		margin: 5px 0 8px;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.provider-meta {
 		display: flex;
@@ -116,7 +119,9 @@
 		width: 100%;
 		color: var(--text-dim);
 		cursor: pointer;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		list-style: none;
 	}
 	.provider-meta summary::-webkit-details-marker {
@@ -132,8 +137,10 @@
 		content: '−';
 	}
 	.mono {
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: var(--text-xs);
+		font-family: var(--font-mono);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-body);
 	}
 	.mono.dim {

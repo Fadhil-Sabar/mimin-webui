@@ -81,14 +81,18 @@
 		flex-direction: column;
 	}
 	.section-title {
-		font-size: var(--text-base);
-		font-weight: 600;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 		margin: 0 0 4px;
 	}
 	.section-desc {
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		margin: 0 0 14px;
 	}
 
@@ -130,23 +134,28 @@
 		margin-bottom: 4px;
 	}
 	.option-header strong {
-		font-size: var(--text-sm);
-		font-weight: 600;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.option-body p {
 		margin: 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
-		line-height: 1.4;
 	}
 	.badge-mini {
-		font-size: 10px;
+		font-size: var(--text-label-sm);
 		padding: 1px 6px;
 		border-radius: 4px;
 		background: var(--surface-3);
 		border: 1px solid var(--border);
 		color: var(--text-dim);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 	}
 
@@ -160,6 +169,8 @@
 		border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 		border-radius: 8px;
 		color: var(--text-secondary);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 </style>

@@ -145,16 +145,18 @@
 
 <style>
 	.field-help {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 		margin: 6px 0 0;
-		line-height: 1.4;
 	}
 	.modal-description {
 		margin: -10px 0 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
-		line-height: 1.45;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	:global(.remove-connection) {
 		margin-right: auto;
@@ -193,7 +195,9 @@
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		color: var(--text-strong);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		outline: none;
 		transition: border-color 0.15s ease;
 	}

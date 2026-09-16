@@ -249,7 +249,9 @@
 		border-radius: 6px;
 		background: var(--surface-subtle);
 		color: var(--text);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
 	/* Wraps by available width, not viewport width: a wide window with a narrow
@@ -280,7 +282,9 @@
 		align-items: flex-start;
 		gap: 3px;
 		color: var(--text-dim);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		flex: 0 0 130px;
 		min-width: 0;
 	}
@@ -304,7 +308,7 @@
 	.message p {
 		margin: 0;
 		color: var(--text-body);
-		line-height: 1.6;
+		line-height: var(--text-body-lg--line-height);
 		white-space: pre-wrap;
 		font-family: var(--font-body);
 	}
@@ -324,7 +328,9 @@
 		border-radius: 6px;
 		background: var(--surface-subtle);
 		color: var(--text-body);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.attachment-chip span {
 		max-width: 220px;
@@ -341,12 +347,14 @@
 	}
 	.response-text {
 		margin: 0;
-		line-height: 1.6;
+		line-height: var(--text-body-lg--line-height);
 		white-space: pre-wrap;
 	}
 	.incomplete-reply {
 		color: var(--status-working-text);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.message-actions {
 		display: flex;
@@ -366,7 +374,9 @@
 		border-radius: 4px;
 		background: var(--surface-subtle);
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		cursor: pointer;
 	}
 	.message-action-btn:hover:not(:disabled) {
@@ -389,8 +399,9 @@
 		border-radius: 4px;
 		background: var(--accent-bg);
 		color: var(--accent-fg);
-		font-size: var(--text-xs);
-		line-height: 1.3;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		white-space: nowrap;
 		opacity: 0;
 		pointer-events: none;
@@ -420,7 +431,9 @@
 		gap: 4px;
 		margin-top: 4px;
 		padding: 2px 7px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
@@ -442,7 +455,9 @@
 		border: 1px solid var(--border);
 		background: var(--surface-subtle);
 		border-radius: 7px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		overflow: hidden;
 	}
 	.thinking-summary {
@@ -452,7 +467,9 @@
 		padding: 7px 11px;
 		cursor: pointer;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		user-select: none;
 		list-style: none;
@@ -482,18 +499,20 @@
 		padding: 8px 12px 10px;
 		border-top: 1px solid var(--border);
 		color: var(--text-dim);
-		font-size: var(--text-xs);
-		line-height: 1.55;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		white-space: pre-wrap;
-		font-family: var(--font-mono, monospace);
+		font-family: var(--font-mono);
 		max-height: 260px;
 		overflow-y: auto;
 	}
 	.live-tag {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 		font-style: italic;
-		line-height: 1.35;
 		word-break: break-word;
 	}
 	.thinking {

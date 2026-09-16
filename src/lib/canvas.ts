@@ -112,8 +112,8 @@ export const DEFAULT_STYLE_GUIDELINE: StyleGuideline = {
 			accent: '#3b82f6'
 		},
 		typography: {
-			fontFamily: 'system-ui, -apple-system, sans-serif',
-			headingFamily: 'system-ui, -apple-system, sans-serif',
+			fontFamily: 'Roboto, ui-sans-serif, system-ui, -apple-system, sans-serif',
+			headingFamily: 'Roboto, ui-sans-serif, system-ui, -apple-system, sans-serif',
 			fontSizeBase: '16px'
 		},
 		spacing: {
@@ -336,7 +336,7 @@ export function buildMockupSrcdoc(options: {
 		'    body {\n' +
 		'      margin: 0;\n' +
 		'      padding: 0;\n' +
-		"      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n" +
+		"      font-family: 'Roboto', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;\n" +
 		'      -webkit-font-smoothing: antialiased;\n' +
 		'      -moz-osx-font-smoothing: grayscale;\n' +
 		'    }\n' +

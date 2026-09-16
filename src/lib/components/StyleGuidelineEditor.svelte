@@ -290,14 +290,18 @@
 
 	.panel-title {
 		margin: 0;
-		font-size: var(--text-sm);
-		font-weight: 600;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 
 	.panel-desc {
 		margin: 2px 0 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 	}
 
@@ -324,10 +328,11 @@
 
 	.section-title {
 		margin: 0;
-		font-size: var(--text-xs);
-		font-weight: 600;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
 		color: var(--text-muted);
 	}
 
@@ -346,8 +351,9 @@
 
 	.direction-text {
 		margin: 0;
-		font-size: var(--text-sm);
-		line-height: 1.5;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-body);
 	}
 
@@ -361,8 +367,9 @@
 		display: flex;
 		align-items: flex-start;
 		gap: 8px;
-		font-size: var(--text-sm);
-		line-height: 1.45;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-body);
 	}
 
@@ -414,7 +421,9 @@
 	}
 
 	.color-name {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-strong);
 		overflow: hidden;
@@ -424,8 +433,10 @@
 
 	.color-hex {
 		margin-left: auto;
-		font-size: 10px;
-		font-family: ui-monospace, SFMono-Regular, monospace;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-family: var(--font-mono);
 		color: var(--text-dim);
 	}
 
@@ -435,8 +446,10 @@
 
 	.token-summary {
 		cursor: pointer;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
 		color: var(--text-muted);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		user-select: none;
 		transition: color 0.14s ease;
@@ -453,16 +466,19 @@
 		padding: 10px;
 		border-radius: 6px;
 		overflow-x: auto;
-		font-family: ui-monospace, SFMono-Regular, monospace;
-		font-size: 11px;
+		font-family: var(--font-mono);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-body);
-		line-height: 1.4;
 		max-height: 220px;
 	}
 
 	.field-label {
-		font-size: var(--text-xs);
-		font-weight: 600;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 
@@ -472,7 +488,9 @@
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		padding: 7px 9px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		background: var(--surface);
 		color: var(--text);
 	}
@@ -485,8 +503,10 @@
 	}
 
 	.code-input {
-		font-family: ui-monospace, SFMono-Regular, monospace;
-		font-size: 12px;
+		font-family: var(--font-mono);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 
 	.list-item-row {
@@ -504,7 +524,9 @@
 		background: none;
 		border: none;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		cursor: pointer;
 		display: inline-flex;
@@ -550,13 +572,17 @@
 
 	.error-text {
 		margin: 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--danger-text);
 	}
 
 	.empty-hint {
 		margin: 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 	}
 </style>

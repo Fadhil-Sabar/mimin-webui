@@ -58,9 +58,7 @@
 		}}
 	>
 		<AlertDialog.Header class="flex items-start justify-between gap-4 text-left">
-			<AlertDialog.Title
-				class="ui-text-lg font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
-			>
+			<AlertDialog.Title class="text-headline-sm text-[var(--text-strong)]">
 				{title}
 			</AlertDialog.Title>
 			<AlertDialog.Cancel
@@ -73,7 +71,7 @@
 			</AlertDialog.Cancel>
 		</AlertDialog.Header>
 		{#if description}
-			<AlertDialog.Description class="ui-text-sm mt-[18px] text-[var(--text-body)]">
+			<AlertDialog.Description class="mt-[18px] text-body-md text-[var(--text-body)]">
 				{@render description()}
 			</AlertDialog.Description>
 		{/if}

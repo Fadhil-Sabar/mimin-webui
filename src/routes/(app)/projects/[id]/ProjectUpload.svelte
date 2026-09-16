@@ -106,15 +106,17 @@
 	.upload-zone strong {
 		display: block;
 		color: var(--text-body);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
-		line-height: 1.3;
 	}
 	.upload-zone small {
 		display: block;
 		color: var(--text-dim);
-		font-size: var(--text-xs);
-		line-height: 1.3;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		margin-top: 2px;
 	}
 	.upload-summary {
@@ -124,18 +126,19 @@
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 		border-radius: 6px;
-		font-size: var(--text-xs);
-		line-height: 1.4;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.upload-summary strong {
 		color: var(--status-ok-text);
-		font-weight: 600;
+		font-weight: 500;
 	}
 	.upload-summary ul {
 		margin: 6px 0 0 16px;
 		padding: 0;
 		color: var(--danger-text);
-		line-height: 1.5;
+		line-height: var(--text-body-md--line-height);
 	}
 	.hidden-input {
 		display: none;

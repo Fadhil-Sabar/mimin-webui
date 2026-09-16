@@ -281,24 +281,27 @@
 	.eyebrow {
 		margin: 0 0 6px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		font-weight: 600;
-		letter-spacing: 0.04em;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
 	}
 	h1 {
 		margin: 0 0 6px;
 		color: var(--text-strong);
 		font-family: var(--font-body);
-		font-size: var(--text-2xl);
-		font-weight: 600;
-		line-height: 1.2;
-		letter-spacing: -0.025em;
+		font-size: var(--text-headline-md);
+		line-height: var(--text-headline-md--line-height);
+		letter-spacing: var(--text-headline-md--letter-spacing);
+		font-weight: 500;
 	}
 	.subtitle,
 	.muted {
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.admin-grid {
 		display: grid;
@@ -321,15 +324,17 @@
 	.panel-heading h2 {
 		margin: 0;
 		font-family: var(--font-body);
-		font-size: var(--text-base);
-		font-weight: 600;
-		letter-spacing: -0.015em;
-		line-height: 1.3;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
 	}
 	.count {
 		margin-left: auto;
 		color: var(--text-dim);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	form {
 		margin-top: 20px;
@@ -338,8 +343,10 @@
 		display: block;
 		margin: 14px 0;
 		color: var(--text-body);
-		font-size: var(--text-sm);
-		font-weight: 550;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 	}
 	input,
 	select {
@@ -362,7 +369,7 @@
 		background: var(--accent-bg);
 		border: 0;
 		border-radius: 7px;
-		font-weight: 600;
+		font-weight: 500;
 	}
 	.primary:disabled {
 		opacity: 0.6;
@@ -370,7 +377,9 @@
 	.message {
 		padding: 9px 11px;
 		border-radius: 6px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.error {
 		color: var(--danger-text);
@@ -400,8 +409,10 @@
 		color: var(--accent-fg);
 		background: var(--accent-bg);
 		border-radius: 50%;
-		font-size: var(--text-sm);
-		font-weight: 650;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 	}
 	.identity {
 		display: grid;
@@ -410,12 +421,16 @@
 	}
 	.identity strong {
 		color: var(--text);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.identity span {
 		overflow: hidden;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
@@ -425,7 +440,9 @@
 		color: var(--text-muted);
 		background: var(--surface-3);
 		border-radius: 999px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.admin-role {
 		color: var(--accent-fg);
@@ -437,7 +454,9 @@
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
 		border-radius: 6px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		white-space: nowrap;
 	}
 	.ghost:hover {
@@ -458,7 +477,9 @@
 		align-items: center;
 		gap: 7px;
 		color: var(--text-strong);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.reset-link .muted {
 		margin: 8px 0 10px;
@@ -469,7 +490,9 @@
 	}
 	.reset-link-row input {
 		margin-top: 0;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.copy {
 		display: flex;
@@ -481,7 +504,9 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 7px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.pagination {
 		display: flex;
@@ -490,7 +515,9 @@
 		gap: 10px;
 		margin-top: 18px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.pagination button {
 		padding: 7px 9px;

@@ -185,10 +185,10 @@
 	}
 	.home-wrap h1 {
 		font-family: var(--font-body);
-		font-size: var(--text-3xl);
-		font-weight: 600;
-		line-height: 1.15;
-		letter-spacing: -0.03em;
+		font-size: var(--text-display-sm);
+		line-height: var(--text-display-sm--line-height);
+		letter-spacing: var(--text-display-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 		margin: 0 0 14px;
 	}
@@ -196,16 +196,18 @@
 		display: inline-flex;
 		margin-bottom: 12px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		font-weight: 600;
-		letter-spacing: 0.04em;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
 	}
 	.intro {
 		max-width: 500px;
 		color: var(--text-muted);
-		font-size: var(--text-base);
-		line-height: 1.6;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
 		margin: 0 0 32px;
 	}
 	.setup-callout {
@@ -219,7 +221,9 @@
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 		border-radius: 8px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		text-decoration: none;
 		transition:
 			background 0.15s ease,
@@ -243,7 +247,10 @@
 		border: 0;
 		outline: 0;
 		resize: none;
-		font: var(--text-base)/1.5 inherit;
+		font-family: inherit;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
 		background: transparent;
 	}
 	.composer-row {
@@ -282,7 +289,9 @@
 		color: var(--text-muted);
 		border-radius: 18px;
 		padding: 7px 11px;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.example-row button:hover {
 		color: var(--text-body);
@@ -293,7 +302,9 @@
 			padding: clamp(48px, 10vh, 84px) 18px 60px;
 		}
 		.home-wrap h1 {
-			font-size: var(--text-2xl);
+			font-size: var(--text-headline-md);
+			line-height: var(--text-headline-md--line-height);
+			letter-spacing: var(--text-headline-md--letter-spacing);
 		}
 		.composer-row {
 			flex-wrap: wrap;

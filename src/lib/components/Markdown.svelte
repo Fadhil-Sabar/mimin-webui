@@ -228,8 +228,9 @@
 
 	:global(.markdown-body) {
 		font-family: var(--font-body);
-		font-size: var(--text-base);
-		line-height: 1.65;
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
 		color: var(--text-body);
 		word-wrap: break-word;
 	}
@@ -241,7 +242,6 @@
 	}
 	:global(.markdown-body p) {
 		margin: 0 0 12px;
-		line-height: 1.65;
 	}
 	:global(.markdown-body h1),
 	:global(.markdown-body h2),
@@ -249,25 +249,32 @@
 	:global(.markdown-body h4) {
 		color: var(--text-strong);
 		font-family: var(--font-body);
-		font-weight: 600;
-		line-height: 1.25;
 		margin: 20px 0 8px;
 	}
 	:global(.markdown-body h1) {
-		font-size: var(--text-xl);
+		font-size: var(--text-headline-sm);
+		line-height: var(--text-headline-sm--line-height);
+		letter-spacing: var(--text-headline-sm--letter-spacing);
+		font-weight: var(--text-headline-sm--font-weight);
 	}
 	:global(.markdown-body h2) {
-		font-size: var(--text-lg);
+		font-size: var(--text-title-lg);
+		line-height: var(--text-title-lg--line-height);
+		letter-spacing: var(--text-title-lg--letter-spacing);
+		font-weight: var(--text-title-lg--font-weight);
 	}
 	:global(.markdown-body h3) {
-		font-size: var(--text-base);
-		font-weight: 650;
+		font-size: var(--text-title-md);
+		line-height: var(--text-title-md--line-height);
+		letter-spacing: var(--text-title-md--letter-spacing);
+		font-weight: var(--text-title-md--font-weight);
 	}
 	:global(.markdown-body h4) {
-		font-size: var(--text-sm);
-		font-weight: 650;
+		font-size: var(--text-title-sm);
+		line-height: var(--text-title-sm--line-height);
+		letter-spacing: var(--text-title-sm--letter-spacing);
+		font-weight: var(--text-title-sm--font-weight);
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
 	}
 	:global(.markdown-body ul),
 	:global(.markdown-body ol) {
@@ -278,7 +285,6 @@
 	}
 	:global(.markdown-body li) {
 		margin-bottom: 4px;
-		line-height: 1.6;
 	}
 	:global(.markdown-body hr) {
 		height: 1px;
@@ -312,10 +318,10 @@
 	}
 	:global(.markdown-body strong) {
 		color: var(--text-strong);
-		font-weight: 600;
+		font-weight: 500;
 	}
 	:global(.markdown-body code:not(pre code)) {
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-family: var(--font-mono);
 		font-size: 0.875em;
 		background: var(--surface-3);
 		color: var(--text-strong);
@@ -338,15 +344,16 @@
 		padding: 6px 12px;
 		background: var(--surface-3);
 		border-bottom: 1px solid var(--border);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		user-select: none;
 	}
 	:global(.markdown-body .code-lang) {
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-weight: 600;
+		font-family: var(--font-mono);
+		font-weight: 500;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
 		color: var(--text-dim);
 	}
 	:global(.markdown-body .copy-code-btn) {
@@ -357,7 +364,9 @@
 		border: 1px solid var(--border);
 		border-radius: 4px;
 		padding: 3px 7px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		transition: 0.15s ease;
 	}
@@ -379,7 +388,7 @@
 		scrollbar-color: var(--scrollbar-thumb) transparent;
 	}
 	:global(.markdown-body pre code) {
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-family: var(--font-mono);
 		font-size: 0.875em;
 		line-height: 1.55;
 		color: var(--text-strong);
@@ -392,7 +401,9 @@
 		width: 100%;
 		border-collapse: collapse;
 		margin: 14px 0;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	:global(.markdown-body th),
 	:global(.markdown-body td) {
@@ -403,7 +414,7 @@
 	:global(.markdown-body th) {
 		background: var(--surface-3);
 		color: var(--text-strong);
-		font-weight: 600;
+		font-weight: 500;
 	}
 	:global(.markdown-body tr:nth-child(even)) {
 		background: var(--surface-subtle);
@@ -518,7 +529,9 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 	}
 	:global(.markdown-body .hover-card-favicon) {
@@ -529,9 +542,11 @@
 		flex-shrink: 0;
 	}
 	:global(.markdown-body .hover-card-domain) {
-		font-weight: 600;
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
-		font-size: 0.75rem;
+		font-size: var(--text-body-sm);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
@@ -542,10 +557,11 @@
 		flex-shrink: 0;
 	}
 	:global(.markdown-body .hover-card-title) {
-		font-size: 0.8125rem;
-		font-weight: 550;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-body);
-		line-height: 1.35;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
@@ -555,12 +571,14 @@
 		margin-top: 1px;
 	}
 	:global(.markdown-body .hover-card-url) {
-		font-size: 0.65rem;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-faint);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		font-family: ui-monospace, SFMono-Regular, monospace;
+		font-family: var(--font-mono);
 		opacity: 0.85;
 	}
 
@@ -583,7 +601,9 @@
 		border: 1px solid var(--border);
 		background: var(--surface-subtle);
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		transition: all 0.16s ease;
 		cursor: pointer;
@@ -608,8 +628,10 @@
 		border-radius: 9px;
 		background: color-mix(in srgb, var(--accent-bg) 12%, transparent);
 		color: var(--text-strong);
-		font-size: 0.6875rem;
-		font-weight: 600;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 	}
 	:global(.sources-chevron) {
 		transition: transform 0.2s ease;
@@ -651,8 +673,10 @@
 		border-radius: 50%;
 		background: var(--accent-bg);
 		color: var(--accent-fg);
-		font-size: 0.65rem;
-		font-weight: 650;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 		flex-shrink: 0;
 	}
 	.source-item-favicon {
@@ -670,16 +694,19 @@
 		gap: 1px;
 	}
 	.source-item-title {
-		font-size: var(--text-xs);
-		font-weight: 550;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		line-height: 1.3;
 	}
 	.source-item-domain {
-		font-size: 0.6875rem;
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-dim);
 		overflow: hidden;
 		text-overflow: ellipsis;
@@ -687,8 +714,9 @@
 	}
 	.source-item-snippet {
 		margin-top: 4px;
-		font-size: 0.75rem;
-		line-height: 1.45;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-body);
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
@@ -744,7 +772,7 @@
 	:global(.markdown-body .token.attr-value),
 	:global(.markdown-body .token.keyword) {
 		color: #8c3b33;
-		font-weight: 550;
+		font-weight: 500;
 	}
 	:global(.markdown-body .token.function),
 	:global(.markdown-body .token.class-name) {
@@ -798,7 +826,7 @@
 	:global(:root[data-theme='dark'] .markdown-body .token.attr-value),
 	:global(:root[data-theme='dark'] .markdown-body .token.keyword) {
 		color: #e58277;
-		font-weight: 550;
+		font-weight: 500;
 	}
 	:global(:root[data-theme='dark'] .markdown-body .token.function),
 	:global(:root[data-theme='dark'] .markdown-body .token.class-name) {

@@ -79,7 +79,7 @@
 			<Dialog.Header class="flex flex-row items-start justify-between gap-4 text-left">
 				<Dialog.Title
 					id="edit-project-title"
-					class="ui-text-lg mb-4 font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
+					class="mb-4 text-headline-sm text-[var(--text-strong)]"
 				>
 					Edit project
 				</Dialog.Title>
@@ -146,7 +146,9 @@
 		display: block;
 		margin-top: 14px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
 	.dialog-shell input,
@@ -162,8 +164,9 @@
 		color: var(--text-strong);
 		background: var(--surface);
 		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		line-height: 1.5;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		transition: border-color 0.15s ease;
 	}
 	.dialog-shell input:focus,

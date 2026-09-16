@@ -300,7 +300,9 @@
 		background: var(--surface-subtle);
 		padding: 7px 9px;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		transition: 0.18s ease;
 	}
 	:global(.model-trigger:hover:not(:disabled)) {
@@ -353,7 +355,9 @@
 		outline: 0;
 		background: transparent;
 		font: inherit;
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-body);
 	}
 	.model-search input::placeholder {
@@ -363,7 +367,9 @@
 		padding: 16px 8px;
 		text-align: center;
 		color: var(--text-dim);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.model-group + .model-group {
 		margin-top: 5px;
@@ -373,9 +379,10 @@
 	.model-group-label {
 		padding: 6px 8px 5px;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		font-weight: 600;
-		letter-spacing: 0.04em;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		text-transform: uppercase;
 	}
 	.model-option {
@@ -415,13 +422,17 @@
 		white-space: nowrap;
 	}
 	.model-option-copy strong {
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 	}
 	.model-option-copy small {
 		color: var(--text-dim);
-		font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-		font-size: var(--text-xs);
+		font-family: var(--font-mono);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.model-badge {
 		margin-left: auto;
@@ -429,15 +440,18 @@
 		border-radius: 4px;
 		padding: 2px 5px;
 		color: var(--status-ok-text);
-		font-size: var(--text-xs);
-		line-height: 1.2;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		white-space: nowrap;
 	}
 	@media (max-width: 700px) {
 		:global(.model-trigger) {
 			min-height: 34px;
 			padding: 5px 8px;
-			font-size: var(--text-xs);
+			font-size: var(--text-body-sm);
+			line-height: var(--text-body-sm--line-height);
+			letter-spacing: var(--text-body-sm--letter-spacing);
 			max-width: min(190px, 45vw);
 		}
 		:global(.model-menu) {

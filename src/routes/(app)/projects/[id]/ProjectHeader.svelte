@@ -84,18 +84,19 @@
 	.hero h1 {
 		margin: 0;
 		font-family: var(--font-body);
-		font-size: var(--text-2xl);
-		font-weight: 600;
-		line-height: 1.2;
-		letter-spacing: -0.025em;
+		font-size: var(--text-headline-md);
+		line-height: var(--text-headline-md--line-height);
+		letter-spacing: var(--text-headline-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.hero p {
 		max-width: 580px;
 		margin: 6px 0 0;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
-		line-height: 1.55;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.hero-actions {
 		display: flex;
@@ -116,26 +117,29 @@
 	}
 	.stats strong {
 		display: block;
-		font-size: var(--text-lg);
-		font-weight: 600;
-		letter-spacing: -0.02em;
+		font-size: var(--text-title-lg);
+		line-height: var(--text-title-lg--line-height);
+		letter-spacing: var(--text-title-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 		font-variant-numeric: tabular-nums;
-		line-height: 1.2;
 	}
 	.stats span {
 		display: block;
 		color: var(--text-muted);
-		font-size: var(--text-xs);
-		font-weight: 450;
-		line-height: 1.3;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 400;
 	}
 	.stats .context {
 		display: flex;
 		align-items: center;
 		gap: 7px;
 		margin-left: auto;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
 	.status-dot {

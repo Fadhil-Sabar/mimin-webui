@@ -440,11 +440,12 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
-		font-size: var(--text-xs);
-		font-weight: 600;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: 500;
 		color: var(--text-dim);
 		text-transform: uppercase;
-		letter-spacing: 0.04em;
 		user-select: none;
 	}
 
@@ -453,17 +454,19 @@
 	}
 
 	/* Tabs.Trigger renders a <button>, and the project's unlayered
-	   `button { font: inherit }` reset (layout.css) outranks every layered Tailwind font
+	   `button {font: inherit;}` reset (layout.css) outranks every layered Tailwind font
 	   utility, so the chip's type is declared here instead — the same values the old
 	   `.mermaid-tab` rule used. The active weight has to live here for the same reason:
-	   `data-[state=active]:font-semibold` would never apply. */
+	   `data-[state=active]:font-medium` would never apply. */
 	:global(.mermaid-tab) {
-		font-size: 0.75rem;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
 
 	:global(.mermaid-tab[data-state='active']) {
-		font-weight: 600;
+		font-weight: 500;
 	}
 
 	/* shadcn's Tabs.Content ships `flex-1 text-sm`; the panes keep their natural height and
@@ -488,7 +491,9 @@
 		border: 1px solid var(--border);
 		border-radius: 4px;
 		padding: 3px 8px;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		cursor: pointer;
 		transition: all 0.14s ease;
@@ -507,7 +512,9 @@
 	}
 
 	.btn-label {
-		font-size: 0.75rem;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 
 	.mermaid-viewport {
@@ -542,7 +549,9 @@
 		align-items: center;
 		gap: 10px;
 		color: var(--text-muted);
-		font-size: var(--text-sm);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		padding: 24px;
 	}
 
@@ -576,12 +585,16 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		font-weight: 600;
-		font-size: var(--text-sm);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
+		font-size: var(--text-body-md);
 	}
 
 	.error-desc {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		margin: 0;
 	}
@@ -596,7 +609,9 @@
 		border: 1px solid var(--border-strong);
 		background: var(--surface-2);
 		color: var(--text-strong);
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		cursor: pointer;
 		transition: background 0.15s ease;
 	}
@@ -615,7 +630,7 @@
 	}
 
 	.mermaid-code-view code {
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-family: var(--font-mono);
 		font-size: 0.875em;
 		line-height: 1.55;
 		color: var(--text-strong);
@@ -643,13 +658,17 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		font-size: var(--text-sm);
-		font-weight: 600;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 
 	.zoom-badge {
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-muted);
 		background: var(--surface-3);
@@ -731,7 +750,9 @@
 	.modal-footer-hint {
 		padding: 6px 16px;
 		text-align: center;
-		font-size: var(--text-xs);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 		background: var(--surface-2);
 		border-top: 1px solid var(--border);
