@@ -32,6 +32,7 @@
 	import { getConversationDraft, setConversationDraft } from '$lib/client/drafts';
 	import { peekNavigationHandoff, consumeNavigationHandoff } from '$lib/client/navigation-handoff';
 	import type { SkillSummary } from '$lib/skills';
+	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import ChatComposer from './ChatComposer.svelte';
 	import ChatHeader from './ChatHeader.svelte';
 	import ChatTitle from './ChatTitle.svelte';
@@ -109,6 +110,11 @@
 		) {
 			event.currentTarget.releasePointerCapture(event.pointerId);
 		}
+	}
+
+	// Tabs.Root speaks `string`; narrow it back to the union the panes are keyed on.
+	function selectMobileTab(value: string) {
+		if (value === 'chat' || value === 'canvas') mobileTab = value;
 	}
 
 	async function loadCanvasForConversation(canvasId?: string | null) {
@@ -717,26 +723,22 @@
 
 		<!-- Mobile Tab Switcher when Canvas is open on narrow screens -->
 		{#if canvasOpen && activeCanvas}
-			<div class="mobile-tabs" role="tablist">
-				<button
-					class="mobile-tab"
-					class:active={mobileTab === 'chat'}
-					onclick={() => (mobileTab = 'chat')}
-					role="tab"
-					aria-selected={mobileTab === 'chat'}
-				>
-					Chat
-				</button>
-				<button
-					class="mobile-tab"
-					class:active={mobileTab === 'canvas'}
-					onclick={() => (mobileTab = 'canvas')}
-					role="tab"
-					aria-selected={mobileTab === 'canvas'}
-				>
-					Canvas Mockup
-				</button>
-			</div>
+			<Tabs.Root value={mobileTab} onValueChange={selectMobileTab} class="mobile-tabs">
+				<Tabs.List class="h-auto! w-full gap-1.5 rounded-none bg-transparent p-0">
+					<Tabs.Trigger
+						value="chat"
+						class="mobile-tab h-auto! flex-1 rounded-md border-0 bg-[var(--surface-2)] px-3 py-1.5 text-[var(--text-muted)] transition-none hover:text-[var(--text-muted)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-3)]! data-[state=active]:text-[var(--text-strong)]!"
+					>
+						Chat
+					</Tabs.Trigger>
+					<Tabs.Trigger
+						value="canvas"
+						class="mobile-tab h-auto! flex-1 rounded-md border-0 bg-[var(--surface-2)] px-3 py-1.5 text-[var(--text-muted)] transition-none hover:text-[var(--text-muted)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-3)]! data-[state=active]:text-[var(--text-strong)]!"
+					>
+						Canvas Mockup
+					</Tabs.Trigger>
+				</Tabs.List>
+			</Tabs.Root>
 		{/if}
 
 		<div
@@ -935,7 +937,9 @@
 		border-radius: 2px;
 	}
 
-	.mobile-tabs {
+	/* `mobile-tabs` is the Tabs.Root element, so its class is passed to a child component
+	   and the selector has to be global for Svelte not to prune it. */
+	:global(.mobile-tabs) {
 		display: none;
 		background: var(--surface);
 		border-bottom: 1px solid var(--border);
@@ -944,21 +948,17 @@
 		flex-shrink: 0;
 	}
 
-	.mobile-tab {
-		flex: 1;
-		padding: 6px 12px;
-		border: none;
-		background: var(--surface-2);
-		border-radius: 6px;
+	/* Tabs.Trigger renders a <button>, and the project's unlayered
+	   `button { font: inherit }` reset (layout.css) outranks every layered Tailwind font
+	   utility, so the tab's type is declared here — the same values the old `.mobile-tab`
+	   rule used. The active weight has to live here for the same reason:
+	   `data-[state=active]:font-semibold` would never apply. */
+	:global(.mobile-tab) {
 		font-size: var(--text-xs);
 		font-weight: 500;
-		color: var(--text-muted);
-		cursor: pointer;
 	}
 
-	.mobile-tab.active {
-		background: var(--surface-3);
-		color: var(--text-strong);
+	:global(.mobile-tab[data-state='active']) {
 		font-weight: 600;
 	}
 
@@ -984,7 +984,7 @@
 	}
 
 	@media (max-width: 900px) {
-		.mobile-tabs {
+		:global(.mobile-tabs) {
 			display: flex;
 		}
 
