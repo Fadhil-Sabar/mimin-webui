@@ -1,5 +1,4 @@
 import { SvelteSet } from 'svelte/reactivity';
-import type { ModelOption } from '$lib/components/ModelPicker.svelte';
 import type { ToolOption } from '$lib/components/ToolPicker.svelte';
 import type {
 	ConversationMessage,
@@ -8,10 +7,6 @@ import type {
 	ToolSource,
 	TurnSource
 } from './chat-types';
-
-export function modelRef(model: ModelOption) {
-	return `${model.provider}/${model.id}`;
-}
 
 export function modelId(modelRefValue: string) {
 	return modelRefValue.split('/').slice(1).join('/') || modelRefValue;

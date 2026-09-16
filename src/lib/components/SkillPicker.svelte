@@ -4,6 +4,7 @@
 	import type { SkillSummary } from '$lib/skills';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import SwitchIndicator from '$lib/components/SwitchIndicator.svelte';
 
 	type Props = {
 		skills: SkillSummary[];
@@ -127,9 +128,7 @@
 								<p class="skill-desc">{skill.description}</p>
 							{/if}
 						</div>
-						<div class="skill-switch" class:checked={isEnabled} aria-hidden="true">
-							<div class="skill-switch-handle"></div>
-						</div>
+						<SwitchIndicator checked={isEnabled} />
 					</button>
 				{/each}
 			{/if}
@@ -412,40 +411,6 @@
 		color: var(--text-dim);
 		border: 1px solid var(--border);
 		line-height: 1.2;
-	}
-
-	.skill-switch {
-		position: relative;
-		width: 34px;
-		height: 20px;
-		border-radius: 10px;
-		background: var(--surface-3, #333);
-		border: 1px solid var(--border);
-		transition:
-			background-color 0.2s ease,
-			border-color 0.2s ease;
-		flex-shrink: 0;
-	}
-
-	.skill-switch.checked {
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-
-	.skill-switch-handle {
-		position: absolute;
-		top: 2px;
-		left: 2px;
-		width: 14px;
-		height: 14px;
-		border-radius: 50%;
-		background: #ffffff;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-		transition: transform 0.2s ease;
-	}
-
-	.skill-switch.checked .skill-switch-handle {
-		transform: translateX(14px);
 	}
 
 	.skill-empty {

@@ -20,8 +20,9 @@
 	} from '$lib/client/api';
 	import type { CanvasDetail, CanvasScene, StyleGuideline, ViewportDevice } from '$lib/canvas';
 	import CanvasWorkspace from '$lib/components/CanvasWorkspace.svelte';
-	import { authClient } from '$lib/client/auth';
-	import { sidebar } from '$lib/client/sidebar.svelte';
+	import AppShell from '$lib/components/AppShell.svelte';
+	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import RecentChats from '$lib/components/RecentChats.svelte';
 	import {
 		conversationSearch,
 		conversationsState,
@@ -40,8 +41,6 @@
 	import ChatInlineError from './ChatInlineError.svelte';
 	import ChatTurnNotice from './ChatTurnNotice.svelte';
 	import ChatMessage from './ChatMessage.svelte';
-	import ChatSidebar from './ChatSidebar.svelte';
-	import DeleteChatDialog from './DeleteChatDialog.svelte';
 	import { createChatSettings } from './chat-settings.svelte';
 	import { createChatStream } from './chat-stream.svelte';
 	import { getTurnSources, contentText } from './chat-format';
@@ -689,37 +688,30 @@
 		const skill = settings.suggestion;
 		if (skill) void settings.selectSkill(skill.id);
 	}
-
-	async function logout() {
-		await authClient.signOut();
-		window.location.href = '/login';
-	}
 </script>
 
 <svelte:head><title>Mimin WebUI | Chat</title></svelte:head>
 <svelte:window onpopstate={handlePopState} onkeydown={handleWindowKeydown} />
-<div
-	class="app-shell"
-	class:sidebar-collapsed={sidebar.collapsed}
-	class:mobile-open={sidebar.mobileOpen}
+<AppShell
+	{user}
+	newChatEmpty={isNewConversationEmpty}
+	{newChatDisabled}
+	onnewchat={startNewConversation}
 >
-	<ChatSidebar
-		{user}
-		{conversations}
-		{activeId}
-		newChatEmpty={isNewConversationEmpty}
-		{newChatDisabled}
-		{editingId}
-		bind:editingTitle
-		onnewchat={startNewConversation}
-		onlogout={logout}
-		onselectchat={loadConversation}
-		onstartrename={startRename}
-		onpromptdelete={promptDelete}
-		onsaverename={saveRename}
-		oncancelrename={cancelRename}
-	/>
-	<main class="main-content" class:canvas-mode-active={canvasOpen}>
+	{#snippet recentChats()}
+		<RecentChats
+			{conversations}
+			{activeId}
+			onSelectChat={loadConversation}
+			onStartRename={startRename}
+			onPromptDelete={promptDelete}
+			{editingId}
+			bind:editingTitle
+			onSaveRename={saveRename}
+			onCancelRename={cancelRename}
+		/>
+	{/snippet}
+	<div class="chat-main">
 		<ChatHeader
 			conversation={activeConversation}
 			{canvasOpen}
@@ -879,20 +871,26 @@
 				</div>
 			{/if}
 		</div>
-	</main>
-</div>
-<DeleteChatDialog
-	conversation={deletingConversation}
+	</div>
+</AppShell>
+<ConfirmDialog
+	open={deletingConversation !== null}
+	title="Delete chat"
 	loading={deleteLoading}
 	onconfirm={confirmDelete}
 	oncancel={cancelDelete}
-/>
+>
+	{#snippet description()}
+		Are you sure you want to delete <strong>"{deletingConversation?.title}"</strong>? This will
+		permanently remove all messages in this conversation.
+	{/snippet}
+</ConfirmDialog>
 
 <style>
-	.main-content {
+	.chat-main {
 		display: flex;
 		flex-direction: column;
-		height: 100dvh;
+		height: 100%;
 		overflow: hidden;
 	}
 

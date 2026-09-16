@@ -12,7 +12,8 @@ import {
 	resolveInitialModel,
 	setLastUsedModel
 } from '$lib/client/conversations.svelte';
-import { BROWSER_BRIDGE_TOOLS, BROWSER_BRIDGE_TOOL_FALLBACKS, modelRef } from './chat-format';
+import { modelRef } from '$lib/format';
+import { BROWSER_BRIDGE_TOOLS, BROWSER_BRIDGE_TOOL_FALLBACKS } from './chat-format';
 import type { Conversation } from './chat-types';
 
 export type ChatSettingsDeps = {

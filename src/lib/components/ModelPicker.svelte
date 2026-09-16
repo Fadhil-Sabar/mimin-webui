@@ -4,6 +4,7 @@
 	import { tick } from 'svelte';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import { modelRef } from '$lib/format';
 
 	export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -122,10 +123,6 @@
 	});
 
 	let flatModels = $derived(filteredGroups.flatMap((group) => group.models));
-
-	function modelRef(model: ModelOption) {
-		return `${model.provider}/${model.id}`;
-	}
 
 	function modelId(modelRefValue: string) {
 		return modelRefValue.split('/').slice(1).join('/') || modelRefValue;
