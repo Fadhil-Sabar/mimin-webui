@@ -87,4 +87,46 @@ describe('modal and picker keyboard accessibility', () => {
 			expect(source).toContain('createProjectTrigger?.focus()');
 		});
 	});
+
+	describe('toasts and badges', () => {
+		// Toasts were hand-rolled eight times over; Sonner replaces all of them.
+		it('mounts the Sonner toaster exactly once and keeps no hand-rolled toast', () => {
+			const layout = read('src/routes/+layout.svelte');
+			expect(layout.match(/<Toaster \/>/g)).toHaveLength(1);
+
+			const svelteFiles = [
+				'src/routes/+page.svelte',
+				'src/routes/chat/+page.svelte',
+				'src/routes/projects/+page.svelte',
+				'src/routes/projects/[id]/+page.svelte',
+				'src/routes/settings/+page.svelte',
+				'src/routes/skills/+page.svelte',
+				'src/lib/components/RecentChats.svelte'
+			];
+			for (const file of svelteFiles) {
+				const source = read(file);
+				expect(source, file).not.toContain('class="toast"');
+				expect(source, file).not.toContain('setLocalStatus');
+				expect(source, `${file} should use svelte-sonner`).toContain("from 'svelte-sonner'");
+			}
+		});
+
+		// `.badge` was defined in only two of the four files that used it, so six
+		// badges rendered completely unstyled. Badge replaces the class outright.
+		it('keeps the status pills on the Badge component', () => {
+			for (const file of [
+				'src/routes/settings/ProviderCard.svelte',
+				'src/routes/settings/web-search/ConnectionCard.svelte',
+				'src/routes/settings/web-search/StatusOverview.svelte',
+				'src/routes/settings/browser-extension/+page.svelte'
+			]) {
+				const source = read(file);
+				expect(source, file).not.toContain('class="badge');
+				expect(source, file).not.toMatch(/^\s*\.badge\s*\{/m);
+				expect(source, `${file} should use the Badge component`).toContain(
+					'$lib/components/ui/badge/index.js'
+				);
+			}
+		});
+	});
 });

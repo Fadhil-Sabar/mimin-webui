@@ -936,20 +936,7 @@ svg {
 	padding-bottom: 30px;
 }
 
-/* ---------- Modal / toast ---------- */
-.toast {
-	position: fixed;
-	right: 24px;
-	bottom: 24px;
-	max-width: min(360px, calc(100vw - 36px));
-	color: var(--accent-fg);
-	background: var(--accent-bg);
-	border-radius: 8px;
-	padding: 10px 14px;
-	font-size: var(--text-sm);
-	box-shadow: 0 8px 25px var(--shadow);
-	z-index: 50;
-}
+/* ---------- Modal ---------- */
 .modal {
 	width: min(420px, 100%);
 	padding: 24px;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SvelteFlowProvider } from '@xyflow/svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
+	import { toast } from 'svelte-sonner';
 	import {
 		answerBrowserConsent,
 		answerQuestion,
@@ -39,7 +40,6 @@
 	import ChatInlineError from './ChatInlineError.svelte';
 	import ChatMessage from './ChatMessage.svelte';
 	import ChatSidebar from './ChatSidebar.svelte';
-	import ChatToast from './ChatToast.svelte';
 	import DeleteChatDialog from './DeleteChatDialog.svelte';
 	import { createChatSettings } from './chat-settings.svelte';
 	import { createChatStream } from './chat-stream.svelte';
@@ -48,7 +48,6 @@
 
 	let { data } = $props();
 	let user = $derived(data.user);
-	let toast = $state('');
 	let busy = $state(true);
 	let message = $state('');
 	let conversations = $state<Conversation[]>(
@@ -369,8 +368,7 @@
 	});
 
 	function notify(value: string) {
-		toast = value;
-		setTimeout(() => (toast = ''), 1800);
+		toast(value);
 	}
 
 	$effect(() => {
@@ -874,7 +872,6 @@
 	onconfirm={confirmDelete}
 	oncancel={cancelDelete}
 />
-<ChatToast message={toast} />
 
 <style>
 	.main-content {

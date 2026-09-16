@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Globe } from '@lucide/svelte';
+	import { Badge } from '$lib/components/ui/badge/index.js';
 	import type { WebSearchSettingsState } from './types';
 
 	type Props = { settings: WebSearchSettingsState };
@@ -13,11 +14,11 @@
 		<div class="status-title-row">
 			<strong>Active Search Provider</strong>
 			{#if settings.fromUser}
-				<span class="badge ok">User settings active</span>
+				<Badge variant="success">User settings active</Badge>
 			{:else if settings.envConfigured}
-				<span class="badge ok">Server defaults active</span>
+				<Badge variant="success">Server defaults active</Badge>
 			{:else}
-				<span class="badge">DuckDuckGo Fallback</span>
+				<Badge>DuckDuckGo Fallback</Badge>
 			{/if}
 		</div>
 		<div class="status-details">

@@ -23,6 +23,8 @@
 	import RecentChats from '$lib/components/RecentChats.svelte';
 	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { Switch } from '$lib/components/ui/switch/index.js';
 	import {
 		getBrowserBridgeStatus,
 		isBrowserBridgeEnabled,
@@ -182,27 +184,24 @@
 				<div>
 					<div class="title-row">
 						<strong>Enable browser tools on this device</strong>
-						<span class="badge">Optional</span>
+						<Badge>Optional</Badge>
 					</div>
 					<p>
 						When enabled and connected, Mimin can open tabs and read search results or public web
 						pages back to your chat and configured AI provider to answer your request.
 					</p>
 				</div>
-				<button
-					class="switch"
-					class:on={enabled}
-					type="button"
-					role="switch"
-					aria-checked={enabled}
-					onclick={() => setEnabled(!enabled)}
-					disabled={!hydrated || checking}
-				>
-					<span></span><b>{enabled ? 'Enabled' : 'Disabled'}</b>
-				</button>
+				<label class="switch-row">
+					<Switch
+						checked={enabled}
+						disabled={!hydrated || checking}
+						onCheckedChange={(v) => setEnabled(v)}
+					/>
+					<b>{enabled ? 'Enabled' : 'Disabled'}</b>
+				</label>
 			</section>
 			<div class="connection-row" role="status">
-				<span class="badge" class:ok={connected} class:warning={updateRequired}
+				<Badge variant={connected ? 'success' : updateRequired ? 'warning' : 'default'}
 					>{checking
 						? 'Checking…'
 						: connected
@@ -211,7 +210,7 @@
 								? 'Update required'
 								: enabled
 									? 'Not connected'
-									: 'Disabled'}</span
+									: 'Disabled'}</Badge
 				>
 				<span>{status}</span>
 				{#if enabled}<Button variant="outline" onclick={checkConnection} disabled={checking}
@@ -223,9 +222,9 @@
 				<div class="permissions-card">
 					<div class="title-row">
 						<strong>Browser Bridge</strong>
-						<span class="badge" class:ok={connected} class:warning={updateRequired}>
+						<Badge variant={connected ? 'success' : updateRequired ? 'warning' : 'default'}>
 							{connected ? 'Connected' : updateRequired ? 'Update required' : 'Not connected'}
-						</span>
+						</Badge>
 					</div>
 					<div class="perm-status-list">
 						<div class="perm-status-item">
@@ -239,14 +238,14 @@
 						{#if connected}
 							<div class="perm-status-item">
 								<span>Google / Scholar access</span>
-								<span class="badge ok">Enabled</span>
+								<Badge variant="success">Enabled</Badge>
 							</div>
 							<div class="perm-status-item">
 								<span>Tab reading &amp; interaction</span>
 								{#if permissions?.publicWebsites}
-									<span class="badge ok">Enabled</span>
+									<Badge variant="success">Enabled</Badge>
 								{:else}
-									<span class="badge">Not granted</span>
+									<Badge>Not granted</Badge>
 								{/if}
 							</div>
 						{/if}
@@ -291,7 +290,7 @@
 						<div class="card-icon"><MonitorUp size={20} /></div>
 						<div class="card-title">
 							<strong>Chrome-based browsers</strong>
-							{#if browser === 'chromium'}<span class="badge ok">Recommended</span>{/if}
+							{#if browser === 'chromium'}<Badge variant="success">Recommended</Badge>{/if}
 						</div>
 						<p>Chrome, Edge, Brave, Arc, Opera, and other Chromium browsers.</p>
 						<Button variant="default" class="package-download" href={chromeDownload} download>
@@ -308,7 +307,7 @@
 						<div class="card-icon"><MonitorUp size={20} /></div>
 						<div class="card-title">
 							<strong>Firefox</strong>
-							{#if browser === 'firefox'}<span class="badge ok">Recommended</span>{/if}
+							{#if browser === 'firefox'}<Badge variant="success">Recommended</Badge>{/if}
 						</div>
 						<p>Firefox 109 or newer using a temporary local add-on.</p>
 						<Button variant="default" class="package-download" href={firefoxDownload} download>
@@ -434,25 +433,6 @@
 		font-size: var(--text-base);
 		font-weight: 600;
 	}
-	.badge {
-		display: inline-flex;
-		align-items: center;
-		min-height: 20px;
-		padding: 2px 7px;
-		color: var(--text-muted);
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: 999px;
-		font-size: 10px;
-		font-weight: 600;
-	}
-	.badge.ok {
-		color: var(--status-ok-text);
-	}
-	.badge.warning {
-		color: #eab308;
-		border-color: color-mix(in srgb, #eab308 35%, var(--border));
-	}
 	.footnote-perm.warning {
 		color: #eab308;
 	}
@@ -465,52 +445,13 @@
 		border-radius: 4px;
 		border: 1px solid var(--border);
 	}
-	.switch {
+	.switch-row {
 		display: flex;
 		align-items: center;
 		gap: 9px;
 		flex: 0 0 auto;
-		padding: 7px 10px 7px 7px;
 		color: var(--text-muted);
-		background: var(--surface-2);
-		border: 1px solid var(--border-strong);
-		border-radius: 999px;
 		font-size: var(--text-xs);
-	}
-	.switch span {
-		position: relative;
-		width: 30px;
-		height: 18px;
-		background: var(--border-strong);
-		border-radius: 999px;
-		transition: 0.18s ease;
-	}
-	.switch span::after {
-		content: '';
-		position: absolute;
-		top: 3px;
-		left: 3px;
-		width: 12px;
-		height: 12px;
-		background: var(--surface);
-		border-radius: 50%;
-		transition: 0.18s ease;
-		box-shadow: 0 1px 2px var(--shadow);
-	}
-	.switch.on {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.switch.on span {
-		background: color-mix(in srgb, var(--accent-fg) 35%, transparent);
-	}
-	.switch.on span::after {
-		left: 15px;
-		background: var(--accent-fg);
-	}
-	.switch:disabled {
-		opacity: 0.6;
 	}
 	.privacy-note {
 		display: flex;

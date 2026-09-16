@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { KeyRound, Trash2 } from '@lucide/svelte';
+	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import type { ProviderState } from './provider-types';
 
@@ -19,11 +20,11 @@
 			<div class="provider-name">
 				<strong>{provider.name}</strong>
 				{#if provider.fromUser}
-					<span class="badge ok">Ready</span>
+					<Badge variant="success">Ready</Badge>
 				{:else if provider.configured}
-					<span class="badge ok">Ready</span>
+					<Badge variant="success">Ready</Badge>
 				{:else}
-					<span class="badge">Not connected</span>
+					<Badge>Not connected</Badge>
 				{/if}
 			</div>
 			<p>{provider.description}</p>
@@ -99,17 +100,6 @@
 		font-weight: 600;
 		letter-spacing: -0.015em;
 		color: var(--text-strong);
-	}
-	.badge {
-		color: var(--text-dim);
-		border: 1px solid var(--border-strong);
-		border-radius: 5px;
-		padding: 2px 7px;
-		font-size: var(--text-xs);
-	}
-	.badge.ok {
-		color: var(--status-ok-text);
-		border-color: color-mix(in srgb, var(--status-ok-dot) 40%, transparent);
 	}
 	.provider-info p {
 		margin: 5px 0 8px;

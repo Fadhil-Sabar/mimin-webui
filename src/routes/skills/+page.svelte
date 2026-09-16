@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { toast } from 'svelte-sonner';
 	import {
 		FileText,
 		FolderKanban,
@@ -27,7 +28,6 @@
 	import SkillGrid from './SkillGrid.svelte';
 	import SkillsEmptyState from './SkillsEmptyState.svelte';
 	import SkillsToolbar from './SkillsToolbar.svelte';
-	import Toast from './Toast.svelte';
 	import { MAX_NAME, MAX_TRIGGER_LENGTH, MAX_TRIGGERS } from './skills-constants';
 	import type { Project, ScopeFilter, Skill, SkillDraft, Tool } from './skills-types';
 
@@ -43,7 +43,6 @@
 	let query = $state('');
 	let scopeFilter = $state<ScopeFilter>(initialProjectId ? 'project' : 'all');
 	let selectedProjectId = $state(initialProjectId);
-	let toast = $state('');
 	let editorOpen = $state(false);
 	let editingSkill = $state<Skill | null>(null);
 	let deletingSkill = $state<Skill | null>(null);
@@ -82,13 +81,6 @@
 			return matchesScope && matchesProject && matchesQuery;
 		});
 	});
-
-	function notify(message: string) {
-		toast = message;
-		setTimeout(() => {
-			if (toast === message) toast = '';
-		}, 2200);
-	}
 
 	async function responseMessage(response: Response, fallback: string) {
 		const payload = await response.json().catch(() => null);
@@ -298,7 +290,7 @@
 			}
 			editorOpen = false;
 			restoreFocus();
-			notify(editingSkill ? 'Skill updated' : 'Skill created');
+			toast(editingSkill ? 'Skill updated' : 'Skill created');
 		} catch (error) {
 			formError = error instanceof Error ? error.message : 'Could not save skill';
 		} finally {
@@ -315,11 +307,11 @@
 			const response = await fetch(`/api/skills/${targetId}`, { method: 'DELETE' });
 			if (!response.ok) throw new Error(await responseMessage(response, 'Could not delete skill'));
 			skills = skills.filter((skill) => skill.id !== targetId);
-			notify('Skill deleted');
+			toast('Skill deleted');
 			deletingSkill = null;
 			restoreFocus();
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not delete skill');
+			toast(error instanceof Error ? error.message : 'Could not delete skill');
 		} finally {
 			deleting = false;
 		}
@@ -496,8 +488,6 @@
 		onconfirm={() => void confirmDelete()}
 	/>
 {/if}
-
-<Toast message={toast} />
 
 <svelte:window
 	onkeydown={(event) => {

@@ -17,6 +17,7 @@
 		User
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { toast } from 'svelte-sonner';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
@@ -59,7 +60,6 @@
 	let projectCanvases = $state<CanvasSummary[]>([]);
 	let loading = $state(true);
 	let loadError = $state('');
-	let toast = $state('');
 	let projectQuery = $state('');
 	let uploading = $state(false);
 	let indexingNotice = $state('');
@@ -93,22 +93,17 @@
 			const result = await response.json();
 			if (!response.ok) throw new Error(result.error?.message || 'Reindexing failed.');
 			await load(projectId, { reset: true });
-			notify(
+			toast(
 				result.indexing?.status === 'unavailable'
 					? 'Text indexed; semantic indexing unavailable. Retry reindexing later.'
 					: 'Knowledge index updated.'
 			);
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Reindexing failed.');
+			toast(error instanceof Error ? error.message : 'Reindexing failed.');
 		} finally {
 			reindexing = null;
 		}
 	}
-	function notify(message: string) {
-		toast = message;
-		setTimeout(() => (toast = ''), 1800);
-	}
-
 	let projectId = $derived((page.params.id as string) ?? '');
 	let filteredConversations = $derived(
 		conversations.filter((conversation) =>
@@ -204,7 +199,7 @@
 				updateConversations: false
 			});
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load more files');
+			toast(error instanceof Error ? error.message : 'Could not load more files');
 		} finally {
 			loadingMoreFiles = false;
 		}
@@ -222,7 +217,7 @@
 				updateFiles: false
 			});
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load more conversations');
+			toast(error instanceof Error ? error.message : 'Could not load more conversations');
 		} finally {
 			loadingMoreConversations = false;
 		}
@@ -262,7 +257,7 @@
 
 	async function saveProject() {
 		if (!editName.trim()) {
-			notify('Project name is required');
+			toast('Project name is required');
 			return;
 		}
 		savingProject = true;
@@ -281,9 +276,9 @@
 			const data = await response.json();
 			project = data.project;
 			editingProject = false;
-			notify('Project updated');
+			toast('Project updated');
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not save project');
+			toast(error instanceof Error ? error.message : 'Could not save project');
 		} finally {
 			savingProject = false;
 		}
@@ -301,7 +296,7 @@
 			if (!response.ok) throw new Error('Could not delete project');
 			window.location.href = resolve('/projects');
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not delete project');
+			toast(error instanceof Error ? error.message : 'Could not delete project');
 			deleteProjectLoading = false;
 		}
 	}
@@ -335,12 +330,12 @@
 			await load();
 			if (failed.length > 0) {
 				uploadSummary = { succeeded, failed };
-				notify(`${succeeded} uploaded, ${failed.length} failed`);
+				toast(`${succeeded} uploaded, ${failed.length} failed`);
 			} else {
-				notify(`${succeeded} file${succeeded === 1 ? '' : 's'} uploaded`);
+				toast(`${succeeded} file${succeeded === 1 ? '' : 's'} uploaded`);
 			}
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Upload failed');
+			toast(error instanceof Error ? error.message : 'Upload failed');
 		} finally {
 			uploading = false;
 		}
@@ -359,11 +354,11 @@
 				method: 'DELETE'
 			});
 			if (!response.ok) throw new Error('Could not delete file');
-			notify('File deleted');
+			toast('File deleted');
 			await load();
 			deletingFile = null;
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not delete file');
+			toast(error instanceof Error ? error.message : 'Could not delete file');
 		} finally {
 			deleteFileLoading = false;
 		}
@@ -387,7 +382,7 @@
 			}
 			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}`;
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not start chat');
+			toast(error instanceof Error ? error.message : 'Could not start chat');
 		}
 	}
 
@@ -425,7 +420,7 @@
 			}
 			window.location.href = `/chat?id=${encodeURIComponent(conv.id)}`;
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not create canvas');
+			toast(error instanceof Error ? error.message : 'Could not create canvas');
 		}
 	}
 
@@ -588,7 +583,6 @@
 	onclosedeletefile={() => (deletingFile = null)}
 	onconfirmdeletefile={confirmDeleteFile}
 />
-{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <svelte:window
 	onkeydown={(event) => {
@@ -651,19 +645,6 @@
 	}
 	.muted-item {
 		color: var(--text-faint);
-	}
-	.toast {
-		position: fixed;
-		right: 24px;
-		bottom: 24px;
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-radius: 6px;
-		padding: 10px 14px;
-		font-size: var(--text-sm);
-		font-weight: 500;
-		box-shadow: 0 8px 24px var(--shadow);
-		z-index: 50;
 	}
 	@media (max-width: 760px) {
 		.page-wrap {

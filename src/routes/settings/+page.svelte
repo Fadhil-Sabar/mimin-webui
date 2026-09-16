@@ -15,6 +15,7 @@
 		User
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { toast } from 'svelte-sonner';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
@@ -60,7 +61,6 @@
 	let user = $derived(data.user);
 	let loading = $state(true);
 	let saving = $state(false);
-	let toast = $state('');
 	let providers = $state<ProviderState[]>([]);
 	let editing = $state<string | null>(null);
 	let draftKey = $state('');
@@ -78,8 +78,7 @@
 	let returnPrompt = $state('');
 
 	function notify(message: string) {
-		toast = message;
-		setTimeout(() => (toast = ''), 1800);
+		toast(message);
 	}
 
 	async function loadProviders() {
@@ -469,7 +468,6 @@
 		onnotify={notify}
 	/>
 {/if}
-{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <svelte:window onkeydown={(event) => event.key === 'Escape' && (editing = null)} />
 

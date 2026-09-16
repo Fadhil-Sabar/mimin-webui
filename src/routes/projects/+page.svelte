@@ -20,6 +20,7 @@
 		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { toast } from 'svelte-sonner';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
@@ -38,7 +39,6 @@
 	};
 
 	let view = $state<'grid' | 'list'>('grid');
-	let toast = $state('');
 	let query = $state('');
 	let showCreate = $state(false);
 	let newName = $state('');
@@ -65,11 +65,6 @@
 		if (!next) closeCreateProject();
 	}
 
-	function notify(v: string) {
-		toast = v;
-		setTimeout(() => (toast = ''), 1600);
-	}
-
 	async function loadProjects() {
 		const response = await fetch('/api/projects');
 		if (!response.ok) throw new Error('Could not load projects');
@@ -85,7 +80,7 @@
 		try {
 			await loadProjects();
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load projects');
+			toast(error instanceof Error ? error.message : 'Could not load projects');
 		} finally {
 			loading = false;
 		}
@@ -93,7 +88,7 @@
 
 	async function createProject() {
 		if (!newName.trim()) {
-			notify('Project name is required');
+			toast('Project name is required');
 			return;
 		}
 		creating = true;
@@ -113,10 +108,10 @@
 			newDescription = '';
 			newInstructions = '';
 			closeCreateProject();
-			notify('Project created');
+			toast('Project created');
 			await loadProjects();
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not create project');
+			toast(error instanceof Error ? error.message : 'Could not create project');
 		} finally {
 			creating = false;
 		}
@@ -344,7 +339,6 @@
 		</form>
 	</Dialog.Content>
 </Dialog.Root>
-{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <style>
 	.projects-wrap {
@@ -552,18 +546,6 @@
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 22px;
-	}
-	.toast {
-		position: fixed;
-		right: 24px;
-		bottom: 24px;
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-radius: 6px;
-		padding: 10px 14px;
-		font-size: var(--text-sm);
-		font-weight: 500;
-		z-index: 50;
 	}
 	@media (max-width: 800px) {
 		.projects-wrap {

@@ -9,6 +9,7 @@
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { Check, Pencil, Search, Trash2, X } from '@lucide/svelte';
+	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 
@@ -37,9 +38,7 @@
 	let localEditingId = $state<string | null>(null);
 	let localDeletingConversation = $state<ConversationSummary | null>(null);
 	let localDeleteLoading = $state(false);
-	let localStatus = $state('');
 	let deleteViaAction = false;
-	let statusTimeout: ReturnType<typeof setTimeout> | undefined;
 	let effectiveEditingId = $derived(editingId ?? localEditingId);
 
 	onMount(() => {
@@ -53,12 +52,6 @@
 	function focusInput(node: HTMLInputElement) {
 		node.focus();
 		node.select();
-	}
-
-	function setLocalStatus(message: string) {
-		localStatus = message;
-		if (statusTimeout) clearTimeout(statusTimeout);
-		statusTimeout = setTimeout(() => (localStatus = ''), 1800);
 	}
 
 	function startRename(conversation: ConversationSummary) {
@@ -86,16 +79,16 @@
 		}
 		const title = editingTitle.trim();
 		if (!title) {
-			setLocalStatus('Title cannot be empty');
+			toast('Title cannot be empty');
 			return;
 		}
 		try {
 			const updated = await updateConversation(id, { title });
 			conversationsState.updateTitle(id, updated.title);
 			localEditingId = null;
-			setLocalStatus('Conversation renamed');
+			toast('Conversation renamed');
 		} catch (error) {
-			setLocalStatus(error instanceof Error ? error.message : 'Could not rename conversation');
+			toast(error instanceof Error ? error.message : 'Could not rename conversation');
 		}
 	}
 
@@ -114,9 +107,9 @@
 			await deleteConversation(localDeletingConversation.id);
 			conversationsState.remove(localDeletingConversation.id);
 			localDeletingConversation = null;
-			setLocalStatus('Conversation deleted');
+			toast('Conversation deleted');
 		} catch (error) {
-			setLocalStatus(error instanceof Error ? error.message : 'Could not delete conversation');
+			toast(error instanceof Error ? error.message : 'Could not delete conversation');
 		} finally {
 			localDeleteLoading = false;
 		}
@@ -320,7 +313,6 @@
 		</AlertDialog.Content>
 	</AlertDialog.Root>
 {/if}
-{#if localStatus}<div class="toast" role="status" aria-live="polite">{localStatus}</div>{/if}
 
 <style>
 	.recent-chats-header {
