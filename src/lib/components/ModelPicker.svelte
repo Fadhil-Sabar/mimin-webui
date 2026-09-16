@@ -444,9 +444,16 @@
 			max-width: min(190px, 45vw);
 		}
 		:global(.model-menu) {
+			top: auto;
+			left: 12px;
+			right: 12px;
+			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+			width: auto;
+			max-width: calc(100vw - 24px);
 			max-height: min(460px, 75dvh);
-			border-top: 1px solid var(--border-strong);
-			padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+			border: 1px solid var(--border-strong);
+			border-radius: 12px;
+			box-shadow: 0 16px 48px var(--shadow);
 		}
 	}
 </style>
