@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ChevronDown, LayoutTemplate, PanelLeft, Search } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { conversationSearch } from '$lib/client/conversations.svelte';
@@ -51,11 +52,12 @@
 				{#if hasCanvas}<span class="canvas-active-dot"></span>{/if}
 			</button>
 		{/if}
-		<button
-			class="icon-button"
+		<Button
+			variant="ghost"
+			size="icon"
 			aria-label="Search conversations"
 			title="Search conversations (⌘O)"
-			onclick={() => conversationSearch.open()}><Search size={17} /></button
+			onclick={() => conversationSearch.open()}><Search size={17} /></Button
 		>
 		<ThemeToggle />
 	</div>

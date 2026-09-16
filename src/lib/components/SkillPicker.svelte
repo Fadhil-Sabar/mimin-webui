@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { Sparkles, ChevronDown, Search, Settings } from '@lucide/svelte';
 	import type { SkillSummary } from '$lib/skills';
+	import * as Popover from '$lib/components/ui/popover/index.js';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
 
 	type Props = {
 		skills: SkillSummary[];
@@ -26,13 +27,9 @@
 
 	let open = $state(false);
 	let query = $state('');
-	let root = $state<HTMLDivElement>();
-	let trigger = $state<HTMLButtonElement>();
 	let searchInput = $state<HTMLInputElement>();
-	let menu = $state<HTMLDivElement>();
-
-	let placement = $state<'top' | 'bottom'>('top');
-	let maxHeight = $state<string | undefined>(undefined);
+	let menu = $state<HTMLElement | null>(null);
+	let isMobile = $state(false);
 
 	let currentActiveId = $derived(activeSkillId ?? activeId ?? null);
 	let enabledCount = $derived(currentActiveId ? 1 : 0);
@@ -45,37 +42,13 @@
 		})
 	);
 
-	function updatePlacement() {
-		if (!trigger) return;
-		const rect = trigger.getBoundingClientRect();
-		const spaceAbove = rect.top;
-		const spaceBelow = window.innerHeight - rect.bottom;
-		if (spaceAbove < 320 && spaceBelow > spaceAbove) {
-			placement = 'bottom';
-			maxHeight = `${Math.max(160, Math.min(420, spaceBelow - 20))}px`;
-		} else {
-			placement = 'top';
-			maxHeight = `${Math.max(160, Math.min(420, spaceAbove - 20))}px`;
-		}
-	}
-
-	async function toggle() {
-		if (disabled || loading) return;
-		open = !open;
-		if (open) {
-			updatePlacement();
-			query = '';
-			await tick();
-			updatePlacement();
-			focusFirst();
-		}
-	}
-
-	function close() {
-		open = false;
-		query = '';
-		trigger?.focus();
-	}
+	$effect(() => {
+		const mediaQuery = window.matchMedia('(max-width: 700px)');
+		isMobile = mediaQuery.matches;
+		const onChange = (event: MediaQueryListEvent) => (isMobile = event.matches);
+		mediaQuery.addEventListener('change', onChange);
+		return () => mediaQuery.removeEventListener('change', onChange);
+	});
 
 	function focusFirst() {
 		if (skills.length > 3) {
@@ -88,6 +61,16 @@
 		(first ?? menu)?.focus();
 	}
 
+	function handleOpenAutoFocus(event: Event) {
+		event.preventDefault();
+		focusFirst();
+	}
+
+	function handleOpenChange(next: boolean) {
+		open = next;
+		if (!next) query = '';
+	}
+
 	function handleToggle(id: string) {
 		const willEnable = currentActiveId !== id;
 		if (ontoggle) {
@@ -96,153 +79,138 @@
 			void onselect(willEnable ? id : null);
 		}
 	}
-
-	function trapFocus(event: KeyboardEvent) {
-		if (event.key === 'Escape' && open) {
-			close();
-		}
-		if (!open || event.key !== 'Tab' || !menu) return;
-		const focusable = [
-			...menu.querySelectorAll<HTMLElement>('button, a, input, [tabindex]:not([tabindex="-1"])')
-		].filter((element) => !element.hasAttribute('disabled'));
-		if (focusable.length === 0) {
-			event.preventDefault();
-			menu.focus();
-			return;
-		}
-		const index = focusable.indexOf(document.activeElement as HTMLElement);
-		if (event.shiftKey && (index <= 0 || index === -1)) {
-			event.preventDefault();
-			focusable.at(-1)?.focus();
-		} else if (!event.shiftKey && (index === focusable.length - 1 || index === -1)) {
-			event.preventDefault();
-			focusable[0]?.focus();
-		}
-	}
 </script>
 
-<svelte:window
-	onclick={(event) => {
-		if (open && event.target instanceof Node && !root?.contains(event.target)) close();
-	}}
-	onkeydown={trapFocus}
-/>
+{#snippet pickerBody()}
+	<div class="skill-menu-header">
+		<span class="skill-menu-title">Skills</span>
+		<span class="skill-menu-subtitle">{enabledCount} active</span>
+	</div>
 
-<div class="skill-picker" bind:this={root}>
-	<button
-		type="button"
-		class="skill-trigger"
-		bind:this={trigger}
-		disabled={disabled || loading}
-		aria-haspopup="dialog"
-		aria-expanded={open}
-		onclick={toggle}
-	>
-		<Sparkles size={15} aria-hidden="true" />
-		<span class="skill-trigger-label">
-			Skills{#if enabledCount > 0}
-				<span class="skill-count-badge">{enabledCount}</span>
+	{#if skills.length > 3}
+		<div class="skill-search">
+			<Search size={14} aria-hidden="true" />
+			<input
+				bind:this={searchInput}
+				bind:value={query}
+				type="text"
+				placeholder="Search skills..."
+				aria-label="Search skills"
+				autocomplete="off"
+			/>
+		</div>
+	{/if}
+
+	<div class="skill-list">
+		{#each [true, false] as project (project)}
+			{@const group = filtered.filter((s) => Boolean(s.projectId) === project)}
+			{#if group.length}
+				<div class="skill-group-label">{project ? 'Project skills' : 'Personal skills'}</div>
+				{#each group as skill (skill.id)}
+					{@const isEnabled = skill.id === currentActiveId}
+					<button
+						type="button"
+						class="skill-item"
+						class:active={isEnabled}
+						onclick={() => handleToggle(skill.id)}
+						onkeydown={(event) => event.key === ' ' && event.preventDefault()}
+						aria-pressed={isEnabled}
+					>
+						<div class="skill-info">
+							<div class="skill-name-row">
+								<strong>{skill.name}</strong>
+								{#if skill.projectId}
+									<span class="skill-scope-badge">Project</span>
+								{/if}
+							</div>
+							{#if skill.description}
+								<p class="skill-desc">{skill.description}</p>
+							{/if}
+						</div>
+						<div class="skill-switch" class:checked={isEnabled} aria-hidden="true">
+							<div class="skill-switch-handle"></div>
+						</div>
+					</button>
+				{/each}
 			{/if}
-		</span>
-		<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
-	</button>
+		{/each}
 
-	{#if open}
-		<button
-			type="button"
-			class="picker-backdrop"
-			onclick={close}
-			aria-label="Close skills menu"
-			tabindex="-1"
-		></button>
+		{#if skills.length === 0}
+			<div class="skill-empty">No skills available</div>
+		{:else if filtered.length === 0}
+			<div class="skill-empty">No skills match "{query}"</div>
+		{/if}
+	</div>
 
-		<div
+	<div class="skill-menu-footer">
+		<a
+			href={resolve('/skills')}
+			class="manage-link"
+			onclick={() => {
+				open = false;
+			}}
+		>
+			<Settings size={13} aria-hidden="true" />
+			<span>Manage skills</span>
+		</a>
+	</div>
+{/snippet}
+
+{#if isMobile}
+	<Sheet.Root bind:open onOpenChange={handleOpenChange}>
+		<Sheet.Trigger class="skill-trigger" disabled={disabled || loading} aria-haspopup="dialog">
+			<Sparkles size={15} aria-hidden="true" />
+			<span class="skill-trigger-label">
+				Skills{#if enabledCount > 0}
+					<span class="skill-count-badge">{enabledCount}</span>
+				{/if}
+			</span>
+			<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
+		</Sheet.Trigger>
+		<Sheet.Content
+			bind:ref={menu}
+			side="bottom"
+			showCloseButton={false}
 			class="skill-menu"
-			class:placement-bottom={placement === 'bottom'}
-			style:max-height={maxHeight}
 			role="dialog"
 			aria-modal="true"
 			aria-label="Agent skills"
-			tabindex="-1"
-			bind:this={menu}
+			tabindex={-1}
 		>
-			<div class="skill-menu-header">
-				<span class="skill-menu-title">Skills</span>
-				<span class="skill-menu-subtitle">{enabledCount} active</span>
-			</div>
-
-			{#if skills.length > 3}
-				<div class="skill-search">
-					<Search size={14} aria-hidden="true" />
-					<input
-						bind:this={searchInput}
-						bind:value={query}
-						type="text"
-						placeholder="Search skills..."
-						aria-label="Search skills"
-						autocomplete="off"
-					/>
-				</div>
-			{/if}
-
-			<div class="skill-list">
-				{#each [true, false] as project (project)}
-					{@const group = filtered.filter((s) => Boolean(s.projectId) === project)}
-					{#if group.length}
-						<div class="skill-group-label">{project ? 'Project skills' : 'Personal skills'}</div>
-						{#each group as skill (skill.id)}
-							{@const isEnabled = skill.id === currentActiveId}
-							<button
-								type="button"
-								class="skill-item"
-								class:active={isEnabled}
-								onclick={() => handleToggle(skill.id)}
-								onkeydown={(event) => event.key === ' ' && event.preventDefault()}
-								aria-pressed={isEnabled}
-							>
-								<div class="skill-info">
-									<div class="skill-name-row">
-										<strong>{skill.name}</strong>
-										{#if skill.projectId}
-											<span class="skill-scope-badge">Project</span>
-										{/if}
-									</div>
-									{#if skill.description}
-										<p class="skill-desc">{skill.description}</p>
-									{/if}
-								</div>
-								<div class="skill-switch" class:checked={isEnabled} aria-hidden="true">
-									<div class="skill-switch-handle"></div>
-								</div>
-							</button>
-						{/each}
-					{/if}
-				{/each}
-
-				{#if skills.length === 0}
-					<div class="skill-empty">No skills available</div>
-				{:else if filtered.length === 0}
-					<div class="skill-empty">No skills match "{query}"</div>
+			{@render pickerBody()}
+		</Sheet.Content>
+	</Sheet.Root>
+{:else}
+	<Popover.Root bind:open onOpenChange={handleOpenChange}>
+		<Popover.Trigger class="skill-trigger" disabled={disabled || loading} aria-haspopup="dialog">
+			<Sparkles size={15} aria-hidden="true" />
+			<span class="skill-trigger-label">
+				Skills{#if enabledCount > 0}
+					<span class="skill-count-badge">{enabledCount}</span>
 				{/if}
-			</div>
-
-			<div class="skill-menu-footer">
-				<a href={resolve('/skills')} class="manage-link" onclick={close}>
-					<Settings size={13} aria-hidden="true" />
-					<span>Manage skills</span>
-				</a>
-			</div>
-		</div>
-	{/if}
-</div>
+			</span>
+			<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
+		</Popover.Trigger>
+		<Popover.Content
+			bind:ref={menu}
+			side="top"
+			sideOffset={8}
+			avoidCollisions
+			trapFocus
+			class="skill-menu max-h-[min(420px,58vh)] w-[min(320px,calc(100vw-36px))] gap-0 overflow-y-auto rounded-[9px] border border-[var(--border-strong)] p-1.5 shadow-[0_14px_32px_var(--shadow)] ring-0"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Agent skills"
+			tabindex={-1}
+			onOpenAutoFocus={handleOpenAutoFocus}
+		>
+			{@render pickerBody()}
+		</Popover.Content>
+	</Popover.Root>
+{/if}
 
 <style>
-	.skill-picker {
-		position: relative;
-		min-width: 0;
-	}
-
-	.skill-trigger {
+	:global(.skill-trigger) {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
@@ -258,12 +226,12 @@
 		transition: 0.18s ease;
 	}
 
-	.skill-trigger:hover:not(:disabled) {
+	:global(.skill-trigger:hover:not(:disabled)) {
 		color: var(--text-strong);
 		border-color: var(--text-faint);
 	}
 
-	.skill-trigger:disabled {
+	:global(.skill-trigger:disabled) {
 		opacity: 0.72;
 		cursor: not-allowed;
 	}
@@ -290,34 +258,19 @@
 		line-height: 1;
 	}
 
-	.skill-trigger :global(svg:last-child) {
+	:global(.skill-trigger svg:last-child) {
 		flex: 0 0 auto;
 		color: var(--text-faint);
 		transition: transform 0.18s ease;
 	}
 
-	.skill-trigger :global(svg:last-child.rotated) {
+	:global(.skill-trigger svg:last-child.rotated) {
 		transform: rotate(180deg);
 	}
 
-	.skill-menu {
-		position: absolute;
-		bottom: calc(100% + 8px);
-		left: 0;
-		z-index: 20;
-		width: min(320px, calc(100vw - 36px));
-		max-height: min(420px, 58vh);
-		overflow-y: auto;
+	:global(.skill-menu) {
 		padding: 6px;
-		border: 1px solid var(--border-strong);
-		border-radius: 9px;
-		background: var(--surface);
-		box-shadow: 0 14px 32px var(--shadow);
-	}
-
-	.skill-menu.placement-bottom {
-		bottom: auto;
-		top: calc(100% + 8px);
+		overflow-y: auto;
 	}
 
 	.skill-menu-header {
@@ -527,41 +480,22 @@
 		background: var(--surface-hover);
 	}
 
-	.picker-backdrop {
-		display: none;
-	}
-
 	@media (max-width: 700px) {
-		.picker-backdrop {
-			display: block;
-			position: fixed;
-			inset: 0;
-			background: var(--overlay);
-			backdrop-filter: blur(2px);
-			-webkit-backdrop-filter: blur(2px);
-			z-index: 65;
-			border: 0;
-			padding: 0;
-			margin: 0;
-			cursor: pointer;
-		}
-
-		.skill-trigger {
+		:global(.skill-trigger) {
 			min-height: 34px;
 			padding: 5px 8px;
 			font-size: var(--text-xs);
 		}
 
-		.skill-menu {
-			position: fixed;
+		:global(.skill-menu) {
 			top: auto;
-			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 			left: 12px;
 			right: 12px;
+			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 			width: auto;
 			max-width: calc(100vw - 24px);
-			max-height: min(460px, 75dvh) !important;
-			z-index: 70;
+			max-height: min(460px, 75dvh);
+			border: 1px solid var(--border-strong);
 			border-radius: 12px;
 			box-shadow: 0 16px 48px var(--shadow);
 		}

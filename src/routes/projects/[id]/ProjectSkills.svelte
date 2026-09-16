@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { Plus, Sparkles } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	let { projectId }: { projectId: string } = $props();
 </script>
@@ -12,13 +13,16 @@
 		<p>Keep reusable workflows close to the context they belong to.</p>
 	</div>
 	<div class="skills-band-actions">
-		<a class="button" href={resolve(`/skills?projectId=${encodeURIComponent(projectId)}`)}
-			>Manage skills</a
+		<Button
+			variant="outline"
+			class="skills-band-button"
+			href={resolve(`/skills?projectId=${encodeURIComponent(projectId)}`)}>Manage skills</Button
 		>
-		<a
-			class="button primary"
+		<Button
+			variant="default"
+			class="skills-band-button"
 			href={resolve(`/skills?projectId=${encodeURIComponent(projectId)}&create=1`)}
-			><Plus size={14} /> New skill</a
+			><Plus size={14} /> New skill</Button
 		>
 	</div>
 </section>
@@ -68,38 +72,6 @@
 		font-weight: 600;
 		letter-spacing: 0.02em;
 	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 7px;
-		min-height: 36px;
-		padding: 7px 12px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		line-height: 1;
-		white-space: nowrap;
-		transition: 0.15s ease;
-	}
-	.button:hover {
-		color: var(--text-strong);
-		border-color: var(--text-dim);
-		background: var(--surface-hover);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover {
-		background: var(--accent-bg-hover);
-		border-color: var(--accent-bg-hover);
-	}
 	@media (max-width: 760px) {
 		.skills-band {
 			align-items: flex-start;
@@ -109,7 +81,7 @@
 			width: 100%;
 			padding-left: 43px;
 		}
-		.skills-band-actions .button {
+		.skills-band-actions :global(.skills-band-button) {
 			flex: 1;
 		}
 	}

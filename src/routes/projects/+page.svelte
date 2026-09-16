@@ -20,10 +20,13 @@
 		X
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { toast } from 'svelte-sonner';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
-	import { focusModalPrimary, trapModalFocus } from '../skills/skills-focus';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
 	type Project = {
 		id: string;
@@ -36,15 +39,13 @@
 	};
 
 	let view = $state<'grid' | 'list'>('grid');
-	let toast = $state('');
 	let query = $state('');
 	let showCreate = $state(false);
 	let newName = $state('');
 	let newDescription = $state('');
 	let newInstructions = $state('');
 	let creating = $state(false);
-	let createProjectTrigger = $state<HTMLButtonElement>();
-	let createProjectForm = $state<HTMLFormElement>();
+	let createProjectTrigger = $state<HTMLButtonElement | null>(null);
 	let { data } = $props();
 	let user = $derived(data.user);
 	let loading = $state(true);
@@ -60,14 +61,8 @@
 		createProjectTrigger?.focus();
 	}
 
-	$effect(() => {
-		const form = createProjectForm;
-		if (showCreate && form) void focusModalPrimary(form);
-	});
-
-	function notify(v: string) {
-		toast = v;
-		setTimeout(() => (toast = ''), 1600);
+	function handleCreateOpenChange(next: boolean) {
+		if (!next) closeCreateProject();
 	}
 
 	async function loadProjects() {
@@ -85,7 +80,7 @@
 		try {
 			await loadProjects();
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load projects');
+			toast(error instanceof Error ? error.message : 'Could not load projects');
 		} finally {
 			loading = false;
 		}
@@ -93,7 +88,7 @@
 
 	async function createProject() {
 		if (!newName.trim()) {
-			notify('Project name is required');
+			toast('Project name is required');
 			return;
 		}
 		creating = true;
@@ -113,10 +108,10 @@
 			newDescription = '';
 			newInstructions = '';
 			closeCreateProject();
-			notify('Project created');
+			toast('Project created');
 			await loadProjects();
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not create project');
+			toast(error instanceof Error ? error.message : 'Could not create project');
 		} finally {
 			creating = false;
 		}
@@ -138,12 +133,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -215,10 +205,11 @@
 					<h1>Projects</h1>
 					<p>Persistent context for the work you return to.</p>
 				</div>
-				<button
-					class="button primary"
-					bind:this={createProjectTrigger}
-					onclick={() => (showCreate = true)}><Plus size={16} /> New project</button
+				<Button
+					variant="default"
+					class="page-heading-button"
+					bind:ref={createProjectTrigger}
+					onclick={() => (showCreate = true)}><Plus size={16} /> New project</Button
 				>
 			</div>
 			<div class="toolbar">
@@ -290,39 +281,34 @@
 		</div>
 	</main>
 </div>
-{#if showCreate}
-	<div
-		class="modal-backdrop"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="create-project-title"
-		tabindex="-1"
-		onclick={(event) => event.target === event.currentTarget && closeCreateProject()}
-		onkeydown={(event) => {
-			if (event.key === 'Escape') closeCreateProject();
-			trapModalFocus(event, createProjectForm);
-		}}
+<Dialog.Root open={showCreate} onOpenChange={handleCreateOpenChange}>
+	<Dialog.Content
+		showCloseButton={false}
+		class="w-[min(420px,100%)] max-w-none! gap-0 rounded-xl border border-[var(--border-strong)] p-6 shadow-[0_20px_50px_var(--shadow)] ring-0"
+		onCloseAutoFocus={(event) => event.preventDefault()}
 	>
 		<form
-			class="modal"
-			bind:this={createProjectForm}
+			class="dialog-shell"
 			onsubmit={(event) => {
 				event.preventDefault();
 				createProject();
 			}}
 		>
-			<div class="modal-head">
-				<div>
-					<h2 id="create-project-title">Create a project</h2>
-				</div>
-				<button
-					type="button"
-					class="icon-button"
+			<Dialog.Header class="flex flex-row items-start justify-between gap-4 text-left">
+				<Dialog.Title
+					id="create-project-title"
+					class="ui-text-lg mb-4 font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
+				>
+					Create a project
+				</Dialog.Title>
+				<Button
+					variant="ghost"
+					size="icon"
 					aria-label="Close"
 					title="Close dialog"
-					onclick={closeCreateProject}><X size={18} /></button
+					onclick={closeCreateProject}><X size={18} /></Button
 				>
-			</div>
+			</Dialog.Header>
 			<label
 				>Project name<input
 					bind:value={newName}
@@ -344,16 +330,15 @@
 					placeholder="How should the agent help with this project?"></textarea></label
 			>
 			<div class="modal-actions">
-				<button type="button" class="button" onclick={closeCreateProject}>Cancel</button><button
+				<Button variant="outline" onclick={closeCreateProject}>Cancel</Button><Button
+					variant="default"
 					type="submit"
-					class="button primary"
-					disabled={creating}>{creating ? 'Creating...' : 'Create project'}</button
+					disabled={creating}>{creating ? 'Creating...' : 'Create project'}</Button
 				>
 			</div>
 		</form>
-	</div>
-{/if}
-{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
+	</Dialog.Content>
+</Dialog.Root>
 
 <style>
 	.projects-wrap {
@@ -382,29 +367,6 @@
 		color: var(--text-muted);
 		font-size: var(--text-sm);
 		line-height: 1.5;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button:disabled {
-		opacity: 0.6;
 	}
 	.toolbar {
 		display: flex;
@@ -549,49 +511,18 @@
 		font-size: var(--text-xs);
 		color: var(--text-dim);
 	}
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		display: grid;
-		place-items: center;
-		padding: 20px;
-		background: var(--overlay);
-		z-index: 10;
-	}
-	.modal {
-		width: min(420px, 100%);
-		padding: 24px;
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		box-shadow: 0 20px 50px var(--shadow);
-	}
-	.modal-head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 16px;
-	}
-	.modal h2 {
-		margin: 0 0 16px;
-		font-family: var(--font-body);
-		font-size: var(--text-lg);
-		font-weight: 600;
-		line-height: 1.3;
-		letter-spacing: -0.015em;
-		color: var(--text-strong);
-	}
-	.modal label {
+	.dialog-shell label {
 		display: block;
 		margin-top: 14px;
 		color: var(--text-muted);
 		font-size: var(--text-xs);
 		font-weight: 500;
 	}
-	.modal input,
-	.modal textarea {
+	.dialog-shell input,
+	.dialog-shell textarea {
 		display: block;
 		width: 100%;
+		min-height: 44px;
 		margin-top: 6px;
 		padding: 8px 11px;
 		border: 1px solid var(--input-border);
@@ -602,7 +533,11 @@
 		color: var(--text-strong);
 		background: var(--surface);
 	}
-	.modal textarea {
+	.dialog-shell input:focus,
+	.dialog-shell textarea:focus {
+		border-color: var(--focus);
+	}
+	.dialog-shell textarea {
 		min-height: 80px;
 		resize: vertical;
 	}
@@ -611,18 +546,6 @@
 		justify-content: flex-end;
 		gap: 8px;
 		margin-top: 22px;
-	}
-	.toast {
-		position: fixed;
-		right: 24px;
-		bottom: 24px;
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-radius: 6px;
-		padding: 10px 14px;
-		font-size: var(--text-sm);
-		font-weight: 500;
-		z-index: 50;
 	}
 	@media (max-width: 800px) {
 		.projects-wrap {
@@ -636,7 +559,7 @@
 			gap: 18px;
 			flex-direction: column;
 		}
-		.page-heading .button {
+		:global(.page-heading-button) {
 			width: 100%;
 		}
 	}

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { LucideIcon } from '@lucide/svelte';
 	import type { Snippet } from 'svelte';
+	import { Badge } from '$lib/components/ui/badge/index.js';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	type Props = {
 		icon: LucideIcon;
@@ -32,11 +34,11 @@
 			<div class="connection-name">
 				<strong>{title}</strong>
 				{#if fromUser}
-					<span class="badge ok">Connected</span>
+					<Badge variant="success">Connected</Badge>
 				{:else if envConfigured}
-					<span class="badge">Server default</span>
+					<Badge>Server default</Badge>
 				{:else}
-					<span class="badge">{noneLabel}</span>
+					<Badge>{noneLabel}</Badge>
 				{/if}
 			</div>
 			<p>{description}</p>
@@ -48,9 +50,13 @@
 	</div>
 	<div class="connection-actions">
 		{#if fromUser}
-			<button class="button primary" type="button" onclick={onconnect}>Manage</button>
+			<Button variant="default" class="max-[700px]:w-full" type="button" onclick={onconnect}>
+				Manage
+			</Button>
 		{:else}
-			<button class="button primary" type="button" onclick={onconnect}>Connect</button>
+			<Button variant="default" class="max-[700px]:w-full" type="button" onclick={onconnect}>
+				Connect
+			</Button>
 		{/if}
 	</div>
 </article>
@@ -145,10 +151,6 @@
 		}
 		.connection-actions {
 			justify-content: flex-end;
-		}
-		.connection-actions .button {
-			justify-content: center;
-			width: 100%;
 		}
 	}
 </style>

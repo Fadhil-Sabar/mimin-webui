@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Plus, Search, Trash2, X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { isModelFree, type ModelItem } from './provider-types';
 
 	type Props = {
@@ -248,14 +249,16 @@
 				placeholder="Add model ID manually (e.g. meta-llama/llama-3.3-70b-instruct:free)"
 				onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addManualModel())}
 			/>
-			<button
+			<Button
+				variant="outline"
+				size="sm"
 				type="button"
-				class="button add-model-btn"
+				class="add-model-btn"
 				onclick={addManualModel}
 				disabled={!manualModelId.trim()}
 			>
 				<Plus size={14} /> Add
-			</button>
+			</Button>
 		</div>
 	{/if}
 </div>
@@ -555,27 +558,7 @@
 		font-size: var(--text-xs);
 		margin: 0;
 	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		min-height: 40px;
-		padding: 8px 11px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-size: var(--text-sm);
-		transition: 0.18s ease;
-	}
-	.button:hover {
-		color: var(--text);
-		border-color: var(--text-dim);
-	}
-	.add-model-btn {
-		min-height: 34px;
-		padding: 6px 12px;
+	:global(.add-model-btn) {
 		font-size: var(--text-xs);
-		flex-shrink: 0;
 	}
 </style>

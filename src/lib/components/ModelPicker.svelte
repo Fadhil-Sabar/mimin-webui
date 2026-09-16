@@ -2,6 +2,8 @@
 	import { Check, ChevronDown, Bot, Search } from '@lucide/svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { tick } from 'svelte';
+	import * as Popover from '$lib/components/ui/popover/index.js';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
 
 	export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -40,9 +42,10 @@
 
 	let open = $state(false);
 	let search = $state('');
-	let root = $state<HTMLDivElement | undefined>();
-	let trigger = $state<HTMLButtonElement | undefined>();
 	let searchInput = $state<HTMLInputElement | undefined>();
+	let isMobile = $state(false);
+	let listElement = $state<HTMLDivElement | undefined>();
+	let highlightedIndex = $state(0);
 
 	const providerNames: Record<string, string> = {
 		openai: 'OpenAI',
@@ -52,6 +55,8 @@
 
 	let selected = $derived(models.find((model) => modelRef(model) === value));
 	let selectedLabel = $derived(selected?.name ?? (value ? modelId(value) : placeholder));
+	let triggerDisabled = $derived(disabled || loading || models.length === 0);
+
 	let groups = $derived.by(() => {
 		const grouped = new SvelteMap<string, ModelOption[]>();
 		for (const model of models) {
@@ -68,6 +73,7 @@
 			models: providerModels
 		}));
 	});
+
 	function fuzzyMatch(text: string, query: string): number | null {
 		const lower = text.toLowerCase();
 		// Fast path: exact substring match gets highest score
@@ -116,11 +122,6 @@
 	});
 
 	let flatModels = $derived(filteredGroups.flatMap((group) => group.models));
-	let highlightedIndex = $state(0);
-	let listElement = $state<HTMLDivElement | undefined>();
-
-	let placement = $state<'top' | 'bottom'>('top');
-	let maxHeight = $state<string | undefined>(undefined);
 
 	function modelRef(model: ModelOption) {
 		return `${model.provider}/${model.id}`;
@@ -142,56 +143,35 @@
 		highlightedIndex = 0;
 	});
 
-	function updatePlacement() {
-		if (!trigger) return;
-		const rect = trigger.getBoundingClientRect();
-		const spaceAbove = rect.top;
-		const spaceBelow = window.innerHeight - rect.bottom;
-		if (spaceAbove < 320 && spaceBelow > spaceAbove) {
-			placement = 'bottom';
-			maxHeight = `${Math.max(160, Math.min(420, spaceBelow - 20))}px`;
-		} else {
-			placement = 'top';
-			maxHeight = `${Math.max(160, Math.min(420, spaceAbove - 20))}px`;
-		}
-	}
+	$effect(() => {
+		const query = window.matchMedia('(max-width: 700px)');
+		isMobile = query.matches;
+		const onChange = (event: MediaQueryListEvent) => (isMobile = event.matches);
+		query.addEventListener('change', onChange);
+		return () => query.removeEventListener('change', onChange);
+	});
 
-	function toggle() {
-		if (disabled || loading || models.length === 0) return;
-		open = !open;
-		if (open) {
-			updatePlacement();
+	function handleOpenChange(next: boolean) {
+		open = next;
+		if (next) {
 			search = '';
 			const currentIdx = flatModels.findIndex((m) => modelRef(m) === value);
 			highlightedIndex = currentIdx >= 0 ? currentIdx : 0;
-			tick().then(() => {
-				updatePlacement();
-				searchInput?.focus();
-				scrollHighlightedIntoView(highlightedIndex);
-			});
+			scrollHighlightedIntoView(highlightedIndex);
+		} else {
+			search = '';
 		}
+	}
+
+	function handleOpenAutoFocus(event: Event) {
+		event.preventDefault();
+		searchInput?.focus();
 	}
 
 	function choose(model: ModelOption) {
 		open = false;
 		search = '';
 		void onselect?.(modelRef(model));
-	}
-
-	function closeOnOutsideClick(event: MouseEvent) {
-		if (!open || !root) return;
-		if (event.target instanceof Node && !root.contains(event.target)) {
-			open = false;
-			search = '';
-		}
-	}
-
-	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && open) {
-			open = false;
-			search = '';
-			trigger?.focus();
-		}
 	}
 
 	function handleMenuKeydown(event: KeyboardEvent) {
@@ -211,118 +191,107 @@
 			if (target) {
 				choose(target);
 			}
-		} else if (event.key === 'Escape') {
-			event.preventDefault();
-			open = false;
-			search = '';
-			trigger?.focus();
 		}
 	}
 </script>
 
-<svelte:window onclick={closeOnOutsideClick} onkeydown={handleKeydown} />
+{#snippet pickerBody()}
+	<div class="model-list" bind:this={listElement}>
+		{#each filteredGroups as group (group.provider)}
+			<div class="model-group">
+				<div class="model-group-label">{group.label}</div>
+				{#each group.models as model (modelRef(model))}
+					{@const ref = modelRef(model)}
+					{@const modelIdx = flatModels.indexOf(model)}
+					{@const isHighlighted = modelIdx === highlightedIndex}
+					<button
+						type="button"
+						class="model-option"
+						class:selected={ref === value}
+						class:highlighted={isHighlighted}
+						role="option"
+						aria-selected={ref === value}
+						data-model-idx={modelIdx}
+						onclick={() => choose(model)}
+						onmousemove={() => {
+							highlightedIndex = modelIdx;
+						}}
+					>
+						<span class="model-option-copy">
+							<strong>{model.name}</strong>
+							<small>{model.id}</small>
+						</span>
+						{#if model.userConfigured}
+							<span class="model-badge">Your key</span>
+						{:else if model.configured}
+							<span class="model-badge">Server key</span>
+						{/if}
+						{#if ref === value}<Check size={14} aria-hidden="true" />{/if}
+					</button>
+				{/each}
+			</div>
+		{/each}
+		{#if filteredGroups.length === 0}
+			<div class="model-no-results">No models match "{search}"</div>
+		{/if}
+	</div>
+	<div class="model-search">
+		<Search size={14} aria-hidden="true" />
+		<input
+			bind:this={searchInput}
+			bind:value={search}
+			type="text"
+			placeholder="Search models..."
+			aria-label="Search models"
+			autocomplete="off"
+		/>
+	</div>
+{/snippet}
 
-<div class="model-picker" bind:this={root}>
-	<button
-		type="button"
-		class="model-trigger"
-		disabled={disabled || loading || models.length === 0}
-		aria-haspopup="listbox"
-		aria-expanded={open}
-		onclick={toggle}
-		onkeydown={(e) => {
-			if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
-				e.preventDefault();
-				toggle();
-			}
-		}}
-		bind:this={trigger}
-	>
-		<Bot size={15} aria-hidden="true" />
-		<span class="model-trigger-label">{loading ? 'Loading models...' : selectedLabel}</span>
-		<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
-	</button>
-
-	{#if open}
-		<button
-			type="button"
-			class="picker-backdrop"
-			onclick={() => {
-				open = false;
-				search = '';
-			}}
-			aria-label="Close menu"
-			tabindex="-1"
-		></button>
-		<div
+{#if isMobile}
+	<Sheet.Root bind:open onOpenChange={handleOpenChange}>
+		<Sheet.Trigger class="model-trigger" disabled={triggerDisabled}>
+			<Bot size={15} aria-hidden="true" />
+			<span class="model-trigger-label">{loading ? 'Loading models...' : selectedLabel}</span>
+			<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
+		</Sheet.Trigger>
+		<Sheet.Content
+			side="bottom"
+			showCloseButton={false}
 			class="model-menu"
-			class:placement-bottom={placement === 'bottom'}
-			style:max-height={maxHeight}
 			role="listbox"
 			aria-label="Available models"
-			tabindex="-1"
+			tabindex={-1}
 			onkeydown={handleMenuKeydown}
 		>
-			<div class="model-list" bind:this={listElement}>
-				{#each filteredGroups as group (group.provider)}
-					<div class="model-group">
-						<div class="model-group-label">{group.label}</div>
-						{#each group.models as model (modelRef(model))}
-							{@const ref = modelRef(model)}
-							{@const modelIdx = flatModels.indexOf(model)}
-							{@const isHighlighted = modelIdx === highlightedIndex}
-							<button
-								type="button"
-								class="model-option"
-								class:selected={ref === value}
-								class:highlighted={isHighlighted}
-								role="option"
-								aria-selected={ref === value}
-								data-model-idx={modelIdx}
-								onclick={() => choose(model)}
-								onmousemove={() => {
-									highlightedIndex = modelIdx;
-								}}
-							>
-								<span class="model-option-copy">
-									<strong>{model.name}</strong>
-									<small>{model.id}</small>
-								</span>
-								{#if model.userConfigured}
-									<span class="model-badge">Your key</span>
-								{:else if model.configured}
-									<span class="model-badge">Server key</span>
-								{/if}
-								{#if ref === value}<Check size={14} aria-hidden="true" />{/if}
-							</button>
-						{/each}
-					</div>
-				{/each}
-				{#if filteredGroups.length === 0}
-					<div class="model-no-results">No models match "{search}"</div>
-				{/if}
-			</div>
-			<div class="model-search">
-				<Search size={14} aria-hidden="true" />
-				<input
-					bind:this={searchInput}
-					bind:value={search}
-					type="text"
-					placeholder="Search models..."
-					aria-label="Search models"
-					autocomplete="off"
-				/>
-			</div>
-		</div>
-	{/if}
-</div>
+			{@render pickerBody()}
+		</Sheet.Content>
+	</Sheet.Root>
+{:else}
+	<Popover.Root bind:open onOpenChange={handleOpenChange}>
+		<Popover.Trigger class="model-trigger" disabled={triggerDisabled} aria-haspopup="listbox">
+			<Bot size={15} aria-hidden="true" />
+			<span class="model-trigger-label">{loading ? 'Loading models...' : selectedLabel}</span>
+			<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
+		</Popover.Trigger>
+		<Popover.Content
+			side="top"
+			sideOffset={8}
+			avoidCollisions
+			class="model-menu max-h-[min(420px,58vh)] w-[min(360px,calc(100vw-36px))] gap-0 rounded-[9px] border border-[var(--border-strong)] p-1.5 shadow-[0_14px_32px_var(--shadow)] ring-0"
+			role="listbox"
+			aria-label="Available models"
+			tabindex={-1}
+			onkeydown={handleMenuKeydown}
+			onOpenAutoFocus={handleOpenAutoFocus}
+		>
+			{@render pickerBody()}
+		</Popover.Content>
+	</Popover.Root>
+{/if}
 
 <style>
-	.model-picker {
-		position: relative;
-		min-width: 0;
-	}
-	.model-trigger {
+	:global(.model-trigger) {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
@@ -337,11 +306,11 @@
 		font-size: var(--text-sm);
 		transition: 0.18s ease;
 	}
-	.model-trigger:hover:not(:disabled) {
+	:global(.model-trigger:hover:not(:disabled)) {
 		color: var(--text-strong);
 		border-color: var(--text-faint);
 	}
-	.model-trigger:disabled {
+	:global(.model-trigger:disabled) {
 		opacity: 0.72;
 	}
 	.model-trigger-label {
@@ -349,32 +318,17 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.model-trigger :global(svg:last-child) {
+	:global(.model-trigger svg:last-child) {
 		flex: 0 0 auto;
 		color: var(--text-faint);
 		transition: transform 0.18s ease;
 	}
-	.model-trigger :global(svg:last-child.rotated) {
+	:global(.model-trigger svg:last-child.rotated) {
 		transform: rotate(180deg);
 	}
-	.model-menu {
-		position: absolute;
-		bottom: calc(100% + 8px);
-		left: 0;
-		z-index: 20;
-		width: min(360px, calc(100vw - 36px));
-		max-height: min(420px, 58vh);
+	:global(.model-menu) {
 		display: flex;
 		flex-direction: column;
-		padding: 6px;
-		border: 1px solid var(--border-strong);
-		border-radius: 9px;
-		background: var(--surface);
-		box-shadow: 0 14px 32px var(--shadow);
-	}
-	.model-menu.placement-bottom {
-		bottom: auto;
-		top: calc(100% + 8px);
 	}
 	.model-list {
 		flex: 1 1 auto;
@@ -482,39 +436,22 @@
 		line-height: 1.2;
 		white-space: nowrap;
 	}
-	.picker-backdrop {
-		display: none;
-	}
 	@media (max-width: 700px) {
-		.picker-backdrop {
-			display: block;
-			position: fixed;
-			inset: 0;
-			background: var(--overlay);
-			backdrop-filter: blur(2px);
-			-webkit-backdrop-filter: blur(2px);
-			z-index: 65;
-			border: 0;
-			padding: 0;
-			margin: 0;
-			cursor: pointer;
-		}
-		.model-trigger {
+		:global(.model-trigger) {
 			min-height: 34px;
 			padding: 5px 8px;
 			font-size: var(--text-xs);
 			max-width: min(190px, 45vw);
 		}
-		.model-menu {
-			position: fixed;
+		:global(.model-menu) {
 			top: auto;
-			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 			left: 12px;
 			right: 12px;
+			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 			width: auto;
 			max-width: calc(100vw - 24px);
-			max-height: min(460px, 75dvh) !important;
-			z-index: 70;
+			max-height: min(460px, 75dvh);
+			border: 1px solid var(--border-strong);
 			border-radius: 12px;
 			box-shadow: 0 16px 48px var(--shadow);
 		}

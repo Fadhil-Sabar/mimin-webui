@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ExternalLink, Info, Loader2, Play, Search } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import type { TestResult } from './types';
 
 	type Props = {
@@ -34,13 +35,19 @@
 				onkeydown={(e) => e.key === 'Enter' && ontest()}
 			/>
 		</div>
-		<button type="button" class="button primary test-run-btn" onclick={ontest} disabled={testing}>
+		<Button
+			type="button"
+			variant="default"
+			class="test-run-btn"
+			onclick={ontest}
+			disabled={testing}
+		>
 			{#if testing}
 				<Loader2 size={15} class="spin" /> Testing...
 			{:else}
 				<Play size={15} /> Run test
 			{/if}
-		</button>
+		</Button>
 	</div>
 
 	{#if error}
@@ -154,7 +161,7 @@
 	.search-input-wrapper input {
 		padding-left: 36px;
 	}
-	.test-run-btn {
+	:global(.test-run-btn) {
 		flex: 0 0 auto;
 	}
 

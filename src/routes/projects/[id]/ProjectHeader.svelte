@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Bot, MessageSquare, Pencil, Trash2 } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { formatDate } from './project-format';
 	import type { ExtractionSummary, Project } from './project-types';
 
@@ -33,12 +34,10 @@
 		</div>
 	</div>
 	<div class="hero-actions">
-		<button class="button primary" onclick={onstartchat}
-			><MessageSquare size={15} /> Start chat</button
-		>
-		<button class="button" onclick={onedit}><Pencil size={15} /> Edit</button>
-		<button class="button danger" onclick={ondelete} aria-label="Delete project"
-			><Trash2 size={15} /></button
+		<Button variant="default" onclick={onstartchat}><MessageSquare size={15} /> Start chat</Button>
+		<Button variant="outline" onclick={onedit}><Pencil size={15} /> Edit</Button>
+		<Button variant="destructive" onclick={ondelete} aria-label="Delete project"
+			><Trash2 size={15} /></Button
 		>
 	</div>
 </section>
@@ -163,48 +162,6 @@
 	}
 	.context.muted .status-dot {
 		background: var(--text-faint);
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 7px;
-		min-height: 36px;
-		padding: 7px 12px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		line-height: 1;
-		white-space: nowrap;
-		transition: 0.15s ease;
-	}
-	.button:hover {
-		color: var(--text-strong);
-		border-color: var(--text-dim);
-		background: var(--surface-hover);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover {
-		background: var(--accent-bg-hover);
-		border-color: var(--accent-bg-hover);
-	}
-	.button.danger {
-		color: var(--danger-text);
-		border-color: color-mix(in srgb, var(--danger-text) 30%, transparent);
-		background: transparent;
-	}
-	.button.danger:hover {
-		background: color-mix(in srgb, var(--danger-text) 10%, transparent);
-		border-color: var(--danger-text);
-		color: var(--danger-text);
 	}
 	@media (max-width: 760px) {
 		.hero {

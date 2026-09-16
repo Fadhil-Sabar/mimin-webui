@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Check, Copy, Edit3, Plus, Trash2, X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import type { StyleGuideline } from '$lib/canvas';
 
 	type Props = {
@@ -88,24 +89,29 @@
 			<p class="panel-desc">Design rules, tokens, and direction for scenes</p>
 		</div>
 		<div class="header-actions">
-			<button class="icon-btn" onclick={copyAsJson} title="Copy Guideline JSON">
+			<button
+				class="icon-btn"
+				onclick={copyAsJson}
+				title="Copy Guideline JSON"
+				aria-label="Copy guideline JSON"
+			>
 				{#if copied}<Check size={14} />{:else}<Copy size={14} />{/if}
 			</button>
 			{#if !isEditing}
-				<button class="button small" onclick={startEdit}>
+				<Button variant="outline" size="sm" onclick={startEdit}>
 					<Edit3 size={13} /> Edit
-				</button>
+				</Button>
 			{:else}
-				<button class="button small primary" onclick={saveChanges} disabled={saving}>
+				<Button variant="default" size="sm" onclick={saveChanges} disabled={saving}>
 					<Check size={13} />
 					{saving ? 'Saving...' : 'Save'}
-				</button>
-				<button class="button small" onclick={cancelEdit} disabled={saving}>
+				</Button>
+				<Button variant="outline" size="sm" onclick={cancelEdit} disabled={saving}>
 					<X size={13} /> Cancel
-				</button>
+				</Button>
 			{/if}
 			{#if onclose}
-				<button class="icon-btn" onclick={onclose} title="Close Panel">
+				<button class="icon-btn" onclick={onclose} title="Close Panel" aria-label="Close panel">
 					<X size={14} />
 				</button>
 			{/if}
@@ -136,7 +142,7 @@
 					<div class="list-item-row">
 						<input
 							type="text"
-							class="text-input row-input"
+							class="row-input text-input"
 							bind:value={editRules[i]}
 							placeholder="Rule description..."
 							aria-label="Rule {i + 1}"
@@ -146,6 +152,7 @@
 							class="icon-btn danger"
 							onclick={() => removeRule(i)}
 							title="Remove Rule"
+							aria-label="Remove rule"
 						>
 							<Trash2 size={13} />
 						</button>
@@ -164,7 +171,7 @@
 					<div class="list-item-row">
 						<input
 							type="text"
-							class="text-input row-input"
+							class="row-input text-input"
 							bind:value={editAvoidances[i]}
 							placeholder="What to avoid..."
 							aria-label="Avoidance {i + 1}"
@@ -174,6 +181,7 @@
 							class="icon-btn danger"
 							onclick={() => removeAvoidance(i)}
 							title="Remove Avoidance"
+							aria-label="Remove avoidance"
 						>
 							<Trash2 size={13} />
 						</button>

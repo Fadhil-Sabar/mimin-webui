@@ -14,6 +14,8 @@
 		X,
 		CircleAlert
 	} from '@lucide/svelte';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import { highlightCode } from '$lib/client/highlighter';
 	import { themeState } from '$lib/client/theme.svelte';
 	import { renderMermaid, getCachedMermaidSvg, downloadSvg } from '$lib/client/mermaid';
@@ -100,6 +102,11 @@
 		};
 	});
 
+	// Tabs.Root speaks `string`; narrow it back to the union the panes are keyed on.
+	function selectTab(value: string) {
+		if (value === 'diagram' || value === 'code') activeTab = value;
+	}
+
 	async function copyCode() {
 		try {
 			await navigator.clipboard.writeText(code);
@@ -185,208 +192,221 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="mermaid-diagram-card {className}">
-	<div class="mermaid-header">
-		<div class="mermaid-header-left">
-			<div class="mermaid-badge">
-				<Workflow size={13} class="badge-icon" />
-				<span class="badge-title">Mermaid</span>
+	<Tabs.Root value={activeTab} onValueChange={selectTab} class="flex-col! gap-0!">
+		<div class="mermaid-header">
+			<div class="mermaid-header-left">
+				<div class="mermaid-badge">
+					<Workflow size={13} class="badge-icon" />
+					<span class="badge-title">Mermaid</span>
+				</div>
+				<Tabs.List
+					class="h-auto! gap-0.5 rounded-md border border-[var(--border)] bg-[var(--surface)] p-0.5"
+				>
+					<Tabs.Trigger
+						value="diagram"
+						class="mermaid-tab h-auto! flex-none gap-1 rounded-sm border-0 bg-transparent px-2 text-[var(--text-muted)] duration-[140ms] hover:text-[var(--text-strong)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-hover)]! data-[state=active]:text-[var(--text-strong)]! data-[state=active]:shadow-[0_1px_2px_var(--shadow-softer)]! [&_svg]:size-3!"
+					>
+						<Eye size={12} />
+						<span>Diagram</span>
+					</Tabs.Trigger>
+					<Tabs.Trigger
+						value="code"
+						class="mermaid-tab h-auto! flex-none gap-1 rounded-sm border-0 bg-transparent px-2 text-[var(--text-muted)] duration-[140ms] hover:text-[var(--text-strong)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-hover)]! data-[state=active]:text-[var(--text-strong)]! data-[state=active]:shadow-[0_1px_2px_var(--shadow-softer)]! [&_svg]:size-3!"
+					>
+						<Code size={12} />
+						<span>Code</span>
+					</Tabs.Trigger>
+				</Tabs.List>
 			</div>
-			<div class="mermaid-tabs" role="tablist">
-				<button
-					type="button"
-					role="tab"
-					aria-selected={activeTab === 'diagram'}
-					class="mermaid-tab"
-					class:active={activeTab === 'diagram'}
-					onclick={() => (activeTab = 'diagram')}
-				>
-					<Eye size={12} />
-					<span>Diagram</span>
-				</button>
-				<button
-					type="button"
-					role="tab"
-					aria-selected={activeTab === 'code'}
-					class="mermaid-tab"
-					class:active={activeTab === 'code'}
-					onclick={() => (activeTab = 'code')}
-				>
-					<Code size={12} />
-					<span>Code</span>
-				</button>
-			</div>
-		</div>
 
-		<div class="mermaid-header-actions">
-			{#if activeTab === 'diagram' && svgHtml}
-				<button
-					type="button"
-					class="action-btn"
-					onclick={handleDownload}
-					title="Download SVG"
-					aria-label="Download SVG"
-				>
-					<Download size={13} />
-					<span class="btn-label">SVG</span>
-				</button>
-				<button
-					type="button"
-					class="action-btn"
-					onclick={openModal}
-					title="Expand diagram"
-					aria-label="Expand diagram"
-				>
-					<Maximize2 size={13} />
-					<span class="btn-label">Expand</span>
-				</button>
-			{/if}
-
-			<button
-				type="button"
-				class="action-btn copy-btn"
-				class:copied
-				onclick={copyCode}
-				title="Copy Mermaid code"
-				aria-label="Copy Mermaid code"
-			>
-				{#if copied}
-					<Check size={13} />
-					<span class="btn-label">Copied!</span>
-				{:else}
-					<Copy size={13} />
-					<span class="btn-label">Copy</span>
-				{/if}
-			</button>
-		</div>
-	</div>
-
-	{#if activeTab === 'diagram'}
-		<div class="mermaid-viewport">
-			{#if isLoading && !svgHtml}
-				<div class="mermaid-loading-state">
-					<div class="spinner"></div>
-					<span>Rendering diagram...</span>
-				</div>
-			{:else if error && !svgHtml}
-				<div class="mermaid-error-state">
-					<div class="error-header">
-						<CircleAlert size={16} class="error-icon" />
-						<span class="error-title">Diagram syntax error</span>
-					</div>
-					<p class="error-desc">The diagram contains syntax that could not be parsed by Mermaid.</p>
-					<button type="button" class="view-code-btn" onclick={() => (activeTab = 'code')}>
-						<Code size={13} />
-						<span>View Mermaid Code</span>
-					</button>
-				</div>
-			{:else if svgHtml}
-				<div class="mermaid-svg-container">
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					{@html svgHtml}
-				</div>
-			{/if}
-		</div>
-	{:else}
-		<div class="mermaid-code-view">
-			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-			<pre><code class="language-mermaid">{@html highlightedCode}</code></pre>
-		</div>
-	{/if}
-</div>
-
-{#if isZoomed}
-	<div
-		class="mermaid-modal-backdrop"
-		role="dialog"
-		aria-modal="true"
-		aria-label="Mermaid Diagram Fullscreen View"
-	>
-		<div class="mermaid-modal-container">
-			<div class="mermaid-modal-header">
-				<div class="modal-title-area">
-					<Workflow size={15} />
-					<span class="modal-title">Mermaid Diagram</span>
-					<span class="zoom-badge">{Math.round(zoomScale * 100)}%</span>
-				</div>
-
-				<div class="modal-actions">
-					<div class="zoom-controls">
-						<button
-							type="button"
-							class="modal-btn"
-							onclick={zoomOut}
-							title="Zoom out"
-							aria-label="Zoom out"
-						>
-							<ZoomOut size={14} />
-						</button>
-						<button
-							type="button"
-							class="modal-btn"
-							onclick={resetZoom}
-							title="Reset zoom (100%)"
-							aria-label="Reset zoom"
-						>
-							<RotateCcw size={13} />
-						</button>
-						<button
-							type="button"
-							class="modal-btn"
-							onclick={zoomIn}
-							title="Zoom in"
-							aria-label="Zoom in"
-						>
-							<ZoomIn size={14} />
-						</button>
-					</div>
-
+			<div class="mermaid-header-actions">
+				{#if activeTab === 'diagram' && svgHtml}
 					<button
 						type="button"
-						class="modal-btn"
+						class="action-btn"
 						onclick={handleDownload}
 						title="Download SVG"
 						aria-label="Download SVG"
 					>
-						<Download size={14} />
+						<Download size={13} />
+						<span class="btn-label">SVG</span>
 					</button>
-
 					<button
 						type="button"
-						class="modal-btn close-btn"
-						onclick={closeModal}
-						title="Close modal (Esc)"
-						aria-label="Close modal"
+						class="action-btn"
+						onclick={openModal}
+						title="Expand diagram"
+						aria-label="Expand diagram"
 					>
-						<X size={15} />
+						<Maximize2 size={13} />
+						<span class="btn-label">Expand</span>
 					</button>
-				</div>
-			</div>
+				{/if}
 
-			<div
-				class="mermaid-modal-canvas"
-				class:panning={isPanning}
-				onwheel={handleWheel}
-				onpointerdown={handlePointerDown}
-				onpointermove={handlePointerMove}
-				onpointerup={handlePointerUp}
-				role="region"
-				aria-label="Pan and zoom canvas"
-			>
-				<div
-					class="mermaid-transform-target"
-					style="transform: translate({panX}px, {panY}px) scale({zoomScale}); transform-origin: center center;"
+				<button
+					type="button"
+					class="action-btn copy-btn"
+					class:copied
+					onclick={copyCode}
+					title="Copy Mermaid code"
+					aria-label="Copy Mermaid code"
 				>
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					{@html svgHtml}
-				</div>
-			</div>
-
-			<div class="modal-footer-hint">
-				<span>Drag to pan &bull; Scroll to zoom &bull; Esc to close</span>
+					{#if copied}
+						<Check size={13} />
+						<span class="btn-label">Copied!</span>
+					{:else}
+						<Copy size={13} />
+						<span class="btn-label">Copy</span>
+					{/if}
+				</button>
 			</div>
 		</div>
-	</div>
-{/if}
+
+		{#if activeTab === 'diagram'}
+			<Tabs.Content value="diagram" class="mermaid-tab-panel">
+				<div class="mermaid-viewport">
+					{#if isLoading && !svgHtml}
+						<div class="mermaid-loading-state">
+							<div class="spinner"></div>
+							<span>Rendering diagram...</span>
+						</div>
+					{:else if error && !svgHtml}
+						<div class="mermaid-error-state">
+							<div class="error-header">
+								<CircleAlert size={16} class="error-icon" />
+								<span class="error-title">Diagram syntax error</span>
+							</div>
+							<p class="error-desc">
+								The diagram contains syntax that could not be parsed by Mermaid.
+							</p>
+							<button type="button" class="view-code-btn" onclick={() => (activeTab = 'code')}>
+								<Code size={13} />
+								<span>View Mermaid Code</span>
+							</button>
+						</div>
+					{:else if svgHtml}
+						<div class="mermaid-svg-container">
+							<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+							{@html svgHtml}
+						</div>
+					{/if}
+				</div>
+			</Tabs.Content>
+		{:else}
+			<Tabs.Content value="code" class="mermaid-tab-panel">
+				<div class="mermaid-code-view">
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+					<pre><code class="language-mermaid">{@html highlightedCode}</code></pre>
+				</div>
+			</Tabs.Content>
+		{/if}
+	</Tabs.Root>
+</div>
+
+<!--
+	Fullscreen viewer shell. Dialog.Content paints the exact box the old
+	`.mermaid-modal-container` did (95vw x 90vh, `--surface`, 1px `--border-strong`,
+	12px radius, `0 20px 45px --shadow`, flex column, overflow hidden) and is centred by
+	its own `top-1/2 left-1/2 -translate-*` positioning, matching the old centred backdrop.
+	`interactOutsideBehavior="ignore"` keeps the previous rule that clicking the backdrop
+	does NOT close the viewer (only Esc / the close button did).
+-->
+<Dialog.Root
+	open={isZoomed}
+	onOpenChange={(open) => {
+		if (!open) closeModal();
+	}}
+>
+	<Dialog.Content
+		showCloseButton={false}
+		interactOutsideBehavior="ignore"
+		aria-label="Mermaid Diagram Fullscreen View"
+		class="flex h-[90vh] w-[95vw] max-w-none! flex-col gap-0 overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--surface)] p-0 shadow-[0_20px_45px_var(--shadow)] ring-0"
+	>
+		<div class="mermaid-modal-header">
+			<div class="modal-title-area">
+				<Workflow size={15} />
+				<span class="modal-title">Mermaid Diagram</span>
+				<span class="zoom-badge">{Math.round(zoomScale * 100)}%</span>
+			</div>
+
+			<div class="modal-actions">
+				<div class="zoom-controls">
+					<button
+						type="button"
+						class="modal-btn"
+						onclick={zoomOut}
+						title="Zoom out"
+						aria-label="Zoom out"
+					>
+						<ZoomOut size={14} />
+					</button>
+					<button
+						type="button"
+						class="modal-btn"
+						onclick={resetZoom}
+						title="Reset zoom (100%)"
+						aria-label="Reset zoom"
+					>
+						<RotateCcw size={13} />
+					</button>
+					<button
+						type="button"
+						class="modal-btn"
+						onclick={zoomIn}
+						title="Zoom in"
+						aria-label="Zoom in"
+					>
+						<ZoomIn size={14} />
+					</button>
+				</div>
+
+				<button
+					type="button"
+					class="modal-btn"
+					onclick={handleDownload}
+					title="Download SVG"
+					aria-label="Download SVG"
+				>
+					<Download size={14} />
+				</button>
+
+				<button
+					type="button"
+					class="modal-btn close-btn"
+					onclick={closeModal}
+					title="Close modal (Esc)"
+					aria-label="Close modal"
+				>
+					<X size={15} />
+				</button>
+			</div>
+		</div>
+
+		<div
+			class="mermaid-modal-canvas"
+			class:panning={isPanning}
+			onwheel={handleWheel}
+			onpointerdown={handlePointerDown}
+			onpointermove={handlePointerMove}
+			onpointerup={handlePointerUp}
+			role="region"
+			aria-label="Pan and zoom canvas"
+		>
+			<div
+				class="mermaid-transform-target"
+				style="transform: translate({panX}px, {panY}px) scale({zoomScale}); transform-origin: center center;"
+			>
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+				{@html svgHtml}
+			</div>
+		</div>
+
+		<div class="modal-footer-hint">
+			<span>Drag to pan &bull; Scroll to zoom &bull; Esc to close</span>
+		</div>
+	</Dialog.Content>
+</Dialog.Root>
 
 <style>
 	.mermaid-diagram-card {
@@ -432,40 +452,26 @@
 		color: var(--text-muted);
 	}
 
-	.mermaid-tabs {
-		display: inline-flex;
-		align-items: center;
-		background: var(--surface);
-		padding: 2px;
-		border-radius: 6px;
-		border: 1px solid var(--border);
-		gap: 2px;
-	}
-
-	.mermaid-tab {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		padding: 2px 8px;
-		border-radius: 4px;
-		border: none;
-		background: transparent;
+	/* Tabs.Trigger renders a <button>, and the project's unlayered
+	   `button { font: inherit }` reset (layout.css) outranks every layered Tailwind font
+	   utility, so the chip's type is declared here instead — the same values the old
+	   `.mermaid-tab` rule used. The active weight has to live here for the same reason:
+	   `data-[state=active]:font-semibold` would never apply. */
+	:global(.mermaid-tab) {
 		font-size: 0.75rem;
 		font-weight: 500;
-		color: var(--text-muted);
-		cursor: pointer;
-		transition: all 0.14s ease;
 	}
 
-	.mermaid-tab:hover {
-		color: var(--text-strong);
-	}
-
-	.mermaid-tab.active {
-		background: var(--surface-hover);
-		color: var(--text-strong);
+	:global(.mermaid-tab[data-state='active']) {
 		font-weight: 600;
-		box-shadow: 0 1px 2px var(--shadow-softer);
+	}
+
+	/* shadcn's Tabs.Content ships `flex-1 text-sm`; the panes keep their natural height and
+	   the type scale they inherit from the message body. */
+	:global(.mermaid-tab-panel) {
+		flex: none;
+		font-size: inherit;
+		line-height: inherit;
 	}
 
 	.mermaid-header-actions {
@@ -620,30 +626,10 @@
 	}
 
 	/* ---------- Fullscreen / Zoom Modal ---------- */
-	.mermaid-modal-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 100;
-		background: var(--overlay);
-		backdrop-filter: blur(4px);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		padding: 24px;
-	}
-
-	.mermaid-modal-container {
-		width: 95vw;
-		height: 90vh;
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		box-shadow: 0 20px 45px var(--shadow);
-		display: flex;
-		flex-direction: column;
-		overflow: hidden;
-	}
-
+	/* The shell (backdrop + container) is now shadcn's Dialog.Content, styled with
+	   Tailwind utilities on the element, so the old `.mermaid-modal-backdrop` /
+	   `.mermaid-modal-container` box rules are gone. Everything below styles only the
+	   modal's inner content, which Dialog.Content renders verbatim. */
 	.mermaid-modal-header {
 		display: flex;
 		align-items: center;

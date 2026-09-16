@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { FileText, FolderKanban, Plus, Sparkles, Trash2, WandSparkles } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import type { Skill } from './skills-types';
 
 	let {
@@ -58,7 +59,9 @@
 		<span class="updated">Updated {formatDate(skill.updatedAt)}</span>
 	</div>
 	<div class="card-actions">
-		<button class="button" onclick={onedit}><FileText size={14} /> Edit</button><button
+		<Button variant="outline" size="sm" class="card-edit-button" onclick={onedit}
+			><FileText size={14} /> Edit</Button
+		><button
 			class="icon-action"
 			onclick={onduplicate}
 			aria-label={`Duplicate ${skill.name}`}
@@ -185,9 +188,7 @@
 		padding-top: 14px;
 		border-top: 1px solid var(--border);
 	}
-	.card-actions .button {
-		min-height: 32px;
-		padding: 6px 10px;
+	.card-actions :global(.card-edit-button) {
 		font-size: var(--text-xs);
 	}
 	.icon-action {
@@ -212,25 +213,5 @@
 	.icon-action.danger:hover {
 		color: var(--danger-text);
 		background: color-mix(in srgb, var(--danger-text) 10%, transparent);
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button:hover:not(:disabled) {
-		color: var(--text-strong);
-		background: var(--surface-hover);
-		border-color: var(--text-dim);
 	}
 </style>

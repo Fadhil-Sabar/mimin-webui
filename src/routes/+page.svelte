@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import { toast } from 'svelte-sonner';
 	import {
 		FileText,
 		FolderKanban,
@@ -16,6 +17,7 @@
 		User
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
@@ -33,7 +35,6 @@
 		peekNavigationHandoff
 	} from '$lib/client/navigation-handoff';
 	let prompt = $state('');
-	let toast = $state('');
 	let { data } = $props();
 	let user = $derived(data.user);
 	let conversations = $state<ConversationSummary[]>([]);
@@ -41,10 +42,6 @@
 	let modelsLoading = $state(true);
 	let modelLoadError = $state('');
 	let selectedModel = $state('');
-	function notify(message: string) {
-		toast = message;
-		setTimeout(() => (toast = ''), 1600);
-	}
 	function usePrompt(value: string) {
 		prompt = value;
 	}
@@ -68,10 +65,10 @@
 				.map((error: { message?: string }) => error.message ?? '')
 				.filter(Boolean)
 				.join(' ');
-			if (modelLoadError) notify('Some live models could not be loaded. Check Providers.');
+			if (modelLoadError) toast('Some live models could not be loaded. Check Providers.');
 			selectedModel = resolveInitialModel(configuredModels) ?? '';
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load models');
+			toast(error instanceof Error ? error.message : 'Could not load models');
 		} finally {
 			modelsLoading = false;
 		}
@@ -80,11 +77,11 @@
 	async function submitPrompt() {
 		const content = prompt.trim();
 		if (!content) {
-			notify('Write a prompt first');
+			toast('Write a prompt first');
 			return;
 		}
 		if (!selectedModel) {
-			notify(
+			toast(
 				modelLoadError
 					? 'Live models are unavailable. Check Providers.'
 					: 'Configure a provider before starting a chat'
@@ -107,7 +104,7 @@
 			createNavigationHandoff({ prompt: content, returnTo: `/chat?id=${conversation.id}` });
 			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}`;
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not start a conversation');
+			toast(error instanceof Error ? error.message : 'Could not start a conversation');
 		}
 	}
 
@@ -161,12 +158,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -279,7 +271,6 @@
 		</div>
 	</main>
 </div>
-{#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <style>
 	.home-wrap {
@@ -391,18 +382,6 @@
 	.example-row button:hover {
 		color: var(--text-body);
 		background: var(--surface-hover);
-	}
-	.toast {
-		position: fixed;
-		bottom: 22px;
-		left: 50%;
-		transform: translateX(-50%);
-		background: var(--accent-bg);
-		color: var(--accent-fg);
-		font-size: var(--text-sm);
-		padding: 8px 13px;
-		border-radius: 6px;
-		z-index: 50;
 	}
 	@media (max-width: 700px) {
 		.home-wrap {

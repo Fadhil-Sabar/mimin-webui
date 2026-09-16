@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { Check, Eye, EyeOff, Loader2, X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import type { ConnectionField, SearchProviderType, WebSearchSettingsState } from './types';
 
 	type Props = {
@@ -29,109 +31,117 @@
 	}: Props = $props();
 </script>
 
-<div
-	class="modal-backdrop"
-	role="dialog"
-	aria-modal="true"
-	aria-labelledby="search-connection-dialog-title"
-	tabindex="-1"
-	onclick={(event) => event.target === event.currentTarget && onclose()}
-	onkeydown={(event) => event.key === 'Escape' && onclose()}
+<Dialog.Root
+	open={true}
+	onOpenChange={(open) => {
+		if (!open) onclose();
+	}}
 >
-	<form
-		class="modal search-connection-modal"
-		onsubmit={(event) => {
-			event.preventDefault();
-			onsave();
-		}}
+	<Dialog.Content
+		showCloseButton={false}
+		aria-labelledby="search-connection-dialog-title"
+		class="w-[min(420px,100%)] max-w-none! gap-0 rounded-xl border border-[var(--border-strong)] p-6 shadow-[0_20px_50px_var(--shadow)] ring-0"
 	>
-		<div class="modal-head">
-			<div>
-				<h2 id="search-connection-dialog-title">
-					{field === 'apiKey'
-						? settings.apiKeyFromUser
-							? 'Manage search API key'
-							: 'Connect search API key'
-						: settings.searchUrlFromUser
-							? 'Manage search endpoint'
-							: 'Connect search endpoint'}
-				</h2>
-				<p class="modal-description">
-					{field === 'apiKey'
-						? 'Add a key for the selected search provider. It is encrypted before storage.'
-						: 'Add a custom endpoint without changing your selected search provider.'}
+		<!-- `.modal` is kept on the form so the global `.modal h2/label/input/...`
+		     rules still style the heading, label and URL input. Its own box is
+		     neutralised so Dialog.Content is the only visible shell. -->
+		<form
+			class="modal search-connection-modal w-full! max-w-none! border-0! bg-transparent! p-0! shadow-none!"
+			onsubmit={(event) => {
+				event.preventDefault();
+				onsave();
+			}}
+		>
+			<div class="modal-head">
+				<div>
+					<h2 id="search-connection-dialog-title">
+						{field === 'apiKey'
+							? settings.apiKeyFromUser
+								? 'Manage search API key'
+								: 'Connect search API key'
+							: settings.searchUrlFromUser
+								? 'Manage search endpoint'
+								: 'Connect search endpoint'}
+					</h2>
+					<p class="modal-description">
+						{field === 'apiKey'
+							? 'Add a key for the selected search provider. It is encrypted before storage.'
+							: 'Add a custom endpoint without changing your selected search provider.'}
+					</p>
+				</div>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon"
+					aria-label="Close"
+					title="Close dialog"
+					onclick={onclose}><X size={18} /></Button
+				>
+			</div>
+
+			{#if field === 'apiKey'}
+				<label for="search-api-key-modal">Search API key</label>
+				<div class="input-with-button">
+					<input
+						id="search-api-key-modal"
+						type={showApiKey ? 'text' : 'password'}
+						bind:value={apiKeyDraft}
+						placeholder={settings.apiKeyFromUser
+							? `Configured (${settings.apiKey}) - enter new key to replace`
+							: settings.apiKeyEnvConfigured
+								? 'Server default configured - enter a key to override'
+								: 'tvly-...'}
+						autocomplete="off"
+						spellcheck="false"
+					/>
+					<button
+						type="button"
+						class="toggle-eye-btn"
+						onclick={() => (showApiKey = !showApiKey)}
+						title={showApiKey ? 'Hide key' : 'Show key'}
+						aria-label={showApiKey ? 'Hide key' : 'Show key'}
+					>
+						{#if showApiKey}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
+					</button>
+				</div>
+				<p class="field-help">
+					Stored securely with AES-256-GCM encryption. Blank values keep the existing key.
 				</p>
-			</div>
-			<button
-				type="button"
-				class="icon-button"
-				aria-label="Close"
-				title="Close dialog"
-				onclick={onclose}><X size={18} /></button
-			>
-		</div>
-
-		{#if field === 'apiKey'}
-			<label for="search-api-key-modal">Search API key</label>
-			<div class="input-with-button">
+			{:else}
+				<label for="search-url-modal">Custom search endpoint / URL</label>
 				<input
-					id="search-api-key-modal"
-					type={showApiKey ? 'text' : 'password'}
-					bind:value={apiKeyDraft}
-					placeholder={settings.apiKeyFromUser
-						? `Configured (${settings.apiKey}) - enter new key to replace`
-						: settings.apiKeyEnvConfigured
-							? 'Server default configured - enter a key to override'
-							: 'tvly-...'}
+					id="search-url-modal"
+					type="url"
+					bind:value={searchUrlDraft}
+					placeholder={provider === 'searxng'
+						? 'https://searxng.example.com/search'
+						: 'https://api.tavily.com/search or custom proxy URL'}
 					autocomplete="off"
-					spellcheck="false"
 				/>
-				<button
-					type="button"
-					class="toggle-eye-btn"
-					onclick={() => (showApiKey = !showApiKey)}
-					title={showApiKey ? 'Hide key' : 'Show key'}
-					aria-label={showApiKey ? 'Hide key' : 'Show key'}
-				>
-					{#if showApiKey}<EyeOff size={16} />{:else}<Eye size={16} />{/if}
-				</button>
-			</div>
-			<p class="field-help">
-				Stored securely with AES-256-GCM encryption. Blank values keep the existing key.
-			</p>
-		{:else}
-			<label for="search-url-modal">Custom search endpoint / URL</label>
-			<input
-				id="search-url-modal"
-				type="url"
-				bind:value={searchUrlDraft}
-				placeholder={provider === 'searxng'
-					? 'https://searxng.example.com/search'
-					: 'https://api.tavily.com/search or custom proxy URL'}
-				autocomplete="off"
-			/>
-			<p class="field-help">
-				Supports custom Tavily proxies, SearXNG endpoints, or GET URLs with
-				<code class="mono">&#123;query&#125;</code>.
-			</p>
-		{/if}
-
-		<div class="modal-actions">
-			{#if (field === 'apiKey' && settings.apiKeyFromUser) || (field === 'searchUrl' && settings.searchUrlFromUser)}
-				<button
-					type="button"
-					class="button danger remove-connection"
-					onclick={() => onremove(field)}
-					disabled={saving}>Remove</button
-				>
+				<p class="field-help">
+					Supports custom Tavily proxies, SearXNG endpoints, or GET URLs with
+					<code class="mono">&#123;query&#125;</code>.
+				</p>
 			{/if}
-			<button type="button" class="button" onclick={onclose}>Cancel</button>
-			<button type="submit" class="button primary" disabled={saving}>
-				{#if saving}<Loader2 size={15} class="spin" /> Saving...{:else}<Check size={15} /> Save connection{/if}
-			</button>
-		</div>
-	</form>
-</div>
+
+			<div class="modal-actions">
+				{#if (field === 'apiKey' && settings.apiKeyFromUser) || (field === 'searchUrl' && settings.searchUrlFromUser)}
+					<Button
+						type="button"
+						variant="destructive"
+						class="remove-connection"
+						onclick={() => onremove(field)}
+						disabled={saving}>Remove</Button
+					>
+				{/if}
+				<Button type="button" variant="outline" onclick={onclose}>Cancel</Button>
+				<Button type="submit" variant="default" disabled={saving}>
+					{#if saving}<Loader2 size={15} class="spin" /> Saving...{:else}<Check size={15} /> Save connection{/if}
+				</Button>
+			</div>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <style>
 	.field-help {
@@ -146,7 +156,7 @@
 		font-size: var(--text-sm);
 		line-height: 1.45;
 	}
-	.remove-connection {
+	:global(.remove-connection) {
 		margin-right: auto;
 	}
 

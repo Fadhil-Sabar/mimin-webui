@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { ChevronDown, Wrench } from '@lucide/svelte';
+	import * as Popover from '$lib/components/ui/popover/index.js';
+	import * as Sheet from '$lib/components/ui/sheet/index.js';
 
 	export type ToolOption = {
 		name: string;
@@ -26,11 +27,8 @@
 	let { tools, enabledTools, loading = false, disabled = false, ontoggle }: Props = $props();
 
 	let open = $state(false);
-	let root = $state<HTMLDivElement | undefined>();
-	let trigger = $state<HTMLButtonElement | undefined>();
-	let menu = $state<HTMLDivElement | undefined>();
-	let placement = $state<'top' | 'bottom'>('top');
-	let maxHeight = $state<string | undefined>(undefined);
+	let isMobile = $state(false);
+	let menu = $state<HTMLElement | null>(null);
 
 	let enabledCount = $derived(
 		tools.filter((tool) =>
@@ -38,19 +36,13 @@
 		).length
 	);
 
-	function updatePlacement() {
-		if (!trigger) return;
-		const rect = trigger.getBoundingClientRect();
-		const spaceAbove = rect.top;
-		const spaceBelow = window.innerHeight - rect.bottom;
-		if (spaceAbove < 320 && spaceBelow > spaceAbove) {
-			placement = 'bottom';
-			maxHeight = `${Math.max(160, Math.min(420, spaceBelow - 20))}px`;
-		} else {
-			placement = 'top';
-			maxHeight = `${Math.max(160, Math.min(420, spaceAbove - 20))}px`;
-		}
-	}
+	$effect(() => {
+		const query = window.matchMedia('(max-width: 700px)');
+		isMobile = query.matches;
+		const onChange = (event: MediaQueryListEvent) => (isMobile = event.matches);
+		query.addEventListener('change', onChange);
+		return () => query.removeEventListener('change', onChange);
+	});
 
 	function focusFirst() {
 		const first = menu?.querySelector<HTMLElement>(
@@ -59,20 +51,9 @@
 		(first ?? menu)?.focus();
 	}
 
-	function close() {
-		open = false;
-		trigger?.focus();
-	}
-
-	async function toggle() {
-		if (disabled || loading) return;
-		open = !open;
-		if (open) {
-			updatePlacement();
-			await tick();
-			updatePlacement();
-			focusFirst();
-		}
+	function handleOpenAutoFocus(event: Event) {
+		event.preventDefault();
+		focusFirst();
 	}
 
 	function toggleTool(name: string) {
@@ -81,162 +62,129 @@
 		const isCurrentlyEnabled = enabledTools.includes(name);
 		void ontoggle?.(name, !isCurrentlyEnabled);
 	}
-
-	function closeOnOutsideClick(event: MouseEvent) {
-		if (!open || !root) return;
-		if (event.target instanceof Node && !root.contains(event.target)) {
-			close();
-		}
-	}
-
-	function trapFocus(event: KeyboardEvent) {
-		if (!open || event.key !== 'Tab' || !menu) return;
-		const focusable = [
-			...menu.querySelectorAll<HTMLElement>('button, a, input, [tabindex]:not([tabindex="-1"])')
-		].filter((element) => !element.hasAttribute('disabled'));
-		if (focusable.length === 0) {
-			event.preventDefault();
-			menu.focus();
-			return;
-		}
-		const index = focusable.indexOf(document.activeElement as HTMLElement);
-		if (event.shiftKey && (index <= 0 || index === -1)) {
-			event.preventDefault();
-			focusable.at(-1)?.focus();
-		} else if (!event.shiftKey && (index === focusable.length - 1 || index === -1)) {
-			event.preventDefault();
-			focusable[0]?.focus();
-		}
-	}
-
-	function handleKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && open) {
-			open = false;
-			trigger?.focus();
-		}
-	}
 </script>
 
-<svelte:window
-	onclick={closeOnOutsideClick}
-	onkeydown={(event) => {
-		handleKeydown(event);
-		trapFocus(event);
-	}}
-/>
-
-<div class="tool-picker" bind:this={root}>
-	<button
-		type="button"
-		class="tool-trigger"
-		disabled={disabled || loading}
-		aria-haspopup="dialog"
-		aria-expanded={open}
-		onclick={toggle}
-		bind:this={trigger}
-	>
-		<Wrench size={15} aria-hidden="true" />
-		<span class="tool-trigger-label">
-			Tools{#if enabledCount > 0}
-				<span class="tool-count-badge">{enabledCount}</span>
+{#snippet pickerBody()}
+	<div class="tool-menu-header">
+		<span class="tool-menu-title">Agent Tools</span>
+		<span class="tool-menu-subtitle">{enabledCount} active</span>
+	</div>
+	<div class="tool-list">
+		{#each tools as tool (tool.name)}
+			{@const isReadOnly = Boolean(tool.readOnly)}
+			{@const isEnabled = isReadOnly ? Boolean(tool.enabled) : enabledTools.includes(tool.name)}
+			{#if isReadOnly}
+				<div class="tool-item readonly" class:active={isEnabled}>
+					<div class="tool-info">
+						<div class="tool-name-row">
+							<strong>{tool.label}</strong>
+							<span class="tool-status-badge" class:enabled={isEnabled}>
+								{isEnabled ? 'Enabled' : 'Disabled'}
+							</span>
+						</div>
+						<p class="tool-desc">{tool.description}</p>
+						<p class="tool-settings-info">
+							Can only be configured in <a
+								href={tool.settingHref === '/settings/web-search'
+									? resolve('/settings/web-search')
+									: resolve('/settings/browser-extension')}
+								onclick={(e) => e.stopPropagation()}
+							>
+								Settings &rsaquo; Browser Extension
+							</a>
+						</p>
+					</div>
+					<div
+						class="tool-switch readonly"
+						class:checked={isEnabled}
+						aria-hidden="true"
+						title="Can only be configured in Settings"
+					>
+						<div class="tool-switch-handle"></div>
+					</div>
+				</div>
+			{:else}
+				<button
+					type="button"
+					class="tool-item"
+					class:active={isEnabled}
+					onclick={() => toggleTool(tool.name)}
+					onkeydown={(event) => event.key === ' ' && event.preventDefault()}
+					aria-pressed={isEnabled}
+				>
+					<div class="tool-info">
+						<div class="tool-name-row">
+							<strong>{tool.label}</strong>
+						</div>
+						<p class="tool-desc">{tool.description}</p>
+					</div>
+					<div class="tool-switch" class:checked={isEnabled} aria-hidden="true">
+						<div class="tool-switch-handle"></div>
+					</div>
+				</button>
 			{/if}
-		</span>
-		<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
-	</button>
+		{/each}
+		{#if tools.length === 0}
+			<div class="tool-empty">No tools available</div>
+		{/if}
+	</div>
+{/snippet}
 
-	{#if open}
-		<button
-			type="button"
-			class="picker-backdrop"
-			onclick={() => {
-				open = false;
-			}}
-			aria-label="Close tools menu"
-			tabindex="-1"
-		></button>
-		<div
+{#if isMobile}
+	<Sheet.Root bind:open>
+		<Sheet.Trigger class="tool-trigger" disabled={disabled || loading} aria-haspopup="dialog">
+			<Wrench size={15} aria-hidden="true" />
+			<span class="tool-trigger-label">
+				Tools{#if enabledCount > 0}
+					<span class="tool-count-badge">{enabledCount}</span>
+				{/if}
+			</span>
+			<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
+		</Sheet.Trigger>
+		<Sheet.Content
+			bind:ref={menu}
+			side="bottom"
+			showCloseButton={false}
 			class="tool-menu"
-			class:placement-bottom={placement === 'bottom'}
-			style:max-height={maxHeight}
 			role="dialog"
 			aria-modal="true"
 			aria-label="Available tools"
-			tabindex="-1"
-			bind:this={menu}
+			tabindex={-1}
 		>
-			<div class="tool-menu-header">
-				<span class="tool-menu-title">Agent Tools</span>
-				<span class="tool-menu-subtitle">{enabledCount} active</span>
-			</div>
-			<div class="tool-list">
-				{#each tools as tool (tool.name)}
-					{@const isReadOnly = Boolean(tool.readOnly)}
-					{@const isEnabled = isReadOnly ? Boolean(tool.enabled) : enabledTools.includes(tool.name)}
-					{#if isReadOnly}
-						<div class="tool-item readonly" class:active={isEnabled}>
-							<div class="tool-info">
-								<div class="tool-name-row">
-									<strong>{tool.label}</strong>
-									<span class="tool-status-badge" class:enabled={isEnabled}>
-										{isEnabled ? 'Enabled' : 'Disabled'}
-									</span>
-								</div>
-								<p class="tool-desc">{tool.description}</p>
-								<p class="tool-settings-info">
-									Can only be configured in <a
-										href={tool.settingHref === '/settings/web-search'
-											? resolve('/settings/web-search')
-											: resolve('/settings/browser-extension')}
-										onclick={(e) => e.stopPropagation()}
-									>
-										Settings &rsaquo; Browser Extension
-									</a>
-								</p>
-							</div>
-							<div
-								class="tool-switch readonly"
-								class:checked={isEnabled}
-								aria-hidden="true"
-								title="Can only be configured in Settings"
-							>
-								<div class="tool-switch-handle"></div>
-							</div>
-						</div>
-					{:else}
-						<button
-							type="button"
-							class="tool-item"
-							class:active={isEnabled}
-							onclick={() => toggleTool(tool.name)}
-							onkeydown={(event) => event.key === ' ' && event.preventDefault()}
-							aria-pressed={isEnabled}
-						>
-							<div class="tool-info">
-								<div class="tool-name-row">
-									<strong>{tool.label}</strong>
-								</div>
-								<p class="tool-desc">{tool.description}</p>
-							</div>
-							<div class="tool-switch" class:checked={isEnabled} aria-hidden="true">
-								<div class="tool-switch-handle"></div>
-							</div>
-						</button>
-					{/if}
-				{/each}
-				{#if tools.length === 0}
-					<div class="tool-empty">No tools available</div>
+			{@render pickerBody()}
+		</Sheet.Content>
+	</Sheet.Root>
+{:else}
+	<Popover.Root bind:open>
+		<Popover.Trigger class="tool-trigger" disabled={disabled || loading} aria-haspopup="dialog">
+			<Wrench size={15} aria-hidden="true" />
+			<span class="tool-trigger-label">
+				Tools{#if enabledCount > 0}
+					<span class="tool-count-badge">{enabledCount}</span>
 				{/if}
-			</div>
-		</div>
-	{/if}
-</div>
+			</span>
+			<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
+		</Popover.Trigger>
+		<Popover.Content
+			bind:ref={menu}
+			side="top"
+			sideOffset={8}
+			avoidCollisions
+			trapFocus
+			class="tool-menu max-h-[min(420px,58vh)] w-[min(320px,calc(100vw-36px))] gap-0 overflow-y-auto rounded-[9px] border border-[var(--border-strong)] p-1.5 shadow-[0_14px_32px_var(--shadow)] ring-0"
+			role="dialog"
+			aria-modal="true"
+			aria-label="Available tools"
+			tabindex={-1}
+			onOpenAutoFocus={handleOpenAutoFocus}
+		>
+			{@render pickerBody()}
+		</Popover.Content>
+	</Popover.Root>
+{/if}
 
 <style>
-	.tool-picker {
-		position: relative;
-		min-width: 0;
-	}
-	.tool-trigger {
+	:global(.tool-trigger) {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
@@ -251,11 +199,11 @@
 		cursor: pointer;
 		transition: 0.18s ease;
 	}
-	.tool-trigger:hover:not(:disabled) {
+	:global(.tool-trigger:hover:not(:disabled)) {
 		color: var(--text-strong);
 		border-color: var(--text-faint);
 	}
-	.tool-trigger:disabled {
+	:global(.tool-trigger:disabled) {
 		opacity: 0.72;
 		cursor: not-allowed;
 	}
@@ -279,31 +227,17 @@
 		font-weight: 600;
 		line-height: 1;
 	}
-	.tool-trigger :global(svg:last-child) {
+	:global(.tool-trigger svg:last-child) {
 		flex: 0 0 auto;
 		color: var(--text-faint);
 		transition: transform 0.18s ease;
 	}
-	.tool-trigger :global(svg:last-child.rotated) {
+	:global(.tool-trigger svg:last-child.rotated) {
 		transform: rotate(180deg);
 	}
-	.tool-menu {
-		position: absolute;
-		bottom: calc(100% + 8px);
-		left: 0;
-		z-index: 20;
-		width: min(320px, calc(100vw - 36px));
-		max-height: min(420px, 58vh);
-		overflow-y: auto;
+	:global(.tool-menu) {
 		padding: 6px;
-		border: 1px solid var(--border-strong);
-		border-radius: 9px;
-		background: var(--surface);
-		box-shadow: 0 14px 32px var(--shadow);
-	}
-	.tool-menu.placement-bottom {
-		bottom: auto;
-		top: calc(100% + 8px);
+		overflow-y: auto;
 	}
 	.tool-menu-header {
 		display: flex;
@@ -453,38 +387,21 @@
 		color: var(--text-dim);
 		font-size: var(--text-sm);
 	}
-	.picker-backdrop {
-		display: none;
-	}
 	@media (max-width: 700px) {
-		.picker-backdrop {
-			display: block;
-			position: fixed;
-			inset: 0;
-			background: var(--overlay);
-			backdrop-filter: blur(2px);
-			-webkit-backdrop-filter: blur(2px);
-			z-index: 65;
-			border: 0;
-			padding: 0;
-			margin: 0;
-			cursor: pointer;
-		}
-		.tool-trigger {
+		:global(.tool-trigger) {
 			min-height: 34px;
 			padding: 5px 8px;
 			font-size: var(--text-xs);
 		}
-		.tool-menu {
-			position: fixed;
+		:global(.tool-menu) {
 			top: auto;
-			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 			left: 12px;
 			right: 12px;
+			bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 			width: auto;
 			max-width: calc(100vw - 24px);
-			max-height: min(460px, 75dvh) !important;
-			z-index: 70;
+			max-height: min(460px, 75dvh);
+			border: 1px solid var(--border-strong);
 			border-radius: 12px;
 			box-shadow: 0 16px 48px var(--shadow);
 		}

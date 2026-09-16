@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
+	import { toast } from 'svelte-sonner';
 	import {
 		FileText,
 		FolderKanban,
@@ -18,6 +19,8 @@
 	} from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SidebarBackdrop from '$lib/components/SidebarBackdrop.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import ConfirmDeleteDialog from './ConfirmDeleteDialog.svelte';
@@ -25,7 +28,6 @@
 	import SkillGrid from './SkillGrid.svelte';
 	import SkillsEmptyState from './SkillsEmptyState.svelte';
 	import SkillsToolbar from './SkillsToolbar.svelte';
-	import Toast from './Toast.svelte';
 	import { MAX_NAME, MAX_TRIGGER_LENGTH, MAX_TRIGGERS } from './skills-constants';
 	import type { Project, ScopeFilter, Skill, SkillDraft, Tool } from './skills-types';
 
@@ -41,7 +43,6 @@
 	let query = $state('');
 	let scopeFilter = $state<ScopeFilter>(initialProjectId ? 'project' : 'all');
 	let selectedProjectId = $state(initialProjectId);
-	let toast = $state('');
 	let editorOpen = $state(false);
 	let editingSkill = $state<Skill | null>(null);
 	let deletingSkill = $state<Skill | null>(null);
@@ -80,13 +81,6 @@
 			return matchesScope && matchesProject && matchesQuery;
 		});
 	});
-
-	function notify(message: string) {
-		toast = message;
-		setTimeout(() => {
-			if (toast === message) toast = '';
-		}, 2200);
-	}
 
 	async function responseMessage(response: Response, fallback: string) {
 		const payload = await response.json().catch(() => null);
@@ -296,7 +290,7 @@
 			}
 			editorOpen = false;
 			restoreFocus();
-			notify(editingSkill ? 'Skill updated' : 'Skill created');
+			toast(editingSkill ? 'Skill updated' : 'Skill created');
 		} catch (error) {
 			formError = error instanceof Error ? error.message : 'Could not save skill';
 		} finally {
@@ -313,11 +307,11 @@
 			const response = await fetch(`/api/skills/${targetId}`, { method: 'DELETE' });
 			if (!response.ok) throw new Error(await responseMessage(response, 'Could not delete skill'));
 			skills = skills.filter((skill) => skill.id !== targetId);
-			notify('Skill deleted');
+			toast('Skill deleted');
 			deletingSkill = null;
 			restoreFocus();
 		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not delete skill');
+			toast(error instanceof Error ? error.message : 'Could not delete skill');
 		} finally {
 			deleting = false;
 		}
@@ -349,12 +343,7 @@
 	class:sidebar-collapsed={sidebar.collapsed}
 	class:mobile-open={sidebar.mobileOpen}
 >
-	<button
-		class="sidebar-backdrop"
-		onclick={() => sidebar.closeMobile()}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
+	<SidebarBackdrop />
 	<aside class="sidebar">
 		<div class="sidebar-top-row">
 			<div class="brand">
@@ -427,8 +416,8 @@
 					<h1>Skills</h1>
 					<p>Specialized instructions and workflows for your assistant.</p>
 				</div>
-				<button class="button primary" onclick={() => openCreate(null)}
-					><Plus size={16} /> New skill</button
+				<Button variant="default" class="page-heading-action" onclick={() => openCreate(null)}
+					><Plus size={16} /> New skill</Button
 				>
 			</div>
 
@@ -500,8 +489,6 @@
 	/>
 {/if}
 
-<Toast message={toast} />
-
 <svelte:window
 	onkeydown={(event) => {
 		if (event.key === 'Escape') {
@@ -539,35 +526,6 @@
 		font-size: var(--text-sm);
 		line-height: 1.5;
 	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button:hover:not(:disabled) {
-		color: var(--text-strong);
-		background: var(--surface-hover);
-		border-color: var(--text-dim);
-	}
-	.button.primary {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.button.primary:hover:not(:disabled) {
-		background: var(--accent-bg-hover);
-		border-color: var(--accent-bg-hover);
-	}
 	@media (max-width: 720px) {
 		.skills-wrap {
 			padding: 28px 18px 60px;
@@ -577,7 +535,7 @@
 			flex-direction: column;
 			gap: 20px;
 		}
-		.page-heading > .button {
+		.page-heading > :global(.page-heading-action) {
 			width: 100%;
 		}
 	}

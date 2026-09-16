@@ -5,6 +5,7 @@
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { conversationSearch } from '$lib/client/conversations.svelte';
 	import ConversationSearchModal from '$lib/components/ConversationSearchModal.svelte';
+	import { Toaster } from '$lib/components/ui/sonner/index.js';
 
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
@@ -41,6 +42,7 @@
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 {@render children()}
 <ConversationSearchModal />
+<Toaster />
 <a
 	class="source-link"
 	href="https://github.com/Fadhil-Sabar/mimin-webui"
