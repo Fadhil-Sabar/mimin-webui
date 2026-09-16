@@ -1,7 +1,6 @@
 <script lang="ts">
-	import { tick, onMount } from 'svelte';
 	import { X } from '@lucide/svelte';
-	import { focusModalPrimary, trapModalFocus } from './skills-focus';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import type { Skill } from './skills-types';
 
 	let {
@@ -16,168 +15,60 @@
 		onconfirm: () => void;
 	} = $props();
 
-	let dialogElement = $state<HTMLDivElement>();
-	let opener: HTMLElement | null = null;
+	let viaAction = false;
+	let keepButton = $state<HTMLButtonElement | null>(null);
 
-	onMount(() => {
-		opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-	});
-
-	async function close() {
-		onclose();
-		await tick();
-		opener?.focus();
+	function handleAction() {
+		viaAction = true;
+		onconfirm();
 	}
 
-	$effect(() => {
-		const element = dialogElement;
-		if (element) void focusModalPrimary(element);
-	});
+	function handleOpenChange(next: boolean) {
+		if (next) return;
+		if (viaAction) {
+			viaAction = false;
+			return;
+		}
+		if (!deleting) onclose();
+	}
 </script>
 
-<div
-	class="modal-backdrop"
-	role="presentation"
-	tabindex="-1"
-	onclick={(event) => !deleting && event.target === event.currentTarget && void close()}
-	onkeydown={(event) => {
-		if (event.key === 'Escape' && !deleting) void close();
-	}}
->
-	<div
-		class="modal confirm-modal"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="delete-skill-title"
-		tabindex="-1"
-		bind:this={dialogElement}
-		onkeydown={(event) => trapModalFocus(event, dialogElement)}
+<AlertDialog.Root open={true} onOpenChange={handleOpenChange}>
+	<AlertDialog.Content
+		class="w-[min(470px,100%)] max-w-none! gap-0 border border-[var(--border-strong)] p-6 shadow-[0_20px_50px_var(--shadow)] ring-0"
+		onOpenAutoFocus={(event) => {
+			event.preventDefault();
+			keepButton?.focus();
+		}}
 	>
-		<div class="modal-head">
-			<div>
-				<h2 id="delete-skill-title">Delete skill?</h2>
-			</div>
-			<button
-				class="icon-button"
-				onclick={() => void close()}
+		<AlertDialog.Header class="flex items-start justify-between gap-4 text-left">
+			<AlertDialog.Title
+				class="ui-text-lg font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
+			>
+				Delete skill?
+			</AlertDialog.Title>
+			<AlertDialog.Cancel
+				variant="ghost"
+				size="icon-sm"
 				disabled={deleting}
-				aria-label="Close dialog"><X size={18} /></button
+				aria-label="Close dialog"
 			>
-		</div>
-		<p class="modal-text">
-			Delete <strong>“{skill.name}”</strong>? Existing conversation turns keep their saved
-			instructions, while future activations will no longer find this skill.
-		</p>
-		<div class="modal-actions">
-			<button class="button" onclick={() => void close()} disabled={deleting} data-modal-primary
-				>Keep skill</button
-			><button class="button danger" onclick={onconfirm} disabled={deleting}
-				>{deleting ? 'Deleting...' : 'Delete skill'}</button
-			>
-		</div>
-	</div>
-</div>
-
-<style>
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 40;
-		display: grid;
-		place-items: center;
-		padding: 20px;
-		background: var(--overlay);
-	}
-	.modal {
-		width: min(660px, 100%);
-		max-height: min(850px, calc(100dvh - 40px));
-		overflow: auto;
-		padding: 24px;
-		color: var(--text);
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		box-shadow: 0 20px 50px var(--shadow);
-	}
-	.confirm-modal {
-		width: min(470px, 100%);
-	}
-	.modal-head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 16px;
-	}
-	.modal h2 {
-		margin: 0;
-		color: var(--text-strong);
-		font-family: var(--font-body);
-		font-size: var(--text-lg);
-		font-weight: 600;
-		line-height: 1.3;
-		letter-spacing: -0.015em;
-	}
-	.modal-text {
-		margin: 18px 0 0;
-		color: var(--text-body);
-		font-size: var(--text-sm);
-		line-height: 1.6;
-	}
-	.modal-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-		margin-top: 22px;
-	}
-	.icon-button {
-		display: grid;
-		place-items: center;
-		width: 32px;
-		height: 32px;
-		padding: 0;
-		color: var(--text-muted);
-		background: transparent;
-		border: 0;
-		border-radius: 5px;
-		transition: 0.15s ease;
-	}
-	.button {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		min-height: 38px;
-		padding: 8px 13px;
-		border-radius: 6px;
-		border: 1px solid var(--border-strong);
-		background: var(--surface);
-		color: var(--text-body);
-		font-family: var(--font-body);
-		font-size: var(--text-sm);
-		font-weight: 500;
-		transition: 0.18s ease;
-	}
-	.button:hover:not(:disabled) {
-		color: var(--text-strong);
-		background: var(--surface-hover);
-		border-color: var(--text-dim);
-	}
-	.button.danger {
-		color: var(--danger-text);
-		border-color: color-mix(in srgb, var(--danger-text) 30%, transparent);
-		background: transparent;
-	}
-	.button.danger:hover:not(:disabled) {
-		color: var(--danger-text);
-		border-color: var(--danger-text);
-		background: color-mix(in srgb, var(--danger-text) 10%, transparent);
-	}
-	.button:disabled {
-		opacity: 0.6;
-		cursor: wait;
-	}
-	@media (max-width: 560px) {
-		.modal {
-			padding: 19px;
-		}
-	}
-</style>
+				<X size={18} />
+			</AlertDialog.Cancel>
+		</AlertDialog.Header>
+		<AlertDialog.Description class="ui-text-sm mt-[18px] text-[var(--text-body)]">
+			Delete <strong>&ldquo;{skill.name}&rdquo;</strong>? Existing conversation turns keep their
+			saved instructions, while future activations will no longer find this skill.
+		</AlertDialog.Description>
+		<AlertDialog.Footer
+			class="mx-0 mt-[22px] mb-0 flex flex-row justify-end gap-2 rounded-none border-t-0 bg-transparent p-0"
+		>
+			<AlertDialog.Cancel variant="outline" disabled={deleting} bind:ref={keepButton}>
+				Keep skill
+			</AlertDialog.Cancel>
+			<AlertDialog.Action variant="destructive" disabled={deleting} onclick={handleAction}>
+				{deleting ? 'Deleting...' : 'Delete skill'}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>

@@ -46,6 +46,31 @@
 	outline-offset: 3px;
 }
 
+/* The project's own type scale. These are deliberately plain unlayered classes
+ * rather than `@utility`/Tailwind values: the unlayered `button, input, textarea
+ * { font: inherit }` reset below outranks anything in `@layer utilities`, because
+ * unlayered styles always beat layered ones regardless of specificity. */
+.ui-text-xs {
+	font-size: var(--text-xs);
+	line-height: 1.5;
+}
+.ui-text-sm {
+	font-size: var(--text-sm);
+	line-height: 1.5;
+}
+.ui-text-base {
+	font-size: var(--text-base);
+	line-height: 1.5;
+}
+.ui-text-lg {
+	font-size: var(--text-lg);
+	line-height: 1.3;
+}
+.ui-text-xl {
+	font-size: var(--text-xl);
+	line-height: 1.3;
+}
+
 /* ---------- Type scale (16px base) ---------- */
 :root {
 	--text-xs: 0.75rem; /* 12px - kbd hints, timestamps, counts */
