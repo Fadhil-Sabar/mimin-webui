@@ -3,6 +3,7 @@
 	import { ChevronDown, Wrench } from '@lucide/svelte';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import SwitchIndicator from '$lib/components/SwitchIndicator.svelte';
 
 	export type ToolOption = {
 		name: string;
@@ -94,14 +95,11 @@
 							</a>
 						</p>
 					</div>
-					<div
-						class="tool-switch readonly"
-						class:checked={isEnabled}
-						aria-hidden="true"
+					<SwitchIndicator
+						checked={isEnabled}
+						readonly
 						title="Can only be configured in Settings"
-					>
-						<div class="tool-switch-handle"></div>
-					</div>
+					/>
 				</div>
 			{:else}
 				<button
@@ -118,9 +116,7 @@
 						</div>
 						<p class="tool-desc">{tool.description}</p>
 					</div>
-					<div class="tool-switch" class:checked={isEnabled} aria-hidden="true">
-						<div class="tool-switch-handle"></div>
-					</div>
+					<SwitchIndicator checked={isEnabled} />
 				</button>
 			{/if}
 		{/each}
@@ -346,40 +342,6 @@
 	}
 	.tool-settings-info a:hover {
 		color: var(--focus, #3b82f6);
-	}
-	.tool-switch {
-		position: relative;
-		width: 34px;
-		height: 20px;
-		border-radius: 10px;
-		background: var(--surface-3, #333);
-		border: 1px solid var(--border);
-		transition:
-			background-color 0.2s ease,
-			border-color 0.2s ease;
-		flex-shrink: 0;
-	}
-	.tool-switch.checked {
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.tool-switch.readonly {
-		opacity: 0.55;
-		cursor: not-allowed;
-	}
-	.tool-switch-handle {
-		position: absolute;
-		top: 2px;
-		left: 2px;
-		width: 14px;
-		height: 14px;
-		border-radius: 50%;
-		background: #ffffff;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-		transition: transform 0.2s ease;
-	}
-	.tool-switch.checked .tool-switch-handle {
-		transform: translateX(14px);
 	}
 	.tool-empty {
 		padding: 16px 8px;

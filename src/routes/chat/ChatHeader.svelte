@@ -1,8 +1,7 @@
 <script lang="ts">
-	import { ChevronDown, LayoutTemplate, PanelLeft, Search } from '@lucide/svelte';
+	import { LayoutTemplate, Search } from '@lucide/svelte';
+	import Topbar from '$lib/components/Topbar.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
-	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { conversationSearch } from '$lib/client/conversations.svelte';
 	import type { Conversation } from './chat-types';
 
@@ -23,21 +22,12 @@
 	}: Props = $props();
 </script>
 
-<header class="topbar">
-	<div class="topbar-left">
-		<button
-			class="sidebar-toggle topbar-toggle"
-			onclick={() => sidebar.toggle()}
-			title="Toggle sidebar"
-			aria-label="Toggle sidebar"><PanelLeft size={16} /></button
-		>
-		<div class="breadcrumb">
-			<strong>Chat</strong><ChevronDown size={14} /><span
-				>{conversation?.title ?? 'New session'}</span
-			>
-		</div>
-	</div>
-	<div class="top-actions">
+<Topbar
+	breadcrumbs={[{ label: 'Chat' }, { label: conversation?.title ?? 'New session' }]}
+	separator="chevron-down"
+	showAvatar={false}
+>
+	{#snippet actions()}
 		{#if ontogglecanvas}
 			<button
 				class="canvas-toggle-btn"
@@ -59,9 +49,8 @@
 			title="Search conversations (⌘O)"
 			onclick={() => conversationSearch.open()}><Search size={17} /></Button
 		>
-		<ThemeToggle />
-	</div>
-</header>
+	{/snippet}
+</Topbar>
 
 <style>
 	.canvas-toggle-btn {
