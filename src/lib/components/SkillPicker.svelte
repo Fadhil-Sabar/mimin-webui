@@ -28,7 +28,7 @@
 	let open = $state(false);
 	let query = $state('');
 	let searchInput = $state<HTMLInputElement>();
-	let menu = $state<HTMLElement>();
+	let menu = $state<HTMLElement | null>(null);
 	let isMobile = $state(false);
 
 	let currentActiveId = $derived(activeSkillId ?? activeId ?? null);

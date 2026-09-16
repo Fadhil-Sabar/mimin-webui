@@ -28,7 +28,7 @@
 
 	let open = $state(false);
 	let isMobile = $state(false);
-	let menu = $state<HTMLElement | undefined>();
+	let menu = $state<HTMLElement | null>(null);
 
 	let enabledCount = $derived(
 		tools.filter((tool) =>
