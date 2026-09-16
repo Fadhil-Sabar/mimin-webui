@@ -23,7 +23,7 @@
 	import { authClient } from '$lib/client/auth';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
-	import { focusModalPrimary, trapModalFocus } from '../skills/skills-focus';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
 	type Project = {
 		id: string;
@@ -43,8 +43,7 @@
 	let newDescription = $state('');
 	let newInstructions = $state('');
 	let creating = $state(false);
-	let createProjectTrigger = $state<HTMLButtonElement>();
-	let createProjectForm = $state<HTMLFormElement>();
+	let createProjectTrigger = $state<HTMLButtonElement | null>(null);
 	let { data } = $props();
 	let user = $derived(data.user);
 	let loading = $state(true);
@@ -60,10 +59,9 @@
 		createProjectTrigger?.focus();
 	}
 
-	$effect(() => {
-		const form = createProjectForm;
-		if (showCreate && form) void focusModalPrimary(form);
-	});
+	function handleCreateOpenChange(next: boolean) {
+		if (!next) closeCreateProject();
+	}
 
 	function notify(v: string) {
 		toast = v;
@@ -290,31 +288,26 @@
 		</div>
 	</main>
 </div>
-{#if showCreate}
-	<div
-		class="modal-backdrop"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="create-project-title"
-		tabindex="-1"
-		onclick={(event) => event.target === event.currentTarget && closeCreateProject()}
-		onkeydown={(event) => {
-			if (event.key === 'Escape') closeCreateProject();
-			trapModalFocus(event, createProjectForm);
-		}}
+<Dialog.Root open={showCreate} onOpenChange={handleCreateOpenChange}>
+	<Dialog.Content
+		showCloseButton={false}
+		class="w-[min(420px,100%)] max-w-none! gap-0 rounded-xl border border-[var(--border-strong)] p-6 shadow-[0_20px_50px_var(--shadow)] ring-0"
+		onCloseAutoFocus={(event) => event.preventDefault()}
 	>
 		<form
-			class="modal"
-			bind:this={createProjectForm}
+			class="dialog-shell"
 			onsubmit={(event) => {
 				event.preventDefault();
 				createProject();
 			}}
 		>
-			<div class="modal-head">
-				<div>
-					<h2 id="create-project-title">Create a project</h2>
-				</div>
+			<Dialog.Header class="flex flex-row items-start justify-between gap-4 text-left">
+				<Dialog.Title
+					id="create-project-title"
+					class="ui-text-lg mb-4 font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
+				>
+					Create a project
+				</Dialog.Title>
 				<button
 					type="button"
 					class="icon-button"
@@ -322,7 +315,7 @@
 					title="Close dialog"
 					onclick={closeCreateProject}><X size={18} /></button
 				>
-			</div>
+			</Dialog.Header>
 			<label
 				>Project name<input
 					bind:value={newName}
@@ -351,8 +344,8 @@
 				>
 			</div>
 		</form>
-	</div>
-{/if}
+	</Dialog.Content>
+</Dialog.Root>
 {#if toast}<div class="toast" role="status" aria-live="polite">{toast}</div>{/if}
 
 <style>
@@ -549,49 +542,18 @@
 		font-size: var(--text-xs);
 		color: var(--text-dim);
 	}
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		display: grid;
-		place-items: center;
-		padding: 20px;
-		background: var(--overlay);
-		z-index: 10;
-	}
-	.modal {
-		width: min(420px, 100%);
-		padding: 24px;
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		box-shadow: 0 20px 50px var(--shadow);
-	}
-	.modal-head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 16px;
-	}
-	.modal h2 {
-		margin: 0 0 16px;
-		font-family: var(--font-body);
-		font-size: var(--text-lg);
-		font-weight: 600;
-		line-height: 1.3;
-		letter-spacing: -0.015em;
-		color: var(--text-strong);
-	}
-	.modal label {
+	.dialog-shell label {
 		display: block;
 		margin-top: 14px;
 		color: var(--text-muted);
 		font-size: var(--text-xs);
 		font-weight: 500;
 	}
-	.modal input,
-	.modal textarea {
+	.dialog-shell input,
+	.dialog-shell textarea {
 		display: block;
 		width: 100%;
+		min-height: 44px;
 		margin-top: 6px;
 		padding: 8px 11px;
 		border: 1px solid var(--input-border);
@@ -602,7 +564,11 @@
 		color: var(--text-strong);
 		background: var(--surface);
 	}
-	.modal textarea {
+	.dialog-shell input:focus,
+	.dialog-shell textarea:focus {
+		border-color: var(--focus);
+	}
+	.dialog-shell textarea {
 		min-height: 80px;
 		resize: vertical;
 	}

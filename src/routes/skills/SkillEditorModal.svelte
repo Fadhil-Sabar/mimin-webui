@@ -1,10 +1,9 @@
 <script lang="ts">
-	import { tick, onMount } from 'svelte';
 	import { Check, Info, X } from '@lucide/svelte';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import ToolGrid from './ToolGrid.svelte';
 	import TriggerPhraseEditor from './TriggerPhraseEditor.svelte';
 	import { MAX_DESCRIPTION, MAX_INSTRUCTIONS, MAX_NAME } from './skills-constants';
-	import { focusModalPrimary, trapModalFocus } from './skills-focus';
 	import type { Project, Skill, Tool } from './skills-types';
 
 	let {
@@ -47,149 +46,123 @@
 		onremovetrigger: (index: number) => void;
 	} = $props();
 
-	let formElement = $state<HTMLFormElement>();
-	let opener: HTMLElement | null = null;
+	let nameInput = $state<HTMLInputElement | null>(null);
 
-	onMount(() => {
-		opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-	});
-
-	async function close() {
-		onclose();
-		await tick();
-		opener?.focus();
+	function handleOpenChange(open: boolean) {
+		if (!open) onclose();
 	}
-
-	$effect(() => {
-		const element = formElement;
-		if (element) void focusModalPrimary(element);
-	});
 </script>
 
-<div
-	class="modal-backdrop"
-	role="dialog"
-	aria-modal="true"
-	aria-labelledby="skill-editor-title"
-	tabindex="-1"
-	onclick={(event) => event.target === event.currentTarget && void close()}
-	onkeydown={(event) => {
-		if (event.key === 'Escape') void close();
-		trapModalFocus(event, formElement);
-	}}
->
-	<form
-		class="modal editor-modal"
-		bind:this={formElement}
-		onsubmit={(event) => {
+<Dialog.Root open={true} onOpenChange={handleOpenChange}>
+	<Dialog.Content
+		showCloseButton={false}
+		class="max-h-[min(850px,calc(100dvh_-_40px))] w-[min(660px,calc(100%_-_2.5rem))] max-w-none! gap-0 overflow-auto border border-[var(--border-strong)] bg-[var(--surface)] p-6 shadow-[0_20px_50px_var(--shadow)] ring-0 max-[560px]:p-[19px]"
+		onOpenAutoFocus={(event) => {
 			event.preventDefault();
-			void onsave();
+			nameInput?.focus();
 		}}
 	>
-		<div class="modal-head">
-			<div>
-				<h2 id="skill-editor-title">{skill ? 'Edit skill' : 'Create a skill'}</h2>
+		<!-- `modal` stays on the form so layout.css's `.modal input` / `.modal label` rules keep
+		     reaching the fields, the tool grid and the trigger editor exactly as before. -->
+		<form
+			class="modal editor-modal"
+			onsubmit={(event) => {
+				event.preventDefault();
+				void onsave();
+			}}
+		>
+			<Dialog.Header class="flex flex-row items-start justify-between gap-4">
+				<Dialog.Title
+					class="ui-text-lg font-semibold tracking-[-0.015em] text-[var(--text-strong)]"
+				>
+					{skill ? 'Edit skill' : 'Create a skill'}
+				</Dialog.Title>
+				<button type="button" class="icon-button" onclick={onclose} aria-label="Close dialog"
+					><X size={18} /></button
+				>
+			</Dialog.Header>
+			<div class="editor-grid">
+				<label class="field full"
+					>Name <span class="field-count">{name.length}/{MAX_NAME}</span><input
+						bind:this={nameInput}
+						bind:value={name}
+						maxlength={MAX_NAME}
+						required
+						placeholder="e.g. Product strategist"
+					/></label
+				>
+				<label class="field full"
+					>Description <span class="field-count">{description.length}/{MAX_DESCRIPTION}</span><input
+						bind:value={description}
+						maxlength={MAX_DESCRIPTION}
+						placeholder="A short note about when to use this skill"
+					/></label
+				>
+				<label class="field full"
+					>Scope<select
+						value={projectId ?? ''}
+						onchange={(event) => onchooseproject(event.currentTarget.value)}
+						><option value="">Personal · available in every chat</option
+						>{#each projects as project (project.id)}<option value={project.id}
+								>Project · {project.name}</option
+							>{/each}</select
+					><small>Project skills are only available inside their project conversations.</small
+					></label
+				>
+				<label class="field full"
+					>Instructions <span class="field-count"
+						>{instructions.length.toLocaleString()}/{MAX_INSTRUCTIONS.toLocaleString()}</span
+					><textarea
+						bind:value={instructions}
+						maxlength={MAX_INSTRUCTIONS}
+						rows="8"
+						required
+						placeholder="Describe the approach, tone, constraints, and output format this skill should use."
+					></textarea></label
+				>
 			</div>
-			<button
-				type="button"
-				class="icon-button"
-				onclick={() => void close()}
-				aria-label="Close dialog"><X size={18} /></button
+			<ToolGrid {tools} {enabledTools} {projectId} ontoggle={ontoggletool} />
+			<TriggerPhraseEditor
+				phrases={triggerPhrases}
+				bind:value={triggerDraft}
+				onadd={onaddtrigger}
+				onremove={onremovetrigger}
+			/>
+			{#if formError}<div class="form-error" role="alert"><Info size={15} /> {formError}</div>{/if}
+			<Dialog.Footer
+				class="mx-0 mt-[22px] mb-0 flex flex-row justify-end gap-2 rounded-none border-t-0 bg-transparent p-0"
 			>
-		</div>
-		<div class="editor-grid">
-			<label class="field full"
-				>Name <span class="field-count">{name.length}/{MAX_NAME}</span><input
-					bind:value={name}
-					data-modal-primary
-					maxlength={MAX_NAME}
-					required
-					placeholder="e.g. Product strategist"
-				/></label
-			>
-			<label class="field full"
-				>Description <span class="field-count">{description.length}/{MAX_DESCRIPTION}</span><input
-					bind:value={description}
-					maxlength={MAX_DESCRIPTION}
-					placeholder="A short note about when to use this skill"
-				/></label
-			>
-			<label class="field full"
-				>Scope<select
-					value={projectId ?? ''}
-					onchange={(event) => onchooseproject(event.currentTarget.value)}
-					><option value="">Personal · available in every chat</option
-					>{#each projects as project (project.id)}<option value={project.id}
-							>Project · {project.name}</option
-						>{/each}</select
-				><small>Project skills are only available inside their project conversations.</small></label
-			>
-			<label class="field full"
-				>Instructions <span class="field-count"
-					>{instructions.length.toLocaleString()}/{MAX_INSTRUCTIONS.toLocaleString()}</span
-				><textarea
-					bind:value={instructions}
-					maxlength={MAX_INSTRUCTIONS}
-					rows="8"
-					required
-					placeholder="Describe the approach, tone, constraints, and output format this skill should use."
-				></textarea></label
-			>
-		</div>
-		<ToolGrid {tools} {enabledTools} {projectId} ontoggle={ontoggletool} />
-		<TriggerPhraseEditor
-			phrases={triggerPhrases}
-			bind:value={triggerDraft}
-			onadd={onaddtrigger}
-			onremove={onremovetrigger}
-		/>
-		{#if formError}<div class="form-error" role="alert"><Info size={15} /> {formError}</div>{/if}
-		<div class="modal-actions">
-			<button type="button" class="button" onclick={() => void close()} disabled={saving}
-				>Cancel</button
-			><button type="submit" class="button primary" disabled={saving}
-				>{#if saving}Saving...{:else}<Check size={15} />
-					{skill ? 'Save changes' : 'Create skill'}{/if}</button
-			>
-		</div>
-	</form>
-</div>
+				<button type="button" class="button" onclick={onclose} disabled={saving}>Cancel</button
+				><button type="submit" class="button primary" disabled={saving}
+					>{#if saving}Saving...{:else}<Check size={15} />
+						{skill ? 'Save changes' : 'Create skill'}{/if}</button
+				>
+			</Dialog.Footer>
+		</form>
+	</Dialog.Content>
+</Dialog.Root>
 
 <style>
-	.modal-backdrop {
-		position: fixed;
-		inset: 0;
-		z-index: 40;
-		display: grid;
-		place-items: center;
-		padding: 20px;
-		background: var(--overlay);
-	}
+	/* Dialog.Content paints the modal box now (width, padding, border, shadow, scrolling), so
+	   the form is a plain block wrapper. Two things are deliberate:
+	   - `modal` stays on the form, because layout.css's `.modal input` / `.modal label` rules
+	     still reach the fields, the ToolGrid rows and the TriggerPhraseEditor input. Dropping
+	     the class would change those inner spacings.
+	   - the type is re-declared, because shadcn's Content ships `text-sm`; without this the
+	     `normal` line-height the modal used to inherit from `:root` would become text-sm's
+	     ratio (and shift every field label / tool card by a couple of pixels). */
 	.modal {
-		width: min(660px, 100%);
-		max-height: min(850px, calc(100dvh - 40px));
-		overflow: auto;
-		padding: 24px;
+		width: 100%;
+		max-height: none;
+		overflow: visible;
+		padding: 0;
 		color: var(--text);
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		box-shadow: 0 20px 50px var(--shadow);
-	}
-	.modal-head {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 16px;
-	}
-	.modal h2 {
-		margin: 0;
-		color: var(--text-strong);
-		font-family: var(--font-body);
-		font-size: var(--text-lg);
-		font-weight: 600;
-		line-height: 1.3;
-		letter-spacing: -0.015em;
+		font-size: 16px;
+		line-height: normal;
+		background: transparent;
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
 	}
 	.editor-grid {
 		display: grid;
@@ -263,12 +236,6 @@
 		font-size: var(--text-xs);
 		line-height: 1.45;
 	}
-	.modal-actions {
-		display: flex;
-		justify-content: flex-end;
-		gap: 8px;
-		margin-top: 22px;
-	}
 	.icon-button {
 		display: grid;
 		place-items: center;
@@ -320,9 +287,6 @@
 		}
 		.field.full {
 			grid-column: auto;
-		}
-		.modal {
-			padding: 19px;
 		}
 	}
 </style>
