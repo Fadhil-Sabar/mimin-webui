@@ -20,9 +20,7 @@
 	} from '$lib/client/api';
 	import type { CanvasDetail, CanvasScene, StyleGuideline, ViewportDevice } from '$lib/canvas';
 	import CanvasWorkspace from '$lib/components/CanvasWorkspace.svelte';
-	import AppShell from '$lib/components/AppShell.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
-	import RecentChats from '$lib/components/RecentChats.svelte';
 	import {
 		conversationSearch,
 		conversationsState,
@@ -31,6 +29,7 @@
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
+	import { shell } from '$lib/client/shell.svelte';
 	import { getConversationDraft, setConversationDraft } from '$lib/client/drafts';
 	import { peekNavigationHandoff, consumeNavigationHandoff } from '$lib/client/navigation-handoff';
 	import type { SkillSummary } from '$lib/skills';
@@ -46,8 +45,6 @@
 	import { getTurnSources, contentText } from './chat-format';
 	import type { Conversation, ConversationMessage, QuestionPayload } from './chat-types';
 
-	let { data } = $props();
-	let user = $derived(data.user);
 	let busy = $state(true);
 	let message = $state('');
 	let conversations = $state<Conversation[]>(
@@ -67,7 +64,6 @@
 	let activeConversation = $state<Conversation | null>(null);
 	let pendingAttachments = $state<File[]>([]);
 	let editingId = $state<string | null>(null);
-	let editingTitle = $state('');
 	let deletingConversation = $state<ConversationSummary | null>(null);
 	let deleteLoading = $state(false);
 	let scrollEl: HTMLElement | undefined;
@@ -329,6 +325,18 @@
 			settings.modelSaving
 	);
 
+	// Publish the sidebar's New-chat button state to the shell; the shell owns the
+	// markup, so the page keeps it in sync instead of passing props.
+	$effect(() => {
+		shell.registerNewChat({
+			newChat: () => {
+				if (!stream.running) void startNewConversation();
+			},
+			newChatDisabled,
+			newChatEmpty: isNewConversationEmpty
+		});
+	});
+
 	let canRegenerate = $derived.by(() => {
 		const latest = stream.messages.at(-1);
 		if (
@@ -488,20 +496,13 @@
 
 	function startRename(conversation: ConversationSummary) {
 		editingId = conversation.id;
-		editingTitle = conversation.title;
 	}
 
 	function cancelRename() {
 		editingId = null;
-		editingTitle = '';
 	}
 
-	async function saveRename(id: string) {
-		const newTitle = editingTitle.trim();
-		if (!newTitle) {
-			notify('Title cannot be empty');
-			return;
-		}
+	async function saveRename(id: string, newTitle: string) {
 		try {
 			const updated = await updateConversation(id, { title: newTitle });
 			conversations = conversations.map((c) => (c.id === id ? { ...c, title: updated.title } : c));
@@ -550,21 +551,8 @@
 		}
 	}
 
+	/** Local Esc handling only: the global app shortcuts live in the root layout. */
 	function handleWindowKeydown(event: KeyboardEvent) {
-		if (
-			(event.metaKey || event.ctrlKey) &&
-			(event.key.toLowerCase() === 'o' || (event.shiftKey && event.key.toLowerCase() === 'f'))
-		) {
-			event.preventDefault();
-			conversationSearch.toggle();
-			return;
-		}
-		if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-			event.preventDefault();
-			if (!isNewConversationEmpty && !stream.running) {
-				void startNewConversation();
-			}
-		}
 		if (event.key === 'Escape') {
 			if (conversationSearch.isOpen) {
 				conversationSearch.close();
@@ -578,6 +566,22 @@
 	onMount(() => {
 		conversationSearch.registerSelectHandler((id) => {
 			void loadConversation(id);
+		});
+		shell.registerChats({
+			get conversations() {
+				return conversations;
+			},
+			get activeId() {
+				return activeId;
+			},
+			get editingId() {
+				return editingId;
+			},
+			onSelectChat: (id) => void loadConversation(id),
+			onStartRename: startRename,
+			onPromptDelete: promptDelete,
+			onSaveRename: saveRename,
+			onCancelRename: cancelRename
 		});
 
 		void (async () => {
@@ -619,6 +623,7 @@
 
 		return () => {
 			conversationSearch.unregisterSelectHandler();
+			shell.clear();
 		};
 	});
 
@@ -692,187 +697,167 @@
 
 <svelte:head><title>Mimin WebUI | Chat</title></svelte:head>
 <svelte:window onpopstate={handlePopState} onkeydown={handleWindowKeydown} />
-<AppShell
-	{user}
-	newChatEmpty={isNewConversationEmpty}
-	{newChatDisabled}
-	onnewchat={startNewConversation}
->
-	{#snippet recentChats()}
-		<RecentChats
-			{conversations}
-			{activeId}
-			onSelectChat={loadConversation}
-			onStartRename={startRename}
-			onPromptDelete={promptDelete}
-			{editingId}
-			bind:editingTitle
-			onSaveRename={saveRename}
-			onCancelRename={cancelRename}
-		/>
-	{/snippet}
-	<div class="chat-main">
-		<ChatHeader
-			conversation={activeConversation}
-			{canvasOpen}
-			hasCanvas={!!activeCanvas}
-			{canvasLoading}
-			ontogglecanvas={handleToggleCanvas}
-		/>
+<div class="chat-main">
+	<ChatHeader
+		conversation={activeConversation}
+		{canvasOpen}
+		hasCanvas={!!activeCanvas}
+		{canvasLoading}
+		ontogglecanvas={handleToggleCanvas}
+	/>
 
-		<!-- Mobile Tab Switcher when Canvas is open on narrow screens -->
-		{#if canvasOpen && activeCanvas}
-			<Tabs.Root value={mobileTab} onValueChange={selectMobileTab} class="mobile-tabs">
-				<Tabs.List class="h-auto! w-full gap-1.5 rounded-none bg-transparent p-0">
-					<Tabs.Trigger
-						value="chat"
-						class="mobile-tab h-auto! flex-1 rounded-md border-0 bg-[var(--surface-2)] px-3 py-1.5 text-[var(--text-muted)] transition-none hover:text-[var(--text-muted)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-3)]! data-[state=active]:text-[var(--text-strong)]!"
-					>
-						Chat
-					</Tabs.Trigger>
-					<Tabs.Trigger
-						value="canvas"
-						class="mobile-tab h-auto! flex-1 rounded-md border-0 bg-[var(--surface-2)] px-3 py-1.5 text-[var(--text-muted)] transition-none hover:text-[var(--text-muted)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-3)]! data-[state=active]:text-[var(--text-strong)]!"
-					>
-						Canvas Mockup
-					</Tabs.Trigger>
-				</Tabs.List>
-			</Tabs.Root>
-		{/if}
+	<!-- Mobile Tab Switcher when Canvas is open on narrow screens -->
+	{#if canvasOpen && activeCanvas}
+		<Tabs.Root value={mobileTab} onValueChange={selectMobileTab} class="mobile-tabs">
+			<Tabs.List class="h-auto! w-full gap-1.5 rounded-none bg-transparent p-0">
+				<Tabs.Trigger
+					value="chat"
+					class="mobile-tab h-auto! flex-1 rounded-md border-0 bg-[var(--surface-2)] px-3 py-1.5 text-[var(--text-muted)] transition-none hover:text-[var(--text-muted)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-3)]! data-[state=active]:text-[var(--text-strong)]!"
+				>
+					Chat
+				</Tabs.Trigger>
+				<Tabs.Trigger
+					value="canvas"
+					class="mobile-tab h-auto! flex-1 rounded-md border-0 bg-[var(--surface-2)] px-3 py-1.5 text-[var(--text-muted)] transition-none hover:text-[var(--text-muted)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-3)]! data-[state=active]:text-[var(--text-strong)]!"
+				>
+					Canvas Mockup
+				</Tabs.Trigger>
+			</Tabs.List>
+		</Tabs.Root>
+	{/if}
 
+	<div
+		class="workspace-split"
+		class:canvas-visible={canvasOpen && !!activeCanvas}
+		style:grid-template-columns={canvasOpen && !!activeCanvas
+			? `minmax(0, ${splitRatio}fr) 6px minmax(0, ${100 - splitRatio}fr)`
+			: 'minmax(0, 1fr)'}
+		bind:this={splitEl}
+	>
+		<!-- Left/Top: Chat Column -->
 		<div
-			class="workspace-split"
-			class:canvas-visible={canvasOpen && !!activeCanvas}
-			style:grid-template-columns={canvasOpen && !!activeCanvas
-				? `minmax(0, ${splitRatio}fr) 6px minmax(0, ${100 - splitRatio}fr)`
-				: 'minmax(0, 1fr)'}
-			bind:this={splitEl}
+			class="split-pane chat-pane"
+			class:mobile-hidden={canvasOpen && !!activeCanvas && mobileTab === 'canvas'}
+			bind:this={scrollEl}
+			onscroll={handleScroll}
 		>
-			<!-- Left/Top: Chat Column -->
-			<div
-				class="split-pane chat-pane"
-				class:mobile-hidden={canvasOpen && !!activeCanvas && mobileTab === 'canvas'}
-				bind:this={scrollEl}
-				onscroll={handleScroll}
-			>
-				<ChatTitle
-					conversation={activeConversation}
-					running={stream.running}
-					activity={stream.activeAgentActivity}
-				/>
-				<div class="chat-wrap">
-					{#if busy}
-						<div class="empty-state" role="status">Loading conversations...</div>
-					{:else if stream.messages.length === 0}
-						<div class="empty-state">Ask something to start a conversation.</div>
-					{/if}
-					{#each stream.messages as msg, i (msg.id)}
-						<ChatMessage
-							message={msg}
-							skill={messageSkill(i)}
-							sources={getTurnSources(stream.messages, i)}
-							isLast={i === stream.messages.length - 1}
-							canRetry={stream.canRetry}
-							running={stream.running}
-							{retryDisabled}
-							onretry={stream.retry}
-							{canRegenerate}
-							regenerateDisabled={retryDisabled}
-							onregenerate={stream.retry}
-							onquestionsubmit={handleQuestionSubmit}
-							onconsentsubmit={handleConsentSubmit}
-						/>
-					{/each}
-					<ChatInlineError
-						error={stream.liveError}
+			<ChatTitle
+				conversation={activeConversation}
+				running={stream.running}
+				activity={stream.activeAgentActivity}
+			/>
+			<div class="chat-wrap">
+				{#if busy}
+					<div class="empty-state" role="status">Loading conversations...</div>
+				{:else if stream.messages.length === 0}
+					<div class="empty-state">Ask something to start a conversation.</div>
+				{/if}
+				{#each stream.messages as msg, i (msg.id)}
+					<ChatMessage
+						message={msg}
+						skill={messageSkill(i)}
+						sources={getTurnSources(stream.messages, i)}
+						isLast={i === stream.messages.length - 1}
 						canRetry={stream.canRetry}
+						running={stream.running}
 						{retryDisabled}
 						onretry={stream.retry}
+						{canRegenerate}
+						regenerateDisabled={retryDisabled}
+						onregenerate={stream.retry}
+						onquestionsubmit={handleQuestionSubmit}
+						onconsentsubmit={handleConsentSubmit}
 					/>
-					<ChatTurnNotice
-						notice={stream.turnNotice}
-						continueDisabled={retryDisabled}
-						oncontinue={continueTurn}
-						ondismiss={stream.dismissTurnNotice}
-					/>
-					<ChatComposer
-						bind:message
-						attachments={pendingAttachments}
-						running={stream.running}
-						{conversationLoading}
-						skillSaving={settings.skillSaving}
-						toolsSaving={settings.toolsSaving}
-						modelSaving={settings.modelSaving}
-						thinkingSaving={settings.thinkingSaving}
-						hasActiveId={!!activeId}
-						conversation={activeConversation}
-						models={settings.pickerModels}
-						modelsLoading={settings.modelsLoading}
-						modelLoadError={settings.modelLoadError}
-						configuredModels={settings.configuredModels}
-						thinkingLevels={settings.availableThinkingLevels}
-						thinkingLevel={settings.selectedThinkingLevel}
-						skills={settings.eligibleSkills}
-						skillsLoading={settings.skillsLoading}
-						tools={settings.displayTools}
-						toolsLoading={settings.toolsLoading}
-						suggestion={settings.suggestion}
-						suggestionDismissed={settings.suggestionDismissed}
-						onattach={addAttachments}
-						onremoveattachment={removeAttachment}
-						onsend={stream.send}
-						onstop={stream.stop}
-						onremoveskill={() => settings.selectSkill(null)}
-						onapplysuggestion={applySkillSuggestion}
-						ondisksuggestion={settings.dismissSuggestion}
-						onselectmodel={settings.selectModel}
-						onselectthinkinglevel={settings.selectThinkingLevel}
-						ontoggleskill={settings.toggleSkill}
-						ontoggletool={settings.toggleTool}
-					/>
-				</div>
+				{/each}
+				<ChatInlineError
+					error={stream.liveError}
+					canRetry={stream.canRetry}
+					{retryDisabled}
+					onretry={stream.retry}
+				/>
+				<ChatTurnNotice
+					notice={stream.turnNotice}
+					continueDisabled={retryDisabled}
+					oncontinue={continueTurn}
+					ondismiss={stream.dismissTurnNotice}
+				/>
+				<ChatComposer
+					bind:message
+					attachments={pendingAttachments}
+					running={stream.running}
+					{conversationLoading}
+					skillSaving={settings.skillSaving}
+					toolsSaving={settings.toolsSaving}
+					modelSaving={settings.modelSaving}
+					thinkingSaving={settings.thinkingSaving}
+					hasActiveId={!!activeId}
+					conversation={activeConversation}
+					models={settings.pickerModels}
+					modelsLoading={settings.modelsLoading}
+					modelLoadError={settings.modelLoadError}
+					configuredModels={settings.configuredModels}
+					thinkingLevels={settings.availableThinkingLevels}
+					thinkingLevel={settings.selectedThinkingLevel}
+					skills={settings.eligibleSkills}
+					skillsLoading={settings.skillsLoading}
+					tools={settings.displayTools}
+					toolsLoading={settings.toolsLoading}
+					suggestion={settings.suggestion}
+					suggestionDismissed={settings.suggestionDismissed}
+					onattach={addAttachments}
+					onremoveattachment={removeAttachment}
+					onsend={stream.send}
+					onstop={stream.stop}
+					onremoveskill={() => settings.selectSkill(null)}
+					onapplysuggestion={applySkillSuggestion}
+					ondisksuggestion={settings.dismissSuggestion}
+					onselectmodel={settings.selectModel}
+					onselectthinkinglevel={settings.selectThinkingLevel}
+					ontoggleskill={settings.toggleSkill}
+					ontoggletool={settings.toggleTool}
+				/>
 			</div>
-
-			<!-- Splitter Divider -->
-			{#if canvasOpen && !!activeCanvas}
-				<button
-					type="button"
-					class="split-divider"
-					aria-label="Resize split panes"
-					onpointerdown={handleSplitPointerDown}
-					onpointermove={handleSplitPointerMove}
-					onpointerup={handleSplitPointerUp}
-					onpointercancel={handleSplitPointerUp}
-					onkeydown={(event) => {
-						if (event.key === 'ArrowLeft') splitRatio = Math.max(20, splitRatio - 5);
-						if (event.key === 'ArrowRight') splitRatio = Math.min(80, splitRatio + 5);
-					}}
-				>
-					<span class="split-handle"></span>
-				</button>
-
-				<!-- Right/Bottom: Canvas Workspace Column -->
-				<div
-					class="split-pane canvas-pane"
-					class:mobile-hidden={canvasOpen && !!activeCanvas && mobileTab === 'chat'}
-				>
-					<SvelteFlowProvider
-						><CanvasWorkspace
-							canvas={activeCanvas}
-							onupdatescene={handleUpdateScene}
-							oncreatescene={handleCreateScene}
-							ondeletescene={handleDeleteScene}
-							oncreateconnection={handleCreateConnection}
-							ondeleteconnection={handleDeleteConnection}
-							onupdateguideline={handleUpdateGuideline}
-							onrefresh={() => loadCanvasForConversation(activeCanvas?.id)}
-						/></SvelteFlowProvider
-					>
-				</div>
-			{/if}
 		</div>
+
+		<!-- Splitter Divider -->
+		{#if canvasOpen && !!activeCanvas}
+			<button
+				type="button"
+				class="split-divider"
+				aria-label="Resize split panes"
+				onpointerdown={handleSplitPointerDown}
+				onpointermove={handleSplitPointerMove}
+				onpointerup={handleSplitPointerUp}
+				onpointercancel={handleSplitPointerUp}
+				onkeydown={(event) => {
+					if (event.key === 'ArrowLeft') splitRatio = Math.max(20, splitRatio - 5);
+					if (event.key === 'ArrowRight') splitRatio = Math.min(80, splitRatio + 5);
+				}}
+			>
+				<span class="split-handle"></span>
+			</button>
+
+			<!-- Right/Bottom: Canvas Workspace Column -->
+			<div
+				class="split-pane canvas-pane"
+				class:mobile-hidden={canvasOpen && !!activeCanvas && mobileTab === 'chat'}
+			>
+				<SvelteFlowProvider
+					><CanvasWorkspace
+						canvas={activeCanvas}
+						onupdatescene={handleUpdateScene}
+						oncreatescene={handleCreateScene}
+						ondeletescene={handleDeleteScene}
+						oncreateconnection={handleCreateConnection}
+						ondeleteconnection={handleDeleteConnection}
+						onupdateguideline={handleUpdateGuideline}
+						onrefresh={() => loadCanvasForConversation(activeCanvas?.id)}
+					/></SvelteFlowProvider
+				>
+			</div>
+		{/if}
 	</div>
-</AppShell>
+</div>
 <ConfirmDialog
 	open={deletingConversation !== null}
 	title="Delete chat"
@@ -897,7 +882,7 @@
 	.workspace-split {
 		display: grid;
 		flex: 1;
-		height: calc(100dvh - 66px);
+		height: calc(100dvh - var(--topbar-h) - var(--mobile-nav-h));
 		overflow: hidden;
 		position: relative;
 		min-width: 0;

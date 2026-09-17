@@ -18,6 +18,8 @@
 		type ProviderState
 	} from './provider-types';
 	import Topbar from '$lib/components/Topbar.svelte';
+	import Page from '$lib/components/Page.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	const PROVIDERS: Array<{ id: string; name: string; description: string; envVar: string }> = [
 		{
@@ -323,18 +325,15 @@
 
 <svelte:head><title>Mimin WebUI | Settings</title></svelte:head>
 <Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Models' }]} user={data.user} />
-<div class="page-wrap">
-	<div class="page-heading">
-		<div>
-			<h1>Models & connections</h1>
-			<p>
-				Connect the models Mimin can use. Your keys are encrypted and only power your conversations.
-			</p>
-		</div>
-		<Button variant="default" class="ml-5 max-[700px]:ml-0" onclick={openCustomEditor}
-			><Plus size={15} /> Add provider</Button
-		>
-	</div>
+<Page>
+	<PageHeader
+		title="Models & connections"
+		subtitle="Connect the models Mimin can use. Your keys are encrypted and only power your conversations."
+	>
+		{#snippet actions()}
+			<Button variant="default" onclick={openCustomEditor}><Plus size={15} /> Add provider</Button>
+		{/snippet}
+	</PageHeader>
 	{#if loading}
 		<div class="empty-state" role="status">Checking model connections...</div>
 	{:else}
@@ -348,7 +347,7 @@
 			browser.
 		</p>
 	{/if}
-</div>
+</Page>
 
 {#if editing}
 	<ProviderFormModal
@@ -375,34 +374,6 @@
 <svelte:window onkeydown={(event) => event.key === 'Escape' && (editing = null)} />
 
 <style>
-	.page-wrap {
-		max-width: 860px;
-		margin: auto;
-		padding: clamp(32px, 6vh, 56px) 35px 75px;
-	}
-	.page-heading {
-		display: flex;
-		align-items: flex-end;
-		justify-content: space-between;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 28px;
-	}
-	.page-heading h1 {
-		margin: 0 0 6px;
-		font-family: var(--font-body);
-		font-size: var(--text-headline-md);
-		line-height: var(--text-headline-md--line-height);
-		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
-		color: var(--text-strong);
-	}
-	.page-heading p {
-		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
@@ -415,7 +386,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 11px;
-		padding-top: 24px;
 	}
 	.footnote {
 		margin: 22px 0 0;
@@ -423,12 +393,5 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	@media (max-width: 700px) {
-		.page-heading {
-			align-items: flex-start;
-			flex-direction: column;
-			gap: 18px;
-		}
 	}
 </style>

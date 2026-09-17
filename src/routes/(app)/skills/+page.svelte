@@ -5,6 +5,8 @@
 	import { Plus } from '@lucide/svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Topbar from '$lib/components/Topbar.svelte';
+	import Page from '$lib/components/Page.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import SkillEditorModal from './SkillEditorModal.svelte';
 	import SkillGrid from './SkillGrid.svelte';
@@ -316,16 +318,14 @@
 
 <Topbar breadcrumbs={[{ label: 'Skills' }]} user={data.user} />
 
-<div class="skills-wrap">
-	<div class="page-heading">
-		<div>
-			<h1>Skills</h1>
-			<p>Specialized instructions and workflows for your assistant.</p>
-		</div>
-		<Button variant="default" class="page-heading-action" onclick={() => openCreate(null)}
-			><Plus size={16} /> New skill</Button
-		>
-	</div>
+<Page>
+	<PageHeader title="Skills" subtitle="Specialized instructions and workflows for your assistant.">
+		{#snippet actions()}
+			<Button variant="default" onclick={() => openCreate(null)}
+				><Plus size={16} /> New skill</Button
+			>
+		{/snippet}
+	</PageHeader>
 
 	<SkillsToolbar
 		{scopeFilter}
@@ -359,7 +359,7 @@
 			ondelete={openDelete}
 		/>
 	{/if}
-</div>
+</Page>
 
 {#if editorOpen}
 	<SkillEditorModal
@@ -409,47 +409,3 @@
 		}
 	}}
 />
-
-<style>
-	.skills-wrap {
-		max-width: 1050px;
-		margin: auto;
-		padding: clamp(32px, 6vh, 56px) 35px 75px;
-	}
-	.page-heading {
-		display: flex;
-		align-items: flex-end;
-		justify-content: space-between;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 30px;
-	}
-	.page-heading h1 {
-		margin: 0 0 6px;
-		font-family: var(--font-body);
-		font-size: var(--text-headline-md);
-		line-height: var(--text-headline-md--line-height);
-		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
-		color: var(--text-strong);
-	}
-	.page-heading p {
-		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	@media (max-width: 720px) {
-		.skills-wrap {
-			padding: 28px 18px 60px;
-		}
-		.page-heading {
-			align-items: flex-start;
-			flex-direction: column;
-			gap: 20px;
-		}
-		.page-heading > :global(.page-heading-action) {
-			width: 100%;
-		}
-	}
-</style>

@@ -36,6 +36,11 @@ export type NavSection = {
 	items: NavItem[];
 };
 
+/**
+ * Two groups, split by concern rather than by route: workspace surfaces first,
+ * then everything that configures the workspace. `Settings` mirrors the
+ * `/settings/*` route family so the label and the URL agree.
+ */
 export const NAV_SECTIONS: NavSection[] = [
 	{
 		label: 'Workspace',
@@ -56,6 +61,13 @@ export const NAV_SECTIONS: NavSection[] = [
 				match: (pathname) => pathname.startsWith('/projects')
 			},
 			{
+				key: 'skills',
+				label: 'Skills',
+				href: '/skills',
+				icon: Sparkles,
+				match: (pathname) => pathname.startsWith('/skills')
+			},
+			{
 				key: 'users',
 				label: 'Users',
 				href: '/admin/users',
@@ -66,7 +78,7 @@ export const NAV_SECTIONS: NavSection[] = [
 		]
 	},
 	{
-		label: 'Preferences',
+		label: 'Settings',
 		items: [
 			{
 				key: 'models',
@@ -81,13 +93,6 @@ export const NAV_SECTIONS: NavSection[] = [
 				href: '/settings/instructions',
 				icon: FileText,
 				match: (pathname) => pathname.startsWith('/settings/instructions')
-			},
-			{
-				key: 'skills',
-				label: 'Skills',
-				href: '/skills',
-				icon: Sparkles,
-				match: (pathname) => pathname.startsWith('/skills')
 			},
 			{
 				key: 'web-search',
@@ -107,6 +112,10 @@ export const NAV_SECTIONS: NavSection[] = [
 	}
 ];
 
+function allItems(): NavItem[] {
+	return NAV_SECTIONS.flatMap((section) => section.items);
+}
+
 export function visibleNavSections(isAdmin: boolean): NavSection[] {
 	return NAV_SECTIONS.map((section) => ({
 		...section,
@@ -115,5 +124,17 @@ export function visibleNavSections(isAdmin: boolean): NavSection[] {
 }
 
 export function activeNavKey(pathname: string): string | undefined {
-	return NAV_SECTIONS.flatMap((section) => section.items).find((item) => item.match(pathname))?.key;
+	return allItems().find((item) => item.match(pathname))?.key;
+}
+
+/**
+ * Destinations pinned to the mobile bottom bar. The drawer still exposes every
+ * item; this is the fast path, and it reuses the same entries so the two never
+ * disagree.
+ */
+export function mobileNavItems(isAdmin: boolean): NavItem[] {
+	const byKey = new Map(allItems().map((item) => [item.key, item]));
+	return ['chat', 'projects', 'skills', 'models', 'users']
+		.map((key) => byKey.get(key))
+		.filter((item): item is NavItem => !!item && (!item.adminOnly || isAdmin));
 }

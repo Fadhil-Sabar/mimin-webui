@@ -6,23 +6,10 @@
 
 	type Props = {
 		user?: { name?: string | null; role?: string | null } | null;
-		recentChats?: Snippet;
-		sidebarExtra?: Snippet;
-		onnewchat?: () => void;
-		newChatDisabled?: boolean;
-		newChatEmpty?: boolean;
 		children: Snippet;
 	};
 
-	let {
-		user = null,
-		recentChats,
-		sidebarExtra,
-		onnewchat,
-		newChatDisabled = false,
-		newChatEmpty = false,
-		children
-	}: Props = $props();
+	let { user = null, children }: Props = $props();
 </script>
 
 <div
@@ -31,7 +18,7 @@
 	class:mobile-open={sidebar.mobileOpen}
 >
 	<SidebarBackdrop />
-	<AppSidebar {user} {recentChats} {sidebarExtra} {onnewchat} {newChatDisabled} {newChatEmpty} />
+	<AppSidebar {user} />
 	<main class="main-content">
 		{@render children()}
 	</main>

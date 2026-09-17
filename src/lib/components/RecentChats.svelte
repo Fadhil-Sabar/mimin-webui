@@ -20,7 +20,6 @@
 		onStartRename,
 		onPromptDelete,
 		editingId = null,
-		editingTitle = $bindable(''),
 		onSaveRename,
 		onCancelRename
 	}: {
@@ -30,15 +29,22 @@
 		onStartRename?: (conversation: ConversationSummary) => void;
 		onPromptDelete?: (conversation: ConversationSummary) => void;
 		editingId?: string | null;
-		editingTitle?: string;
-		onSaveRename?: (id: string) => void;
+		onSaveRename?: (id: string, title: string) => void;
 		onCancelRename?: () => void;
 	} = $props();
 
 	let localEditingId = $state<string | null>(null);
 	let localDeletingConversation = $state<ConversationSummary | null>(null);
 	let localDeleteLoading = $state(false);
+	let editingTitle = $state('');
 	let effectiveEditingId = $derived(editingId ?? localEditingId);
+	/** A parent (the chat room) can drive in-page switching; otherwise items are links. */
+	let selectHandler = $derived(onSelectChat ?? undefined);
+
+	function selectConversation(id: string) {
+		sidebar.closeMobile();
+		selectHandler?.(id);
+	}
 
 	onMount(() => {
 		void conversationsState.load();
@@ -54,31 +60,31 @@
 	}
 
 	function startRename(conversation: ConversationSummary) {
+		editingTitle = conversation.title;
 		if (onStartRename) {
 			onStartRename(conversation);
 			return;
 		}
 		localEditingId = conversation.id;
-		editingTitle = conversation.title;
 	}
 
 	function cancelRename() {
+		editingTitle = '';
 		if (onCancelRename) {
 			onCancelRename();
 			return;
 		}
 		localEditingId = null;
-		editingTitle = '';
 	}
 
 	async function saveRename(id: string) {
-		if (onSaveRename) {
-			onSaveRename(id);
-			return;
-		}
 		const title = editingTitle.trim();
 		if (!title) {
 			toast('Title cannot be empty');
+			return;
+		}
+		if (onSaveRename) {
+			onSaveRename(id, title);
 			return;
 		}
 		try {
@@ -145,7 +151,7 @@
 
 {#if displayConversations.length > 0}
 	<div class="recent-chats-header">
-		<span class="nav-label projects-label">Recent chats</span>
+		<span class="nav-label nav-label-group">Recent chats</span>
 		<button
 			type="button"
 			class="nav-label-action"
@@ -190,14 +196,11 @@
 					</Button>
 				</form>
 			{:else}
-				{#if onSelectChat}
+				{#if selectHandler}
 					<button
 						type="button"
 						class="project-item-btn"
-						onclick={() => {
-							sidebar.closeMobile();
-							onSelectChat(conversation.id);
-						}}
+						onclick={() => selectConversation(conversation.id)}
 						title={conversation.projectName
 							? `${conversation.title} - ${conversation.projectName}`
 							: conversation.title}

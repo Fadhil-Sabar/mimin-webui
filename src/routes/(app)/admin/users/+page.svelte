@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { Check, Copy, KeyRound, UserPlus, Users } from '@lucide/svelte';
 	import Topbar from '$lib/components/Topbar.svelte';
+	import Page from '$lib/components/Page.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { authClient } from '$lib/client/auth';
 
 	type ManagedUser = {
@@ -146,15 +148,14 @@
 <svelte:head><title>User management | Mimin WebUI</title></svelte:head>
 
 <Topbar breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]} user={data.user} />
-<div class="admin-page">
-	<header class="page-header">
-		<div>
-			<p class="eyebrow">Administration</p>
-			<h1>User management</h1>
-			<p class="subtitle">Provision workspace accounts and choose their access role.</p>
-		</div>
-		<Users size={24} aria-hidden="true" />
-	</header>
+<Page width="wide">
+	<PageHeader
+		title="User management"
+		eyebrow="Administration"
+		subtitle="Provision workspace accounts and choose their access role."
+	>
+		{#snippet icon()}<Users size={24} aria-hidden="true" />{/snippet}
+	</PageHeader>
 
 	<div class="admin-grid">
 		<section class="panel">
@@ -263,40 +264,9 @@
 			{/if}
 		</section>
 	</div>
-</div>
+</Page>
 
 <style>
-	.admin-page {
-		max-width: 1100px;
-		margin: 0 auto;
-		padding: 48px 32px 80px;
-	}
-	.page-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		margin-bottom: 32px;
-		color: var(--text-muted);
-	}
-	.eyebrow {
-		margin: 0 0 6px;
-		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		font-weight: 500;
-		text-transform: uppercase;
-	}
-	h1 {
-		margin: 0 0 6px;
-		color: var(--text-strong);
-		font-family: var(--font-body);
-		font-size: var(--text-headline-md);
-		line-height: var(--text-headline-md--line-height);
-		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
-	}
-	.subtitle,
 	.muted {
 		color: var(--text-muted);
 		font-size: var(--text-body-md);
@@ -530,9 +500,6 @@
 		opacity: 0.45;
 	}
 	@media (max-width: 760px) {
-		.admin-page {
-			padding: 32px 18px 60px;
-		}
 		.admin-grid {
 			grid-template-columns: 1fr;
 		}

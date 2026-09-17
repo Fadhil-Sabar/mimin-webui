@@ -3,6 +3,8 @@
 	import { Check, FileText, Loader2, RotateCcw } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import Topbar from '$lib/components/Topbar.svelte';
+	import Page from '$lib/components/Page.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	const MAX_LENGTH = 10000;
 
@@ -84,14 +86,13 @@
 
 <Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Instructions' }]} user={data.user} />
 
-<div class="page-wrap">
-	<div class="page-heading">
-		<span class="hero-icon"><FileText size={20} /></span>
-		<div>
-			<h1>Custom instructions</h1>
-			<p>Tell Mimin how you want it to respond across all of your conversations.</p>
-		</div>
-	</div>
+<Page>
+	<PageHeader
+		title="Custom instructions"
+		subtitle="Tell Mimin how you want it to respond across all of your conversations."
+	>
+		{#snippet icon()}<FileText size={20} />{/snippet}
+	</PageHeader>
 
 	{#if notification}
 		<div
@@ -158,41 +159,9 @@
 			</div>
 		</form>
 	{/if}
-</div>
+</Page>
 
 <style>
-	.page-wrap {
-		max-width: 860px;
-		margin: auto;
-		padding: clamp(32px, 6vh, 56px) 35px 75px;
-	}
-	.page-heading {
-		display: flex;
-		align-items: flex-start;
-		gap: 15px;
-		padding-bottom: 27px;
-		border-bottom: 1px solid var(--border);
-	}
-	.hero-icon {
-		display: grid;
-		place-items: center;
-		width: 44px;
-		height: 44px;
-		flex: 0 0 44px;
-		color: var(--text-muted);
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: 11px;
-	}
-	h1 {
-		margin: 0 0 7px;
-		color: var(--text-strong);
-		font-size: var(--text-headline-md);
-		line-height: var(--text-headline-md--line-height);
-		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
-	}
-	.page-heading p,
 	.field-heading p,
 	.privacy-note {
 		margin: 0;
@@ -350,9 +319,6 @@
 		}
 	}
 	@media (max-width: 720px) {
-		.page-wrap {
-			padding: 28px 18px 60px;
-		}
 		.scope-strip {
 			grid-template-columns: 1fr;
 			gap: 8px;

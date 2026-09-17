@@ -238,6 +238,26 @@
 	--font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
 }
 
+/* ---------- Layout metrics ----------
+ * One spacing scale (Material's 4/8/12/16/24/32/48) and one topbar height, so
+ * the shell and every page share a rhythm instead of one-off values. Sizing that
+ * depended on the topbar (the chat split view) reads --topbar-h rather than
+ * restating 66px. */
+:root {
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 24px;
+	--space-6: 32px;
+	--space-7: 48px;
+	--topbar-h: 66px;
+	--content-max: 960px;
+	--content-max-wide: 1120px;
+	/* Reserved for the mobile bottom nav; zero until the nav is shown. */
+	--mobile-nav-h: 0px;
+}
+
 /* ---------- Theme tokens (light) ---------- */
 :root {
 	--bg: #fafaf9;
@@ -379,7 +399,7 @@ svg {
 	overflow: hidden;
 	background: var(--surface-2);
 	border-right: 1px solid var(--border);
-	padding: 20px 12px 14px;
+	padding: var(--space-5) var(--space-3) var(--space-4);
 }
 .sidebar-backdrop {
 	display: none;
@@ -503,8 +523,9 @@ svg {
 	text-transform: uppercase;
 	padding: 8px 10px 4px;
 }
-.projects-label {
-	margin-top: 14px;
+/* Space above every nav group except the first. */
+.nav-label-group {
+	margin-top: var(--space-4);
 }
 .nav-item,
 .project-item {
@@ -798,6 +819,7 @@ svg {
 	min-width: 0;
 	overflow-y: auto;
 	height: 100dvh;
+	padding-bottom: var(--mobile-nav-h);
 	scrollbar-width: thin;
 	scrollbar-color: var(--scrollbar-thumb) transparent;
 }
@@ -809,8 +831,9 @@ svg {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	height: 66px;
-	padding: 0 44px;
+	height: var(--topbar-h);
+	/* Matches the page gutter so breadcrumbs line up with page content. */
+	padding: 0 var(--space-6);
 	border-bottom: 1px solid var(--border);
 	backdrop-filter: blur(12px);
 }
@@ -886,11 +909,6 @@ svg {
 }
 
 /* ---------- Project detail page ---------- */
-.page-wrap {
-	max-width: 970px;
-	margin: auto;
-	padding: 43px 35px 70px;
-}
 .hero {
 	display: flex;
 	align-items: flex-start;
@@ -1393,6 +1411,10 @@ svg {
 }
 
 @media (max-width: 760px) {
+	:root {
+		--topbar-h: 56px;
+		--mobile-nav-h: 56px;
+	}
 	.app-shell {
 		grid-template-columns: 1fr;
 		position: relative;
@@ -1454,7 +1476,6 @@ svg {
 	}
 	.topbar {
 		padding: 0 16px;
-		height: 56px;
 	}
 	.breadcrumb {
 		min-width: 0;
@@ -1464,9 +1485,6 @@ svg {
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-	.page-wrap {
-		padding: 24px 16px 60px;
 	}
 	.hero {
 		display: block;
@@ -1514,7 +1532,7 @@ svg {
 .source-link {
 	position: fixed;
 	right: 0.75rem;
-	bottom: 0.5rem;
+	bottom: calc(0.5rem + var(--mobile-nav-h));
 	z-index: 100;
 	font-size: var(--text-label-sm);
 	line-height: var(--text-label-sm--line-height);
