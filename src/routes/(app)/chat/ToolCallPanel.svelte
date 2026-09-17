@@ -80,7 +80,8 @@
 					<div class="tool-call-status">
 						{#if toolCall.status === 'running'}
 							<span class="tool-status-badge running">
-								<span class="pulse-dot"></span> Running...
+								<span class="pulse-dot"></span>
+								{toolCall.preparing ? 'Writing…' : 'Running...'}
 							</span>
 						{:else if toolCall.status === 'failed'}
 							<span class="tool-status-badge failed">Failed</span>

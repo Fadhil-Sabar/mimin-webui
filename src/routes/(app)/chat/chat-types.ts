@@ -22,6 +22,8 @@ export type ToolCall = {
 	output?: unknown;
 	consent?: ConsentState;
 	status: 'pending' | 'running' | 'completed' | 'failed';
+	/** True while the model is still writing this call's arguments, before it executes. */
+	preparing?: boolean;
 	startedAt?: string | null;
 	completedAt?: string | null;
 };

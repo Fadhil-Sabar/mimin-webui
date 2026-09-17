@@ -156,6 +156,18 @@ export function formatToolLabel(
 			action: 'Updating Canvas style guideline contract...'
 		};
 	}
+	if (toolName === 'create_connection') {
+		return {
+			label: 'Connect Scenes',
+			action: 'Connecting Canvas scenes...'
+		};
+	}
+	if (toolName === 'delete_connection') {
+		return {
+			label: 'Remove Connection',
+			action: 'Removing Canvas connection...'
+		};
+	}
 	if (toolName === 'browser_tabs') {
 		return { label: 'Browser Tabs', action: 'Listing open browser tabs...' };
 	}

@@ -166,6 +166,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 				toolName,
 				input,
 				status: 'running',
+				preparing: event.preparing === true,
 				startedAt: nowIso()
 			};
 			let targetMsgId = msgId;
@@ -202,6 +203,19 @@ export function createChatStream(deps: ChatStreamDeps) {
 					)
 				};
 			});
+		} else if (event.type === 'tool.input') {
+			// The model is still writing this call's arguments; keep the card's label
+			// and details in sync as they parse.
+			const toolCallId = String(event.toolCallId);
+			messages = messages.map((msg) => {
+				if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
+				return {
+					...msg,
+					toolCalls: msg.toolCalls.map((c) =>
+						c.toolCallId === toolCallId ? { ...c, input: event.input } : c
+					)
+				};
+			});
 		} else if (event.type === 'browser.consent.request') {
 			const consent = consentFromEvent(event);
 			if (consent) {
@@ -227,6 +241,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 							return {
 								...c,
 								status,
+								preparing: false,
 								output: result,
 								completedAt: nowIso()
 							};
