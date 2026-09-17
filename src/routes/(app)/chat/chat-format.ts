@@ -461,13 +461,23 @@ export function messageContextSummary(
 				(usage.cacheWrite ?? 0) +
 				(usage.reasoning ?? 0)
 			: 0);
-	const elapsedSeconds = (() => {
+	const elapsedMs = (() => {
 		if (!message.completedAt) return null;
 		const start = Date.parse(message.createdAt);
 		const end = Date.parse(message.completedAt);
 		if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
-		return Math.round((end - start) / 1000);
+		return end - start;
 	})();
+	const elapsedSeconds = elapsedMs === null ? null : Math.round(elapsedMs / 1000);
+	/**
+	 * Output tokens over the turn's wall clock. It is an estimate: tool execution is
+	 * part of that clock, so a turn that ran tools reads slower than the model wrote.
+	 */
+	const outputTokens = usage?.output ?? 0;
+	const tokensPerSecond =
+		outputTokens > 0 && elapsedMs !== null && elapsedMs > 0
+			? Math.round(outputTokens / (elapsedMs / 1000))
+			: null;
 	const sources = message.citations?.length ?? 0;
 	const toolCalls = message.toolCalls?.length ?? 0;
 	const attachments = options.attachments ?? [];
@@ -475,6 +485,7 @@ export function messageContextSummary(
 	if (
 		totalTokens <= 0 &&
 		elapsedSeconds === null &&
+		tokensPerSecond === null &&
 		sources === 0 &&
 		toolCalls === 0 &&
 		attachments.length === 0
@@ -484,6 +495,7 @@ export function messageContextSummary(
 	const summary: string[] = [];
 	if (totalTokens > 0) summary.push(`${formatTokenCount(totalTokens)} tokens`);
 	if (elapsedSeconds !== null) summary.push(formatElapsed(elapsedSeconds));
+	if (tokensPerSecond !== null) summary.push(`${tokensPerSecond} tok/s`);
 	if (sources > 0) summary.push(pluralize(sources, 'source'));
 	if (toolCalls > 0) summary.push(pluralize(toolCalls, 'tool'));
 	if (attachments.length > 0) summary.push(pluralize(attachments.length, 'file'));
@@ -497,6 +509,10 @@ export function messageContextSummary(
 		if (usage.reasoning) detail.push(`Reasoning ${usage.reasoning.toLocaleString()}`);
 	}
 	if (elapsedSeconds !== null) detail.push(`Duration ${formatElapsed(elapsedSeconds)}`);
+	if (tokensPerSecond !== null)
+		detail.push(
+			`Speed ~${tokensPerSecond} tok/s (output tokens over the whole turn, so tool time lowers it)`
+		);
 	if (toolCalls > 0) detail.push(pluralize(toolCalls, 'tool call'));
 	if (sources > 0) detail.push(pluralize(sources, 'source'));
 	if (attachments.length > 0) detail.push(`Files: ${attachments.join(', ')}`);

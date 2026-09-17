@@ -89,7 +89,7 @@ describe('ChatMessage interrupted turns', () => {
 });
 
 describe('ChatMessage context line', () => {
-	it('states the tokens and duration of a finished turn in the compact form', () => {
+	it('states the tokens, duration and rate of a finished turn in the compact form', () => {
 		const body = renderMessage(
 			assistant({
 				usage: { input: 1500, output: 300, totalTokens: 1800 },
@@ -101,11 +101,26 @@ describe('ChatMessage context line', () => {
 		expect(body).toContain('context-line');
 		expect(body).toContain('1.8k tokens');
 		expect(body).toContain('4s');
+		// 300 output tokens over the 4s turn.
+		expect(body).toContain('75 tok/s');
 		expect(body).toContain('1 file');
 		// The full breakdown rides along as the tooltip so the short form loses nothing.
 		expect(body).toContain('Input 1,500');
+		expect(body).toContain('Speed ~75 tok/s');
 		expect(body).toContain('notes.md');
 		expect(body).toContain('Project: Launch');
+	});
+
+	it('reports no rate when the provider did not report output tokens', () => {
+		const body = renderMessage(
+			assistant({
+				usage: { input: 900, totalTokens: 900 },
+				completedAt: '2026-01-01T00:00:04.000Z'
+			})
+		);
+
+		expect(body).toContain('900 tokens');
+		expect(body).not.toContain('tok/s');
 	});
 
 	it('sits in the same row as the message actions', () => {

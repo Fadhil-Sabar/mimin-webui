@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { SlidersHorizontal } from '@lucide/svelte';
-	import { Switch } from '$lib/components/ui/switch/index.js';
+	import SwitchIndicator from '$lib/components/SwitchIndicator.svelte';
 	import Topbar from '$lib/components/Topbar.svelte';
 	import Page from '$lib/components/Page.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -14,8 +14,9 @@
 		hydrated = true;
 	});
 
-	function setShowMessageContext(value: boolean) {
-		displayPreferences.showMessageContext = value;
+	function toggleShowMessageContext() {
+		if (!hydrated) return;
+		displayPreferences.showMessageContext = !displayPreferences.showMessageContext;
 	}
 </script>
 
@@ -37,18 +38,21 @@
 		<div class="preference-text">
 			<strong>Show answer context</strong>
 			<p>
-				Adds a compact line to each finished answer with the tokens it used, how long it took, and
-				how many sources and tool calls it drew on. Turn it off for a plainer transcript.
+				Adds a compact line to each finished answer with the tokens it used, how long it took, the
+				estimated tokens per second, and how many sources and tool calls it drew on. Turn it off for
+				a plainer transcript.
 			</p>
 		</div>
-		<label class="switch-row">
-			<Switch
-				checked={displayPreferences.showMessageContext}
-				disabled={!hydrated}
-				onCheckedChange={(value) => setShowMessageContext(value)}
-			/>
-			<b>{displayPreferences.showMessageContext ? 'Shown' : 'Hidden'}</b>
-		</label>
+		<button
+			type="button"
+			class="preference-toggle"
+			aria-pressed={displayPreferences.showMessageContext}
+			disabled={!hydrated}
+			onclick={toggleShowMessageContext}
+		>
+			<SwitchIndicator checked={displayPreferences.showMessageContext} />
+			<span>{displayPreferences.showMessageContext ? 'Shown' : 'Hidden'}</span>
+		</button>
 	</section>
 </Page>
 
@@ -83,23 +87,52 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 	}
-	.switch-row {
-		display: flex;
+	/* The pill and its label are one control, so the whole thing is the toggle. */
+	.preference-toggle {
+		display: inline-flex;
 		align-items: center;
 		gap: 9px;
 		flex: 0 0 auto;
+		padding: 5px 10px 5px 7px;
 		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		background: transparent;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		font-size: var(--text-label-lg);
+		line-height: var(--text-label-lg--line-height);
+		letter-spacing: var(--text-label-lg--letter-spacing);
+		font-weight: var(--text-label-lg--font-weight);
+		cursor: pointer;
+		transition:
+			color 0.15s ease,
+			background 0.15s ease,
+			border-color 0.15s ease;
+	}
+	.preference-toggle:hover:not(:disabled) {
+		color: var(--text);
+		background: var(--surface-2);
+		border-color: var(--border-strong);
+	}
+	.preference-toggle[aria-pressed='true'] {
+		color: var(--text);
+		border-color: var(--border-strong);
+	}
+	.preference-toggle:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+	.preference-toggle:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
 	}
 	@media (max-width: 720px) {
 		.preference-card {
 			flex-wrap: wrap;
 			gap: 14px;
 		}
-		.switch-row {
+		.preference-toggle {
 			width: 100%;
+			justify-content: space-between;
 		}
 	}
 </style>
