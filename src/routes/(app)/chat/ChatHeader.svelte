@@ -22,7 +22,7 @@
 
 <Topbar
 	breadcrumbs={[{ label: 'Chat' }, { label: conversation?.title ?? 'New session' }]}
-	separator="chevron-down"
+	separator="chevron-right"
 >
 	{#snippet actions()}
 		{#if ontogglecanvas}

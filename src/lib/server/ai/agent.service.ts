@@ -17,6 +17,7 @@ import { createWebSearchTool } from './tools/web-search.tool';
 import { createWebFetchTool } from './tools/web-fetch.tool';
 import { getModelThinkingPreference } from './model-preferences.service';
 import { createAgentEventQueue } from './agent-event-queue';
+import { previewToolInput, streamingToolCallBlock } from './tool-stream-preview';
 import { describeTurnOutcome, persistedStopReason, type TurnOutcome } from './turn-outcome';
 import type { MessageUsage } from '$lib/server/db/schema';
 import { buildUserSystemPrompt, getUserInstructions } from './user-instructions.service';
@@ -118,7 +119,12 @@ type AgentEvent = {
 	partialResult: unknown;
 	result: unknown;
 	isError: boolean;
-	assistantMessageEvent?: { type?: string; delta?: string };
+	assistantMessageEvent?: {
+		type?: string;
+		delta?: string;
+		contentIndex?: number;
+		partial?: unknown;
+	};
 	message?: {
 		role?: string;
 		stopReason?: string;
@@ -647,6 +653,30 @@ Instructions for Canvas Mockups:
 	const projectCitations: ProjectKnowledgeCitation[] = [];
 	const projectCitationKeys = new Set<string>();
 	const MAX_PROJECT_CITATIONS = 32;
+	/**
+	 * Live input updates for a tool call still being generated. Deltas arrive per
+	 * token, so emissions are throttled and deduplicated; the authoritative
+	 * `tool.start` frame carries the full input once the call executes.
+	 */
+	const toolInputEmitAt = new Map<string, number>();
+	const lastToolInputPreview = new Map<string, string>();
+	const TOOL_INPUT_THROTTLE_MS = 200;
+
+	function emitStreamingToolInput(messageId: string, toolCallId: string, args: unknown) {
+		const preview = previewToolInput(args);
+		let serialized: string;
+		try {
+			serialized = JSON.stringify(preview) ?? '';
+		} catch {
+			serialized = '';
+		}
+		if (lastToolInputPreview.get(toolCallId) === serialized) return;
+		const now = Date.now();
+		if (now - (toolInputEmitAt.get(toolCallId) ?? 0) < TOOL_INPUT_THROTTLE_MS) return;
+		toolInputEmitAt.set(toolCallId, now);
+		lastToolInputPreview.set(toolCallId, serialized);
+		emit({ type: 'tool.input', messageId, toolCallId, input: preview });
+	}
 
 	function collectProjectKnowledgeCitations(result: unknown) {
 		if (!conversation.projectId) return;
@@ -796,15 +826,34 @@ Instructions for Canvas Mockups:
 		}
 		if (e.type === 'message_update') {
 			const msgId = await ensureAssistantMessage();
-			if (e.assistantMessageEvent?.type === 'thinking_delta') {
-				const delta = e.assistantMessageEvent.delta ?? '';
+			const assistantEvent = e.assistantMessageEvent;
+			if (assistantEvent?.type === 'thinking_delta') {
+				const delta = assistantEvent.delta ?? '';
 				currentThinkingText += delta;
 				emit({ type: 'thinking.delta', messageId: msgId, delta });
-			} else if (e.assistantMessageEvent?.type === 'text_delta') {
-				const delta = e.assistantMessageEvent.delta ?? '';
+			} else if (assistantEvent?.type === 'text_delta') {
+				const delta = assistantEvent.delta ?? '';
 				if (delta) pendingToolFailureNotice = null;
 				currentAssistantText += delta;
 				emit({ type: 'message.delta', messageId: msgId, delta });
+			} else if (assistantEvent?.type === 'toolcall_start') {
+				// The model has only started writing the call; execute() has not run yet.
+				// Show the card now so a slow scene generation is not mistaken for a hang.
+				const block = streamingToolCallBlock(assistantEvent.partial, assistantEvent.contentIndex);
+				if (block) {
+					emit({
+						type: 'tool.start',
+						messageId: msgId,
+						toolCallId: block.id,
+						tool: block.name || 'tool',
+						label: block.name || 'tool',
+						input: previewToolInput(block.arguments),
+						preparing: true
+					});
+				}
+			} else if (assistantEvent?.type === 'toolcall_delta') {
+				const block = streamingToolCallBlock(assistantEvent.partial, assistantEvent.contentIndex);
+				if (block) emitStreamingToolInput(msgId, block.id, block.arguments);
 			}
 		}
 		if (e.type === 'message_end') {
@@ -836,7 +885,8 @@ Instructions for Canvas Mockups:
 				toolCallId: e.toolCallId,
 				tool: e.toolName,
 				label: e.toolName,
-				input: e.args
+				input: e.args,
+				preparing: false
 			});
 		}
 		if (e.type === 'tool_execution_update') {

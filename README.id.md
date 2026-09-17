@@ -373,6 +373,7 @@ message.delta
 message.end
 tool.start
 tool.update
+tool.input
 tool.end
 turn.end
 error

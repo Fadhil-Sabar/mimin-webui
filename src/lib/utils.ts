@@ -1,5 +1,35 @@
 import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { extendTailwindMerge } from 'tailwind-merge';
+
+/**
+ * The MD3 roles in `routes/layout.css` are a custom `text-*` theme scale that
+ * tailwind-merge knows nothing about: unregistered, it reads `text-body-md` as a
+ * text *colour* and drops it as soon as another colour class joins the same list.
+ * Each role has to be listed here for the two to coexist.
+ */
+const twMerge = extendTailwindMerge({
+	extend: {
+		theme: {
+			text: [
+				'display-lg',
+				'display-md',
+				'display-sm',
+				'headline-lg',
+				'headline-md',
+				'headline-sm',
+				'title-lg',
+				'title-md',
+				'title-sm',
+				'body-lg',
+				'body-md',
+				'body-sm',
+				'label-lg',
+				'label-md',
+				'label-sm'
+			]
+		}
+	}
+});
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));

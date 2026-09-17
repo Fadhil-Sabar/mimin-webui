@@ -16,7 +16,7 @@ import {
 import { createStreamingDeltaBatcher, type StreamingDelta } from '$lib/client/streaming-batcher';
 import { setLastUsedModel } from '$lib/client/conversations.svelte';
 import type { SkillSummary } from '$lib/skills';
-import { contentText, formatToolLabel, nowIso, thinkingText } from './chat-format';
+import { contentText, nowIso, thinkingText } from './chat-format';
 import type {
 	Conversation,
 	ConversationMessage,
@@ -117,28 +117,6 @@ export function createChatStream(deps: ChatStreamDeps) {
 
 	const streamingDeltas = createStreamingDeltaBatcher(applyStreamingDeltas);
 
-	const activeAgentActivity = $derived.by(() => {
-		if (!running) return '';
-		for (let i = messages.length - 1; i >= 0; i--) {
-			const msg = messages[i];
-			if (msg.role === 'assistant') {
-				const runningTool = msg.toolCalls?.find((t) => t.status === 'running');
-				if (runningTool) {
-					return formatToolLabel(runningTool.toolName, runningTool.input).action;
-				}
-				if (msg.isStreaming) {
-					if (thinkingText(msg.content) && !contentText(msg.content)) {
-						return 'Thinking...';
-					}
-					if (contentText(msg.content)) {
-						return 'Responding...';
-					}
-				}
-			}
-		}
-		return 'Working...';
-	});
-
 	function handleStreamEvent(event: SseEvent) {
 		if (event.type === 'message.start') {
 			if (event.role === 'user') {
@@ -188,6 +166,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 				toolName,
 				input,
 				status: 'running',
+				preparing: event.preparing === true,
 				startedAt: nowIso()
 			};
 			let targetMsgId = msgId;
@@ -224,6 +203,19 @@ export function createChatStream(deps: ChatStreamDeps) {
 					)
 				};
 			});
+		} else if (event.type === 'tool.input') {
+			// The model is still writing this call's arguments; keep the card's label
+			// and details in sync as they parse.
+			const toolCallId = String(event.toolCallId);
+			messages = messages.map((msg) => {
+				if (!msg.toolCalls?.some((c) => c.toolCallId === toolCallId)) return msg;
+				return {
+					...msg,
+					toolCalls: msg.toolCalls.map((c) =>
+						c.toolCallId === toolCallId ? { ...c, input: event.input } : c
+					)
+				};
+			});
 		} else if (event.type === 'browser.consent.request') {
 			const consent = consentFromEvent(event);
 			if (consent) {
@@ -249,6 +241,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 							return {
 								...c,
 								status,
+								preparing: false,
 								output: result,
 								completedAt: nowIso()
 							};
@@ -536,9 +529,6 @@ export function createChatStream(deps: ChatStreamDeps) {
 		},
 		get canRetry() {
 			return canRetry;
-		},
-		get activeAgentActivity() {
-			return activeAgentActivity;
 		},
 		send,
 		retry,
