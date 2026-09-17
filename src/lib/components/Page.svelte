@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 
 	type Props = {
-		/** `wide` suits dense tables (admin); `default` suits every other page. */
+		/** `wide` suits dense tables; `default` suits standard pages. */
 		width?: 'default' | 'wide';
 		children: Snippet;
 	};

@@ -36,11 +36,7 @@ export type NavSection = {
 	items: NavItem[];
 };
 
-/**
- * Two groups, split by concern: the surfaces you work in first, then everything
- * that configures the workspace. Admin-only entries sit with the rest of the
- * configuring surfaces rather than among the workspace ones.
- */
+/** Workspace destinations and settings destinations share one source of truth. */
 export const NAV_SECTIONS: NavSection[] = [
 	{
 		label: 'Workspace',
@@ -121,6 +117,14 @@ export function visibleNavSections(isAdmin: boolean): NavSection[] {
 		...section,
 		items: section.items.filter((item) => !item.adminOnly || isAdmin)
 	})).filter((section) => section.items.length > 0);
+}
+
+export function settingsNavItems(isAdmin: boolean): NavItem[] {
+	return (
+		NAV_SECTIONS.find((section) => section.label === 'Settings')?.items.filter(
+			(item) => !item.adminOnly || isAdmin
+		) ?? []
+	);
 }
 
 export function activeNavKey(pathname: string): string | undefined {

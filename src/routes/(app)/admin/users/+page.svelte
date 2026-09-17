@@ -147,7 +147,7 @@
 <svelte:head><title>User management | Mimin WebUI</title></svelte:head>
 
 <Topbar breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]} />
-<Page width="wide">
+<Page>
 	<PageHeader
 		title="User management"
 		eyebrow="Administration"

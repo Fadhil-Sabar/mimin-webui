@@ -1,15 +1,8 @@
 <script lang="ts">
-	import {
-		Bot,
-		Check,
-		Clipboard,
-		ChevronDown,
-		Paperclip,
-		RotateCcw,
-		Sparkles,
-		UserRound
-	} from '@lucide/svelte';
+	import { Check, Clipboard, ChevronDown, Paperclip, RotateCcw, Sparkles } from '@lucide/svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
+	import * as Bubble from '$lib/components/ui/bubble';
+	import * as Message from '$lib/components/ui/message';
 	import type { SkillSummary } from '$lib/skills';
 	import ToolCallPanel from './ToolCallPanel.svelte';
 	import {
@@ -102,141 +95,148 @@
 	}
 </script>
 
-<article
-	class="message"
-	class:assistant-message={message.role === 'assistant'}
+<Message.Root
+	align={message.role === 'user' ? 'end' : 'start'}
+	class="chat-message"
+	role="article"
 	aria-label={`${message.role === 'user' ? 'Your' : 'Mimin'} message`}
 >
-	<div class="message-label">
-		<div class="message-label-header">
-			{#if message.role === 'user'}
-				<UserRound size={14} aria-hidden="true" />
-				<span>YOU</span>
-			{:else}
-				<Bot size={14} aria-hidden="true" />
-				<span>MIMIN</span>
-			{/if}
+	<Message.Content class="chat-message-content">
+		<Message.Header class="chat-message-header">
+			<span class="sender-name">{message.role === 'user' ? 'You' : 'Mimin'}</span>
 			{#if skill}<span class="skill-badge">{skill.name}</span>{/if}
 			<time datetime={message.createdAt}>{formatTime(message.createdAt)}</time>
-		</div>
-		{#if message.role === 'user' && isLast && canRetry}
-			<button
-				type="button"
-				class="message-retry-btn"
-				onclick={onretry}
-				disabled={retryDisabled}
-				title="Retry last message"
-				aria-label="Retry last message"
-			>
-				<RotateCcw size={11} aria-hidden="true" />
-				<span>Retry</span>
-			</button>
-		{/if}
-		{#if message.role === 'assistant' && !message.isStreaming && contentText(message.content)}
-			<div class="message-actions" aria-label="Response actions">
-				<button
-					type="button"
-					class="message-action-btn"
-					onclick={copyResponse}
-					aria-label="Copy response"
-					data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
-				>
-					{#if copyStatus === 'copied'}<Check size={12} aria-hidden="true" />{:else}<Clipboard
-							size={12}
-							aria-hidden="true"
-						/>{/if}
-				</button>
-				{#if isLast && canRegenerate}
+			{#if message.role === 'assistant' && message.isStreaming}
+				<span class="live-tag" role="status">
+					{#if message.toolCalls?.some((t) => t.status === 'running')}
+						{formatToolLabel(
+							message.toolCalls.find((t) => t.status === 'running')!.toolName,
+							message.toolCalls.find((t) => t.status === 'running')!.input
+						).action.toLowerCase()}
+					{:else if thinkingText(message.content) && !contentText(message.content)}
+						thinking...
+					{:else if contentText(message.content)}
+						responding...
+					{:else}
+						working...
+					{/if}
+				</span>
+			{/if}
+		</Message.Header>
+		<Bubble.Root variant={message.role === 'user' ? 'secondary' : 'ghost'} class="chat-bubble">
+			<Bubble.Content class="chat-bubble-content">
+				{#if message.attachments?.length}
+					<div class="attachment-list message-attachments" aria-label="Attached files">
+						{#each message.attachments as attachment (attachment.id)}
+							<div class="attachment-chip">
+								<Paperclip size={13} aria-hidden="true" />
+								<span>{attachment.filename}</span><small>
+									{formatFileSize(
+										attachment.sizeBytes
+									)}{#if attachment.extractionStatus === 'failed'}
+										· text unavailable{:else if attachment.extractionStatus === 'empty'}
+										· no text{:else if attachment.extractionStatus}
+										· ready{/if}
+								</small>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				{#if message.role === 'assistant' && thinkingText(message.content)}
+					<details
+						class="thinking-block"
+						open={message.isStreaming && !contentText(message.content)}
+					>
+						<summary class="thinking-summary">
+							<Sparkles size={13} />
+							<span>Thinking process</span>
+							{#if message.isStreaming && !contentText(message.content)}
+								<span class="thinking-live-dot"></span>
+							{/if}
+							<ChevronDown size={13} class="chevron" />
+						</summary>
+						<div class="thinking-content" bind:this={thinkingEl} onscroll={handleThinkingScroll}>
+							{thinkingText(message.content)}
+						</div>
+					</details>
+				{/if}
+				{#if contentText(message.content)}
+					{#if message.role === 'assistant' && message.isStreaming}
+						<p class="response-text streaming-plain-text">{contentText(message.content)}</p>
+					{:else if message.role === 'assistant'}
+						<Markdown content={contentText(message.content)} {sources} />
+					{:else}
+						<p>{contentText(message.content)}</p>
+					{/if}
+				{:else if message.role === 'assistant' && message.isStreaming && !thinkingText(message.content) && (!message.toolCalls || message.toolCalls.length === 0)}
+					<p class="response-text thinking"><span class="pulse-dot"></span> Thinking...</p>
+				{:else if incompleteReply}
+					<p class="response-text incomplete-reply">
+						{message.stopReason === 'length'
+							? 'This reply stopped before writing an answer: the model used its whole output budget on reasoning.'
+							: 'This reply stopped before writing an answer: only reasoning was produced.'}
+					</p>
+				{/if}
+				{#if message.toolCalls && message.toolCalls.length > 0}
+					<ToolCallPanel
+						toolCalls={message.toolCalls}
+						{running}
+						{onquestionsubmit}
+						{onconsentsubmit}
+					/>
+				{/if}
+			</Bubble.Content>
+		</Bubble.Root>
+		{#if (message.role === 'user' && isLast && canRetry) || (message.role === 'assistant' && !message.isStreaming && contentText(message.content))}
+			<Message.Footer class="chat-message-footer" aria-label="Message actions">
+				{#if message.role === 'user' && isLast && canRetry}
+					<button
+						type="button"
+						class="message-retry-btn"
+						onclick={onretry}
+						disabled={retryDisabled}
+						title="Retry last message"
+						aria-label="Retry last message"
+					>
+						<RotateCcw size={12} aria-hidden="true" /> Retry
+					</button>
+				{:else if message.role === 'assistant'}
 					<button
 						type="button"
 						class="message-action-btn"
-						onclick={onregenerate}
-						disabled={regenerateDisabled}
-						aria-label="Regenerate response"
-						data-tooltip="Regenerate"
+						onclick={copyResponse}
+						aria-label="Copy response"
+						data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
 					>
-						<RotateCcw size={12} aria-hidden="true" />
+						{#if copyStatus === 'copied'}<Check size={14} aria-hidden="true" />{:else}<Clipboard
+								size={14}
+								aria-hidden="true"
+							/>{/if}
 					</button>
-				{/if}
-				{#if copyStatus !== 'idle'}
-					<span class="sr-only" role="status" aria-live="polite">
-						{copyStatus === 'copied'
-							? 'Response copied to clipboard.'
-							: 'Could not copy response. Try again.'}
-					</span>
-				{/if}
-			</div>
-		{/if}
-		{#if message.role === 'assistant' && message.isStreaming}
-			<span class="live-tag">
-				{#if message.toolCalls?.some((t) => t.status === 'running')}
-					{formatToolLabel(
-						message.toolCalls.find((t) => t.status === 'running')!.toolName,
-						message.toolCalls.find((t) => t.status === 'running')!.input
-					).action.toLowerCase()}
-				{:else if thinkingText(message.content) && !contentText(message.content)}
-					thinking...
-				{:else if contentText(message.content)}
-					responding...
-				{:else}
-					working...
-				{/if}
-			</span>
-		{/if}
-	</div>
-	<div class="message-body">
-		{#if message.attachments?.length}
-			<div class="attachment-list message-attachments" aria-label="Attached files">
-				{#each message.attachments as attachment (attachment.id)}
-					<div class="attachment-chip">
-						<Paperclip size={13} aria-hidden="true" />
-						<span>{attachment.filename}</span><small>
-							{formatFileSize(attachment.sizeBytes)}{#if attachment.extractionStatus === 'failed'}
-								· text unavailable{:else if attachment.extractionStatus === 'empty'}
-								· no text{:else if attachment.extractionStatus}
-								· ready{/if}
-						</small>
-					</div>
-				{/each}
-			</div>
-		{/if}
-		{#if message.role === 'assistant' && thinkingText(message.content)}
-			<details class="thinking-block" open={message.isStreaming && !contentText(message.content)}>
-				<summary class="thinking-summary">
-					<Sparkles size={13} />
-					<span>Thinking process</span>
-					{#if message.isStreaming && !contentText(message.content)}
-						<span class="thinking-live-dot"></span>
+					{#if isLast && canRegenerate}
+						<button
+							type="button"
+							class="message-action-btn"
+							onclick={onregenerate}
+							disabled={regenerateDisabled}
+							aria-label="Regenerate response"
+							data-tooltip="Regenerate"
+						>
+							<RotateCcw size={14} aria-hidden="true" />
+						</button>
 					{/if}
-					<ChevronDown size={13} class="chevron" />
-				</summary>
-				<div class="thinking-content" bind:this={thinkingEl} onscroll={handleThinkingScroll}>
-					{thinkingText(message.content)}
-				</div>
-			</details>
+					{#if copyStatus !== 'idle'}
+						<span class="sr-only" role="status" aria-live="polite">
+							{copyStatus === 'copied'
+								? 'Response copied to clipboard.'
+								: 'Could not copy response. Try again.'}
+						</span>
+					{/if}
+				{/if}
+			</Message.Footer>
 		{/if}
-		{#if contentText(message.content)}
-			{#if message.role === 'assistant' && message.isStreaming}
-				<p class="response-text streaming-plain-text">{contentText(message.content)}</p>
-			{:else if message.role === 'assistant'}
-				<Markdown content={contentText(message.content)} {sources} />
-			{:else}
-				<p>{contentText(message.content)}</p>
-			{/if}
-		{:else if message.role === 'assistant' && message.isStreaming && !thinkingText(message.content) && (!message.toolCalls || message.toolCalls.length === 0)}
-			<p class="response-text thinking"><span class="pulse-dot"></span> Thinking...</p>
-		{:else if incompleteReply}
-			<p class="response-text incomplete-reply">
-				{message.stopReason === 'length'
-					? 'This reply stopped before writing an answer: the model used its whole output budget on reasoning.'
-					: 'This reply stopped before writing an answer: only reasoning was produced.'}
-			</p>
-		{/if}
-		{#if message.toolCalls && message.toolCalls.length > 0}
-			<ToolCallPanel toolCalls={message.toolCalls} {running} {onquestionsubmit} {onconsentsubmit} />
-		{/if}
-	</div>
-</article>
+	</Message.Content>
+</Message.Root>
 
 <style>
 	.skill-badge {
@@ -254,58 +254,58 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
-	/* Wraps by available width, not viewport width: a wide window with a narrow
-	   chat column (sidebar + split canvas) must stack the label above the body
-	   too. The label keeps its 130px gutter while the body still gets a
-	   readable measure, then the label moves onto its own line. */
-	.message {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 6px 24px;
-		padding: 24px 0;
-		border-bottom: 1px solid var(--border);
+	:global(.chat-message) {
+		padding: 12px 0;
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
-	.assistant-message {
-		margin-inline: -14px;
-		padding-inline: 14px;
-		background: color-mix(in srgb, var(--surface-3) 52%, transparent);
-		border-bottom-color: transparent;
+	:global(.chat-message-content) {
+		gap: 6px;
 	}
-	/* The preceding sibling lives in another instance of this component, so the
-	   first compound cannot be verified statically. */
-	:global(.assistant-message) + .message {
-		border-top: 1px solid var(--border);
+	:global(.chat-message[data-align='end'] .chat-message-content) {
+		align-items: flex-end;
 	}
-	.message-label {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 3px;
-		color: var(--text-dim);
+	:global(.chat-message-header) {
+		gap: 8px;
+		padding-inline: 0;
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
-		flex: 0 0 130px;
-		min-width: 0;
 	}
-	.message-body {
-		flex: 1 1 320px;
-		min-width: 0;
+	:global(.chat-message[data-align='end'] .chat-message-header) {
+		justify-content: flex-end;
 	}
-	.message-label-header {
-		display: flex;
-		flex-wrap: wrap;
-		max-width: 100%;
-		align-items: center;
-		gap: 6px;
-		white-space: nowrap;
+	.sender-name {
+		color: var(--text-strong);
+		font-weight: 500;
 	}
-	.message-label time {
+	time {
 		color: var(--text-faint);
-		margin-left: 2px;
 		font-variant-numeric: tabular-nums;
 	}
-	.message p {
+	:global(.chat-bubble[data-variant='ghost']) {
+		width: 100%;
+	}
+	:global(.chat-bubble[data-variant='secondary']) {
+		max-width: min(80%, 640px);
+	}
+	:global(.chat-bubble-content) {
+		font-size: var(--text-body-lg);
+		line-height: var(--text-body-lg--line-height);
+		letter-spacing: var(--text-body-lg--letter-spacing);
+	}
+	:global(.chat-bubble[data-variant='secondary'] .chat-bubble-content) {
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		color: var(--text-body);
+		padding: 11px 14px;
+		border-radius: 14px 14px 5px 14px;
+	}
+	:global(.chat-bubble[data-variant='ghost'] .chat-bubble-content) {
+		color: var(--text-body);
+	}
+	:global(.chat-bubble-content) p {
 		margin: 0;
 		color: var(--text-body);
 		line-height: var(--text-body-lg--line-height);
@@ -339,6 +339,9 @@
 		white-space: nowrap;
 	}
 	.attachment-chip small {
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-faint);
 		white-space: nowrap;
 	}
@@ -356,23 +359,24 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 	}
-	.message-actions {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		margin-top: 10px;
+	:global(.chat-message-footer) {
+		gap: 4px;
+		padding-inline: 0;
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.message-action-btn {
 		position: relative;
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		width: 22px;
-		height: 22px;
+		width: 28px;
+		height: 28px;
 		padding: 0;
-		border: 1px solid var(--border);
-		border-radius: 4px;
-		background: var(--surface-subtle);
+		border: 0;
+		border-radius: 6px;
+		background: transparent;
 		color: var(--text-muted);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -387,9 +391,7 @@
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
-	/* Icon-only buttons reveal their label on hover/focus. The tooltip sits in a
-	   pseudo-element so it stays out of the accessibility tree (the aria-label
-	   already names the button) and cannot be clipped by the label gutter. */
+	/* Icon-only buttons reveal their label on hover/focus. */
 	.message-action-btn[data-tooltip]::after {
 		content: attr(data-tooltip);
 		position: absolute;
@@ -429,8 +431,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		margin-top: 4px;
-		padding: 2px 7px;
+		padding: 5px 8px;
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -541,8 +542,8 @@
 		}
 	}
 	@media (max-width: 760px) {
-		.message-label {
-			flex: 1 1 100%;
+		:global(.chat-bubble[data-variant='secondary']) {
+			max-width: 92%;
 		}
 	}
 </style>

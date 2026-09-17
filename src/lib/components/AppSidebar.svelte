@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { LogOut, PanelLeft, Plus, Sparkles } from '@lucide/svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
+	import SettingsMenu from '$lib/components/SettingsMenu.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { shell } from '$lib/client/shell.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
@@ -15,7 +16,9 @@
 	let { user = null }: Props = $props();
 
 	let initial = $derived(user?.name?.[0]?.toUpperCase() ?? 'U');
-	let sections = $derived(visibleNavSections(user?.role === 'admin'));
+	let sections = $derived(
+		visibleNavSections(user?.role === 'admin').filter((section) => section.label !== 'Settings')
+	);
 	let activeKey = $derived(activeNavKey(page.url.pathname));
 
 	async function logout() {
@@ -87,14 +90,24 @@
 			<div class="user-meta">
 				<strong>{user?.name ?? 'User'}</strong>
 			</div>
-			<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
-				<LogOut size={15} />
-			</button>
+			<div class="user-actions">
+				<SettingsMenu />
+				<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
+					<LogOut size={15} />
+				</button>
+			</div>
 		</div>
 	</div>
 </aside>
 
 <style>
+	.user-actions {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		margin-left: auto;
+	}
+
 	.new-chat:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;

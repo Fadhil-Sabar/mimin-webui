@@ -36,7 +36,6 @@
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import ChatComposer from './ChatComposer.svelte';
 	import ChatHeader from './ChatHeader.svelte';
-	import ChatTitle from './ChatTitle.svelte';
 	import ChatInlineError from './ChatInlineError.svelte';
 	import ChatTurnNotice from './ChatTurnNotice.svelte';
 	import ChatMessage from './ChatMessage.svelte';
@@ -741,11 +740,6 @@
 			bind:this={scrollEl}
 			onscroll={handleScroll}
 		>
-			<ChatTitle
-				conversation={activeConversation}
-				running={stream.running}
-				activity={stream.activeAgentActivity}
-			/>
 			<div class="chat-wrap">
 				{#if busy}
 					<div class="empty-state" role="status">Loading conversations...</div>
@@ -961,6 +955,8 @@
 
 	.chat-wrap {
 		width: 100%;
+		max-width: 920px;
+		margin-inline: auto;
 		min-width: 0;
 		min-height: 0;
 		flex: 1 0 auto;
