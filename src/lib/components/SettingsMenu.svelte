@@ -1,15 +1,11 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
 	import { Settings } from '@lucide/svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
+	import { settingsModal } from '$lib/client/settings-modal.svelte';
 
 	function openSettings() {
 		sidebar.closeMobile();
-		goto(resolve('/settings'), {
-			state: { settingsReturnTo: page.url.pathname + page.url.search, settingsStartAtList: true }
-		});
+		settingsModal.show('models');
 	}
 </script>
 

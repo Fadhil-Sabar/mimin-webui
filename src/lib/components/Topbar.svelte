@@ -44,7 +44,7 @@
 						{/if}
 					{/if}
 					{#if crumb.href}
-						<a href={resolve(crumb.href)}>{crumb.label}</a>
+						<a href={resolve(crumb.href as '/chat')}>{crumb.label}</a>
 					{:else if crumb.strong ?? index === 0}
 						<strong>{crumb.label}</strong>
 					{:else}

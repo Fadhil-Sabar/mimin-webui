@@ -12,7 +12,7 @@ describe('modal and picker keyboard accessibility', () => {
 	});
 
 	it('consumes provider handoff on settings entry and recreates it only on save', () => {
-		const source = read('src/routes/(app)/settings/+page.svelte');
+		const source = read('src/lib/components/settings/tabs/ModelsTab.svelte');
 		expect(source).toContain('consumeNavigationHandoff');
 		expect(source).toContain('createNavigationHandoff');
 		expect(source).toContain(
@@ -49,8 +49,8 @@ describe('modal and picker keyboard accessibility', () => {
 			'Delete project confirm': 'src/routes/(app)/projects/[id]/ProjectDialogs.svelte',
 			'Create project dialog': 'src/routes/(app)/projects/+page.svelte',
 			'Skill editor': 'src/routes/(app)/skills/SkillEditorModal.svelte',
-			'Provider form': 'src/routes/(app)/settings/ProviderFormModal.svelte',
-			'Connection editor': 'src/routes/(app)/settings/web-search/ConnectionEditorModal.svelte'
+			'Provider form': 'src/lib/components/settings/ProviderFormModal.svelte',
+			'Connection editor': 'src/lib/components/settings/web-search/ConnectionEditorModal.svelte'
 		};
 
 		for (const [name, path] of Object.entries(migrated)) {
@@ -119,13 +119,13 @@ describe('modal and picker keyboard accessibility', () => {
 			'src/routes/(app)/+page.svelte',
 			'src/routes/(app)/projects/+page.svelte',
 			'src/routes/(app)/projects/[id]/+page.svelte',
-			'src/routes/(app)/settings/+page.svelte',
-			'src/routes/(app)/settings/instructions/+page.svelte',
-			'src/routes/(app)/settings/web-search/+page.svelte',
-			'src/routes/(app)/settings/browser-extension/+page.svelte',
-			'src/routes/(app)/settings/preferences/+page.svelte',
+			'src/lib/components/settings/tabs/ModelsTab.svelte',
+			'src/lib/components/settings/tabs/InstructionsTab.svelte',
+			'src/lib/components/settings/tabs/WebSearchTab.svelte',
+			'src/lib/components/settings/tabs/BrowserExtensionTab.svelte',
+			'src/lib/components/settings/tabs/PreferencesTab.svelte',
 			'src/routes/(app)/skills/+page.svelte',
-			'src/routes/(app)/admin/users/+page.svelte'
+			'src/lib/components/settings/tabs/UsersTab.svelte'
 		]) {
 			it(`${file} delegates to the shared shell`, () => {
 				const source = read(file);
@@ -147,7 +147,7 @@ describe('modal and picker keyboard accessibility', () => {
 				'src/routes/(app)/chat/+page.svelte',
 				'src/routes/(app)/projects/+page.svelte',
 				'src/routes/(app)/projects/[id]/+page.svelte',
-				'src/routes/(app)/settings/+page.svelte',
+				'src/lib/components/settings/tabs/ModelsTab.svelte',
 				'src/routes/(app)/skills/+page.svelte',
 				'src/lib/components/RecentChats.svelte'
 			];
@@ -163,10 +163,10 @@ describe('modal and picker keyboard accessibility', () => {
 		// badges rendered completely unstyled. Badge replaces the class outright.
 		it('keeps the status pills on the Badge component', () => {
 			for (const file of [
-				'src/routes/(app)/settings/ProviderCard.svelte',
-				'src/routes/(app)/settings/web-search/ConnectionCard.svelte',
-				'src/routes/(app)/settings/web-search/StatusOverview.svelte',
-				'src/routes/(app)/settings/browser-extension/+page.svelte'
+				'src/lib/components/settings/ProviderCard.svelte',
+				'src/lib/components/settings/web-search/ConnectionCard.svelte',
+				'src/lib/components/settings/web-search/StatusOverview.svelte',
+				'src/lib/components/settings/tabs/BrowserExtensionTab.svelte'
 			]) {
 				const source = read(file);
 				expect(source, file).not.toContain('class="badge');

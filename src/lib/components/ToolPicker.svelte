@@ -4,6 +4,7 @@
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
 	import SwitchIndicator from '$lib/components/SwitchIndicator.svelte';
+	import { settingsModal } from '$lib/client/settings-modal.svelte';
 
 	export type ToolOption = {
 		name: string;
@@ -86,10 +87,15 @@
 						<p class="tool-desc">{tool.description}</p>
 						<p class="tool-settings-info">
 							Can only be configured in <a
-								href={tool.settingHref === '/settings/web-search'
-									? resolve('/settings/web-search')
-									: resolve('/settings/browser-extension')}
-								onclick={(e) => e.stopPropagation()}
+								href="#settings-browser-extension"
+								onclick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									open = false;
+									settingsModal.show(
+										tool.settingHref === '/settings/web-search' ? 'web-search' : 'browser-extension'
+									);
+								}}
 							>
 								Settings &rsaquo; Browser Extension
 							</a>

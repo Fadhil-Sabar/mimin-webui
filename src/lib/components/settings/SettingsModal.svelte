@@ -1,55 +1,99 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { resolve } from '$app/paths';
-	import { page } from '$app/state';
-	import { ArrowLeft, Search, X } from '@lucide/svelte';
-	import { activeNavKey, settingsNavItems, type NavItem } from '$lib/nav';
+	import {
+		ArrowLeft,
+		FileText,
+		Globe,
+		Puzzle,
+		Search,
+		Settings,
+		SlidersHorizontal,
+		Users,
+		X
+	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
+	import { settingsModal, type SettingsTab } from '$lib/client/settings-modal.svelte';
+	import ModelsTab from './tabs/ModelsTab.svelte';
+	import InstructionsTab from './tabs/InstructionsTab.svelte';
+	import WebSearchTab from './tabs/WebSearchTab.svelte';
+	import BrowserExtensionTab from './tabs/BrowserExtensionTab.svelte';
+	import PreferencesTab from './tabs/PreferencesTab.svelte';
+	import UsersTab from './tabs/UsersTab.svelte';
 
-	let {
-		user = null,
-		children
-	}: {
+	type Props = {
 		user?: { role?: string | null } | null;
-		children: Snippet;
-	} = $props();
+	};
+
+	let { user = null }: Props = $props();
+
+	type TabItem = {
+		key: SettingsTab;
+		label: string;
+		icon: typeof Settings;
+		adminOnly?: boolean;
+	};
+
+	const TAB_ITEMS: TabItem[] = [
+		{
+			key: 'models',
+			label: 'Models & Providers',
+			icon: Settings
+		},
+		{
+			key: 'instructions',
+			label: 'Instructions',
+			icon: FileText
+		},
+		{
+			key: 'web-search',
+			label: 'Web Search',
+			icon: Globe
+		},
+		{
+			key: 'browser-extension',
+			label: 'Browser Extension',
+			icon: Puzzle
+		},
+		{
+			key: 'preferences',
+			label: 'Preferences',
+			icon: SlidersHorizontal
+		},
+		{
+			key: 'users',
+			label: 'Users',
+			icon: Users,
+			adminOnly: true
+		}
+	];
 
 	let isMobile = $state(false);
 	let mobileView = $state<'list' | 'detail'>('detail');
 	let query = $state('');
-	let items = $derived(settingsNavItems(user?.role === 'admin'));
-	let activeKey = $derived(activeNavKey(page.url.pathname));
-	let filteredItems = $derived(
-		items.filter((item) => item.label.toLowerCase().includes(query.toLowerCase()))
+
+	let visibleTabs = $derived(
+		TAB_ITEMS.filter((item) => !item.adminOnly || user?.role === 'admin')
 	);
-	let routeState = $derived(
-		page.state as { settingsReturnTo?: string; settingsStartAtList?: boolean }
+	let filteredTabs = $derived(
+		visibleTabs.filter((item) => item.label.toLowerCase().includes(query.toLowerCase()))
 	);
-	let returnTo = $derived(routeState.settingsReturnTo || '/chat');
 
 	onMount(() => {
 		const media = window.matchMedia('(max-width: 760px)');
 		isMobile = media.matches;
-		mobileView = routeState.settingsStartAtList ? 'list' : 'detail';
 		const update = (event: MediaQueryListEvent) => (isMobile = event.matches);
 		media.addEventListener('change', update);
 		return () => media.removeEventListener('change', update);
 	});
 
 	function close() {
-		void goto(resolve(returnTo as '/chat'), { replaceState: true });
+		settingsModal.close();
 	}
 
-	function openSection(event: MouseEvent, item: NavItem) {
-		event.preventDefault();
+	function selectTab(tab: SettingsTab) {
+		settingsModal.setTab(tab);
 		mobileView = 'detail';
-		void goto(resolve(item.href), {
-			replaceState: true,
-			state: { settingsReturnTo: returnTo }
-		});
 	}
 </script>
 
@@ -71,24 +115,24 @@
 				<Search size={17} aria-hidden="true" />
 				<input bind:value={query} placeholder="Search settings" aria-label="Search settings" />
 			</label>
-			<nav class="settings-nav-list" aria-label="Settings sections">
-				{#each filteredItems as item (item.key)}
-					<a
+			<nav class="settings-nav-list" aria-label="Settings tabs">
+				{#each filteredTabs as item (item.key)}
+					<button
+						type="button"
 						class="settings-nav-item"
-						class:active={item.key === activeKey}
-						href={resolve(item.href)}
-						aria-current={item.key === activeKey ? 'page' : undefined}
-						onclick={(event) => openSection(event, item)}
+						class:active={item.key === settingsModal.activeTab}
+						aria-current={item.key === settingsModal.activeTab ? 'true' : undefined}
+						onclick={() => selectTab(item.key)}
 					>
 						<item.icon size={19} aria-hidden="true" />
 						<span>{item.label}</span>
-					</a>
+					</button>
 				{/each}
 			</nav>
 		</aside>
 		<section class="settings-details" aria-label="Settings details">
 			<div class="mobile-detail-header">
-				<button onclick={() => (mobileView = 'list')} aria-label="Back to settings">
+				<button onclick={() => (mobileView = 'list')} aria-label="Back to settings tabs">
 					<ArrowLeft size={19} aria-hidden="true" />
 					<span>Settings</span>
 				</button>
@@ -96,13 +140,25 @@
 					<X size={19} aria-hidden="true" />
 				</button>
 			</div>
-			{@render children()}
+			{#if settingsModal.activeTab === 'models'}
+				<ModelsTab />
+			{:else if settingsModal.activeTab === 'instructions'}
+				<InstructionsTab />
+			{:else if settingsModal.activeTab === 'web-search'}
+				<WebSearchTab />
+			{:else if settingsModal.activeTab === 'browser-extension'}
+				<BrowserExtensionTab />
+			{:else if settingsModal.activeTab === 'preferences'}
+				<PreferencesTab />
+			{:else if settingsModal.activeTab === 'users' && user?.role === 'admin'}
+				<UsersTab />
+			{/if}
 		</section>
 	</div>
 {/snippet}
 
 {#if isMobile}
-	<Sheet.Root open={true} onOpenChange={(next) => !next && close()}>
+	<Sheet.Root open={settingsModal.open} onOpenChange={(next) => !next && close()}>
 		<Sheet.Content
 			side="right"
 			showCloseButton={false}
@@ -113,7 +169,7 @@
 		</Sheet.Content>
 	</Sheet.Root>
 {:else}
-	<Dialog.Root open={true} onOpenChange={(next) => !next && close()}>
+	<Dialog.Root open={settingsModal.open} onOpenChange={(next) => !next && close()}>
 		<Dialog.Content
 			showCloseButton={false}
 			class="flex h-[calc(100dvh-32px)] max-h-[860px] w-[calc(100vw-32px)] max-w-[1080px] gap-0 overflow-hidden p-0 sm:max-w-[1080px]"
@@ -162,6 +218,7 @@
 		border-radius: 8px;
 		background: var(--surface-3);
 		color: var(--text-strong);
+		cursor: pointer;
 	}
 	.close-button:hover,
 	.mobile-detail-header button:hover {
@@ -197,10 +254,15 @@
 		gap: 11px;
 		min-height: 39px;
 		padding: 8px 11px;
+		border: 0;
 		border-radius: 8px;
+		background: transparent;
 		color: var(--text-body);
-		text-decoration: none;
+		text-align: left;
 		font-size: var(--text-body-md);
+		cursor: pointer;
+		width: 100%;
+		transition: background-color 0.15s ease, color 0.15s ease;
 	}
 	.settings-nav-item:hover,
 	.settings-nav-item.active {
@@ -212,13 +274,6 @@
 		min-height: 0;
 		overflow-y: auto;
 		background: var(--surface);
-	}
-	.settings-details :global(.topbar) {
-		display: none;
-	}
-	.settings-details :global(.page) {
-		max-width: none;
-		padding: 28px 32px 48px;
 	}
 	.mobile-detail-header {
 		display: none;
@@ -252,9 +307,6 @@
 			width: auto;
 			gap: 8px;
 			padding: 0 10px;
-		}
-		.settings-details :global(.page) {
-			padding: 20px 16px 48px;
 		}
 	}
 </style>

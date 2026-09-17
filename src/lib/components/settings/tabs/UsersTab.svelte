@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Check, Copy, KeyRound, UserPlus, Users } from '@lucide/svelte';
-	import Topbar from '$lib/components/Topbar.svelte';
-	import Page from '$lib/components/Page.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { authClient } from '$lib/client/auth';
 
@@ -144,10 +142,7 @@
 	let pageCount = $derived(Math.max(1, Math.ceil(total / pageSize)));
 </script>
 
-<svelte:head><title>User management | Mimin WebUI</title></svelte:head>
-
-<Topbar breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]} />
-<Page>
+<div class="tab-content">
 	<PageHeader
 		title="User management"
 		eyebrow="Administration"
@@ -263,9 +258,12 @@
 			{/if}
 		</section>
 	</div>
-</Page>
+</div>
 
 <style>
+	.tab-content {
+		padding: 28px 32px 48px;
+	}
 	.muted {
 		color: var(--text-muted);
 		font-size: var(--text-body-md);
@@ -499,6 +497,9 @@
 		opacity: 0.45;
 	}
 	@media (max-width: 760px) {
+		.tab-content {
+			padding: 20px 16px 48px;
+		}
 		.admin-grid {
 			grid-template-columns: 1fr;
 		}

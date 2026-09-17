@@ -10,11 +10,8 @@
 		isBrowserBridgeEnabled,
 		setBrowserBridgeEnabled
 	} from '$lib/client/browser-bridge';
-	import Topbar from '$lib/components/Topbar.svelte';
-	import Page from '$lib/components/Page.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
-	let { data } = $props();
 	let enabled = $state(false);
 	let hydrated = $state(false);
 	let browser = $state<'firefox' | 'chromium'>('chromium');
@@ -27,9 +24,7 @@
 	let permissions = $state<{ google?: boolean; publicWebsites?: boolean } | undefined>(undefined);
 	let pageOrigin = $state('');
 
-	// The package is built for the origin it is downloaded from, so it always bridges the browser
-	// actually open here. `data.origin` only covers the pre-hydration markup.
-	let downloadOrigin = $derived(pageOrigin || data.origin);
+	let downloadOrigin = $derived(pageOrigin);
 	let chromeDownload = $derived(
 		`${resolve('/')}api/browser/extension/chrome?origin=${encodeURIComponent(downloadOrigin)}`
 	);
@@ -68,13 +63,7 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Browser Extension · Mimin</title>
-</svelte:head>
-
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Browser Extension' }]} />
-
-<Page>
+<div class="tab-content">
 	<PageHeader
 		title="Mimin Browser Bridge"
 		subtitle="Let Mimin open tabs, search Google or Google Scholar, and read public web pages directly from your chat."
@@ -235,9 +224,12 @@
 			Chrome Web Store and Firefox Add-ons before offering one-click production installation.
 		</p>
 	{/if}
-</Page>
+</div>
 
 <style>
+	.tab-content {
+		padding: 28px 32px 48px;
+	}
 	.card-icon {
 		display: grid;
 		place-items: center;
@@ -416,6 +408,11 @@
 		margin-top: 18px;
 		padding-top: 16px;
 		border-top: 1px solid var(--border);
+	}
+	@media (max-width: 760px) {
+		.tab-content {
+			padding: 20px 16px 48px;
+		}
 	}
 	@media (max-width: 720px) {
 		.enable-card {

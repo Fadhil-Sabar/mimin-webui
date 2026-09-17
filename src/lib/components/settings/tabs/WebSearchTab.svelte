@@ -1,22 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Globe, KeyRound } from '@lucide/svelte';
-	import ConnectionCard from './ConnectionCard.svelte';
-	import ConnectionEditorModal from './ConnectionEditorModal.svelte';
-	import FormActions from './FormActions.svelte';
-	import NotificationToast from './NotificationToast.svelte';
-	import ProviderSelector from './ProviderSelector.svelte';
-	import SearchTestPanel from './SearchTestPanel.svelte';
-	import StatusOverview from './StatusOverview.svelte';
+	import ConnectionCard from '../web-search/ConnectionCard.svelte';
+	import ConnectionEditorModal from '../web-search/ConnectionEditorModal.svelte';
+	import FormActions from '../web-search/FormActions.svelte';
+	import NotificationToast from '../web-search/NotificationToast.svelte';
+	import ProviderSelector from '../web-search/ProviderSelector.svelte';
+	import SearchTestPanel from '../web-search/SearchTestPanel.svelte';
+	import StatusOverview from '../web-search/StatusOverview.svelte';
 	import type {
 		ConnectionField,
 		EditingField,
 		SearchProviderType,
 		TestResult,
 		WebSearchSettingsState
-	} from './types';
-	import Topbar from '$lib/components/Topbar.svelte';
-	import Page from '$lib/components/Page.svelte';
+	} from '../web-search/types';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let loading = $state(true);
@@ -227,13 +225,7 @@
 	});
 </script>
 
-<svelte:head>
-	<title>Web Search Settings · Mimin</title>
-</svelte:head>
-
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Web Search' }]} />
-
-<Page>
+<div class="tab-content">
 	<PageHeader
 		title="Web search configuration"
 		subtitle="Configure the search engine, API key, and search endpoint used when Mimin performs web research."
@@ -328,11 +320,22 @@
 			ontest={runTestSearch}
 		/>
 	{/if}
-</Page>
+</div>
 
 <svelte:window onkeydown={(event) => event.key === 'Escape' && (editingField = null)} />
 
 <style>
+	.tab-content {
+		padding: 28px 32px 48px;
+	}
+	.empty-state {
+		text-align: center;
+		color: var(--text-dim);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		padding: 40px 0;
+	}
 	.settings-form {
 		background: var(--surface);
 		border: 1px solid var(--border);
@@ -349,9 +352,6 @@
 		gap: 11px;
 		margin-bottom: 32px;
 	}
-
-	/* Shared spinner utility: the class is applied to icons rendered by the
-	   extracted child components, so it stays global to this route. */
 	:global(.spin) {
 		animation: spin 1s linear infinite;
 	}
@@ -361,6 +361,11 @@
 		}
 		to {
 			transform: rotate(360deg);
+		}
+	}
+	@media (max-width: 760px) {
+		.tab-content {
+			padding: 20px 16px 48px;
 		}
 	}
 </style>

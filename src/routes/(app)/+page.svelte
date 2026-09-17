@@ -16,6 +16,7 @@
 		createNavigationHandoff,
 		peekNavigationHandoff
 	} from '$lib/client/navigation-handoff';
+	import { settingsModal } from '$lib/client/settings-modal.svelte';
 	import Topbar from '$lib/components/Topbar.svelte';
 	let prompt = $state('');
 	let conversations = $state<ConversationSummary[]>([]);
@@ -123,8 +124,7 @@
 
 	function openProviderSetup(event: MouseEvent) {
 		event.preventDefault();
-		createNavigationHandoff({ prompt: prompt.trim(), returnTo: '/' });
-		window.location.href = resolve('/settings');
+		settingsModal.show('models');
 	}
 </script>
 

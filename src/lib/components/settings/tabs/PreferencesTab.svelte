@@ -2,8 +2,6 @@
 	import { onMount } from 'svelte';
 	import { SlidersHorizontal } from '@lucide/svelte';
 	import SwitchIndicator from '$lib/components/SwitchIndicator.svelte';
-	import Topbar from '$lib/components/Topbar.svelte';
-	import Page from '$lib/components/Page.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { displayPreferences } from '$lib/client/display-preferences.svelte';
 
@@ -20,13 +18,7 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Preferences · Mimin</title>
-</svelte:head>
-
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Preferences' }]} />
-
-<Page>
+<div class="tab-content">
 	<PageHeader
 		title="Preferences"
 		subtitle="Choose how much Mimin shows you while you work. These apply to this browser."
@@ -54,9 +46,12 @@
 			<span>{displayPreferences.showMessageContext ? 'Shown' : 'Hidden'}</span>
 		</button>
 	</section>
-</Page>
+</div>
 
 <style>
+	.tab-content {
+		padding: 28px 32px 48px;
+	}
 	.preference-card {
 		display: flex;
 		align-items: flex-start;
@@ -87,7 +82,6 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 	}
-	/* The pill and its label are one control, so the whole thing is the toggle. */
 	.preference-toggle {
 		display: inline-flex;
 		align-items: center;
@@ -124,6 +118,11 @@
 	.preference-toggle:focus-visible {
 		outline: 2px solid var(--focus);
 		outline-offset: 2px;
+	}
+	@media (max-width: 760px) {
+		.tab-content {
+			padding: 20px 16px 48px;
+		}
 	}
 	@media (max-width: 720px) {
 		.preference-card {

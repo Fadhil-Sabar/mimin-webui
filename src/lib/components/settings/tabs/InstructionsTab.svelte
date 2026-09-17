@@ -2,8 +2,6 @@
 	import { onMount } from 'svelte';
 	import { Check, FileText, Loader2, RotateCcw } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import Topbar from '$lib/components/Topbar.svelte';
-	import Page from '$lib/components/Page.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	const MAX_LENGTH = 10000;
@@ -79,13 +77,7 @@
 	onMount(loadInstructions);
 </script>
 
-<svelte:head>
-	<title>Instructions · Mimin</title>
-</svelte:head>
-
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Instructions' }]} />
-
-<Page>
+<div class="tab-content">
 	<PageHeader
 		title="Custom instructions"
 		subtitle="Tell Mimin how you want it to respond across all of your conversations."
@@ -158,9 +150,20 @@
 			</div>
 		</form>
 	{/if}
-</Page>
+</div>
 
 <style>
+	.tab-content {
+		padding: 28px 32px 48px;
+	}
+	.empty-state {
+		text-align: center;
+		color: var(--text-dim);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		padding: 40px 0;
+	}
 	.field-heading p,
 	.privacy-note {
 		margin: 0;
@@ -318,6 +321,9 @@
 		}
 	}
 	@media (max-width: 720px) {
+		.tab-content {
+			padding: 20px 16px 48px;
+		}
 		.scope-strip {
 			grid-template-columns: 1fr;
 			gap: 8px;

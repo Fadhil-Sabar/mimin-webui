@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { sidebar } from '$lib/client/sidebar.svelte';
+	import { settingsModal, type SettingsTab } from '$lib/client/settings-modal.svelte';
 	import { activeNavKey, mobileNavItems } from '$lib/nav';
 
 	type Props = {
@@ -16,16 +17,31 @@
 
 <nav class="mobile-nav" class:drawer-open={sidebar.mobileOpen} aria-label="Primary">
 	{#each items as item (item.key)}
-		<a
-			class="mobile-nav-item"
-			class:active={item.key === activeKey}
-			href={resolve(item.href)}
-			aria-current={item.key === activeKey ? 'page' : undefined}
-			onclick={() => sidebar.closeMobile()}
-		>
-			<item.icon size={20} />
-			<span>{item.label}</span>
-		</a>
+		{#if item.key === 'models' || item.key === 'users'}
+			<button
+				type="button"
+				class="mobile-nav-item"
+				class:active={settingsModal.open && settingsModal.activeTab === item.key}
+				onclick={() => {
+					sidebar.closeMobile();
+					settingsModal.show(item.key as SettingsTab);
+				}}
+			>
+				<item.icon size={20} />
+				<span>{item.label}</span>
+			</button>
+		{:else}
+			<a
+				class="mobile-nav-item"
+				class:active={!settingsModal.open && item.key === activeKey}
+				href={resolve(item.href as '/chat')}
+				aria-current={!settingsModal.open && item.key === activeKey ? 'page' : undefined}
+				onclick={() => sidebar.closeMobile()}
+			>
+				<item.icon size={20} />
+				<span>{item.label}</span>
+			</a>
+		{/if}
 	{/each}
 </nav>
 
@@ -58,6 +74,10 @@
 			gap: 2px;
 			color: var(--text-muted);
 			text-decoration: none;
+			background: transparent;
+			border: 0;
+			padding: 0;
+			cursor: pointer;
 			font-size: var(--text-label-sm);
 			line-height: var(--text-label-sm--line-height);
 			letter-spacing: var(--text-label-sm--letter-spacing);

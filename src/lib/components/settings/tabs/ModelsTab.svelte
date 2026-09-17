@@ -3,8 +3,8 @@
 	import { Plus } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import ProviderCard from './ProviderCard.svelte';
-	import ProviderFormModal from './ProviderFormModal.svelte';
+	import ProviderCard from '../ProviderCard.svelte';
+	import ProviderFormModal from '../ProviderFormModal.svelte';
 	import {
 		consumeNavigationHandoff,
 		createNavigationHandoff
@@ -16,9 +16,7 @@
 		type ModelItem,
 		type Protocol,
 		type ProviderState
-	} from './provider-types';
-	import Topbar from '$lib/components/Topbar.svelte';
-	import Page from '$lib/components/Page.svelte';
+	} from '../provider-types';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	const PROVIDERS: Array<{ id: string; name: string; description: string; envVar: string }> = [
@@ -322,9 +320,7 @@
 	}
 </script>
 
-<svelte:head><title>Mimin WebUI | Settings</title></svelte:head>
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Models' }]} />
-<Page>
+<div class="tab-content">
 	<PageHeader
 		title="Models & connections"
 		subtitle="Connect the models Mimin can use. Your keys are encrypted and only power your conversations."
@@ -346,7 +342,7 @@
 			browser.
 		</p>
 	{/if}
-</Page>
+</div>
 
 {#if editing}
 	<ProviderFormModal
@@ -373,6 +369,9 @@
 <svelte:window onkeydown={(event) => event.key === 'Escape' && (editing = null)} />
 
 <style>
+	.tab-content {
+		padding: 28px 32px 48px;
+	}
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
@@ -392,5 +391,10 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
+	}
+	@media (max-width: 760px) {
+		.tab-content {
+			padding: 20px 16px 48px;
+		}
 	}
 </style>

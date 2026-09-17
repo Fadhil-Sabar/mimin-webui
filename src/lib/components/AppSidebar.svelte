@@ -65,7 +65,7 @@
 				<a
 					class="nav-item"
 					class:active={item.key === activeKey}
-					href={resolve(item.href)}
+					href={resolve(item.href as '/chat')}
 					aria-current={item.key === activeKey ? 'page' : undefined}
 				>
 					<item.icon size={16} />
