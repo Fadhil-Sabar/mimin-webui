@@ -7,6 +7,7 @@
 	} from '$lib/components/ModelPicker.svelte';
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
 	import SkillPicker from '$lib/components/SkillPicker.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import type { Skill, SkillSummary } from '$lib/skills';
 	import { CHAT_ATTACHMENT_ACCEPT, formatFileSize, isImageFile } from './chat-format';
 	import type { Conversation } from './chat-types';
@@ -237,11 +238,12 @@
 						if (onattach(event.currentTarget.files)) event.currentTarget.value = '';
 					}}
 				/>
-				<button
-					class="control"
+				<Button
+					variant="secondary"
+					class="gap-1.5 bg-[var(--surface-subtle)] px-[9px] py-[7px] text-[var(--text-muted)] hover:border-[var(--text-faint)] hover:text-[var(--text-strong)] max-[760px]:px-[8px] max-[760px]:py-[5px] max-[560px]:px-[7px] max-[560px]:py-[4px]"
 					title="Attach files or images"
 					disabled={running || conversationLoading || skillSaving || toolsSaving || modelSaving}
-					onclick={() => fileInput?.click()}><Paperclip size={15} /> File</button
+					onclick={() => fileInput?.click()}><Paperclip size={15} /> File</Button
 				>
 				<ModelPicker
 					{models}
@@ -307,14 +309,15 @@
 					ontoggle={ontoggletool}
 				/>
 			</div>
-			<button
-				class="send-button"
+			<Button
+				variant={running ? 'destructive' : 'default'}
+				size="icon"
+				class="ml-auto size-[38px] self-end rounded-lg max-[760px]:size-[34px]"
 				disabled={!running && (conversationLoading || skillSaving || toolsSaving || modelSaving)}
-				class:stop={running}
 				aria-label={running ? 'Stop generation' : 'Send message'}
 				title={running ? 'Stop generation' : 'Send message'}
 				onclick={() => (running ? onstop() : onsend())}
-				>{#if running}<Square size={13} />{:else}<ArrowUp size={16} />{/if}</button
+				>{#if running}<Square size={13} />{:else}<ArrowUp size={16} />{/if}</Button
 			>
 		</div>
 	</div>
@@ -324,18 +327,18 @@
 	.skill-status {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
-		padding: 8px 12px 0;
+		padding: var(--space-2) var(--space-3) 0;
 	}
 	.skill-badge {
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
 		max-width: 100%;
-		padding: 3px 8px;
+		padding: 3px var(--space-2);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		color: var(--text);
 		font-size: var(--text-body-sm);
@@ -359,7 +362,7 @@
 		justify-content: center;
 		padding: 1px;
 		border: 0;
-		border-radius: 3px;
+		border-radius: var(--radius-sm);
 		background: transparent;
 		color: var(--text-muted);
 		cursor: pointer;
@@ -386,10 +389,10 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
-		margin: 8px 12px 0;
+		margin: var(--space-2) var(--space-3) 0;
 		padding: 6px 10px;
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -418,13 +421,13 @@
 	.skill-suggestion-actions {
 		display: flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 		flex-shrink: 0;
 	}
 	.skill-suggestion-apply {
-		padding: 2px 8px;
+		padding: 2px var(--space-2);
 		border: 1px solid var(--border);
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: var(--surface);
 		color: var(--text-strong);
 		font-size: var(--text-body-sm);
@@ -450,7 +453,7 @@
 		justify-content: center;
 		padding: 3px;
 		border: 0;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: transparent;
 		color: var(--text-muted);
 		cursor: pointer;
@@ -470,9 +473,9 @@
 		align-items: center;
 		gap: 6px;
 		max-width: 100%;
-		padding: 6px 8px;
+		padding: 6px var(--space-2);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		color: var(--text-body);
 		font-size: var(--text-body-sm);
@@ -490,13 +493,13 @@
 		white-space: nowrap;
 	}
 	.image-attachment {
-		padding: 4px 8px 4px 5px;
+		padding: var(--space-1) var(--space-2) var(--space-1) 5px;
 	}
 	.attachment-thumb {
 		display: block;
 		width: 30px;
 		height: 30px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		object-fit: cover;
 		flex-shrink: 0;
 	}
@@ -515,7 +518,7 @@
 		position: sticky;
 		bottom: 0;
 		margin-top: auto;
-		padding-top: 24px;
+		padding-top: var(--space-5);
 		padding-bottom: 20px;
 		background: linear-gradient(to top, var(--bg) 80%, transparent);
 		z-index: 15;
@@ -524,18 +527,17 @@
 		position: relative;
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: 9px;
-		padding: 12px;
+		border-radius: var(--radius-lg);
+		padding: var(--space-3);
 		box-shadow: 0 10px 28px var(--shadow-faint);
 	}
 	.chat-composer > .attachment-list {
-		margin: 0 0 8px;
+		margin: 0 0 var(--space-2);
 	}
 	.chat-composer textarea {
 		width: 100%;
 		min-height: 45px;
 		border: 0;
-		outline: 0;
 		resize: none;
 		font-family: inherit;
 		font-size: var(--text-body-lg);
@@ -551,7 +553,7 @@
 		display: flex;
 		align-items: flex-end;
 		justify-content: space-between;
-		gap: 8px;
+		gap: var(--space-2);
 		border-top: 1px solid var(--border);
 		padding-top: 10px;
 	}
@@ -569,15 +571,20 @@
 		gap: 6px;
 		min-height: 38px;
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		padding: 7px 9px;
 		color: var(--text-muted);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		transition: var(--duration-short4) var(--ease-standard);
+		transition:
+			color var(--duration-short4) var(--ease-standard),
+			background var(--duration-short4) var(--ease-standard),
+			border-color var(--duration-short4) var(--ease-standard);
 	}
+	/* Only the native `<select>` still uses this: the file-picker control next to it
+	 * is the shared `Button`, styled to match. */
 	.control:hover {
 		color: var(--text-strong);
 		border-color: var(--text-faint);
@@ -590,55 +597,26 @@
 		opacity: 0.72;
 		cursor: not-allowed;
 	}
-	.send-button {
-		display: grid;
-		place-items: center;
-		width: 38px;
-		height: 38px;
-		flex: 0 0 38px;
-		margin-left: auto;
-		align-self: flex-end;
-		border: 0;
-		border-radius: 8px;
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		transition: var(--duration-short4) var(--ease-standard);
-	}
-	.send-button:hover {
-		background: var(--accent-bg-hover);
-	}
-	.send-button.stop {
-		background: var(--danger-bg);
-		color: #ffffff;
-	}
 	@media (max-width: 760px) {
 		.composer-row {
 			gap: 6px;
-			padding-top: 8px;
+			padding-top: var(--space-2);
 		}
 		.composer-tools {
 			gap: 5px;
 		}
 		.control {
 			min-height: 34px;
-			padding: 5px 8px;
-			font-size: var(--text-body-sm);
-			line-height: var(--text-body-sm--line-height);
-			letter-spacing: var(--text-body-sm--letter-spacing);
+			padding: 5px var(--space-2);
 		}
 		.thinking-level-control {
 			max-width: 110px;
 		}
-		.send-button {
-			width: 34px;
-			height: 34px;
-			flex: 0 0 34px;
-		}
 	}
-	@media (max-width: 420px) {
+	@media (max-width: 560px) {
 		.control {
 			min-height: 32px;
-			padding: 4px 7px;
+			padding: var(--space-1) 7px;
 		}
 		.thinking-level-control {
 			max-width: 95px;

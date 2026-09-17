@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { SlidersHorizontal } from '@lucide/svelte';
 	import SwitchIndicator from '$lib/components/SwitchIndicator.svelte';
+	import { Card } from '$lib/components/ui/card/index.js';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { displayPreferences } from '$lib/client/display-preferences.svelte';
 
@@ -26,7 +27,10 @@
 		{#snippet icon()}<SlidersHorizontal size={20} />{/snippet}
 	</PageHeader>
 
-	<section class="preference-card">
+	<Card
+		shadow="soft"
+		class="mt-[var(--space-5)] flex items-start gap-5 p-[18px_20px] max-[760px]:flex-wrap max-[760px]:gap-[14px]"
+	>
 		<div class="preference-text">
 			<strong>Show answer context</strong>
 			<p>
@@ -45,23 +49,12 @@
 			<SwitchIndicator checked={displayPreferences.showMessageContext} />
 			<span>{displayPreferences.showMessageContext ? 'Shown' : 'Hidden'}</span>
 		</button>
-	</section>
+	</Card>
 </div>
 
 <style>
 	.tab-content {
-		padding: 28px 32px 48px;
-	}
-	.preference-card {
-		display: flex;
-		align-items: flex-start;
-		gap: 20px;
-		margin-top: 24px;
-		padding: 18px 20px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		box-shadow: 0 5px 20px var(--shadow-softer);
+		padding: 28px var(--space-6) var(--space-7);
 	}
 	.preference-text {
 		min-width: 0;
@@ -76,7 +69,7 @@
 		font-weight: 500;
 	}
 	.preference-text p {
-		margin: 4px 0 0;
+		margin: var(--space-1) 0 0;
 		color: var(--text-muted);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
@@ -116,19 +109,9 @@
 		opacity: 0.6;
 		cursor: not-allowed;
 	}
-	.preference-toggle:focus-visible {
-		outline: 2px solid var(--focus);
-		outline-offset: 2px;
-	}
 	@media (max-width: 760px) {
 		.tab-content {
-			padding: 20px 16px 48px;
-		}
-	}
-	@media (max-width: 720px) {
-		.preference-card {
-			flex-wrap: wrap;
-			gap: 14px;
+			padding: 20px var(--space-4) var(--space-7);
 		}
 		.preference-toggle {
 			width: 100%;

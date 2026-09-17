@@ -4,7 +4,7 @@
 	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
 
 	export const buttonVariants = tv({
-		base: "state-layer focus-visible:focus-outline md-label-lg inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-clip-padding whitespace-nowrap outline-none transition-[color,background-color,border-color] duration-(--duration-short4) disabled:pointer-events-none disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+		base: "state-layer focus-visible:focus-outline md-label-lg inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-transparent bg-clip-padding whitespace-nowrap outline-none transition-[color,background-color,border-color,transform] duration-(--duration-short4) disabled:pointer-events-none disabled:opacity-60 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
 		variants: {
 			variant: {
 				default:
@@ -16,7 +16,7 @@
 				ghost:
 					'border-transparent bg-transparent text-[var(--text-muted)] hover:text-[var(--text)]',
 				destructive:
-					'border-[var(--danger-bg)] bg-[var(--danger-bg)] text-white hover:bg-[color-mix(in_srgb,var(--danger-bg)_85%,#000)]',
+					'border-[var(--danger-bg)] bg-[var(--danger-bg)] text-destructive-foreground hover:bg-[color-mix(in_srgb,var(--danger-bg)_85%,var(--text-strong))]',
 				link: 'border-transparent bg-transparent text-[var(--text-strong)] underline-offset-4 hover:underline'
 			},
 			size: {
@@ -25,6 +25,7 @@
 				lg: 'min-h-[42px] px-4 py-2.5',
 				icon: 'size-9',
 				'icon-sm': 'size-8',
+				'icon-xs': 'size-7',
 				'icon-lg': 'size-10'
 			}
 		},

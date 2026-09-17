@@ -61,8 +61,8 @@
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: 24px;
-		padding-bottom: 24px;
+		gap: var(--space-5);
+		padding-bottom: var(--space-5);
 		border-bottom: 1px solid var(--border);
 	}
 	.title-row {
@@ -79,7 +79,7 @@
 		color: var(--text-muted);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 	}
 	.hero h1 {
 		margin: 0;
@@ -87,7 +87,6 @@
 		font-size: var(--text-headline-md);
 		line-height: var(--text-headline-md--line-height);
 		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.hero p {
@@ -100,14 +99,14 @@
 	}
 	.hero-actions {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 		flex: 0 0 auto;
 	}
 	.stats {
 		display: flex;
 		align-items: center;
-		gap: 32px;
-		padding: 16px 0;
+		gap: var(--space-6);
+		padding: var(--space-4) 0;
 		border-bottom: 1px solid var(--border);
 	}
 	.stat-item {

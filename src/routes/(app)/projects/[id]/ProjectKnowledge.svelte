@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ProjectFileRow from './ProjectFileRow.svelte';
 	import ProjectUpload from './ProjectUpload.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import type { PageInfo, ProjectFile, UploadSummary } from './project-types';
 
 	let {
@@ -57,28 +58,29 @@
 		<div class="empty-state filtered-empty">No files match “{query}”.</div>
 	{/if}
 	{#if pagination.hasMore}
-		<button
-			class="load-more"
+		<Button
+			class="mt-[10px] w-full"
+			variant="outline"
 			type="button"
 			onclick={() => void onloadmore()}
 			disabled={loadingMore}
 			aria-busy={loadingMore}
 		>
 			{loadingMore ? 'Loading files…' : `Load more files (${loadedCount} of ${pagination.total})`}
-		</button>
+		</Button>
 	{/if}
 </section>
 
 <style>
 	.section-block {
-		padding-top: 32px;
+		padding-top: var(--space-6);
 	}
 	.section-heading {
 		display: flex;
 		align-items: flex-end;
 		justify-content: space-between;
-		gap: 16px;
-		margin-bottom: 12px;
+		gap: var(--space-4);
+		margin-bottom: var(--space-3);
 	}
 	.section-heading h2 {
 		margin: 0;
@@ -86,7 +88,6 @@
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.section-heading p {
@@ -98,7 +99,7 @@
 	}
 	.search-scope {
 		display: block;
-		margin-top: 4px;
+		margin-top: var(--space-1);
 		color: var(--text-dim);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -108,7 +109,7 @@
 		overflow: hidden;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 	}
 	.empty-state {
 		text-align: center;
@@ -119,6 +120,6 @@
 		padding: 34px 0;
 	}
 	.filtered-empty {
-		padding: 24px 0;
+		padding: var(--space-5) 0;
 	}
 </style>

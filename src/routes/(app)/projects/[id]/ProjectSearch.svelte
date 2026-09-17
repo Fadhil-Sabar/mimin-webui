@@ -22,13 +22,13 @@
 	.project-search {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		width: 200px;
 		padding: 7px 10px;
 		color: var(--text-dim);
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 	.project-search input {
@@ -36,7 +36,6 @@
 		min-width: 0;
 		padding: 0;
 		border: 0;
-		outline: 0;
 		color: var(--text-strong);
 		background: transparent;
 		font-family: var(--font-body);

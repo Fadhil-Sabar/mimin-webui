@@ -54,8 +54,9 @@
 			</div>{/if}
 	</div>
 	{#if pagination.hasMore}
-		<button
-			class="load-more"
+		<Button
+			class="mt-[10px] w-full"
+			variant="outline"
 			type="button"
 			onclick={() => void onloadmore()}
 			disabled={loadingMore}
@@ -64,20 +65,20 @@
 			{loadingMore
 				? 'Loading conversations…'
 				: `Load more conversations (${loadedCount} of ${pagination.total})`}
-		</button>
+		</Button>
 	{/if}
 </section>
 
 <style>
 	.section-block {
-		padding-top: 32px;
+		padding-top: var(--space-6);
 	}
 	.section-heading {
 		display: flex;
 		align-items: flex-end;
 		justify-content: space-between;
-		gap: 16px;
-		margin-bottom: 12px;
+		gap: var(--space-4);
+		margin-bottom: var(--space-3);
 	}
 	.section-heading h2 {
 		margin: 0;
@@ -85,7 +86,6 @@
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.section-heading p {
@@ -97,7 +97,7 @@
 	}
 	.search-scope {
 		display: block;
-		margin-top: 4px;
+		margin-top: var(--space-1);
 		color: var(--text-dim);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -107,12 +107,12 @@
 		overflow: hidden;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 	}
 	.conversation-row {
 		display: grid;
 		align-items: center;
-		gap: 12px;
+		gap: var(--space-3);
 		min-height: 52px;
 		width: 100%;
 		padding: 10px 14px;

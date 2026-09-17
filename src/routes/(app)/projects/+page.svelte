@@ -5,6 +5,9 @@
 	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
+	import { Card } from '$lib/components/ui/card/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
+	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import Topbar from '$lib/components/Topbar.svelte';
 	import Page from '$lib/components/Page.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
@@ -121,21 +124,29 @@
 					placeholder="Search projects..."
 				/>
 			</div>
-			<button
-				class:chosen={view === 'grid'}
-				class="view-button"
+			<Button
+				variant="ghost"
+				size="icon"
+				class="size-[38px] border border-[var(--border)] bg-[var(--surface)] text-[var(--text-faint)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)] {view ===
+				'grid'
+					? 'bg-[var(--surface-hover)] text-[var(--text-body)]'
+					: ''}"
 				aria-label="Grid view"
 				aria-pressed={view === 'grid'}
 				title="Grid view"
-				onclick={() => (view = 'grid')}><Grid2X2 size={16} /></button
+				onclick={() => (view = 'grid')}><Grid2X2 size={16} /></Button
 			>
-			<button
-				class:chosen={view === 'list'}
-				class="view-button"
+			<Button
+				variant="ghost"
+				size="icon"
+				class="size-[38px] border border-[var(--border)] bg-[var(--surface)] text-[var(--text-faint)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)] {view ===
+				'list'
+					? 'bg-[var(--surface-hover)] text-[var(--text-body)]'
+					: ''}"
 				aria-label="List view"
 				aria-pressed={view === 'list'}
 				title="List view"
-				onclick={() => (view = 'list')}><List size={16} /></button
+				onclick={() => (view = 'list')}><List size={16} /></Button
 			>
 		</div>
 	</div>
@@ -151,16 +162,22 @@
 	{#if !loading}
 		<div class:grid-view={view === 'grid'} class:list-view={view === 'list'} class="project-grid">
 			{#each filteredProjects as project (project.id)}
-				<a class="project-card" href={resolve(`/projects/${project.id}`)}>
+				<Card
+					href={resolve(`/projects/${project.id}`)}
+					padding="none"
+					class="flex min-h-[220px] flex-col p-[18px] text-left text-inherit no-underline transition-[border-color,box-shadow,transform] duration-(--duration-short4) ease-standard hover:-translate-y-[2px] hover:border-[var(--text-dim)] hover:shadow-[0_8px_22px_var(--shadow-soft)]"
+				>
 					<div class="card-top"><span class="card-icon"><FolderKanban size={18} /></span></div>
-					<h2>{project.name}</h2>
-					<p>{project.description || 'No description yet.'}</p>
+					<h2 class="md-body-lg mt-5 mb-[6px] text-[var(--text-strong)]">{project.name}</h2>
+					<p class="md-body-md m-0 min-h-[52px] text-[var(--text-muted)]">
+						{project.description || 'No description yet.'}
+					</p>
 					<div class="card-footer">
 						<span>Context · {project.fileCount ?? 0} files · {project.chatCount ?? 0} chats</span>
 						<span>Updated {formatDate(project.updatedAt)}</span>
 					</div>
 					<span class="card-arrow"><ArrowUpRight size={17} /></span>
-				</a>
+				</Card>
 			{/each}
 			{#if !query.trim()}
 				<button class="empty-card" onclick={() => (showCreate = true)}
@@ -201,24 +218,29 @@
 				>
 			</Dialog.Header>
 			<label
-				>Project name<input
+				>Project name<Input
+					class="mt-1.5"
 					bind:value={newName}
-					maxlength="120"
+					maxlength={120}
 					required
 					placeholder="e.g. Product launch"
 				/></label
 			>
 			<label
-				>Description<textarea
-					maxlength="2000"
+				>Description<Textarea
+					class="mt-1.5"
+					maxlength={2000}
 					bind:value={newDescription}
-					placeholder="What will you work on here?"></textarea></label
+					placeholder="What will you work on here?"
+				></Textarea></label
 			>
 			<label
-				>Instructions<textarea
-					maxlength="10000"
+				>Instructions<Textarea
+					class="mt-1.5"
+					maxlength={10000}
 					bind:value={newInstructions}
-					placeholder="How should the agent help with this project?"></textarea></label
+					placeholder="How should the agent help with this project?"
+				></Textarea></label
 			>
 			<div class="modal-actions">
 				<Button variant="outline" onclick={closeCreateProject}>Cancel</Button><Button
@@ -249,41 +271,25 @@
 	.search-field {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		width: 220px;
 		min-height: 38px;
 		padding: 7px 10px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		color: var(--text-dim);
 	}
 	.search-field input {
 		min-width: 0;
 		width: 100%;
 		border: 0;
-		outline: 0;
 		color: var(--text-strong);
 		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		background: transparent;
-	}
-	.view-button {
-		display: grid;
-		place-items: center;
-		width: 38px;
-		height: 38px;
-		border: 1px solid var(--border);
-		background: var(--surface);
-		color: var(--text-faint);
-		border-radius: 6px;
-	}
-	.view-button.chosen,
-	.view-button:hover {
-		color: var(--text-body);
-		background: var(--surface-hover);
 	}
 	.empty-state {
 		text-align: center;
@@ -301,22 +307,20 @@
 	.project-grid.list-view {
 		grid-template-columns: 1fr;
 	}
-	.project-card,
 	.empty-card {
 		min-height: 220px;
 		padding: 18px;
 		text-align: left;
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		background: var(--surface);
-		transition: var(--duration-short4) var(--ease-standard);
-		text-decoration: none;
-		color: inherit;
-	}
-	.project-card:hover {
-		border-color: var(--text-dim);
-		box-shadow: 0 8px 22px var(--shadow-soft);
-		transform: translateY(-2px);
+		border: 1px dashed var(--border);
+		border-radius: var(--radius-xl);
+		background: transparent;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-2);
+		color: var(--text-muted);
+		cursor: pointer;
 	}
 	.card-top {
 		display: flex;
@@ -327,33 +331,16 @@
 		place-items: center;
 		width: 36px;
 		height: 36px;
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-hover);
 		color: var(--text-body);
-	}
-	.project-card h2 {
-		margin: 20px 0 6px;
-		font-family: var(--font-body);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
-		color: var(--text-strong);
-	}
-	.project-card p {
-		min-height: 52px;
-		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.card-footer {
 		display: flex;
 		justify-content: space-between;
 		gap: 6px;
 		margin-top: 18px;
-		padding-top: 12px;
+		padding-top: var(--space-3);
 		border-top: 1px solid var(--border);
 		color: var(--text-dim);
 		font-size: var(--text-body-sm);
@@ -370,7 +357,7 @@
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 8px;
+		gap: var(--space-2);
 		color: var(--text-muted);
 		border-style: dashed;
 		background: transparent;
@@ -397,49 +384,26 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 	}
-	.dialog-shell input,
-	.dialog-shell textarea {
-		display: block;
-		width: 100%;
-		min-height: 44px;
-		margin-top: 6px;
-		padding: 8px 11px;
-		border: 1px solid var(--input-border);
-		border-radius: 6px;
-		outline: 0;
-		font-family: var(--font-body);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		color: var(--text-strong);
-		background: var(--surface);
-	}
-	.dialog-shell input:focus,
-	.dialog-shell textarea:focus {
-		border-color: var(--focus);
-	}
-	.dialog-shell textarea {
-		min-height: 80px;
-		resize: vertical;
-	}
 	.modal-actions {
 		display: flex;
 		justify-content: flex-end;
-		gap: 8px;
+		gap: var(--space-2);
 		margin-top: 22px;
 	}
-	@media (max-width: 800px) {
+	/* Two columns until the cards have room for three. The sidebar still takes 260px
+	 * above 760px, so three 200px cards only fit from 900px up. */
+	@media (max-width: 900px) {
 		.project-grid {
 			grid-template-columns: 1fr 1fr;
 		}
 	}
-	@media (max-width: 540px) {
+	@media (max-width: 560px) {
 		.project-grid {
 			grid-template-columns: 1fr;
 		}
 		.toolbar {
 			align-items: flex-start;
-			gap: 12px;
+			gap: var(--space-3);
 			flex-direction: column;
 		}
 		.search-field {

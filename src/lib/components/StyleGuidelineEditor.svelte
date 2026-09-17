@@ -279,12 +279,12 @@
 	}
 
 	.panel-header {
-		padding: 12px 16px;
+		padding: var(--space-3) var(--space-4);
 		border-bottom: 1px solid var(--border);
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
+		gap: var(--space-3);
 		background: var(--bg);
 	}
 
@@ -312,7 +312,7 @@
 	}
 
 	.panel-body {
-		padding: 16px;
+		padding: var(--space-4);
 		overflow-y: auto;
 		flex: 1;
 		display: flex;
@@ -323,7 +323,7 @@
 	.section {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 
 	.section-title {
@@ -345,8 +345,8 @@
 	.direction-card {
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
-		border-radius: 6px;
-		padding: 10px 12px;
+		border-radius: var(--radius-md);
+		padding: 10px var(--space-3);
 	}
 
 	.direction-text {
@@ -366,7 +366,7 @@
 	.guideline-item {
 		display: flex;
 		align-items: flex-start;
-		gap: 8px;
+		gap: var(--space-2);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -406,16 +406,16 @@
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		padding: 5px 8px;
+		padding: 5px var(--space-2);
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 	}
 
 	.color-swatch {
 		width: 14px;
 		height: 14px;
-		border-radius: 3px;
+		border-radius: var(--radius-sm);
 		border: 1px solid color-mix(in srgb, var(--border-strong) 60%, transparent);
 		flex-shrink: 0;
 	}
@@ -441,7 +441,7 @@
 	}
 
 	.token-details {
-		margin-top: 4px;
+		margin-top: var(--space-1);
 	}
 
 	.token-summary {
@@ -460,11 +460,11 @@
 	}
 
 	.token-code {
-		margin-top: 8px;
+		margin-top: var(--space-2);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 		padding: 10px;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		overflow-x: auto;
 		font-family: var(--font-mono);
 		font-size: var(--text-label-sm);
@@ -486,7 +486,7 @@
 	.code-input {
 		width: 100%;
 		border: 1px solid var(--input-border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		padding: 7px 9px;
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
@@ -513,7 +513,7 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		margin-bottom: 4px;
+		margin-bottom: var(--space-1);
 	}
 
 	.row-input {
@@ -531,9 +531,9 @@
 		cursor: pointer;
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
-		padding: 2px 4px;
-		border-radius: 4px;
+		gap: var(--space-1);
+		padding: 2px var(--space-1);
+		border-radius: var(--radius-sm);
 		transition: color var(--duration-short3) var(--ease-standard);
 	}
 
@@ -548,7 +548,7 @@
 		height: 28px;
 		background: transparent;
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		padding: 0;
 		cursor: pointer;
 		color: var(--text-muted);

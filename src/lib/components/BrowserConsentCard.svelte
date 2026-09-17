@@ -183,11 +183,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		margin: 8px 0;
-		padding: 12px 14px;
+		margin: var(--space-2) 0;
+		padding: var(--space-3) 14px;
 		background: var(--surface-subtle);
 		border: 1px solid var(--border-strong);
-		border-radius: 9px;
+		border-radius: var(--radius-lg);
 		transition:
 			border-color var(--duration-short4) var(--ease-standard),
 			box-shadow var(--duration-short4) var(--ease-standard);
@@ -219,7 +219,7 @@
 		justify-content: center;
 		width: 26px;
 		height: 26px;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		color: var(--text-dim);
 		flex-shrink: 0;
@@ -248,7 +248,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 
@@ -263,13 +263,13 @@
 	.header-status-badge {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 		font-size: var(--text-label-sm);
 		line-height: var(--text-label-sm--line-height);
 		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		padding: 2px 7px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		color: var(--text-muted);
 		border: 1px solid var(--border);
@@ -306,9 +306,9 @@
 	.consent-body {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
-		padding: 8px 10px;
-		border-radius: 6px;
+		gap: var(--space-2);
+		padding: var(--space-2) 10px;
+		border-radius: var(--radius-md);
 		background: var(--surface);
 		border: 1px solid var(--border);
 	}
@@ -341,7 +341,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 
@@ -349,8 +349,8 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
-		padding: 6px 12px;
-		border-radius: 6px;
+		padding: 6px var(--space-3);
+		border-radius: var(--radius-md);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);

@@ -410,9 +410,9 @@
 
 <style>
 	.mermaid-diagram-card {
-		margin: 16px 0;
+		margin: var(--space-4) 0;
 		border: 1px solid var(--border-strong);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		overflow: hidden;
 		box-shadow: 0 2px 8px var(--shadow-softer);
@@ -426,14 +426,14 @@
 		padding: 6px 10px;
 		background: var(--surface-3);
 		border-bottom: 1px solid var(--border);
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 
 	.mermaid-header-left {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 
 	.mermaid-badge {
@@ -486,11 +486,11 @@
 	.action-btn {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 		background: transparent;
 		border: 1px solid var(--border);
-		border-radius: 4px;
-		padding: 3px 8px;
+		border-radius: var(--radius-sm);
+		padding: 3px var(--space-2);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -525,7 +525,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 16px;
+		padding: var(--space-4);
 		overflow-x: auto;
 		background: var(--surface);
 	}
@@ -555,7 +555,7 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		padding: 24px;
+		padding: var(--space-5);
 	}
 
 	.spinner {
@@ -572,8 +572,8 @@
 		flex-direction: column;
 		align-items: center;
 		text-align: center;
-		gap: 8px;
-		padding: 24px;
+		gap: var(--space-2);
+		padding: var(--space-5);
 		color: var(--danger-text);
 		max-width: 440px;
 	}
@@ -600,9 +600,9 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		margin-top: 4px;
-		padding: 4px 10px;
-		border-radius: 5px;
+		margin-top: var(--space-1);
+		padding: var(--space-1) 10px;
+		border-radius: var(--radius-sm);
 		border: 1px solid var(--border-strong);
 		background: var(--surface-2);
 		color: var(--text-strong);
@@ -619,7 +619,7 @@
 
 	.mermaid-code-view pre {
 		margin: 0;
-		padding: 12px 14px;
+		padding: var(--space-3) 14px;
 		overflow-x: auto;
 		scrollbar-width: thin;
 		scrollbar-color: var(--scrollbar-thumb) transparent;
@@ -646,7 +646,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 10px 16px;
+		padding: 10px var(--space-4);
 		background: var(--surface-2);
 		border-bottom: 1px solid var(--border);
 	}
@@ -654,7 +654,7 @@
 	.modal-title-area {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -670,14 +670,14 @@
 		color: var(--text-muted);
 		background: var(--surface-3);
 		padding: 2px 6px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		border: 1px solid var(--border);
 	}
 
 	.modal-actions {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 
 	.zoom-controls {
@@ -685,7 +685,7 @@
 		align-items: center;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		padding: 2px;
 		gap: 2px;
 	}
@@ -696,7 +696,7 @@
 		justify-content: center;
 		width: 28px;
 		height: 28px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		border: none;
 		background: transparent;
 		color: var(--text-muted);
@@ -747,7 +747,7 @@
 	}
 
 	.modal-footer-hint {
-		padding: 6px 16px;
+		padding: 6px var(--space-4);
 		text-align: center;
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);

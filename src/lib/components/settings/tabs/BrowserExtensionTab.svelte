@@ -228,7 +228,7 @@
 
 <style>
 	.tab-content {
-		padding: 28px 32px 48px;
+		padding: 28px var(--space-6) var(--space-7);
 	}
 	.card-icon {
 		display: grid;
@@ -251,23 +251,23 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 24px;
-		margin-top: 24px;
+		gap: var(--space-5);
+		margin-top: var(--space-5);
 		padding: 18px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 	}
 	.permissions-card {
-		margin: 16px 0;
-		padding: 16px 18px;
+		margin: var(--space-4) 0;
+		padding: var(--space-4) 18px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 	}
 	.perm-status-list {
 		display: grid;
-		gap: 8px;
+		gap: var(--space-2);
 		margin-top: 10px;
 	}
 	.perm-status-item {
@@ -322,7 +322,7 @@
 		color: var(--text-body);
 		background: var(--surface-2);
 		padding: 2px 6px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		border: 1px solid var(--border);
 	}
 	.switch-row {
@@ -342,12 +342,12 @@
 		display: flex;
 		align-items: flex-start;
 		gap: 11px;
-		margin: 16px 0;
-		padding: 14px 16px;
+		margin: var(--space-4) 0;
+		padding: 14px var(--space-4);
 		color: var(--status-ok-text);
 		background: color-mix(in srgb, var(--status-ok-dot) 8%, var(--surface));
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 26%, var(--border));
-		border-radius: 9px;
+		border-radius: var(--radius-lg);
 	}
 	.connection-row {
 		display: flex;
@@ -372,7 +372,7 @@
 		padding: 18px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 	}
 	article.recommended {
 		border-color: var(--border-strong);
@@ -382,7 +382,7 @@
 		width: 38px;
 		height: 38px;
 		margin-bottom: 14px;
-		border-radius: 9px;
+		border-radius: var(--radius-lg);
 	}
 	.card-title {
 		justify-content: space-between;
@@ -393,7 +393,7 @@
 	}
 	:global(.package-download) {
 		width: 100%;
-		margin: 16px 0 14px;
+		margin: var(--space-4) 0 14px;
 		text-decoration: none;
 	}
 	ol {
@@ -406,10 +406,10 @@
 	}
 	code {
 		font-family: var(--font-mono);
-		padding: 1px 4px;
+		padding: 1px var(--space-1);
 		color: var(--text-body);
 		background: var(--surface-2);
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		font-size: var(--text-label-sm);
 		line-height: var(--text-label-sm--line-height);
 		letter-spacing: var(--text-label-sm--letter-spacing);
@@ -417,15 +417,13 @@
 	}
 	.footnote {
 		margin-top: 18px;
-		padding-top: 16px;
+		padding-top: var(--space-4);
 		border-top: 1px solid var(--border);
 	}
 	@media (max-width: 760px) {
 		.tab-content {
-			padding: 20px 16px 48px;
+			padding: 20px var(--space-4) var(--space-7);
 		}
-	}
-	@media (max-width: 720px) {
 		.enable-card {
 			align-items: flex-start;
 			flex-direction: column;

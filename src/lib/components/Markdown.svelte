@@ -241,7 +241,7 @@
 		margin-bottom: 0;
 	}
 	:global(.markdown-body p) {
-		margin: 0 0 12px;
+		margin: 0 0 var(--space-3);
 	}
 	:global(.markdown-body h1),
 	:global(.markdown-body h2),
@@ -249,7 +249,7 @@
 	:global(.markdown-body h4) {
 		color: var(--text-strong);
 		font-family: var(--font-body);
-		margin: 20px 0 8px;
+		margin: 20px 0 var(--space-2);
 	}
 	:global(.markdown-body h1) {
 		font-size: var(--text-headline-sm);
@@ -280,11 +280,11 @@
 	:global(.markdown-body ol) {
 		list-style: revert;
 		list-style-position: outside;
-		margin: 0 0 12px;
-		padding-left: 24px;
+		margin: 0 0 var(--space-3);
+		padding-left: var(--space-5);
 	}
 	:global(.markdown-body li) {
-		margin-bottom: 4px;
+		margin-bottom: var(--space-1);
 	}
 	:global(.markdown-body hr) {
 		height: 1px;
@@ -298,7 +298,7 @@
 		border-left: 3px solid var(--border-strong);
 		color: var(--text-muted);
 		background: var(--surface-subtle);
-		border-radius: 0 5px 5px 0;
+		border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 	}
 	:global(.markdown-body blockquote p) {
 		margin: 0;
@@ -307,7 +307,7 @@
 		color: var(--text-strong);
 		background: color-mix(in srgb, var(--accent-bg) 8%, transparent);
 		padding: 1px 5px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		text-decoration: underline;
 		text-underline-offset: 2px;
 		font-weight: 500;
@@ -326,13 +326,13 @@
 		background: var(--surface-3);
 		color: var(--text-strong);
 		padding: 2px 5px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		border: 1px solid var(--border);
 	}
 	:global(.markdown-body .code-block) {
 		margin: 14px 0;
 		border: 1px solid var(--border-strong);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		overflow: hidden;
 		box-shadow: 0 2px 8px var(--shadow-softer);
@@ -341,7 +341,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 6px 12px;
+		padding: 6px var(--space-3);
 		background: var(--surface-3);
 		border-bottom: 1px solid var(--border);
 		font-size: var(--text-body-sm);
@@ -362,13 +362,16 @@
 		gap: 5px;
 		background: transparent;
 		border: 1px solid var(--border);
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		padding: 3px 7px;
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
-		transition: var(--duration-short3) var(--ease-standard);
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 	:global(.markdown-body .copy-code-btn:hover) {
 		background: var(--surface-hover);
@@ -382,7 +385,7 @@
 	}
 	:global(.markdown-body pre) {
 		margin: 0;
-		padding: 12px 14px;
+		padding: var(--space-3) 14px;
 		overflow-x: auto;
 		scrollbar-width: thin;
 		scrollbar-color: var(--scrollbar-thumb) transparent;
@@ -408,7 +411,7 @@
 	:global(.markdown-body th),
 	:global(.markdown-body td) {
 		border: 1px solid var(--border);
-		padding: 8px 12px;
+		padding: var(--space-2) var(--space-3);
 		text-align: left;
 	}
 	:global(.markdown-body th) {
@@ -435,7 +438,7 @@
 		width: 19px;
 		height: 19px;
 		padding: 2px;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		border: 1px solid var(--border-strong);
 		vertical-align: middle;
@@ -460,7 +463,7 @@
 	:global(.markdown-body .pill-favicon) {
 		width: 13px;
 		height: 13px;
-		border-radius: 2px;
+		border-radius: var(--radius-sm);
 		object-fit: contain;
 		display: block;
 	}
@@ -478,10 +481,10 @@
 		left: 50%;
 		transform: translateX(-50%) translateY(4px);
 		width: 250px;
-		padding: 10px 12px;
+		padding: 10px var(--space-3);
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: 9px;
+		border-radius: var(--radius-lg);
 		box-shadow:
 			0 12px 30px var(--shadow),
 			0 2px 8px var(--shadow-soft);
@@ -495,7 +498,7 @@
 			visibility var(--duration-short3) var(--ease-standard);
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: var(--space-1);
 		text-align: left;
 	}
 	:global(.markdown-body .citation-hover-card::after) {
@@ -537,7 +540,7 @@
 	:global(.markdown-body .hover-card-favicon) {
 		width: 14px;
 		height: 14px;
-		border-radius: 3px;
+		border-radius: var(--radius-sm);
 		object-fit: contain;
 		flex-shrink: 0;
 	}
@@ -589,7 +592,7 @@
 		border-top: 1px dashed var(--border);
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.sources-toggle-btn {
 		display: inline-flex;
@@ -597,7 +600,7 @@
 		gap: 6px;
 		width: fit-content;
 		padding: 5px 10px;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		border: 1px solid var(--border);
 		background: var(--surface-subtle);
 		color: var(--text-muted);
@@ -628,7 +631,7 @@
 		min-width: 18px;
 		height: 18px;
 		padding: 0 5px;
-		border-radius: 9px;
+		border-radius: var(--radius-lg);
 		background: color-mix(in srgb, var(--accent-bg) 12%, transparent);
 		color: var(--text-strong);
 		font-size: var(--text-label-sm);
@@ -646,15 +649,15 @@
 	.sources-list {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-		gap: 8px;
-		margin-top: 4px;
+		gap: var(--space-2);
+		margin-top: var(--space-1);
 	}
 	.source-card-item {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding: 8px 10px;
-		border-radius: 8px;
+		gap: var(--space-2);
+		padding: var(--space-2) 10px;
+		border-radius: var(--radius-lg);
 		background: var(--surface);
 		border: 1px solid var(--border);
 		text-decoration: none;
@@ -689,7 +692,7 @@
 	.source-item-favicon {
 		width: 15px;
 		height: 15px;
-		border-radius: 3px;
+		border-radius: var(--radius-sm);
 		object-fit: contain;
 		flex-shrink: 0;
 	}
@@ -720,7 +723,7 @@
 		white-space: nowrap;
 	}
 	.source-item-snippet {
-		margin-top: 4px;
+		margin-top: var(--space-1);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);

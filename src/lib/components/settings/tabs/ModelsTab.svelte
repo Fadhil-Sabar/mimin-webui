@@ -370,7 +370,7 @@
 
 <style>
 	.tab-content {
-		padding: 28px 32px 48px;
+		padding: 28px var(--space-6) var(--space-7);
 	}
 	.empty-state {
 		text-align: center;
@@ -394,7 +394,7 @@
 	}
 	@media (max-width: 760px) {
 		.tab-content {
-			padding: 20px 16px 48px;
+			padding: 20px var(--space-4) var(--space-7);
 		}
 	}
 </style>

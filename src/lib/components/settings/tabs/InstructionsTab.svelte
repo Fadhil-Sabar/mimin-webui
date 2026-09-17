@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Check, FileText, Loader2, RotateCcw } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { Card } from '$lib/components/ui/card/index.js';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	const MAX_LENGTH = 10000;
@@ -106,55 +107,59 @@
 			<div><span>3</span><small>Project context</small></div>
 		</div>
 
-		<form
-			class="instruction-card"
-			onsubmit={(event) => {
-				event.preventDefault();
-				saveInstructions();
-			}}
-		>
-			<div class="field-heading">
-				<div>
-					<label for="custom-instructions">How should Mimin behave?</label>
-					<p>Describe your preferred tone, format, working style, or standing context.</p>
-				</div>
-				<span class:near-limit={instructions.length > MAX_LENGTH * 0.9}
-					>{instructions.length.toLocaleString()} / {MAX_LENGTH.toLocaleString()}</span
-				>
-			</div>
-			<textarea
-				id="custom-instructions"
-				bind:value={instructions}
-				maxlength={MAX_LENGTH}
-				rows="12"
-				placeholder="For example: Be concise and direct. Lead with the answer, explain technical terms in plain language, and use bullet points for multi-step guidance."
-				spellcheck="true"></textarea>
-			<p class="privacy-note">
-				These instructions are added to new responses in every chat. Project instructions can add
-				more specific guidance when you work inside a project.
-			</p>
-			<div class="form-actions">
-				{#if savedInstructions}
-					<Button variant="destructive" type="button" onclick={clearInstructions} disabled={saving}
-						><RotateCcw size={15} /> Clear</Button
+		<Card class="p-[20px] max-[760px]:p-[var(--space-4)]" shadow="soft">
+			<form
+				onsubmit={(event) => {
+					event.preventDefault();
+					saveInstructions();
+				}}
+			>
+				<div class="field-heading">
+					<div>
+						<label for="custom-instructions">How should Mimin behave?</label>
+						<p>Describe your preferred tone, format, working style, or standing context.</p>
+					</div>
+					<span class:near-limit={instructions.length > MAX_LENGTH * 0.9}
+						>{instructions.length.toLocaleString()} / {MAX_LENGTH.toLocaleString()}</span
 					>
-				{/if}
-				<span class="save-state" aria-live="polite"
-					>{changed ? 'Unsaved changes' : 'Up to date'}</span
-				>
-				<Button type="submit" variant="default" class="ml-auto" disabled={saving || !changed}>
-					{#if saving}<span class="spin"><Loader2 size={16} /></span> Saving...{:else}<Check
-							size={16}
-						/> Save instructions{/if}
-				</Button>
-			</div>
-		</form>
+				</div>
+				<textarea
+					id="custom-instructions"
+					bind:value={instructions}
+					maxlength={MAX_LENGTH}
+					rows="12"
+					placeholder="For example: Be concise and direct. Lead with the answer, explain technical terms in plain language, and use bullet points for multi-step guidance."
+					spellcheck="true"></textarea>
+				<p class="privacy-note">
+					These instructions are added to new responses in every chat. Project instructions can add
+					more specific guidance when you work inside a project.
+				</p>
+				<div class="form-actions">
+					{#if savedInstructions}
+						<Button
+							variant="destructive"
+							type="button"
+							onclick={clearInstructions}
+							disabled={saving}><RotateCcw size={15} /> Clear</Button
+						>
+					{/if}
+					<span class="save-state" aria-live="polite"
+						>{changed ? 'Unsaved changes' : 'Up to date'}</span
+					>
+					<Button type="submit" variant="default" class="ml-auto" disabled={saving || !changed}>
+						{#if saving}<span class="spin"><Loader2 size={16} /></span> Saving...{:else}<Check
+								size={16}
+							/> Save instructions{/if}
+					</Button>
+				</div>
+			</form>
+		</Card>
 	{/if}
 </div>
 
 <style>
 	.tab-content {
-		padding: 28px 32px 48px;
+		padding: 28px var(--space-6) var(--space-7);
 	}
 	.empty-state {
 		text-align: center;
@@ -178,7 +183,7 @@
 		color: var(--status-ok-text);
 		background: color-mix(in srgb, var(--status-ok-dot) 8%, var(--surface));
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 24%, var(--border));
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -192,12 +197,12 @@
 		display: grid;
 		grid-template-columns: auto 1fr auto 1fr auto;
 		align-items: center;
-		gap: 12px;
-		margin: 24px 0 13px;
-		padding: 12px 14px;
+		gap: var(--space-3);
+		margin: var(--space-5) 0 13px;
+		padding: var(--space-3) 14px;
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 9px;
+		border-radius: var(--radius-lg);
 	}
 	.scope-strip div {
 		display: flex;
@@ -237,19 +242,12 @@
 		height: 1px;
 		background: var(--border-strong);
 	}
-	.instruction-card {
-		padding: 20px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		box-shadow: 0 5px 20px var(--shadow-softer);
-	}
 	.field-heading {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 20px;
-		margin-bottom: 12px;
+		margin-bottom: var(--space-3);
 	}
 	.field-heading label {
 		display: block;
@@ -280,7 +278,7 @@
 		color: var(--text-body);
 		background: var(--surface-subtle);
 		border: 1px solid var(--input-border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		font-family: var(--font-body);
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
@@ -288,8 +286,6 @@
 	}
 	textarea:focus {
 		border-color: var(--focus);
-		outline: 2px solid color-mix(in srgb, var(--focus) 20%, transparent);
-		outline-offset: 0;
 	}
 	.privacy-note {
 		margin-top: 10px;
@@ -316,19 +312,16 @@
 			animation: none;
 		}
 	}
-	@media (max-width: 720px) {
+	@media (max-width: 760px) {
 		.tab-content {
-			padding: 20px 16px 48px;
+			padding: 20px var(--space-4) var(--space-7);
 		}
 		.scope-strip {
 			grid-template-columns: 1fr;
-			gap: 8px;
+			gap: var(--space-2);
 		}
 		.scope-strip i {
 			display: none;
-		}
-		.instruction-card {
-			padding: 16px;
 		}
 		.field-heading {
 			gap: 10px;

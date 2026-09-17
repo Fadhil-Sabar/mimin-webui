@@ -137,13 +137,13 @@
 	.tool-calls-container {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
-		margin: 8px 0 10px;
+		gap: var(--space-2);
+		margin: var(--space-2) 0 10px;
 	}
 	.tool-call-card {
 		border: 1px solid var(--border);
 		background: var(--surface-subtle);
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -165,7 +165,7 @@
 	.tool-call-summary {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		padding: 7px 11px;
 		cursor: pointer;
 		user-select: none;
@@ -189,7 +189,7 @@
 		flex-shrink: 0;
 		color: var(--text-dim);
 		background: var(--surface-3);
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 	}
 	.tool-running .tool-call-icon {
 		color: var(--status-working-text);
@@ -226,9 +226,9 @@
 	.tool-status-badge {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 		padding: 2px 6px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		font-size: var(--text-label-sm);
 		line-height: var(--text-label-sm--line-height);
 		letter-spacing: var(--text-label-sm--letter-spacing);
@@ -254,17 +254,17 @@
 		transform: rotate(180deg);
 	}
 	.tool-call-details {
-		padding: 8px 12px 10px;
+		padding: var(--space-2) var(--space-3) 10px;
 		border-top: 1px solid var(--border);
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--space-2);
 		background: var(--surface-2);
 	}
 	.tool-detail-section {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: var(--space-1);
 	}
 	.tool-detail-heading {
 		font-size: var(--text-label-sm);
@@ -276,8 +276,8 @@
 	}
 	.tool-json {
 		margin: 0;
-		padding: 6px 8px;
-		border-radius: 5px;
+		padding: 6px var(--space-2);
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		border: 1px solid var(--border);
 		color: var(--text-dim);
@@ -300,7 +300,7 @@
 		align-items: center;
 		gap: 5px;
 		padding: 3px 7px;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		border: 1px solid var(--border);
 		font-size: var(--text-body-sm);

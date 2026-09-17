@@ -23,10 +23,10 @@
 		justify-content: space-between;
 		gap: 20px;
 		margin-top: 20px;
-		padding: 16px 18px;
+		padding: var(--space-4) 18px;
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 	}
 	.instructions-band-content {
 		flex: 1;
@@ -56,7 +56,7 @@
 		.instructions-band {
 			align-items: stretch;
 			flex-direction: column;
-			gap: 12px;
+			gap: var(--space-3);
 		}
 		.instructions-band :global(.instructions-action) {
 			width: 100%;

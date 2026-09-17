@@ -16,6 +16,7 @@
 		WebSearchSettingsState
 	} from '../web-search/types';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { Card } from '$lib/components/ui/card/index.js';
 
 	let loading = $state(true);
 	let saving = $state(false);
@@ -242,18 +243,20 @@
 		<StatusOverview settings={currentSettings} />
 
 		<!-- Settings Form -->
-		<form
-			class="settings-form"
-			onsubmit={(e) => {
-				e.preventDefault();
-				saveSettings();
-			}}
-		>
-			<ProviderSelector bind:provider={draftProvider} searchUrl={draftSearchUrl} />
+		<Card class="mb-[var(--space-4)]">
+			<form
+				class="flex flex-col gap-[var(--space-5)]"
+				onsubmit={(e) => {
+					e.preventDefault();
+					saveSettings();
+				}}
+			>
+				<ProviderSelector bind:provider={draftProvider} searchUrl={draftSearchUrl} />
 
-			<!-- Action Buttons -->
-			<FormActions {saving} {showReset} onreset={resetSettings} />
-		</form>
+				<!-- Action Buttons -->
+				<FormActions {saving} {showReset} onreset={resetSettings} />
+			</form>
+		</Card>
 
 		<!-- Independent connection settings -->
 		<div class="connection-list">
@@ -326,7 +329,7 @@
 
 <style>
 	.tab-content {
-		padding: 28px 32px 48px;
+		padding: 28px var(--space-6) var(--space-7);
 	}
 	.empty-state {
 		text-align: center;
@@ -336,21 +339,11 @@
 		letter-spacing: var(--text-body-md--letter-spacing);
 		padding: 40px 0;
 	}
-	.settings-form {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 10px;
-		padding: 24px;
-		margin-bottom: 16px;
-		display: flex;
-		flex-direction: column;
-		gap: 24px;
-	}
 	.connection-list {
 		display: flex;
 		flex-direction: column;
 		gap: 11px;
-		margin-bottom: 32px;
+		margin-bottom: var(--space-6);
 	}
 	:global(.spin) {
 		animation: spin 1s linear infinite;
@@ -374,7 +367,7 @@
 	}
 	@media (max-width: 760px) {
 		.tab-content {
-			padding: 20px 16px 48px;
+			padding: 20px var(--space-4) var(--space-7);
 		}
 	}
 </style>

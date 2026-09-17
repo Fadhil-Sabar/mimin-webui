@@ -157,10 +157,9 @@
 		width: 100%;
 		min-height: 44px;
 		margin-top: 6px;
-		padding: 8px 11px;
+		padding: var(--space-2) 11px;
 		border: 1px solid var(--input-border);
-		border-radius: 6px;
-		outline: 0;
+		border-radius: var(--radius-md);
 		color: var(--text-strong);
 		background: var(--surface);
 		font-family: var(--font-body);
@@ -180,7 +179,7 @@
 	.modal-actions {
 		display: flex;
 		justify-content: flex-end;
-		gap: 8px;
+		gap: var(--space-2);
 		margin-top: 22px;
 	}
 </style>

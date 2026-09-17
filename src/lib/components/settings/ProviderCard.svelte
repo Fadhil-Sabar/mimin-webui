@@ -46,12 +46,12 @@
 		{#if provider.fromUser || provider.customConfig}
 			<Button
 				variant="destructive"
-				class="max-[700px]:flex-1"
+				class="max-[760px]:flex-1"
 				onclick={() => onremove(provider.provider)}
 				aria-label="Remove key"><Trash2 size={14} /> Remove</Button
 			>
 		{/if}
-		<Button variant="default" class="max-[700px]:flex-1" onclick={() => onmanage(provider.provider)}
+		<Button variant="default" class="max-[760px]:flex-1" onclick={() => onmanage(provider.provider)}
 			>{provider.configured || provider.fromUser ? 'Manage' : 'Connect'}</Button
 		>
 	</div>
@@ -63,11 +63,11 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 18px;
-		padding: 16px 18px;
+		padding: var(--space-4) 18px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
-		transition: var(--duration-short4) var(--ease-standard);
+		border-radius: var(--radius-xl);
+		transition: border-color var(--duration-short4) var(--ease-standard);
 	}
 	.provider-card:hover {
 		border-color: var(--text-dim);
@@ -87,7 +87,7 @@
 		color: var(--text-muted);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 	}
 	.provider-name {
 		display: flex;
@@ -103,7 +103,7 @@
 		color: var(--text-strong);
 	}
 	.provider-info p {
-		margin: 5px 0 8px;
+		margin: 5px 0 var(--space-2);
 		color: var(--text-muted);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
@@ -156,10 +156,10 @@
 	.provider-actions {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		flex: 0 0 auto;
 	}
-	@media (max-width: 700px) {
+	@media (max-width: 760px) {
 		.provider-card {
 			flex-direction: column;
 			align-items: stretch;

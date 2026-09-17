@@ -205,8 +205,7 @@
 		color: var(--text-strong);
 		background: var(--surface-subtle);
 		border: 1px solid var(--input-border);
-		border-radius: 6px;
-		outline: 0;
+		border-radius: var(--radius-md);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -223,7 +222,6 @@
 	.field textarea:focus,
 	.field select:focus {
 		border-color: var(--focus);
-		box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 17%, transparent);
 	}
 	.field small {
 		display: block;
@@ -238,12 +236,12 @@
 		display: flex;
 		align-items: flex-start;
 		gap: 7px;
-		margin-top: 16px;
-		padding: 10px 12px;
+		margin-top: var(--space-4);
+		padding: 10px var(--space-3);
 		color: var(--danger-text);
 		background: color-mix(in srgb, var(--danger-text) 8%, var(--surface));
 		border: 1px solid color-mix(in srgb, var(--danger-text) 25%, var(--border));
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);

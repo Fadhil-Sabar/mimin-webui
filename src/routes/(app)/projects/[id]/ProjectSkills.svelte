@@ -82,12 +82,12 @@
 	.skills-band {
 		display: flex;
 		align-items: center;
-		gap: 12px;
+		gap: var(--space-3);
 		margin-top: 10px;
 		padding: 13px 15px;
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 	}
 	.skills-band-icon {
 		display: grid;
@@ -98,7 +98,7 @@
 		color: var(--text-body);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 	}
 	.skills-band-content {
 		min-width: 0;
@@ -131,7 +131,7 @@
 		margin-top: 7px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		overflow: hidden;
 	}
 	.skill-list-status {
@@ -147,7 +147,7 @@
 	.skill-row {
 		display: flex;
 		align-items: center;
-		gap: 12px;
+		gap: var(--space-3);
 		padding: 9px 14px;
 		border-bottom: 1px solid var(--border);
 	}

@@ -19,7 +19,7 @@
 		{#if icon}<span class="page-header-icon">{@render icon()}</span>{/if}
 		<div class="page-header-text">
 			{#if eyebrow}<p class="page-header-eyebrow">{eyebrow}</p>{/if}
-			<h1>{title}</h1>
+			<h1 class="md-headline-md">{title}</h1>
 			{#if subtitle}<p class="page-header-subtitle">{subtitle}</p>{/if}
 		</div>
 	</div>
@@ -56,16 +56,12 @@
 		color: var(--text-muted);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 	}
 	h1 {
 		margin: 0;
 		color: var(--text-strong);
 		font-family: var(--font-body);
-		font-size: var(--text-headline-md);
-		line-height: var(--text-headline-md--line-height);
-		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
 	}
 	.page-header-eyebrow {
 		margin: 0 0 var(--space-1);
@@ -92,7 +88,7 @@
 		gap: var(--space-2);
 		flex: 0 0 auto;
 	}
-	@media (max-width: 700px) {
+	@media (max-width: 760px) {
 		.page-header {
 			align-items: flex-start;
 			flex-direction: column;

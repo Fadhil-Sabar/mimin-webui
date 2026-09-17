@@ -216,7 +216,7 @@
 		min-height: 38px;
 		min-width: 0;
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		padding: 7px 11px;
 		color: var(--text-muted);
@@ -224,7 +224,10 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		cursor: pointer;
-		transition: var(--duration-short4) var(--ease-standard);
+		transition:
+			color var(--duration-short4) var(--ease-standard),
+			background var(--duration-short4) var(--ease-standard),
+			border-color var(--duration-short4) var(--ease-standard);
 	}
 
 	:global(.skill-trigger:hover:not(:disabled)) {
@@ -250,8 +253,8 @@
 		justify-content: center;
 		min-width: 17px;
 		height: 17px;
-		padding: 0 4px;
-		border-radius: 9px;
+		padding: 0 var(--space-1);
+		border-radius: var(--radius-lg);
 		background: var(--accent-bg);
 		color: var(--accent-fg);
 		font-size: var(--text-body-sm);
@@ -279,9 +282,9 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 6px 8px 8px;
+		padding: 6px var(--space-2) var(--space-2);
 		border-bottom: 1px solid var(--border);
-		margin-bottom: 4px;
+		margin-bottom: var(--space-1);
 	}
 
 	.skill-menu-title {
@@ -304,11 +307,11 @@
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		padding: 6px 8px;
+		padding: 6px var(--space-2);
 		margin-top: 2px;
-		margin-bottom: 4px;
+		margin-bottom: var(--space-1);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		color: var(--text-dim);
 		flex-shrink: 0;
@@ -323,7 +326,6 @@
 		flex: 1;
 		min-width: 0;
 		border: 0;
-		outline: 0;
 		background: transparent;
 		font: inherit;
 		font-size: var(--text-body-md);
@@ -343,8 +345,8 @@
 	}
 
 	.skill-group-label {
-		padding: 6px 8px 3px;
-		margin-top: 4px;
+		padding: 6px var(--space-2) 3px;
+		margin-top: var(--space-1);
 		color: var(--text-muted);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -361,11 +363,11 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
-		padding: 8px 10px;
-		border-radius: 6px;
+		gap: var(--space-3);
+		padding: var(--space-2) 10px;
+		border-radius: var(--radius-md);
 		cursor: pointer;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition: background var(--duration-short3) var(--ease-standard);
 		background: transparent;
 		user-select: none;
 		width: 100%;
@@ -419,14 +421,14 @@
 		font-weight: 500;
 		text-transform: uppercase;
 		padding: 1px 5px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		color: var(--text-dim);
 		border: 1px solid var(--border);
 	}
 
 	.skill-empty {
-		padding: 16px 8px;
+		padding: var(--space-4) var(--space-2);
 		text-align: center;
 		color: var(--text-dim);
 		font-size: var(--text-body-md);
@@ -445,15 +447,17 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		padding: 6px 8px;
-		border-radius: 6px;
+		padding: 6px var(--space-2);
+		border-radius: var(--radius-md);
 		color: var(--text-muted);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		text-decoration: none;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 
 	.manage-link:hover {
@@ -461,10 +465,10 @@
 		background: var(--surface-hover);
 	}
 
-	@media (max-width: 700px) {
+	@media (max-width: 760px) {
 		:global(.skill-trigger) {
 			min-height: 34px;
-			padding: 5px 8px;
+			padding: 5px var(--space-2);
 			font-size: var(--text-body-sm);
 			line-height: var(--text-body-sm--line-height);
 			letter-spacing: var(--text-body-sm--letter-spacing);
@@ -479,7 +483,7 @@
 			max-width: calc(100vw - 24px);
 			max-height: min(460px, 75dvh);
 			border: 1px solid var(--border-strong);
-			border-radius: 12px;
+			border-radius: var(--radius-xl);
 			box-shadow: 0 16px 48px var(--shadow);
 		}
 	}
