@@ -334,8 +334,8 @@
 		border: 1px solid var(--border-strong);
 		border-radius: 9px;
 		transition:
-			border-color 0.2s ease,
-			box-shadow 0.2s ease;
+			border-color var(--duration-short4) var(--ease-standard),
+			box-shadow var(--duration-short4) var(--ease-standard);
 	}
 
 	.question-card.is-active {
@@ -431,19 +431,7 @@
 		height: 6px;
 		border-radius: 50%;
 		background: currentColor;
-		animation: pulse 1.5s infinite ease-in-out;
-	}
-
-	@keyframes pulse {
-		0%,
-		100% {
-			opacity: 1;
-			transform: scale(1);
-		}
-		50% {
-			opacity: 0.4;
-			transform: scale(0.85);
-		}
+		animation: status-pulse 1.5s ease-in-out infinite;
 	}
 
 	.header-sub {
@@ -519,9 +507,9 @@
 		text-align: left;
 		cursor: pointer;
 		transition:
-			background 0.15s ease,
-			border-color 0.15s ease,
-			color 0.15s ease;
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard),
+			color var(--duration-short3) var(--ease-standard);
 	}
 
 	.option-pill:hover:not(:disabled) {
@@ -549,9 +537,9 @@
 		flex-shrink: 0;
 		margin-top: 1px;
 		transition:
-			background 0.15s ease,
-			border-color 0.15s ease,
-			color 0.15s ease;
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard),
+			color var(--duration-short3) var(--ease-standard);
 	}
 
 	.option-pill.selected .option-check {
@@ -597,7 +585,7 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		outline: none;
-		transition: border-color 0.15s ease;
+		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.custom-input:focus {
@@ -684,9 +672,9 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		cursor: pointer;
 		transition:
-			background 0.15s ease,
-			color 0.15s ease,
-			border-color 0.15s ease;
+			background var(--duration-short3) var(--ease-standard),
+			color var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.btn-skip:hover:not(:disabled) {
@@ -710,9 +698,9 @@
 		font-weight: 500;
 		cursor: pointer;
 		transition:
-			background 0.15s ease,
-			border-color 0.15s ease,
-			opacity 0.15s ease;
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard),
+			opacity var(--duration-short3) var(--ease-standard);
 	}
 
 	.btn-submit:hover:not(:disabled) {

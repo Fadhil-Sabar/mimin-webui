@@ -91,7 +91,7 @@
 		border: 1px dashed var(--border-strong);
 		border-radius: 8px;
 		text-align: left;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 	.upload-zone:hover {
 		color: var(--text-strong);

@@ -81,6 +81,7 @@
 		flex-direction: column;
 	}
 	.section-title {
+		font-family: var(--font-body);
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
@@ -110,7 +111,7 @@
 		border: 1px solid var(--border);
 		border-radius: 8px;
 		cursor: pointer;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 	.provider-option:hover {
 		border-color: var(--border-strong);
@@ -134,6 +135,7 @@
 		margin-bottom: 4px;
 	}
 	.option-header strong {
+		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -148,6 +150,7 @@
 		color: var(--text-muted);
 	}
 	.badge-mini {
+		font-family: var(--font-body);
 		font-size: var(--text-label-sm);
 		padding: 1px 6px;
 		border-radius: 4px;

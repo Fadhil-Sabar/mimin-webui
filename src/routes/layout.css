@@ -38,6 +38,29 @@
 	--color-border: var(--border);
 	--color-input: var(--input-border);
 	--color-ring: var(--focus);
+
+	/* ---------- MD3 motion: easing tokens ----------
+	 * Material's full named set. In the updated motion-physics spec `standard` and
+	 * `emphasized` resolve to the same curve; both names are kept so the tokens map
+	 * 1:1 onto the spec rather than onto what happens to differ today.
+	 * These are a real Tailwind namespace, so each becomes an `ease-*` utility. */
+	--ease-linear: linear;
+	--ease-standard: cubic-bezier(0.2, 0, 0, 1);
+	--ease-standard-decelerate: cubic-bezier(0, 0, 0, 1);
+	--ease-standard-accelerate: cubic-bezier(0.3, 0, 1, 1);
+	--ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+	--ease-emphasized-decelerate: cubic-bezier(0.05, 0.7, 0.1, 1);
+	--ease-emphasized-accelerate: cubic-bezier(0.3, 0, 0.8, 0.15);
+
+	/* Bare `transition-*` utilities inherit MD3 timing instead of Tailwind's
+	 * stock ease-in-out. Duration is unchanged at 150ms; only the curve moves. */
+	--default-transition-duration: var(--duration-short3);
+	--default-transition-timing-function: var(--ease-standard);
+
+	/* Animation entry points for markup that has no <style> block. The keyframe
+	 * bodies live at top level below; these only name them. */
+	--animate-pulse-glow: pulse-glow 1.4s ease-in-out infinite;
+	--animate-status-pulse: status-pulse 1.5s ease-in-out infinite;
 }
 
 /* ---------- Material Design 3 type scale ----------
@@ -258,6 +281,27 @@
 	--mobile-nav-h: 0px;
 }
 
+/* ---------- MD3 motion: duration scale ----------
+ * Material's 12-step scale, at the spec's exact values. These are deliberately
+ * plain custom properties, exactly like --space-* above: Tailwind v4 has no
+ * `--duration-*` theme namespace, so they are consumed either as
+ * `var(--duration-*)` from a <style> block or as `duration-(--duration-short3)`
+ * from markup. */
+:root {
+	--duration-short1: 50ms;
+	--duration-short2: 100ms;
+	--duration-short3: 150ms;
+	--duration-short4: 200ms;
+	--duration-medium1: 250ms;
+	--duration-medium2: 300ms;
+	--duration-medium3: 350ms;
+	--duration-medium4: 400ms;
+	--duration-long1: 450ms;
+	--duration-long2: 500ms;
+	--duration-long3: 550ms;
+	--duration-long4: 600ms;
+}
+
 /* ---------- Theme tokens (light) ---------- */
 :root {
 	--bg: #fafaf9;
@@ -378,6 +422,105 @@ svg {
 	flex: 0 0 auto;
 }
 
+/* ---------- Motion keyframes ----------
+ * Project keyframes are declared once, here, at top level and outside `@theme`.
+ * Two reasons:
+ *  - Svelte scopes the *names* of keyframes declared in a component `<style>`
+ *    block, so every component that needed one had to carry its own copy. A
+ *    global definition is the only way for several components to share one.
+ *  - Tailwind only emits a `@theme` keyframe when a matching `--animate-*`
+ *    utility is used in markup, and it cannot see the references inside a
+ *    component `<style>` block. Top-level and unlayered, these are always
+ *    emitted, so the `<style>` references always resolve.
+ * Each consumer keeps its own duration in the shorthand; only the definitions
+ * are shared. Tailwind's own `spin`/`pulse`/`ping`/`bounce` keyframes already
+ * cover the generic cases. */
+@keyframes pulse-glow {
+	0%,
+	100% {
+		opacity: 0.3;
+		transform: scale(0.85);
+	}
+	50% {
+		opacity: 1;
+		transform: scale(1.2);
+	}
+}
+@keyframes status-pulse {
+	0%,
+	100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.4;
+		transform: scale(0.85);
+	}
+}
+/* Shared entrance for anything that appears inside the transcript — a new message,
+ * the inline error, the incomplete-turn notice, the action footer. `transform` and
+ * `opacity` only, so it never competes with the transcript's scroll pinning. */
+@keyframes message-in {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+}
+@keyframes caret-blink {
+	50% {
+		opacity: 0;
+	}
+}
+/* A glyph that replaces another in place (the theme toggle's Sun/Moon) rather than
+ * hard-cutting the swap. */
+@keyframes icon-in {
+	from {
+		opacity: 0;
+		transform: rotate(-90deg) scale(0.85);
+	}
+}
+
+/* ---------- MD3 state layers ----------
+ * Material's interaction feedback is a translucent overlay laid over whatever the
+ * surface already is: 8% on hover, 10% on focus and press. It has to be an overlay
+ * rather than a `background-color` swap for two reasons:
+ *  - a swap replaces the element's own fill, so a filled control (`.new-chat`, the
+ *    primary Button) would lose its background and turn into a faint ghost;
+ *  - several surfaces set their hover background from a scoped component `<style>`
+ *    block, which merely ties with a plain `.state-layer` rule on specificity, so
+ *    which one won would depend on stylesheet order.
+ * `currentColor` keeps it theme-correct with no extra tokens, `border-radius:
+ * inherit` keeps it inside rounded corners, and `pointer-events: none` keeps it out
+ * of the way of the element's own hit target.
+ *
+ * It lives in `@layer components`, not unlayered: Tailwind utilities must still win,
+ * so a Button given `absolute` for positioning keeps it rather than being forced
+ * back to `relative` here. */
+@layer components {
+	.state-layer {
+		position: relative;
+	}
+	.state-layer::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		border-radius: inherit;
+		background: currentColor;
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity var(--duration-short2) var(--ease-standard);
+	}
+	.state-layer:hover:not(:disabled)::before {
+		opacity: 0.08;
+	}
+	.state-layer:focus-visible:not(:disabled)::before {
+		opacity: 0.1;
+	}
+	.state-layer:active:not(:disabled)::before {
+		opacity: 0.1;
+	}
+}
+
 /* ---------- Sidebar ---------- */
 .app-shell {
 	display: grid;
@@ -427,8 +570,8 @@ svg {
 	margin-bottom: 16px;
 	cursor: pointer;
 	transition:
-		color 0.16s ease,
-		background 0.16s ease;
+		color var(--duration-short3) var(--ease-standard),
+		background var(--duration-short3) var(--ease-standard);
 }
 .sidebar-toggle:hover {
 	color: var(--text-strong);
@@ -476,7 +619,7 @@ svg {
 	justify-content: center;
 	gap: 8px;
 	border-radius: 6px;
-	transition: 0.18s ease;
+	transition: var(--duration-short4) var(--ease-standard);
 }
 .new-chat {
 	width: 100%;
@@ -500,6 +643,12 @@ svg {
 	background: var(--accent-bg-hover);
 	border-color: var(--accent-bg-hover);
 	transform: translateY(-1px);
+}
+/* The state layer supplies the visual press; dropping the hover lift and shrinking
+ * slightly is what makes the same press felt. This is the app's only hover transform,
+ * so it reads as the rule for a primary control rather than a one-off. */
+.new-chat:active:not(:disabled) {
+	transform: translateY(0) scale(0.97);
 }
 .new-chat kbd {
 	margin-left: auto;
@@ -546,8 +695,8 @@ svg {
 	padding: 7px 10px;
 	text-align: left;
 	transition:
-		color 0.16s ease,
-		background 0.16s ease;
+		color var(--duration-short3) var(--ease-standard),
+		background var(--duration-short3) var(--ease-standard);
 }
 .nav-item:hover,
 .project-item:hover {
@@ -600,7 +749,7 @@ svg {
 	align-items: center;
 	min-height: 32px;
 	border-radius: 6px;
-	transition: background 0.16s ease;
+	transition: background var(--duration-short3) var(--ease-standard);
 }
 .recent-chat-item:hover {
 	background: color-mix(in srgb, var(--surface-hover) 75%, transparent);
@@ -678,7 +827,7 @@ svg {
 	);
 	opacity: 0;
 	pointer-events: none;
-	transition: opacity 0.15s ease;
+	transition: opacity var(--duration-short3) var(--ease-standard);
 }
 .recent-chat-item:hover .chat-item-actions,
 .recent-chat-item:focus-within .chat-item-actions {
@@ -697,8 +846,8 @@ svg {
 	padding: 0;
 	cursor: pointer;
 	transition:
-		color 0.15s ease,
-		background 0.15s ease;
+		color var(--duration-short3) var(--ease-standard),
+		background var(--duration-short3) var(--ease-standard);
 }
 .item-action-btn:hover {
 	color: var(--text-strong);
@@ -748,8 +897,8 @@ svg {
 	border: 1px solid var(--border);
 	color: var(--text-body);
 	transition:
-		background 0.16s ease,
-		border-color 0.16s ease;
+		background var(--duration-short3) var(--ease-standard),
+		border-color var(--duration-short3) var(--ease-standard);
 }
 .user-row:hover {
 	border-color: var(--border-strong);
@@ -797,7 +946,7 @@ svg {
 	border-radius: 5px;
 	background: transparent;
 	color: var(--text-muted);
-	transition: 0.16s ease;
+	transition: var(--duration-short3) var(--ease-standard);
 	padding: 0;
 }
 .logout-btn:hover {
@@ -890,13 +1039,14 @@ svg {
 	border: 0;
 	border-radius: 6px;
 	padding: 0;
-	transition: 0.18s ease;
+	transition: var(--duration-short4) var(--ease-standard);
 }
 .theme-toggle:hover {
 	color: var(--text);
 }
 .theme-toggle svg {
 	display: block;
+	animation: icon-in var(--duration-short4) var(--ease-emphasized-decelerate);
 }
 
 /* ---------- Project detail page ---------- */
@@ -1063,7 +1213,7 @@ svg {
 	line-height: var(--text-body-md--line-height);
 	letter-spacing: var(--text-body-md--letter-spacing);
 	font-weight: 500;
-	transition: 0.15s ease;
+	transition: var(--duration-short3) var(--ease-standard);
 }
 .load-more:hover:not(:disabled) {
 	color: var(--text-strong);
@@ -1213,6 +1363,7 @@ svg {
 	outline: none;
 	background: var(--surface);
 	color: var(--text);
+	font-family: var(--font-body);
 	font-size: var(--text-body-md);
 	line-height: var(--text-body-md--line-height);
 	letter-spacing: var(--text-body-md--letter-spacing);
@@ -1434,8 +1585,8 @@ svg {
 		padding: 20px 14px 14px;
 		transform: translateX(-100%);
 		transition:
-			transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
-			box-shadow 0.25s ease;
+			transform var(--duration-medium1) var(--ease-emphasized-decelerate),
+			box-shadow var(--duration-medium1) var(--ease-standard);
 		box-shadow: none;
 	}
 	.app-shell.mobile-open .sidebar {
@@ -1452,7 +1603,7 @@ svg {
 		z-index: 45;
 		opacity: 0;
 		pointer-events: none;
-		transition: opacity 0.2s ease;
+		transition: opacity var(--duration-medium1) var(--ease-standard);
 		border: 0;
 		padding: 0;
 		margin: 0;

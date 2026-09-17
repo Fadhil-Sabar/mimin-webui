@@ -355,13 +355,22 @@
 	:global(.spin) {
 		animation: spin 1s linear infinite;
 	}
-	@keyframes spin {
-		from {
-			transform: rotate(0deg);
-		}
-		to {
-			transform: rotate(360deg);
-		}
+	.mono {
+		font-family: var(--font-mono);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		color: var(--text-body);
+	}
+	.mono.dim {
+		color: var(--text-faint);
+	}
+	.base-url {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 220px;
+		color: var(--text-dim);
 	}
 	@media (max-width: 760px) {
 		.tab-content {

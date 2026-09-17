@@ -88,8 +88,15 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
+	.status-details b {
+		font-weight: 500;
+	}
 	.mono-badge {
 		font-family: var(--font-mono);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 400;
 		background: var(--surface-2);
 		padding: 2px 6px;
 		border-radius: 4px;

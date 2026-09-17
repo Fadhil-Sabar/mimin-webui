@@ -68,7 +68,7 @@
 	.breadcrumb a {
 		color: var(--text-dim);
 		text-decoration: none;
-		transition: color 0.15s ease;
+		transition: color var(--duration-short3) var(--ease-standard);
 	}
 	.breadcrumb a:hover {
 		color: var(--text-strong);

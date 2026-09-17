@@ -93,7 +93,7 @@
 		border: 1px solid var(--border);
 		border-radius: 7px;
 		cursor: pointer;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 	.tool-option:hover:not(.disabled) {
 		border-color: var(--border-strong);

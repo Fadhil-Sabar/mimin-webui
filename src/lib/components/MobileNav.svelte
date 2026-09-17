@@ -82,7 +82,7 @@
 			line-height: var(--text-label-sm--line-height);
 			letter-spacing: var(--text-label-sm--letter-spacing);
 			font-weight: 500;
-			transition: color 0.15s ease;
+			transition: color var(--duration-short3) var(--ease-standard);
 		}
 		.mobile-nav-item span {
 			max-width: 100%;

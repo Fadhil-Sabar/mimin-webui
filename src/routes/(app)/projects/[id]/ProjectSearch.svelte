@@ -29,7 +29,7 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 6px;
-		transition: border-color 0.15s ease;
+		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 	.project-search input {
 		width: 100%;

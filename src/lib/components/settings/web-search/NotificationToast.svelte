@@ -15,6 +15,7 @@
 		background: var(--surface-2);
 		border: 1px solid var(--border-strong);
 		border-radius: 8px;
+		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);

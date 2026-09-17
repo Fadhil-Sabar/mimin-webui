@@ -118,7 +118,7 @@
 		padding: 10px 14px;
 		border-bottom: 1px solid var(--border);
 		text-align: left;
-		transition: background 0.12s ease;
+		transition: background var(--duration-short2) var(--ease-standard);
 		grid-template-columns: 32px minmax(0, 1fr) 90px;
 		color: inherit;
 		text-decoration: none;

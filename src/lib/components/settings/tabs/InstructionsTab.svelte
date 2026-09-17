@@ -281,6 +281,7 @@
 		background: var(--surface-subtle);
 		border: 1px solid var(--input-border);
 		border-radius: 8px;
+		font-family: var(--font-body);
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
@@ -309,11 +310,6 @@
 	}
 	.spin {
 		animation: spin 0.8s linear infinite;
-	}
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.spin {

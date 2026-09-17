@@ -67,7 +67,7 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 10px;
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 	}
 	.provider-card:hover {
 		border-color: var(--text-dim);

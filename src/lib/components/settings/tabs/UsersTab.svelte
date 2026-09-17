@@ -326,7 +326,10 @@
 		background: var(--surface-subtle);
 		border: 1px solid var(--input-border);
 		border-radius: 7px;
-		font: inherit;
+		font-family: var(--font-body);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.primary {
 		width: 100%;
@@ -336,6 +339,10 @@
 		background: var(--accent-bg);
 		border: 0;
 		border-radius: 7px;
+		font-family: var(--font-body);
+		font-size: var(--text-label-lg);
+		line-height: var(--text-label-lg--line-height);
+		letter-spacing: var(--text-label-lg--letter-spacing);
 		font-weight: 500;
 	}
 	.primary:disabled {
@@ -407,9 +414,11 @@
 		color: var(--text-muted);
 		background: var(--surface-3);
 		border-radius: 999px;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 	}
 	.admin-role {
 		color: var(--accent-fg);
@@ -421,9 +430,11 @@
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
 		border-radius: 6px;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-md);
+		line-height: var(--text-label-md--line-height);
+		letter-spacing: var(--text-label-md--letter-spacing);
+		font-weight: 500;
 		white-space: nowrap;
 	}
 	.ghost:hover {
@@ -457,6 +468,7 @@
 	}
 	.reset-link-row input {
 		margin-top: 0;
+		font-family: var(--font-mono);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -471,9 +483,11 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 7px;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 	}
 	.pagination {
 		display: flex;
@@ -492,6 +506,11 @@
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
 		border-radius: 6px;
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 	}
 	.pagination button:disabled {
 		opacity: 0.45;

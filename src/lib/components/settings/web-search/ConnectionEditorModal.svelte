@@ -151,6 +151,16 @@
 		color: var(--text-dim);
 		margin: 6px 0 0;
 	}
+	.field-help code.mono {
+		font-family: var(--font-mono);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		color: var(--text-body);
+		background: var(--surface-2);
+		padding: 1px 4px;
+		border-radius: 4px;
+	}
 	.modal-description {
 		margin: -10px 0 0;
 		color: var(--text-muted);
@@ -187,7 +197,8 @@
 	}
 
 	input[type='text'],
-	input[type='password'] {
+	input[type='password'],
+	input[type='url'] {
 		width: 100%;
 		min-height: 40px;
 		padding: 8px 12px;
@@ -195,14 +206,16 @@
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		color: var(--text-strong);
+		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		outline: none;
-		transition: border-color 0.15s ease;
+		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 	input[type='text']:focus,
-	input[type='password']:focus {
+	input[type='password']:focus,
+	input[type='url']:focus {
 		border-color: var(--focus);
 	}
 </style>

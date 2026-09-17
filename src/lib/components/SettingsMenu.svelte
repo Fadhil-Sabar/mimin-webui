@@ -25,7 +25,7 @@
 		background: transparent;
 		color: var(--text-muted);
 		padding: 0;
-		transition: 0.16s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 	.settings-btn:hover {
 		color: var(--text-strong);

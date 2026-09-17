@@ -43,7 +43,7 @@
 	</div>
 	{#if shell.newChat}
 		<button
-			class="new-chat"
+			class="new-chat state-layer"
 			disabled={shell.newChatDisabled}
 			title={shell.newChatEmpty ? 'Already on a new conversation' : 'New chat'}
 			onclick={() => {
@@ -54,8 +54,10 @@
 			<Plus size={16} /> New chat <kbd>⌘ K</kbd>
 		</button>
 	{:else}
-		<a class="new-chat" href={resolve('/chat?new=1')} onclick={() => sidebar.closeMobile()}
-			><Plus size={16} /> New chat <kbd>⌘ K</kbd></a
+		<a
+			class="new-chat state-layer"
+			href={resolve('/chat?new=1')}
+			onclick={() => sidebar.closeMobile()}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a
 		>
 	{/if}
 	<div class="sidebar-scroll">
@@ -63,7 +65,7 @@
 			<div class="nav-label" class:nav-label-group={index > 0}>{section.label}</div>
 			{#each section.items as item (item.key)}
 				<a
-					class="nav-item"
+					class="nav-item state-layer"
 					class:active={item.key === activeKey}
 					href={resolve(item.href as '/chat')}
 					aria-current={item.key === activeKey ? 'page' : undefined}

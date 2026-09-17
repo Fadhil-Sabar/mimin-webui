@@ -26,8 +26,8 @@
 		background: var(--surface-3, #333);
 		border: 1px solid var(--border);
 		transition:
-			background-color 0.2s ease,
-			border-color 0.2s ease;
+			background-color var(--duration-short4) var(--ease-standard),
+			border-color var(--duration-short4) var(--ease-standard);
 		flex-shrink: 0;
 	}
 	.switch-indicator.checked {
@@ -47,7 +47,7 @@
 		border-radius: 50%;
 		background: #ffffff;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-		transition: transform 0.2s ease;
+		transition: transform var(--duration-short4) var(--ease-standard);
 	}
 	.switch-indicator.checked .switch-indicator-handle {
 		transform: translateX(14px);

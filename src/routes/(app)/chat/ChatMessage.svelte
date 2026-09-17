@@ -8,9 +8,11 @@
 		RotateCcw,
 		Sparkles
 	} from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import * as Bubble from '$lib/components/ui/bubble';
 	import * as Message from '$lib/components/ui/message';
+	import { cn } from '$lib/utils.js';
 	import type { SkillSummary } from '$lib/skills';
 	import MessageContextLine from './MessageContextLine.svelte';
 	import ToolCallPanel from './ToolCallPanel.svelte';
@@ -48,6 +50,12 @@
 		projectName?: string | null;
 		/** Display preference for the compact context line. */
 		showContext?: boolean;
+		/**
+		 * Whether this instance appeared in a settled transcript — a message the reader
+		 * just sent, or a reply that just streamed in — as opposed to arriving with a
+		 * bulk load. See `animateEnter` for why it is read only once.
+		 */
+		enterMotion?: boolean;
 	};
 
 	let {
@@ -66,8 +74,18 @@
 		onconsentsubmit,
 		contextAttachments = [],
 		projectName = null,
-		showContext = true
+		showContext = true,
+		enterMotion = true
 	}: Props = $props();
+
+	/**
+	 * Snapshotted at init rather than tracked reactively. The enter animation is a
+	 * one-shot for elements created while the transcript is live, so the decision has
+	 * to be frozen when the element mounts: a reactive class would be re-applied when
+	 * the parent re-arms after a load and restart the animation on every message
+	 * already on screen — the exact whole-thread flash the arming exists to prevent.
+	 */
+	const animateEnter = untrack(() => enterMotion);
 
 	// While the thinking block streams it renders as a fixed-height scroller, so
 	// follow the text down like the transcript does — but stop once the reader
@@ -141,7 +159,7 @@
 
 <Message.Root
 	align={message.role === 'user' ? 'end' : 'start'}
-	class="chat-message"
+	class={cn('chat-message', animateEnter && 'enter-motion')}
 	role="article"
 	aria-label={`${message.role === 'user' ? 'Your' : 'Mimin'} message`}
 >
@@ -191,7 +209,7 @@
 						class="thinking-block"
 						open={message.isStreaming && !contentText(message.content)}
 					>
-						<summary class="thinking-summary">
+						<summary class="thinking-summary state-layer">
 							<Sparkles size={13} />
 							<span>Thinking process</span>
 							{#if message.isStreaming && !contentText(message.content)}
@@ -240,7 +258,7 @@
 						{#if showInterruptedRetry}
 							<button
 								type="button"
-								class="interrupted-retry"
+								class="interrupted-retry state-layer"
 								onclick={onretry}
 								disabled={retryDisabled}
 							>
@@ -261,7 +279,7 @@
 						{#if message.role === 'user' && isLast && canRetry}
 							<button
 								type="button"
-								class="message-retry-btn"
+								class="message-retry-btn state-layer"
 								onclick={onretry}
 								disabled={retryDisabled}
 								title="Retry last message"
@@ -272,7 +290,7 @@
 						{:else if message.role === 'assistant'}
 							<button
 								type="button"
-								class="message-action-btn"
+								class="message-action-btn state-layer"
 								onclick={copyResponse}
 								aria-label="Copy response"
 								data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
@@ -285,7 +303,7 @@
 							{#if isLast && canRegenerate}
 								<button
 									type="button"
-									class="message-action-btn"
+									class="message-action-btn state-layer"
 									onclick={onregenerate}
 									disabled={regenerateDisabled}
 									aria-label="Regenerate response"
@@ -330,6 +348,12 @@
 	}
 	:global(.chat-message) {
 		padding: 12px 0;
+	}
+	/* Gated on a class fixed at mount, so a bulk transcript load creates its messages
+	 * without it and stays still, while a message appended to a settled transcript
+	 * gets it and rises in. */
+	:global(.chat-message.enter-motion) {
+		animation: message-in var(--duration-medium1) var(--ease-emphasized-decelerate) backwards;
 	}
 	:global(.chat-message-content) {
 		gap: 6px;
@@ -421,6 +445,19 @@
 		line-height: var(--text-body-lg--line-height);
 		white-space: pre-wrap;
 	}
+	/* A blinking caret is the live signal while tokens stream in. Animating the caret
+	 * rather than the incoming text is deliberate: a per-token animation would restart
+	 * on every SSE delta and jank badly. */
+	.streaming-plain-text::after {
+		content: '';
+		display: inline-block;
+		width: 2px;
+		height: 1em;
+		margin-left: 2px;
+		vertical-align: text-bottom;
+		background: var(--text-muted);
+		animation: caret-blink 1s steps(2, start) infinite;
+	}
 	.incomplete-reply {
 		color: var(--status-working-text);
 		font-size: var(--text-body-md);
@@ -470,6 +507,15 @@
 		gap: 4px;
 		padding-inline: 0;
 	}
+	/* Gated on the same mount-time class as the message. A footer mounts together with
+	 * its message on a bulk load, so animating every one of them would flash the whole
+	 * thread — the thing the arming exists to prevent. For a message that arrived while
+	 * the transcript was live the class is set, and the footer appears later, when the
+	 * turn stops streaming: it rises in on the message's own keyframe, so the end of a
+	 * turn reads as one beat. */
+	:global(.chat-message.enter-motion .chat-message-footer) {
+		animation: message-in var(--duration-short4) var(--ease-standard) backwards;
+	}
 	.footer-actions {
 		display: flex;
 		align-items: center;
@@ -517,7 +563,7 @@
 		opacity: 0;
 		pointer-events: none;
 		transform: translateX(-50%);
-		transition: opacity 0.12s ease;
+		transition: opacity var(--duration-short2) var(--ease-standard);
 		z-index: 20;
 	}
 	.message-action-btn[data-tooltip]:hover::after,
@@ -549,7 +595,10 @@
 		border: 1px solid var(--border);
 		border-radius: 4px;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background-color var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 	.message-retry-btn:hover:not(:disabled) {
 		color: var(--text);
@@ -593,7 +642,7 @@
 	}
 	:global(.thinking-summary .chevron) {
 		margin-left: auto;
-		transition: transform 0.18s ease;
+		transition: transform var(--duration-short4) var(--ease-standard);
 	}
 	details[open] > .thinking-summary :global(.chevron) {
 		transform: rotate(180deg);
@@ -638,17 +687,6 @@
 		border-radius: 50%;
 		background: var(--accent-bg);
 		animation: pulse-glow 1.4s ease-in-out infinite;
-	}
-	@keyframes pulse-glow {
-		0%,
-		100% {
-			opacity: 0.3;
-			transform: scale(0.85);
-		}
-		50% {
-			opacity: 1;
-			transform: scale(1.2);
-		}
 	}
 	@media (max-width: 760px) {
 		:global(.chat-bubble[data-variant='secondary']) {

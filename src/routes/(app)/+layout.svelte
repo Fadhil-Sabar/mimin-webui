@@ -14,6 +14,7 @@
 			settingsModal.show(targetTab);
 			const url = new URL(page.url);
 			url.searchParams.delete('settings');
+			// eslint-disable-next-line svelte/no-navigation-without-resolve
 			void goto(url.pathname + (url.search ? url.search : ''), {
 				replaceState: true,
 				noScroll: true,

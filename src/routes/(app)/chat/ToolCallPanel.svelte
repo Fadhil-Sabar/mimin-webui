@@ -150,8 +150,8 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		overflow: hidden;
 		transition:
-			border-color 0.16s ease,
-			background 0.16s ease;
+			border-color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 	.tool-call-card:hover {
 		border-color: var(--border-strong);
@@ -249,7 +249,7 @@
 	}
 	:global(.tool-chevron) {
 		color: var(--text-faint);
-		transition: transform 0.18s ease;
+		transition: transform var(--duration-short4) var(--ease-standard);
 	}
 	details[open] > .tool-call-summary :global(.tool-chevron) {
 		transform: rotate(180deg);
@@ -320,16 +320,5 @@
 		border-radius: 50%;
 		background: var(--accent-bg);
 		animation: pulse-glow 1.4s ease-in-out infinite;
-	}
-	@keyframes pulse-glow {
-		0%,
-		100% {
-			opacity: 0.3;
-			transform: scale(0.85);
-		}
-		50% {
-			opacity: 1;
-			transform: scale(1.2);
-		}
 	}
 </style>

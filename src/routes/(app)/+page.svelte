@@ -225,8 +225,8 @@
 		letter-spacing: var(--text-body-md--letter-spacing);
 		text-decoration: none;
 		transition:
-			background 0.15s ease,
-			border-color 0.15s ease;
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 	.setup-callout:hover {
 		background: var(--surface-hover);
@@ -271,7 +271,7 @@
 		color: var(--accent-fg);
 		background: var(--accent-bg);
 		text-decoration: none;
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 	}
 	.send-button:hover {
 		background: var(--accent-bg-hover);

@@ -318,9 +318,11 @@
 		background: transparent;
 		border: none;
 		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 		cursor: pointer;
 		padding: 3px 6px;
 		text-decoration: underline;
@@ -334,12 +336,14 @@
 		border: 1px solid var(--border);
 		border-radius: 4px;
 		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 		padding: 3px 9px;
 		cursor: pointer;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 	.fetch-models-btn:hover:not(:disabled) {
 		color: var(--text);
@@ -370,15 +374,16 @@
 		border: none;
 		border-right: 1px solid var(--border);
 		color: var(--text-body);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		padding: 5px 9px;
 		cursor: pointer;
 		transition:
-			background 0.15s ease,
-			color 0.15s ease;
+			background var(--duration-short3) var(--ease-standard),
+			color var(--duration-short3) var(--ease-standard);
 	}
 	.filter-btn:last-child {
 		border-right: none;
@@ -447,7 +452,7 @@
 		padding: 7px 10px;
 		border-bottom: 1px solid var(--border);
 		cursor: pointer;
-		transition: background 0.12s ease;
+		transition: background var(--duration-short2) var(--ease-standard);
 		user-select: none;
 	}
 	.model-row:last-child {
@@ -535,8 +540,8 @@
 		border-radius: 4px;
 		opacity: 0;
 		transition:
-			opacity 0.15s ease,
-			color 0.15s ease;
+			opacity var(--duration-short3) var(--ease-standard),
+			color var(--duration-short3) var(--ease-standard);
 		display: flex;
 		align-items: center;
 	}
@@ -585,8 +590,10 @@
 		margin: 0;
 	}
 	:global(.add-model-btn) {
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: 500;
 	}
 </style>

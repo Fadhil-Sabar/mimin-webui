@@ -309,7 +309,7 @@
 		border: 1px solid var(--border);
 		border-radius: 10px;
 		background: var(--surface);
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 		text-decoration: none;
 		color: inherit;
 	}

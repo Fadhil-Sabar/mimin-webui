@@ -306,8 +306,8 @@
 		color: var(--text-muted);
 		cursor: pointer;
 		transition:
-			color 0.15s ease,
-			background 0.15s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 	.skill-badge-remove:hover:not(:disabled) {
 		color: var(--danger-text, #ef4444);
@@ -375,8 +375,8 @@
 		font-weight: 500;
 		cursor: pointer;
 		transition:
-			background 0.15s ease,
-			border-color 0.15s ease;
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 	.skill-suggestion-apply:hover:not(:disabled) {
 		background: var(--surface-hover);
@@ -396,7 +396,7 @@
 		background: transparent;
 		color: var(--text-muted);
 		cursor: pointer;
-		transition: color 0.15s ease;
+		transition: color var(--duration-short3) var(--ease-standard);
 	}
 	.skill-suggestion-dismiss:hover {
 		color: var(--text-strong);
@@ -507,7 +507,7 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 	}
 	.control:hover {
 		color: var(--text-strong);
@@ -533,7 +533,7 @@
 		border-radius: 8px;
 		color: var(--accent-fg);
 		background: var(--accent-bg);
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 	}
 	.send-button:hover {
 		background: var(--accent-bg-hover);

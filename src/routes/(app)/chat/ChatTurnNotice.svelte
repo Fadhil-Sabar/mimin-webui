@@ -20,7 +20,7 @@
 		</div>
 		<button
 			type="button"
-			class="turn-notice-continue"
+			class="turn-notice-continue state-layer"
 			onclick={oncontinue}
 			disabled={continueDisabled}
 			title="Ask the model to continue this turn"
@@ -30,7 +30,7 @@
 		</button>
 		<button
 			type="button"
-			class="turn-notice-dismiss"
+			class="turn-notice-dismiss state-layer"
 			onclick={ondismiss}
 			title="Dismiss"
 			aria-label="Dismiss"
@@ -55,6 +55,7 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
+		animation: message-in var(--duration-medium1) var(--ease-emphasized-decelerate) backwards;
 	}
 	.turn-notice-content {
 		min-width: 0;

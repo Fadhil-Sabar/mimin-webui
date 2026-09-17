@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
 	import { ChevronDown, Wrench } from '@lucide/svelte';
 	import * as Popover from '$lib/components/ui/popover/index.js';
 	import * as Sheet from '$lib/components/ui/sheet/index.js';
@@ -201,7 +200,7 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		cursor: pointer;
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 	}
 	:global(.tool-trigger:hover:not(:disabled)) {
 		color: var(--text-strong);
@@ -235,7 +234,7 @@
 	:global(.tool-trigger svg:last-child) {
 		flex: 0 0 auto;
 		color: var(--text-faint);
-		transition: transform 0.18s ease;
+		transition: transform var(--duration-short4) var(--ease-standard);
 	}
 	:global(.tool-trigger svg:last-child.rotated) {
 		transform: rotate(180deg);
@@ -279,7 +278,7 @@
 		padding: 8px 10px;
 		border-radius: 6px;
 		cursor: pointer;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 		background: transparent;
 		user-select: none;
 		width: 100%;
@@ -354,7 +353,7 @@
 		color: var(--text-strong);
 		text-decoration: underline;
 		text-underline-offset: 2px;
-		transition: color 0.15s ease;
+		transition: color var(--duration-short3) var(--ease-standard);
 	}
 	.tool-settings-info a:hover {
 		color: var(--focus, #3b82f6);
