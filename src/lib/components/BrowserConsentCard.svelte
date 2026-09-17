@@ -102,7 +102,7 @@
 				</span>
 				<span class="header-status-badge {active ? 'running' : decision ? 'completed' : 'failed'}">
 					{#if active}
-						<span class="pulse-dot"></span> Waiting for your answer
+						<span class="shimmer-text">Waiting for your answer</span>
 					{:else if decision === 'conversation'}
 						Allowed for this chat
 					{:else if decision === 'once'}
@@ -291,13 +291,8 @@
 		color: var(--text-muted);
 	}
 
-	.pulse-dot {
-		display: inline-block;
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: currentColor;
-		animation: status-pulse 1.5s ease-in-out infinite;
+	.header-status-badge.running .shimmer-text {
+		--shimmer-peak: var(--status-working-dot);
 	}
 
 	.header-sub {

@@ -173,7 +173,7 @@
 				</span>
 				<span class="header-status-badge {toolCall.status}">
 					{#if active}
-						<span class="pulse-dot"></span> Waiting for input
+						<span class="shimmer-text">Waiting for input</span>
 					{:else if toolCall.status === 'completed'}
 						<Check size={11} /> {isSkipped ? 'Skipped' : 'Answered'}
 					{:else}
@@ -425,13 +425,8 @@
 		border-color: color-mix(in srgb, var(--danger-bg) 30%, transparent);
 	}
 
-	.pulse-dot {
-		display: inline-block;
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: currentColor;
-		animation: status-pulse 1.5s ease-in-out infinite;
+	.header-status-badge.running .shimmer-text {
+		--shimmer-peak: var(--status-working-dot);
 	}
 
 	.header-sub {

@@ -56,11 +56,6 @@
 	 * stock ease-in-out. Duration is unchanged at 150ms; only the curve moves. */
 	--default-transition-duration: var(--duration-short3);
 	--default-transition-timing-function: var(--ease-standard);
-
-	/* Animation entry points for markup that has no <style> block. The keyframe
-	 * bodies live at top level below; these only name them. */
-	--animate-pulse-glow: pulse-glow 1.4s ease-in-out infinite;
-	--animate-status-pulse: status-pulse 1.5s ease-in-out infinite;
 }
 
 /* ---------- Material Design 3 type scale ----------
@@ -435,26 +430,12 @@ svg {
  * Each consumer keeps its own duration in the shorthand; only the definitions
  * are shared. Tailwind's own `spin`/`pulse`/`ping`/`bounce` keyframes already
  * cover the generic cases. */
-@keyframes pulse-glow {
-	0%,
-	100% {
-		opacity: 0.3;
-		transform: scale(0.85);
+@keyframes shimmer-sweep {
+	from {
+		background-position: 100% 0;
 	}
-	50% {
-		opacity: 1;
-		transform: scale(1.2);
-	}
-}
-@keyframes status-pulse {
-	0%,
-	100% {
-		opacity: 1;
-		transform: scale(1);
-	}
-	50% {
-		opacity: 0.4;
-		transform: scale(0.85);
+	to {
+		background-position: 0% 0;
 	}
 }
 /* Shared entrance for anything that appears inside the transcript — a new message,
@@ -466,9 +447,16 @@ svg {
 		transform: translateY(4px);
 	}
 }
-@keyframes caret-blink {
+/* The streaming caret breathes rather than blinks. A `steps` toggle reads as a
+ * hard flash next to the smoothly arriving text; a sine fade keeps it legible as
+ * a live signal without the strobe. */
+@keyframes caret-fade {
+	0%,
+	100% {
+		opacity: 1;
+	}
 	50% {
-		opacity: 0;
+		opacity: 0.2;
 	}
 }
 /* A glyph that replaces another in place (the theme toggle's Sun/Moon) rather than
@@ -478,6 +466,45 @@ svg {
 		opacity: 0;
 		transform: rotate(-90deg) scale(0.85);
 	}
+}
+
+/* ---------- Live status shimmer ----------
+ * Claude Code's "shimmer" lights a travelling highlight on the status verb instead
+ * of blinking the whole label: one position is lit at a time, the light sweeps the
+ * string, and the neighbours around it read stronger. In a terminal that has to be
+ * per-character — ANSI has no gradient — but in the browser the same read comes
+ * from a gradient band travelling across the text, which stays smooth at any frame
+ * rate and costs one compositor-friendly property.
+ *
+ * The colours are the label's own. The base is plain `currentColor`, so a label never
+ * renders below the contrast its role colour was picked for — the sweep brightens
+ * toward `--shimmer-peak` and comes back, it never dims the text first. The peak is
+ * `--text-strong` by default because that is maximum contrast against the surface in
+ * *both* themes (in light it darkens, in dark it brightens — either way it is the
+ * highlight, not a fixed colour that only suits one theme). Callers override the peak
+ * where a brighter sibling token reads better, e.g. the amber working dots.
+ *
+ * `background-repeat` is deliberately left at its default `repeat`: the band's tile
+ * is twice the element's width, so the text is always covered. With `no-repeat` the
+ * span of the sweep where the tile slides off would leave glyphs with no gradient
+ * to paint — and since `-webkit-text-fill-color: transparent` is what hides the
+ * fill, those glyphs would vanish. */
+.shimmer-text {
+	--shimmer-base: currentColor;
+	--shimmer-peak: var(--text-strong);
+	background-image: linear-gradient(
+		90deg,
+		var(--shimmer-base) 0%,
+		var(--shimmer-base) 38%,
+		var(--shimmer-peak) 50%,
+		var(--shimmer-base) 62%,
+		var(--shimmer-base) 100%
+	);
+	background-size: 200% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: shimmer-sweep 2.2s linear infinite;
 }
 
 /* ---------- MD3 state layers ----------
@@ -1668,6 +1695,14 @@ svg {
 		transition-duration: 0.01ms !important;
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
+	}
+	/* The blanket rule above freezes the shimmer at its final keyframe, which is the
+	 * band parked off the text — leaving the label painted flat in the gradient's base
+	 * colour. Drop the gradient entirely instead and let the glyphs take the role
+	 * colour the label already had. */
+	.shimmer-text {
+		background-image: none;
+		-webkit-text-fill-color: currentColor;
 	}
 }
 /* Keep the source offer visible for AGPL network deployments. */
