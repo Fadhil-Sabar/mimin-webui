@@ -4,6 +4,7 @@
 	import type { PageInfo, ProjectFile, UploadSummary } from './project-types';
 
 	let {
+		projectId,
 		filteredFiles,
 		loadedCount,
 		query,
@@ -16,8 +17,10 @@
 		onupload,
 		onreindex,
 		ondelete,
+		onask,
 		onloadmore
 	}: {
+		projectId: string;
 		filteredFiles: ProjectFile[];
 		loadedCount: number;
 		query: string;
@@ -30,6 +33,7 @@
 		onupload: (selected: FileList | null | undefined) => Promise<void>;
 		onreindex: (file: ProjectFile) => void;
 		ondelete: (file: ProjectFile) => void;
+		onask: (file: ProjectFile) => void;
 		onloadmore: () => void;
 	} = $props();
 </script>
@@ -46,7 +50,7 @@
 	{#if filteredFiles.length > 0}
 		<div class="file-list">
 			{#each filteredFiles as file (file.id)}
-				<ProjectFileRow {file} {reindexing} {onreindex} {ondelete} />
+				<ProjectFileRow {file} {projectId} {reindexing} {onreindex} {ondelete} {onask} />
 			{/each}
 		</div>
 	{:else if query.trim() || loadedCount > 0}

@@ -1,5 +1,6 @@
 import { SvelteSet } from 'svelte/reactivity';
 import type { ToolOption } from '$lib/components/ToolPicker.svelte';
+import type { SkillSummary } from '$lib/skills';
 import type {
 	ConversationMessage,
 	MessageCitation,
@@ -409,4 +410,115 @@ export function getTurnSources(messages: ConversationMessage[], msgIndex: number
 	}
 
 	return collected;
+}
+
+/** What one finished answer cost and drew on, in compact and full form. */
+export type MessageContext = {
+	/** One-line summary rendered under the reply. */
+	summary: string;
+	/** Full breakdown, used as the tooltip so the compact form loses nothing. */
+	detail: string;
+};
+
+function formatTokenCount(value: number) {
+	if (value < 1_000) return String(value);
+	if (value < 10_000) return `${(value / 1_000).toFixed(1)}k`;
+	return `${Math.round(value / 1_000)}k`;
+}
+
+function formatElapsed(seconds: number) {
+	return seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+}
+
+function pluralize(count: number, noun: string) {
+	return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+/**
+ * Summarise a finished answer.
+ *
+ * Returns null when there is nothing substantive to report. A project name or a skill
+ * on its own must not qualify: that would put a line under every reply in a project
+ * chat, which is exactly the noise this replaced.
+ */
+export function messageContextSummary(
+	message: ConversationMessage,
+	options: {
+		attachments?: string[];
+		skill?: SkillSummary | null;
+		projectName?: string | null;
+	} = {}
+): MessageContext | null {
+	if (message.role !== 'assistant' || message.isStreaming) return null;
+
+	const usage = message.usage ?? null;
+	const totalTokens =
+		usage?.totalTokens ??
+		(usage
+			? (usage.input ?? 0) +
+				(usage.output ?? 0) +
+				(usage.cacheRead ?? 0) +
+				(usage.cacheWrite ?? 0) +
+				(usage.reasoning ?? 0)
+			: 0);
+	const elapsedMs = (() => {
+		if (!message.completedAt) return null;
+		const start = Date.parse(message.createdAt);
+		const end = Date.parse(message.completedAt);
+		if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
+		return end - start;
+	})();
+	const elapsedSeconds = elapsedMs === null ? null : Math.round(elapsedMs / 1000);
+	/**
+	 * Output tokens over the turn's wall clock. It is an estimate: tool execution is
+	 * part of that clock, so a turn that ran tools reads slower than the model wrote.
+	 */
+	const outputTokens = usage?.output ?? 0;
+	const tokensPerSecond =
+		outputTokens > 0 && elapsedMs !== null && elapsedMs > 0
+			? Math.round(outputTokens / (elapsedMs / 1000))
+			: null;
+	const sources = message.citations?.length ?? 0;
+	const toolCalls = message.toolCalls?.length ?? 0;
+	const attachments = options.attachments ?? [];
+
+	if (
+		totalTokens <= 0 &&
+		elapsedSeconds === null &&
+		tokensPerSecond === null &&
+		sources === 0 &&
+		toolCalls === 0 &&
+		attachments.length === 0
+	)
+		return null;
+
+	const summary: string[] = [];
+	if (totalTokens > 0) summary.push(`${formatTokenCount(totalTokens)} tokens`);
+	if (elapsedSeconds !== null) summary.push(formatElapsed(elapsedSeconds));
+	if (tokensPerSecond !== null) summary.push(`${tokensPerSecond} tok/s`);
+	if (sources > 0) summary.push(pluralize(sources, 'source'));
+	if (toolCalls > 0) summary.push(pluralize(toolCalls, 'tool'));
+	if (attachments.length > 0) summary.push(pluralize(attachments.length, 'file'));
+
+	const detail: string[] = [];
+	if (usage) {
+		if (usage.input) detail.push(`Input ${usage.input.toLocaleString()}`);
+		if (usage.output) detail.push(`Output ${usage.output.toLocaleString()}`);
+		if (usage.cacheRead) detail.push(`Cache read ${usage.cacheRead.toLocaleString()}`);
+		if (usage.cacheWrite) detail.push(`Cache write ${usage.cacheWrite.toLocaleString()}`);
+		if (usage.reasoning) detail.push(`Reasoning ${usage.reasoning.toLocaleString()}`);
+	}
+	if (elapsedSeconds !== null) detail.push(`Duration ${formatElapsed(elapsedSeconds)}`);
+	if (tokensPerSecond !== null)
+		detail.push(
+			`Speed ~${tokensPerSecond} tok/s (output tokens over the whole turn, so tool time lowers it)`
+		);
+	if (toolCalls > 0) detail.push(pluralize(toolCalls, 'tool call'));
+	if (sources > 0) detail.push(pluralize(sources, 'source'));
+	if (attachments.length > 0) detail.push(`Files: ${attachments.join(', ')}`);
+	if (options.skill) detail.push(`Skill: ${options.skill.name}`);
+	if (options.projectName) detail.push(`Project: ${options.projectName} knowledge available`);
+	if (!usage) detail.push('This turn did not report token usage.');
+
+	return { summary: summary.join(' · '), detail: detail.join(' · ') };
 }

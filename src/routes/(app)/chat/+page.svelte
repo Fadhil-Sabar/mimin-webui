@@ -8,6 +8,7 @@
 		createConversation,
 		deleteConversation,
 		updateConversation,
+		fetchConversationPage,
 		fetchCanvas,
 		createCanvasApi,
 		updateCanvasApi,
@@ -29,10 +30,12 @@
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
+	import { displayPreferences } from '$lib/client/display-preferences.svelte';
 	import { shell } from '$lib/client/shell.svelte';
 	import { getConversationDraft, setConversationDraft } from '$lib/client/drafts';
 	import { peekNavigationHandoff, consumeNavigationHandoff } from '$lib/client/navigation-handoff';
 	import type { SkillSummary } from '$lib/skills';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import ChatComposer from './ChatComposer.svelte';
 	import ChatHeader from './ChatHeader.svelte';
@@ -71,6 +74,12 @@
 	let conversationNavigationToken = 0;
 	let conversationLoading = $state(false);
 	let browserBridgeEnabled = $state(false);
+	/** Cursor for the page of messages immediately above the loaded transcript. */
+	let olderCursor = $state<string | null>(null);
+	let hasEarlierMessages = $state(false);
+	let loadingEarlier = $state(false);
+	/** How many older pages the reader paged in, so a reload does not reset the cursor. */
+	let earlierPagesLoaded = 0;
 
 	// Canvas workspace state
 	let activeCanvas = $state<CanvasDetail | null>(null);
@@ -449,19 +458,31 @@
 		}
 		updateChatUrl(id, replaceUrl);
 		try {
-			const response = await fetch(`/api/conversations/${id}`);
-			if (!response.ok) throw new Error('Could not load conversation');
-			const data = await response.json();
+			// The endpoint returns the newest page: a long conversation has to open on its
+			// latest turn, not on the first 50 messages ever sent.
+			const page = await fetchConversationPage<ConversationMessage>(id);
 			if (loadToken !== conversationLoadToken || activeId !== id) return;
-			activeConversation = data.conversation ?? activeConversation;
+			activeConversation = (page.conversation as Conversation | null) ?? activeConversation;
 			if (activeConversation?.model) {
 				setLastUsedModel(activeConversation.model);
 			}
-			stream.setMessages(
-				(data.messages ?? []).filter(
-					(m: ConversationMessage) => m.role === 'user' || m.role === 'assistant'
-				)
+			const transcript = page.messages.filter(
+				(message) => message.role === 'user' || message.role === 'assistant'
 			);
+			if (switching) {
+				stream.setMessages(transcript);
+				earlierPagesLoaded = 0;
+			} else {
+				// Merging keeps earlier pages the reader already loaded; replacing the
+				// transcript here is what used to lose them after every turn.
+				stream.mergeMessages(transcript);
+			}
+			// Once the reader has paged back, the newest page no longer describes the
+			// oldest loaded message, so its cursor must not overwrite the current one.
+			if (switching || earlierPagesLoaded === 0) {
+				olderCursor = page.olderCursor;
+				hasEarlierMessages = page.hasMore;
+			}
 			if (activeConversation?.projectId) void settings.loadTools(activeConversation.projectId);
 			else void settings.loadTools(null);
 			void loadCanvasForConversation(activeConversation?.canvasId);
@@ -471,6 +492,37 @@
 			throw error;
 		} finally {
 			if (loadToken === conversationLoadToken) conversationLoading = false;
+		}
+	}
+
+	/**
+	 * Page backwards through history. The transcript grows above the viewport, so the
+	 * scroll offset is restored afterwards to keep the reader on the same message.
+	 */
+	async function loadEarlierMessages() {
+		const id = activeId;
+		const cursor = olderCursor;
+		if (!id || !cursor || loadingEarlier) return;
+		const loadToken = conversationLoadToken;
+		const before = scrollEl ? { height: scrollEl.scrollHeight, top: scrollEl.scrollTop } : null;
+		loadingEarlier = true;
+		try {
+			const page = await fetchConversationPage<ConversationMessage>(id, { before: cursor });
+			if (id !== activeId || loadToken !== conversationLoadToken) return;
+			stream.mergeMessages(
+				page.messages.filter((message) => message.role === 'user' || message.role === 'assistant')
+			);
+			olderCursor = page.olderCursor;
+			hasEarlierMessages = page.hasMore;
+			earlierPagesLoaded += 1;
+			await tick();
+			if (scrollEl && before) {
+				scrollEl.scrollTop = scrollEl.scrollHeight - before.height + before.top;
+			}
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not load earlier messages');
+		} finally {
+			loadingEarlier = false;
 		}
 	}
 
@@ -634,6 +686,17 @@
 		return null;
 	}
 
+	/** Filenames attached to the user message that this assistant turn answers. */
+	function turnAttachments(index: number): string[] {
+		const messages = stream.messages;
+		for (let i = index; i >= 0; i--) {
+			if (messages[i].role === 'user') {
+				return (messages[i].attachments ?? []).map((attachment) => attachment.filename);
+			}
+		}
+		return [];
+	}
+
 	function addAttachments(selected: FileList | null) {
 		if (!selected || selected.length === 0) return false;
 		const allowed = /\.(txt|md|json|pdf)$/i;
@@ -746,6 +809,18 @@
 				{:else if stream.messages.length === 0}
 					<div class="empty-state">Ask something to start a conversation.</div>
 				{/if}
+				{#if hasEarlierMessages}
+					<div class="history-loader">
+						<Button
+							variant="ghost"
+							size="sm"
+							onclick={loadEarlierMessages}
+							disabled={loadingEarlier}
+						>
+							{loadingEarlier ? 'Loading earlier messages…' : 'Load earlier messages'}
+						</Button>
+					</div>
+				{/if}
 				{#each stream.messages as msg, i (msg.id)}
 					<ChatMessage
 						message={msg}
@@ -761,6 +836,9 @@
 						onregenerate={stream.retry}
 						onquestionsubmit={handleQuestionSubmit}
 						onconsentsubmit={handleConsentSubmit}
+						contextAttachments={turnAttachments(i)}
+						projectName={activeConversation?.projectName ?? null}
+						showContext={displayPreferences.showMessageContext}
 					/>
 				{/each}
 				<ChatInlineError
@@ -976,6 +1054,13 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		padding: 42px 0 10px;
+	}
+
+	/* Sits above the first message and pages older history in beneath itself. */
+	.history-loader {
+		display: flex;
+		justify-content: center;
+		padding: 0 0 8px;
 	}
 
 	@media (max-width: 900px) {

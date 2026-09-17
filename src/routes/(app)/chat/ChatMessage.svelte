@@ -1,15 +1,25 @@
 <script lang="ts">
-	import { Check, Clipboard, ChevronDown, Paperclip, RotateCcw, Sparkles } from '@lucide/svelte';
+	import {
+		AlertTriangle,
+		Check,
+		Clipboard,
+		ChevronDown,
+		Paperclip,
+		RotateCcw,
+		Sparkles
+	} from '@lucide/svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import * as Bubble from '$lib/components/ui/bubble';
 	import * as Message from '$lib/components/ui/message';
 	import type { SkillSummary } from '$lib/skills';
+	import MessageContextLine from './MessageContextLine.svelte';
 	import ToolCallPanel from './ToolCallPanel.svelte';
 	import {
 		contentText,
 		formatFileSize,
 		formatTime,
 		formatToolLabel,
+		messageContextSummary,
 		thinkingText
 	} from './chat-format';
 	import type {
@@ -33,6 +43,11 @@
 		onregenerate?: () => void;
 		onquestionsubmit?: QuestionSubmitHandler;
 		onconsentsubmit?: ConsentSubmitHandler;
+		/** Filenames attached to the user message this turn answers. */
+		contextAttachments?: string[];
+		projectName?: string | null;
+		/** Display preference for the compact context line. */
+		showContext?: boolean;
 	};
 
 	let {
@@ -48,7 +63,10 @@
 		regenerateDisabled = false,
 		onregenerate,
 		onquestionsubmit,
-		onconsentsubmit
+		onconsentsubmit,
+		contextAttachments = [],
+		projectName = null,
+		showContext = true
 	}: Props = $props();
 
 	// While the thinking block streams it renders as a fixed-height scroller, so
@@ -60,13 +78,39 @@
 
 	/**
 	 * A finished assistant reply with no text and no tool call: the turn ended
-	 * before an answer was written (see the server's turn outcome).
+	 * before an answer was written (see the server's turn outcome). An interrupted
+	 * turn gets its own notice instead, which says what actually happened.
 	 */
 	const incompleteReply = $derived(
 		message.role === 'assistant' &&
+			message.turnState !== 'interrupted' &&
 			!message.isStreaming &&
 			!contentText(message.content).trim() &&
 			(message.toolCalls?.length ?? 0) === 0
+	);
+
+	/**
+	 * The footer already offers Regenerate for the latest reply and it runs the same
+	 * retry, so the notice only carries its own action when the footer will not.
+	 */
+	const showInterruptedRetry = $derived(canRetry && !(isLast && canRegenerate));
+
+	/**
+	 * The compact context line that shares the footer row with the message actions.
+	 * It is gated on the display preference and on the turn having something
+	 * substantive to report — a project name alone must not put a line on every reply.
+	 */
+	const context = $derived(
+		showContext
+			? messageContextSummary(message, { attachments: contextAttachments, skill, projectName })
+			: null
+	);
+
+	const hasFooterActions = $derived(
+		(message.role === 'user' && isLast && canRetry) ||
+			(message.role === 'assistant' &&
+				!message.isStreaming &&
+				Boolean(contentText(message.content)))
 	);
 
 	function handleThinkingScroll() {
@@ -185,53 +229,83 @@
 						{onconsentsubmit}
 					/>
 				{/if}
+				{#if message.role === 'assistant' && message.turnState === 'interrupted'}
+					<div class="interrupted-notice" role="status">
+						<AlertTriangle size={13} aria-hidden="true" />
+						<span>
+							{contentText(message.content).trim()
+								? 'This reply was interrupted before it finished.'
+								: 'This turn was interrupted before writing an answer.'}
+						</span>
+						{#if showInterruptedRetry}
+							<button
+								type="button"
+								class="interrupted-retry"
+								onclick={onretry}
+								disabled={retryDisabled}
+							>
+								<RotateCcw size={12} aria-hidden="true" /> Retry
+							</button>
+						{/if}
+					</div>
+				{/if}
 			</Bubble.Content>
 		</Bubble.Root>
-		{#if (message.role === 'user' && isLast && canRetry) || (message.role === 'assistant' && !message.isStreaming && contentText(message.content))}
-			<Message.Footer class="chat-message-footer" aria-label="Message actions">
-				{#if message.role === 'user' && isLast && canRetry}
-					<button
-						type="button"
-						class="message-retry-btn"
-						onclick={onretry}
-						disabled={retryDisabled}
-						title="Retry last message"
-						aria-label="Retry last message"
-					>
-						<RotateCcw size={12} aria-hidden="true" /> Retry
-					</button>
-				{:else if message.role === 'assistant'}
-					<button
-						type="button"
-						class="message-action-btn"
-						onclick={copyResponse}
-						aria-label="Copy response"
-						data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
-					>
-						{#if copyStatus === 'copied'}<Check size={14} aria-hidden="true" />{:else}<Clipboard
-								size={14}
-								aria-hidden="true"
-							/>{/if}
-					</button>
-					{#if isLast && canRegenerate}
-						<button
-							type="button"
-							class="message-action-btn"
-							onclick={onregenerate}
-							disabled={regenerateDisabled}
-							aria-label="Regenerate response"
-							data-tooltip="Regenerate"
-						>
-							<RotateCcw size={14} aria-hidden="true" />
-						</button>
-					{/if}
-					{#if copyStatus !== 'idle'}
-						<span class="sr-only" role="status" aria-live="polite">
-							{copyStatus === 'copied'
-								? 'Response copied to clipboard.'
-								: 'Could not copy response. Try again.'}
-						</span>
-					{/if}
+		{#if hasFooterActions || context}
+			<Message.Footer
+				class="chat-message-footer"
+				aria-label={hasFooterActions ? 'Message actions' : 'Message context'}
+			>
+				{#if hasFooterActions}
+					<div class="footer-actions">
+						{#if message.role === 'user' && isLast && canRetry}
+							<button
+								type="button"
+								class="message-retry-btn"
+								onclick={onretry}
+								disabled={retryDisabled}
+								title="Retry last message"
+								aria-label="Retry last message"
+							>
+								<RotateCcw size={12} aria-hidden="true" /> Retry
+							</button>
+						{:else if message.role === 'assistant'}
+							<button
+								type="button"
+								class="message-action-btn"
+								onclick={copyResponse}
+								aria-label="Copy response"
+								data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
+							>
+								{#if copyStatus === 'copied'}<Check size={14} aria-hidden="true" />{:else}<Clipboard
+										size={14}
+										aria-hidden="true"
+									/>{/if}
+							</button>
+							{#if isLast && canRegenerate}
+								<button
+									type="button"
+									class="message-action-btn"
+									onclick={onregenerate}
+									disabled={regenerateDisabled}
+									aria-label="Regenerate response"
+									data-tooltip="Regenerate"
+								>
+									<RotateCcw size={14} aria-hidden="true" />
+								</button>
+							{/if}
+							{#if copyStatus !== 'idle'}
+								<span class="sr-only" role="status" aria-live="polite">
+									{copyStatus === 'copied'
+										? 'Response copied to clipboard.'
+										: 'Could not copy response. Try again.'}
+								</span>
+							{/if}
+						{/if}
+					</div>
+				{/if}
+				{#if context}
+					<MessageContextLine {context} />
 				{/if}
 			</Message.Footer>
 		{/if}
@@ -353,9 +427,53 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 	}
+	.interrupted-notice {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 10px;
+		padding: 7px 10px;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		background: var(--surface-subtle);
+		color: var(--status-working-text);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: var(--text-body-sm--font-weight);
+	}
+	.interrupted-retry {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-left: auto;
+		padding: 2px 8px;
+		border: 1px solid var(--border-strong);
+		border-radius: 6px;
+		background: transparent;
+		color: var(--text);
+		font-size: var(--text-label-md);
+		line-height: var(--text-label-md--line-height);
+		letter-spacing: var(--text-label-md--letter-spacing);
+		font-weight: var(--text-label-md--font-weight);
+		cursor: pointer;
+	}
+	.interrupted-retry:hover:not(:disabled) {
+		background: var(--surface-2);
+	}
+	.interrupted-retry:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
 	:global(.chat-message-footer) {
 		gap: 4px;
 		padding-inline: 0;
+	}
+	.footer-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
 	}
 	.message-action-btn {
 		position: relative;

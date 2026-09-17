@@ -57,6 +57,22 @@ export type MessageAttachment = {
 	extractionError?: string | null;
 };
 
+/** Provider-reported token counts for one assistant message. */
+export type MessageUsage = {
+	input?: number;
+	output?: number;
+	cacheRead?: number;
+	cacheWrite?: number;
+	reasoning?: number;
+	totalTokens?: number;
+};
+
+/**
+ * Lifecycle of the turn that produced the message. `superseded` rows never reach
+ * the client: they are filtered out of the transcript server-side.
+ */
+export type TurnState = 'streaming' | 'complete' | 'interrupted';
+
 export type ConversationMessage = {
 	skill?: SkillSummary | null;
 	id: string;
@@ -69,6 +85,11 @@ export type ConversationMessage = {
 	 * reasoning. Used to mark replies that stopped before writing an answer.
 	 */
 	stopReason?: string | null;
+	/** Set when a turn ended without finalizing, so the reply can be retried. */
+	turnState?: TurnState | null;
+	/** When the turn finalized; with `createdAt` this gives the turn duration. */
+	completedAt?: string | null;
+	usage?: MessageUsage | null;
 	attachments?: MessageAttachment[];
 	toolCalls?: ToolCall[];
 	citations?: MessageCitation[];

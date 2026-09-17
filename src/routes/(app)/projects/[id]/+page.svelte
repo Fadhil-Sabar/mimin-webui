@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
 	import { getLastUsedModel, setLastUsedModel } from '$lib/client/conversations.svelte';
+	import { createNavigationHandoff } from '$lib/client/navigation-handoff';
 	import ProjectConversations from './ProjectConversations.svelte';
 	import ProjectDialogs from './ProjectDialogs.svelte';
 	import ProjectHeader from './ProjectHeader.svelte';
@@ -13,7 +14,7 @@
 	import ProjectSkills from './ProjectSkills.svelte';
 	import ProjectCanvases from './ProjectCanvases.svelte';
 	import type { CanvasSummary } from '$lib/canvas';
-	import { extractionNeedsAttention } from './project-format';
+	import { extractionNeedsAttention, isProcessing } from './project-format';
 	import type {
 		Conversation,
 		PageInfo,
@@ -95,9 +96,9 @@
 	);
 	let extractionSummary = $derived.by(() => {
 		const failed = files.filter(extractionNeedsAttention).length;
-		const processing = files.filter((file) =>
-			['pending', 'processing', 'queued'].includes(file.extractionStatus ?? '')
-		).length;
+		// The document worker writes `processing_status`; `extraction_status` is only
+		// updated once extraction has run, so it can never report a live queue.
+		const processing = files.filter(isProcessing).length;
 		if (failed > 0)
 			return { label: `${failed} file${failed === 1 ? '' : 's'} need attention`, tone: 'danger' };
 		if (processing > 0)
@@ -226,6 +227,19 @@
 		return () => clearTimeout(timer);
 	});
 
+	/** True while the document worker still has work for at least one file. */
+	let hasProcessingFiles = $derived(files.some(isProcessing));
+
+	$effect(() => {
+		if (!hasProcessingFiles) return;
+		// Extraction runs behind the page's back, so the list is refreshed until every
+		// queued file has settled rather than waiting for a manual reload.
+		const timer = setInterval(() => {
+			void load(projectId, { reset: false, updateConversations: false }).catch(() => {});
+		}, 3000);
+		return () => clearInterval(timer);
+	});
+
 	onMount(async () => {});
 
 	function openEdit() {
@@ -345,23 +359,59 @@
 		}
 	}
 
+	/** Creates a conversation in this project, optionally activating one of its skills. */
+	async function createProjectConversation(input: { skillId?: string; title?: string } = {}) {
+		const lastModel = getLastUsedModel();
+		const response = await fetch('/api/conversations', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				projectId,
+				...(input.title ? { title: input.title } : {}),
+				...(input.skillId ? { skillId: input.skillId } : {}),
+				...(lastModel ? { model: lastModel } : {})
+			})
+		});
+		if (!response.ok) throw new Error('Could not start chat');
+		const conversation = (await response.json()).conversation;
+		if (conversation.model) {
+			setLastUsedModel(conversation.model);
+		}
+		return conversation;
+	}
+
+	function openConversation(id: string) {
+		window.location.href = `/chat?id=${encodeURIComponent(id)}`;
+	}
+
 	async function startChat() {
 		try {
-			const lastModel = getLastUsedModel();
-			const response = await fetch('/api/conversations', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					projectId,
-					...(lastModel ? { model: lastModel } : {})
-				})
+			const conversation = await createProjectConversation();
+			openConversation(conversation.id);
+		} catch (error) {
+			toast(error instanceof Error ? error.message : 'Could not start chat');
+		}
+	}
+
+	/** Opens a project chat that starts on one file instead of the whole knowledge base. */
+	async function askAboutFile(file: ProjectFile) {
+		try {
+			const conversation = await createProjectConversation();
+			// The chat page picks this up on mount, sends it, and clears it.
+			createNavigationHandoff({
+				prompt: `Using this project's knowledge, explain what "${file.filename}" contains and cite the relevant pages.`,
+				returnTo: `/chat?id=${conversation.id}`
 			});
-			if (!response.ok) throw new Error('Could not start chat');
-			const conversation = (await response.json()).conversation;
-			if (conversation.model) {
-				setLastUsedModel(conversation.model);
-			}
-			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}`;
+			openConversation(conversation.id);
+		} catch (error) {
+			toast(error instanceof Error ? error.message : 'Could not start chat');
+		}
+	}
+
+	async function startSkillChat(skillId: string) {
+		try {
+			const conversation = await createProjectConversation({ skillId });
+			openConversation(conversation.id);
 		} catch (error) {
 			toast(error instanceof Error ? error.message : 'Could not start chat');
 		}
@@ -369,19 +419,10 @@
 
 	async function createProjectCanvas() {
 		try {
-			const lastModel = getLastUsedModel();
 			// First create conversation linked to this project
-			const convRes = await fetch('/api/conversations', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					projectId,
-					title: `${project?.name ?? 'Project'} Canvas`,
-					...(lastModel ? { model: lastModel } : {})
-				})
+			const conv = await createProjectConversation({
+				title: `${project?.name ?? 'Project'} Canvas`
 			});
-			if (!convRes.ok) throw new Error('Could not start canvas conversation');
-			const conv = (await convRes.json()).conversation;
 
 			// Next create canvas linked to both
 			const canvasRes = await fetch('/api/canvases', {
@@ -396,10 +437,7 @@
 			if (!canvasRes.ok) throw new Error('Could not create canvas');
 			await canvasRes.json();
 
-			if (conv.model) {
-				setLastUsedModel(conv.model);
-			}
-			window.location.href = `/chat?id=${encodeURIComponent(conv.id)}`;
+			openConversation(conv.id);
 		} catch (error) {
 			toast(error instanceof Error ? error.message : 'Could not create canvas');
 		}
@@ -439,8 +477,9 @@
 		/>
 		<ProjectInstructions {project} onedit={openEdit} />
 		<ProjectCanvases canvases={projectCanvases} oncreatecanvas={createProjectCanvas} />
-		<ProjectSkills {projectId} />
+		<ProjectSkills {projectId} onskillchat={startSkillChat} />
 		<ProjectKnowledge
+			{projectId}
 			filteredFiles={files}
 			loadedCount={files.length}
 			query={projectQuery}
@@ -453,6 +492,7 @@
 			onupload={uploadFiles}
 			onreindex={reindexFile}
 			ondelete={promptDeleteFile}
+			onask={askAboutFile}
 			onloadmore={loadMoreFiles}
 		/>
 		<ProjectConversations

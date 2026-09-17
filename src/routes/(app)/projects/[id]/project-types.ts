@@ -16,6 +16,8 @@ export type ProjectFile = {
 	pageCount?: number | null;
 	extractionError?: string | null;
 	chunkCount?: number | null;
+	/** Document-worker state: `queued | processing | succeeded | failed`. */
+	processingStatus?: string | null;
 };
 
 export type Conversation = { id: string; title: string; model: string; updatedAt: string };

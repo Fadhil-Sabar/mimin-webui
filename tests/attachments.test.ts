@@ -45,6 +45,41 @@ describe('attachment context', () => {
 		expect(MAX_ATTACHMENT_CONTEXT_CHARS).toBeGreaterThan(7);
 	});
 
+	it('marks attachments the budget could not reach instead of claiming they are empty', async () => {
+		const context = await buildAttachmentContext(
+			[
+				{ filename: 'newest.txt', mimeType: 'text/plain', storageKey: 'newest' },
+				{ filename: 'older.txt', mimeType: 'text/plain', storageKey: 'older' }
+			],
+			async () => new TextEncoder().encode('abcdefghij'),
+			4
+		);
+
+		expect(context).toContain('filename="newest.txt"');
+		expect(context).toContain('abcd');
+		expect(context).toContain('omitted="budget"');
+		expect(context).not.toContain('not available as plain text');
+	});
+
+	it('spends the budget on the earlier-listed attachment first', async () => {
+		const context = await buildAttachmentContext(
+			[
+				{
+					filename: 'current.pdf',
+					mimeType: 'application/pdf',
+					storageKey: 'current',
+					extractedText: 'CURRENT'
+				},
+				{ filename: 'older.txt', mimeType: 'text/plain', storageKey: 'older' }
+			],
+			async (key) => new TextEncoder().encode(`${key}-content`),
+			7
+		);
+
+		expect(context).toContain('CURRENT');
+		expect(context).not.toContain('older-content');
+	});
+
 	it('rejects absolute and traversal storage keys', () => {
 		expect(isSafeStorageKey('conversation/file.txt')).toBe(true);
 		expect(isSafeStorageKey('../outside.txt')).toBe(false);

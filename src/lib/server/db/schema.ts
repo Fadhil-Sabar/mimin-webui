@@ -229,6 +229,25 @@ export type MessageUsage = {
 	totalTokens?: number;
 };
 
+/**
+ * Lifecycle of the turn that owns a message row.
+ *
+ * - `streaming`   an assistant message exists but its turn has not finished
+ * - `complete`    the turn finalized and the content is final
+ * - `interrupted` the turn died before finalizing (dropped connection, restart,
+ *                 provider error). Read paths surface this so the reply can be retried.
+ * - `superseded`  a regenerate replaced this reply. Retained so regeneration never
+ *                 destroys history; hidden from the transcript and from agent context.
+ */
+export type TurnState = 'streaming' | 'complete' | 'interrupted' | 'superseded';
+
+export const TURN_STATES: readonly TurnState[] = [
+	'streaming',
+	'complete',
+	'interrupted',
+	'superseded'
+];
+
 export const messages = pgTable(
 	'messages',
 	{
@@ -246,6 +265,10 @@ export const messages = pgTable(
 		// provider token counts so a truncated reply can be diagnosed afterwards.
 		stopReason: text('stop_reason'),
 		usage: jsonb('usage').$type<MessageUsage>(),
+		// Defaults to `complete` so rows written before this column existed read as
+		// finished turns rather than as replies that never settled.
+		turnState: text('turn_state').$type<TurnState>().notNull().default('complete'),
+		completedAt: timestamp('completed_at', { withTimezone: true }),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
 	(table) => ({

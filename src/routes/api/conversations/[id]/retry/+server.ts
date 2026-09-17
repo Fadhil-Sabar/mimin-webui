@@ -1,6 +1,6 @@
 import type { RequestHandler } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
@@ -66,15 +66,8 @@ export const POST: RequestHandler = async (event) => {
 
 		const userMessage = allMessages[lastUserIndex];
 
-		// Clean up any trailing messages (e.g. failed/partial assistant messages) following this user message
-		const trailingMessages = allMessages.slice(lastUserIndex + 1);
-		for (const trailing of trailingMessages) {
-			await db
-				.delete(schema.messages)
-				.where(eq(schema.messages.id, trailing.id))
-				.catch(() => {});
-		}
-
+		// The model is resolved before anything touches the existing messages: a
+		// regenerate that cannot run must leave the conversation exactly as it was.
 		let modelToUse = parsedModel ?? conversation.model;
 		if (!(await isModelAvailable(user.id, modelToUse))) {
 			const available = await listAvailableModels(user.id);
@@ -96,6 +89,21 @@ export const POST: RequestHandler = async (event) => {
 				.set({ model: parsedModel, updatedAt: new Date() })
 				.where(eq(schema.conversations.id, conversationId));
 		}
+
+		// Retiring the previous answer is a state change, not a delete. The rows are kept
+		// so regenerating can never erase history, and they are filtered out of both the
+		// transcript and the agent's context while `superseded`.
+		const trailingIds = allMessages.slice(lastUserIndex + 1).map((m) => m.id);
+		if (trailingIds.length > 0)
+			await db
+				.update(schema.messages)
+				.set({ turnState: 'superseded' })
+				.where(
+					and(
+						eq(schema.messages.conversationId, conversationId),
+						inArray(schema.messages.id, trailingIds)
+					)
+				);
 
 		const attachmentRecords = await db
 			.select({

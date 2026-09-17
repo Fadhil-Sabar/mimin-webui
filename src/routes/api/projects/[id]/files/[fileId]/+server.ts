@@ -33,11 +33,14 @@ export const GET: RequestHandler = async (event) => {
 			throw error;
 		}
 		const body = new Uint8Array(data).slice().buffer;
+		// `inline` lets the browser preview the file (its PDF viewer, or the raw text);
+		// `?download=1` saves it instead, which is what the row's Download action wants.
+		const disposition = event.url.searchParams.get('download') === '1' ? 'attachment' : 'inline';
 		return new Response(body, {
 			headers: {
 				'content-type': file.mimeType,
 				'content-length': String(data.byteLength),
-				'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
+				'content-disposition': `${disposition}; filename*=UTF-8''${encodeURIComponent(file.filename)}`,
 				'cache-control': 'private, no-store',
 				'x-content-type-options': 'nosniff'
 			}
