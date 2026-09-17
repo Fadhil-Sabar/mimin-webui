@@ -4,6 +4,29 @@ All notable changes to Mimin WebUI are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-09-17
+
+A design-system pass: the visual language was sound but its edges had drifted, so this release consolidates the components, normalizes the tokens, and makes the theme actually hold on every surface.
+
+### Added
+
+- Skeleton loading states for the projects grid, skills grid, chat transcript and admin user list, built on the existing shimmer keyframe. They reuse `role="status"` with a single `aria-label` so the wait is announced once, and the gradient is dropped under `prefers-reduced-motion` instead of frozen.
+- Route-level error pages for the root and the `(app)` group, sharing an `ErrorState` component. Without them a thrown load fell through to SvelteKit's unstyled default page.
+
+### Changed
+
+- Component consolidation: surfaces that hand-rolled their own controls now use the shared `Button`, `Input` and the new `Card` primitive. `UsersTab` alone carried four button styles; the global sheet carried six more. The installed primitives moved off `rounded-lg`, `h-8` and a box-shadow ring to match the project's radii and outline focus convention.
+- Token normalization: hardcoded radii snapped to `--radius-*`, spacing onto `--space-*`, nine ad-hoc breakpoints collapsed onto a shared set, and roughly 15 property-less transition shorthands (which resolved to `all`) replaced with explicit property lists.
+- Focus handling standardized onto the outline treatment, and the ~22 `outline: none` rules that were suppressing the global focus ring removed. Several inputs had been relying on a 1px border colour change as their only focus indicator.
+- The Google Fonts request is now one call narrowed to the weights the MD3 scale actually uses (400 and 500, with Roboto's italic axis kept for `<em>` in transcripts and markdown).
+
+### Fixed
+
+- Escaped colour literals that assumed the light theme now derive from tokens (via `color-mix` where a tint is wanted), so the chat inline error, the incomplete-turn notice, the tool picker's status pill, the switch knob and the mockup preview read correctly on dark surfaces. The switch knob follows the MD3 pair in all four theme and state combinations.
+- Sweeping every `var(--...)` reference against every definition also caught undefined tokens: `--border-hover`, `--success-text`, `--text-secondary`, `--bg-tertiary` and a bare `--radius` were never declared anywhere, and `ui/bubble` used shadcn v3 names (`--primary`, `--secondary`, `--muted`, `--foreground`) that this project's bridge never creates. Those rules were silently invalid CSS and the tinted bubble variant had no background at all.
+- Warning boxes had no token either: two call sites used `--warning-bg` with a `--bg-tertiary` fallback, both undefined, so they drew a border with no fill. `--warning-bg` and `--warning-text` now sit beside the amber status family.
+- Two layout regressions found by running the real app against a scratch database in headless Chromium (220 checks across 20 widths and 11 surfaces): the Users admin grid spilling past the dialog between 761 and 1024px, and the projects grid going 3-up where it had been 2-up between 761 and 800px.
+
 ## [0.3.0] - 2026-09-17
 
 The release that makes a conversation survive a bad turn, and gives the interface Material's own motion.
@@ -85,6 +108,7 @@ The release that turns the first working shell into a usable agent workspace: a 
 - Email/password authentication with session cookies.
 - Full performance pass over the initial implementation.
 
-[0.3.0]: https://github.com/Fadhil-Sabar/mimin-webui/compare/v0.2.0...v0.3.0
+[0.3.1]: https://github.com/Fadhil-Sabar/mimin-webui/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/Fadhil-Sabar/mimin-webui/releases/tag/v0.3.0
 [0.2.0]: https://github.com/Fadhil-Sabar/mimin-webui/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Fadhil-Sabar/mimin-webui/releases/tag/v0.1.0
