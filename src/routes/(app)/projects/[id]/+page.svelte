@@ -22,6 +22,7 @@
 		UploadSummary
 	} from './project-types';
 	import Topbar from '$lib/components/Topbar.svelte';
+	import Page from '$lib/components/Page.svelte';
 
 	type LoadOptions = {
 		reset?: boolean;
@@ -420,7 +421,7 @@
 		<ProjectSearch bind:value={projectQuery} />
 	{/snippet}
 </Topbar>
-<div class="page-wrap">
+<Page>
 	{#if loading}
 		<div class="empty-state" role="status">Loading project...</div>
 	{:else if loadError}
@@ -467,7 +468,7 @@
 			onstartchat={startChat}
 		/>
 	{/if}
-</div>
+</Page>
 <ProjectDialogs
 	bind:editName
 	bind:editDescription
@@ -498,11 +499,6 @@
 />
 
 <style>
-	.page-wrap {
-		max-width: 970px;
-		margin: auto;
-		padding: clamp(32px, 6vh, 56px) 35px 70px;
-	}
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
@@ -532,10 +528,5 @@
 		color: var(--text-body);
 		text-decoration: underline;
 		text-underline-offset: 3px;
-	}
-	@media (max-width: 760px) {
-		.page-wrap {
-			padding: 28px 18px 60px;
-		}
 	}
 </style>

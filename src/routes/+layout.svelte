@@ -2,6 +2,7 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { afterNavigate } from '$app/navigation';
+	import { shell } from '$lib/client/shell.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { conversationSearch } from '$lib/client/conversations.svelte';
 	import ConversationSearchModal from '$lib/components/ConversationSearchModal.svelte';
@@ -9,12 +10,15 @@
 
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
 
 	afterNavigate(() => {
 		sidebar.closeMobile();
 	});
 
+	/**
+	 * The single owner of global shortcuts. Pages must not register their own
+	 * window key handlers for these, or a shortcut runs twice.
+	 */
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && sidebar.mobileOpen) {
 			sidebar.closeMobile();
@@ -28,10 +32,11 @@
 			return;
 		}
 		if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-			if (page.url.pathname !== '/chat') {
-				event.preventDefault();
-				void goto(resolve('/chat?new=1'));
-			}
+			event.preventDefault();
+			// The chat room publishes a handler that starts a chat in place;
+			// every other page navigates to a fresh one.
+			if (shell.newChat) shell.newChat();
+			else void goto(resolve('/chat?new=1'));
 		}
 	}
 

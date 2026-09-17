@@ -6,6 +6,8 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import Topbar from '$lib/components/Topbar.svelte';
+	import Page from '$lib/components/Page.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	type Project = {
 		id: string;
@@ -102,19 +104,14 @@
 
 <svelte:head><title>Mimin WebUI | Projects</title></svelte:head>
 <Topbar breadcrumbs={[{ label: 'Projects' }]} user={data.user} />
-<div class="projects-wrap">
-	<div class="page-heading">
-		<div>
-			<h1>Projects</h1>
-			<p>Persistent context for the work you return to.</p>
-		</div>
-		<Button
-			variant="default"
-			class="page-heading-button"
-			bind:ref={createProjectTrigger}
-			onclick={() => (showCreate = true)}><Plus size={16} /> New project</Button
-		>
-	</div>
+<Page>
+	<PageHeader title="Projects" subtitle="Persistent context for the work you return to.">
+		{#snippet actions()}
+			<Button variant="default" bind:ref={createProjectTrigger} onclick={() => (showCreate = true)}
+				><Plus size={16} /> New project</Button
+			>
+		{/snippet}
+	</PageHeader>
 	<div class="toolbar">
 		<span>{projects.length} {projects.length === 1 ? 'project' : 'projects'}</span>
 		<div class="toolbar-right">
@@ -175,7 +172,7 @@
 			{/if}
 		</div>
 	{/if}
-</div>
+</Page>
 <Dialog.Root open={showCreate} onOpenChange={handleCreateOpenChange}>
 	<Dialog.Content
 		showCloseButton={false}
@@ -236,34 +233,6 @@
 </Dialog.Root>
 
 <style>
-	.projects-wrap {
-		max-width: 1050px;
-		margin: auto;
-		padding: clamp(32px, 6vh, 56px) 35px 75px;
-	}
-	.page-heading {
-		display: flex;
-		align-items: flex-end;
-		justify-content: space-between;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 30px;
-	}
-	.page-heading h1 {
-		margin: 0 0 6px;
-		font-family: var(--font-body);
-		font-size: var(--text-headline-md);
-		line-height: var(--text-headline-md--line-height);
-		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
-		color: var(--text-strong);
-	}
-	.page-heading p {
-		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
 	.toolbar {
 		display: flex;
 		align-items: center;
@@ -461,19 +430,8 @@
 		margin-top: 22px;
 	}
 	@media (max-width: 800px) {
-		.projects-wrap {
-			padding: 28px 18px;
-		}
 		.project-grid {
 			grid-template-columns: 1fr 1fr;
-		}
-		.page-heading {
-			align-items: flex-start;
-			gap: 18px;
-			flex-direction: column;
-		}
-		:global(.page-heading-button) {
-			width: 100%;
 		}
 	}
 	@media (max-width: 540px) {

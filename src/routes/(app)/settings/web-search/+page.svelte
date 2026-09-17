@@ -16,6 +16,8 @@
 		WebSearchSettingsState
 	} from './types';
 	import Topbar from '$lib/components/Topbar.svelte';
+	import Page from '$lib/components/Page.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let { data } = $props();
 	let loading = $state(true);
@@ -232,16 +234,11 @@
 
 <Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Web Search' }]} user={data.user} />
 
-<div class="page-wrap">
-	<div class="page-heading">
-		<div>
-			<h1>Web search configuration</h1>
-			<p>
-				Configure the search engine, API key, and search endpoint used when Mimin performs web
-				research.
-			</p>
-		</div>
-	</div>
+<Page>
+	<PageHeader
+		title="Web search configuration"
+		subtitle="Configure the search engine, API key, and search endpoint used when Mimin performs web research."
+	/>
 
 	{#if notification}
 		<NotificationToast message={notification} />
@@ -332,38 +329,11 @@
 			ontest={runTestSearch}
 		/>
 	{/if}
-</div>
+</Page>
 
 <svelte:window onkeydown={(event) => event.key === 'Escape' && (editingField = null)} />
 
 <style>
-	.page-wrap {
-		max-width: 860px;
-		margin: auto;
-		padding: clamp(32px, 6vh, 56px) 35px 75px;
-	}
-	.page-heading {
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 24px;
-		margin-bottom: 24px;
-	}
-	.page-heading h1 {
-		margin: 0 0 6px;
-		font-family: var(--font-body);
-		font-size: var(--text-headline-md);
-		line-height: var(--text-headline-md--line-height);
-		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
-		color: var(--text-strong);
-	}
-	.page-heading p {
-		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-
 	.settings-form {
 		background: var(--surface);
 		border: 1px solid var(--border);

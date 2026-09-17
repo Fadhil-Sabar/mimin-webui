@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
-import ChatMessage from '../src/routes/chat/ChatMessage.svelte';
-import type { ConversationMessage } from '../src/routes/chat/chat-types';
+import ChatMessage from '../src/routes/(app)/chat/ChatMessage.svelte';
+import type { ConversationMessage } from '../src/routes/(app)/chat/chat-types';
 
 function assistant(overrides: Partial<ConversationMessage> = {}): ConversationMessage {
 	return {

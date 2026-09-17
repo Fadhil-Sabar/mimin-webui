@@ -11,6 +11,8 @@
 		setBrowserBridgeEnabled
 	} from '$lib/client/browser-bridge';
 	import Topbar from '$lib/components/Topbar.svelte';
+	import Page from '$lib/components/Page.svelte';
+	import PageHeader from '$lib/components/PageHeader.svelte';
 
 	let { data } = $props();
 	let enabled = $state(false);
@@ -72,17 +74,13 @@
 
 <Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Browser Extension' }]} user={data.user} />
 
-<div class="page-wrap">
-	<div class="page-heading">
-		<span class="hero-icon"><Puzzle size={23} /></span>
-		<div>
-			<h1>Mimin Browser Bridge</h1>
-			<p>
-				Let Mimin open tabs, search Google or Google Scholar, and read public web pages directly
-				from your chat.
-			</p>
-		</div>
-	</div>
+<Page>
+	<PageHeader
+		title="Mimin Browser Bridge"
+		subtitle="Let Mimin open tabs, search Google or Google Scholar, and read public web pages directly from your chat."
+	>
+		{#snippet icon()}<Puzzle size={23} />{/snippet}
+	</PageHeader>
 
 	<section class="enable-card">
 		<div>
@@ -237,21 +235,9 @@
 			Chrome Web Store and Firefox Add-ons before offering one-click production installation.
 		</p>
 	{/if}
-</div>
+</Page>
 
 <style>
-	.page-wrap {
-		max-width: 920px;
-		margin: auto;
-		padding: clamp(32px, 6vh, 56px) 35px 75px;
-	}
-	.page-heading {
-		display: flex;
-		gap: 15px;
-		border-bottom: 1px solid var(--border);
-		padding-bottom: 27px;
-	}
-	.hero-icon,
 	.card-icon {
 		display: grid;
 		place-items: center;
@@ -259,21 +245,6 @@
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 	}
-	.hero-icon {
-		width: 44px;
-		height: 44px;
-		flex: 0 0 44px;
-		border-radius: 11px;
-	}
-	h1 {
-		margin: 0 0 7px;
-		color: var(--text-strong);
-		font-size: var(--text-headline-md);
-		line-height: var(--text-headline-md--line-height);
-		letter-spacing: var(--text-headline-md--letter-spacing);
-		font-weight: 500;
-	}
-	.page-heading p,
 	.enable-card p,
 	article p,
 	.privacy-note p,
@@ -447,9 +418,6 @@
 		border-top: 1px solid var(--border);
 	}
 	@media (max-width: 720px) {
-		.page-wrap {
-			padding: 28px 18px 60px;
-		}
 		.enable-card {
 			align-items: flex-start;
 			flex-direction: column;

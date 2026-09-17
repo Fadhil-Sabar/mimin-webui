@@ -1,30 +1,18 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { LogOut, PanelLeft, Plus, Sparkles } from '@lucide/svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
 	import { authClient } from '$lib/client/auth';
+	import { shell } from '$lib/client/shell.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { activeNavKey, visibleNavSections } from '$lib/nav';
 
 	type Props = {
 		user?: { name?: string | null; role?: string | null } | null;
-		recentChats?: Snippet;
-		sidebarExtra?: Snippet;
-		onnewchat?: () => void;
-		newChatDisabled?: boolean;
-		newChatEmpty?: boolean;
 	};
 
-	let {
-		user = null,
-		recentChats,
-		sidebarExtra,
-		onnewchat,
-		newChatDisabled = false,
-		newChatEmpty = false
-	}: Props = $props();
+	let { user = null }: Props = $props();
 
 	let initial = $derived(user?.name?.[0]?.toUpperCase() ?? 'U');
 	let sections = $derived(visibleNavSections(user?.role === 'admin'));
@@ -50,24 +38,26 @@
 			aria-label="Collapse sidebar"><PanelLeft size={16} /></button
 		>
 	</div>
-	{#if onnewchat}
+	{#if shell.newChat}
 		<button
 			class="new-chat"
-			disabled={newChatDisabled}
-			title={newChatEmpty ? 'Already on a new conversation' : 'New chat'}
+			disabled={shell.newChatDisabled}
+			title={shell.newChatEmpty ? 'Already on a new conversation' : 'New chat'}
 			onclick={() => {
 				sidebar.closeMobile();
-				onnewchat();
+				shell.newChat?.();
 			}}
 		>
 			<Plus size={16} /> New chat <kbd>⌘ K</kbd>
 		</button>
 	{:else}
-		<a class="new-chat" href={resolve('/chat?new=1')}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a>
+		<a class="new-chat" href={resolve('/chat?new=1')} onclick={() => sidebar.closeMobile()}
+			><Plus size={16} /> New chat <kbd>⌘ K</kbd></a
+		>
 	{/if}
 	<div class="sidebar-scroll">
 		{#each sections as section, index (section.label)}
-			<div class="nav-label" class:projects-label={index > 0}>{section.label}</div>
+			<div class="nav-label" class:nav-label-group={index > 0}>{section.label}</div>
 			{#each section.items as item (item.key)}
 				<a
 					class="nav-item"
@@ -80,12 +70,16 @@
 				</a>
 			{/each}
 		{/each}
-		{@render sidebarExtra?.()}
-		{#if recentChats}
-			{@render recentChats()}
-		{:else}
-			<RecentChats />
-		{/if}
+		<RecentChats
+			conversations={shell.chats?.conversations}
+			activeId={shell.chats?.activeId}
+			editingId={shell.chats?.editingId}
+			onSelectChat={shell.chats?.onSelectChat}
+			onStartRename={shell.chats?.onStartRename}
+			onPromptDelete={shell.chats?.onPromptDelete}
+			onSaveRename={shell.chats?.onSaveRename}
+			onCancelRename={shell.chats?.onCancelRename}
+		/>
 	</div>
 	<div class="sidebar-bottom">
 		<div class="user-row">

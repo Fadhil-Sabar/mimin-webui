@@ -78,7 +78,7 @@ describe('modal and picker keyboard accessibility', () => {
 		it('routes every delete confirmation through the shared ConfirmDialog', () => {
 			for (const file of [
 				'src/lib/components/RecentChats.svelte',
-				'src/routes/chat/+page.svelte',
+				'src/routes/(app)/chat/+page.svelte',
 				'src/routes/(app)/skills/+page.svelte',
 				'src/routes/(app)/projects/[id]/ProjectDialogs.svelte'
 			]) {
@@ -115,7 +115,7 @@ describe('modal and picker keyboard accessibility', () => {
 		});
 
 		for (const file of [
-			'src/routes/chat/+page.svelte',
+			'src/routes/(app)/chat/+page.svelte',
 			'src/routes/(app)/+page.svelte',
 			'src/routes/(app)/projects/+page.svelte',
 			'src/routes/(app)/projects/[id]/+page.svelte',
@@ -143,7 +143,7 @@ describe('modal and picker keyboard accessibility', () => {
 
 			const svelteFiles = [
 				'src/routes/(app)/+page.svelte',
-				'src/routes/chat/+page.svelte',
+				'src/routes/(app)/chat/+page.svelte',
 				'src/routes/(app)/projects/+page.svelte',
 				'src/routes/(app)/projects/[id]/+page.svelte',
 				'src/routes/(app)/settings/+page.svelte',

@@ -67,6 +67,13 @@ export type AppEvent = { type: string; [key: string]: unknown };
 export const WEB_SEARCH_FAILURE_NOTICE =
 	"I couldn't complete the web search because the search service could not be reached. I don't have verified results for this request, so please try again or check the Web Search settings.";
 
+/**
+ * How many times a turn that ran out of output tokens is nudged to keep writing
+ * before the UI falls back to asking the user to press Continue.
+ */
+export const MAX_AUTO_CONTINUES = 3;
+const AUTO_CONTINUE_PROMPT = 'continue';
+
 export function getToolFailurePolicy(toolName: string, isError: boolean) {
 	if (toolName !== 'web_search' || !isError) return undefined;
 	return {
@@ -876,13 +883,24 @@ Instructions for Canvas Mockups:
 	});
 	try {
 		if (isConversationTurnCanceled(turnToken)) return null;
-		await agent.prompt(promptWithAttachments, pdfVisionFallback.images);
-		await agentEvents.drain();
-		if (subscriberError) throw subscriberError;
-		await finalizeCurrentAssistantMessage();
-		// A turn can end cleanly with reasoning only (the provider reported `length`,
-		// or stopped without an answer). Tell the client instead of leaving a reply
-		// that still looks like it is thinking.
+		// Reasoning shares the output budget with the answer, so a turn can stop on
+		// `length` with the answer missing or half-written. Nudge the model to keep
+		// going on its own rather than making the user press Continue, but bound the
+		// retries so a model that never finishes cannot loop forever.
+		let autoContinues = 0;
+		for (;;) {
+			if (autoContinues === 0) await agent.prompt(promptWithAttachments, pdfVisionFallback.images);
+			else await agent.prompt(AUTO_CONTINUE_PROMPT);
+			await agentEvents.drain();
+			if (subscriberError) throw subscriberError;
+			await finalizeCurrentAssistantMessage();
+			if (turnOutcome.last?.kind !== 'truncated') break;
+			if (autoContinues >= MAX_AUTO_CONTINUES) break;
+			if (isConversationTurnCanceled(turnToken)) break;
+			autoContinues += 1;
+		}
+		// Still unfinished after the retries, or a clean stop with reasoning only:
+		// tell the client instead of leaving a reply that looks like it is thinking.
 		if (turnOutcome.last) {
 			emit({
 				type: 'turn.incomplete',
