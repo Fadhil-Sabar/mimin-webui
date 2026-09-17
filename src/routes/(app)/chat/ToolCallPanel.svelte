@@ -80,8 +80,7 @@
 					<div class="tool-call-status">
 						{#if toolCall.status === 'running'}
 							<span class="tool-status-badge running">
-								<span class="pulse-dot"></span>
-								{toolCall.preparing ? 'Writing…' : 'Running...'}
+								<span class="shimmer-text">{toolCall.preparing ? 'Writing…' : 'Running...'}</span>
 							</span>
 						{:else if toolCall.status === 'failed'}
 							<span class="tool-status-badge failed">Failed</span>
@@ -314,11 +313,7 @@
 		text-decoration: underline;
 		text-underline-offset: 2px;
 	}
-	.pulse-dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: var(--accent-bg);
-		animation: pulse-glow 1.4s ease-in-out infinite;
+	.tool-status-badge.running .shimmer-text {
+		--shimmer-peak: var(--status-working-dot);
 	}
 </style>

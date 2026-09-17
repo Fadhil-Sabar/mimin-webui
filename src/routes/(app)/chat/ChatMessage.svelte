@@ -169,7 +169,7 @@
 			{#if skill}<span class="skill-badge">{skill.name}</span>{/if}
 			<time datetime={message.createdAt}>{formatTime(message.createdAt)}</time>
 			{#if message.role === 'assistant' && message.isStreaming}
-				<span class="live-tag" role="status">
+				<span class="live-tag shimmer-text" role="status">
 					{#if message.toolCalls?.some((t) => t.status === 'running')}
 						{formatToolLabel(
 							message.toolCalls.find((t) => t.status === 'running')!.toolName,
@@ -211,10 +211,9 @@
 					>
 						<summary class="thinking-summary state-layer">
 							<Sparkles size={13} />
-							<span>Thinking process</span>
-							{#if message.isStreaming && !contentText(message.content)}
-								<span class="thinking-live-dot"></span>
-							{/if}
+							<span class:shimmer-text={message.isStreaming && !contentText(message.content)}>
+								Thinking process
+							</span>
 							<ChevronDown size={13} class="chevron" />
 						</summary>
 						<div class="thinking-content" bind:this={thinkingEl} onscroll={handleThinkingScroll}>
@@ -231,7 +230,7 @@
 						<p>{contentText(message.content)}</p>
 					{/if}
 				{:else if message.role === 'assistant' && message.isStreaming && !thinkingText(message.content) && (!message.toolCalls || message.toolCalls.length === 0)}
-					<p class="response-text thinking"><span class="pulse-dot"></span> Thinking...</p>
+					<p class="response-text thinking"><span class="shimmer-text">Thinking...</span></p>
 				{:else if incompleteReply}
 					<p class="response-text incomplete-reply">
 						{message.stopReason === 'length'
@@ -445,7 +444,7 @@
 		line-height: var(--text-body-lg--line-height);
 		white-space: pre-wrap;
 	}
-	/* A blinking caret is the live signal while tokens stream in. Animating the caret
+	/* A breathing caret is the live signal while tokens stream in. Animating the caret
 	 * rather than the incoming text is deliberate: a per-token animation would restart
 	 * on every SSE delta and jank badly. */
 	.streaming-plain-text::after {
@@ -456,7 +455,7 @@
 		margin-left: 2px;
 		vertical-align: text-bottom;
 		background: var(--text-muted);
-		animation: caret-blink 1s steps(2, start) infinite;
+		animation: caret-fade 1.2s var(--ease-standard) infinite;
 	}
 	.incomplete-reply {
 		color: var(--status-working-text);
@@ -647,13 +646,6 @@
 	details[open] > .thinking-summary :global(.chevron) {
 		transform: rotate(180deg);
 	}
-	.thinking-live-dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: var(--accent-bg);
-		animation: pulse-glow 1s ease-in-out infinite;
-	}
 	.thinking-content {
 		padding: 8px 12px 10px;
 		border-top: 1px solid var(--border);
@@ -674,19 +666,11 @@
 		font-style: italic;
 		word-break: break-word;
 	}
+	/* No flex/gap here any more — the pulsing dot that needed centring is gone and the
+	 * label carries the live signal itself, via `.shimmer-text`. */
 	.thinking {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
 		color: var(--text-muted);
 		font-style: italic;
-	}
-	.pulse-dot {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: var(--accent-bg);
-		animation: pulse-glow 1.4s ease-in-out infinite;
 	}
 	@media (max-width: 760px) {
 		:global(.chat-bubble[data-variant='secondary']) {
