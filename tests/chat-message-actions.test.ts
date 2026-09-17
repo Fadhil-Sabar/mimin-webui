@@ -88,8 +88,8 @@ describe('ChatMessage interrupted turns', () => {
 	});
 });
 
-describe('ChatMessage context panel', () => {
-	it('reports the tokens a finished turn used', () => {
+describe('ChatMessage context line', () => {
+	it('states the tokens and duration of a finished turn in the compact form', () => {
 		const body = renderMessage(
 			assistant({
 				usage: { input: 1500, output: 300, totalTokens: 1800 },
@@ -98,16 +98,48 @@ describe('ChatMessage context panel', () => {
 			{ contextAttachments: ['notes.md'], projectName: 'Launch' }
 		);
 
-		expect(body).toContain('Context');
-		expect(body).toContain('1,800 tokens');
+		expect(body).toContain('context-line');
+		expect(body).toContain('1.8k tokens');
+		expect(body).toContain('4s');
+		expect(body).toContain('1 file');
+		// The full breakdown rides along as the tooltip so the short form loses nothing.
+		expect(body).toContain('Input 1,500');
 		expect(body).toContain('notes.md');
-		expect(body).toContain('Launch');
-		expect(body).toContain('Duration');
+		expect(body).toContain('Project: Launch');
 	});
 
-	it('does not claim a token count for a turn that reported none', () => {
+	it('sits in the same row as the message actions', () => {
+		const body = renderMessage(
+			assistant({ usage: { totalTokens: 900 }, completedAt: '2026-01-01T00:00:01.000Z' }),
+			{ canRegenerate: true }
+		);
+
+		expect(body).toContain('aria-label="Message actions"');
+		expect(body).toContain('900 tokens');
+	});
+
+	it('is hidden when the preference is off', () => {
+		const body = renderMessage(
+			assistant({ usage: { totalTokens: 900 }, completedAt: '2026-01-01T00:00:01.000Z' }),
+			{ showContext: false }
+		);
+
+		expect(body).not.toContain('context-line');
+		expect(body).not.toContain('900 tokens');
+		// The actions stay exactly where they were.
+		expect(body).toContain('aria-label="Copy response"');
+	});
+
+	it('stays quiet when the turn reported nothing worth summarising', () => {
 		const body = renderMessage(assistant());
 
+		expect(body).not.toContain('context-line');
 		expect(body).not.toContain('tokens');
+	});
+
+	it('does not put a line on every reply just because it is in a project', () => {
+		const body = renderMessage(assistant(), { projectName: 'Launch' });
+
+		expect(body).not.toContain('context-line');
 	});
 });

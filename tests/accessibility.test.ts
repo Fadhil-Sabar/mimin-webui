@@ -123,6 +123,7 @@ describe('modal and picker keyboard accessibility', () => {
 			'src/routes/(app)/settings/instructions/+page.svelte',
 			'src/routes/(app)/settings/web-search/+page.svelte',
 			'src/routes/(app)/settings/browser-extension/+page.svelte',
+			'src/routes/(app)/settings/preferences/+page.svelte',
 			'src/routes/(app)/skills/+page.svelte',
 			'src/routes/(app)/admin/users/+page.svelte'
 		]) {

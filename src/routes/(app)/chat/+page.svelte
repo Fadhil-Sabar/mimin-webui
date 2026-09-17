@@ -30,6 +30,7 @@
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
+	import { displayPreferences } from '$lib/client/display-preferences.svelte';
 	import { shell } from '$lib/client/shell.svelte';
 	import { getConversationDraft, setConversationDraft } from '$lib/client/drafts';
 	import { peekNavigationHandoff, consumeNavigationHandoff } from '$lib/client/navigation-handoff';
@@ -837,6 +838,7 @@
 						onconsentsubmit={handleConsentSubmit}
 						contextAttachments={turnAttachments(i)}
 						projectName={activeConversation?.projectName ?? null}
+						showContext={displayPreferences.showMessageContext}
 					/>
 				{/each}
 				<ChatInlineError

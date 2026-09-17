@@ -12,13 +12,14 @@
 	import * as Bubble from '$lib/components/ui/bubble';
 	import * as Message from '$lib/components/ui/message';
 	import type { SkillSummary } from '$lib/skills';
-	import MessageContextPanel from './MessageContextPanel.svelte';
+	import MessageContextLine from './MessageContextLine.svelte';
 	import ToolCallPanel from './ToolCallPanel.svelte';
 	import {
 		contentText,
 		formatFileSize,
 		formatTime,
 		formatToolLabel,
+		messageContextSummary,
 		thinkingText
 	} from './chat-format';
 	import type {
@@ -45,6 +46,8 @@
 		/** Filenames attached to the user message this turn answers. */
 		contextAttachments?: string[];
 		projectName?: string | null;
+		/** Display preference for the compact context line. */
+		showContext?: boolean;
 	};
 
 	let {
@@ -62,7 +65,8 @@
 		onquestionsubmit,
 		onconsentsubmit,
 		contextAttachments = [],
-		projectName = null
+		projectName = null,
+		showContext = true
 	}: Props = $props();
 
 	// While the thinking block streams it renders as a fixed-height scroller, so
@@ -90,6 +94,24 @@
 	 * retry, so the notice only carries its own action when the footer will not.
 	 */
 	const showInterruptedRetry = $derived(canRetry && !(isLast && canRegenerate));
+
+	/**
+	 * The compact context line that shares the footer row with the message actions.
+	 * It is gated on the display preference and on the turn having something
+	 * substantive to report — a project name alone must not put a line on every reply.
+	 */
+	const context = $derived(
+		showContext
+			? messageContextSummary(message, { attachments: contextAttachments, skill, projectName })
+			: null
+	);
+
+	const hasFooterActions = $derived(
+		(message.role === 'user' && isLast && canRetry) ||
+			(message.role === 'assistant' &&
+				!message.isStreaming &&
+				Boolean(contentText(message.content)))
+	);
 
 	function handleThinkingScroll() {
 		if (!thinkingEl) return;
@@ -227,54 +249,63 @@
 						{/if}
 					</div>
 				{/if}
-				<MessageContextPanel {message} {skill} {contextAttachments} {projectName} />
 			</Bubble.Content>
 		</Bubble.Root>
-		{#if (message.role === 'user' && isLast && canRetry) || (message.role === 'assistant' && !message.isStreaming && contentText(message.content))}
-			<Message.Footer class="chat-message-footer" aria-label="Message actions">
-				{#if message.role === 'user' && isLast && canRetry}
-					<button
-						type="button"
-						class="message-retry-btn"
-						onclick={onretry}
-						disabled={retryDisabled}
-						title="Retry last message"
-						aria-label="Retry last message"
-					>
-						<RotateCcw size={12} aria-hidden="true" /> Retry
-					</button>
-				{:else if message.role === 'assistant'}
-					<button
-						type="button"
-						class="message-action-btn"
-						onclick={copyResponse}
-						aria-label="Copy response"
-						data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
-					>
-						{#if copyStatus === 'copied'}<Check size={14} aria-hidden="true" />{:else}<Clipboard
-								size={14}
-								aria-hidden="true"
-							/>{/if}
-					</button>
-					{#if isLast && canRegenerate}
-						<button
-							type="button"
-							class="message-action-btn"
-							onclick={onregenerate}
-							disabled={regenerateDisabled}
-							aria-label="Regenerate response"
-							data-tooltip="Regenerate"
-						>
-							<RotateCcw size={14} aria-hidden="true" />
-						</button>
-					{/if}
-					{#if copyStatus !== 'idle'}
-						<span class="sr-only" role="status" aria-live="polite">
-							{copyStatus === 'copied'
-								? 'Response copied to clipboard.'
-								: 'Could not copy response. Try again.'}
-						</span>
-					{/if}
+		{#if hasFooterActions || context}
+			<Message.Footer
+				class="chat-message-footer"
+				aria-label={hasFooterActions ? 'Message actions' : 'Message context'}
+			>
+				{#if hasFooterActions}
+					<div class="footer-actions">
+						{#if message.role === 'user' && isLast && canRetry}
+							<button
+								type="button"
+								class="message-retry-btn"
+								onclick={onretry}
+								disabled={retryDisabled}
+								title="Retry last message"
+								aria-label="Retry last message"
+							>
+								<RotateCcw size={12} aria-hidden="true" /> Retry
+							</button>
+						{:else if message.role === 'assistant'}
+							<button
+								type="button"
+								class="message-action-btn"
+								onclick={copyResponse}
+								aria-label="Copy response"
+								data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
+							>
+								{#if copyStatus === 'copied'}<Check size={14} aria-hidden="true" />{:else}<Clipboard
+										size={14}
+										aria-hidden="true"
+									/>{/if}
+							</button>
+							{#if isLast && canRegenerate}
+								<button
+									type="button"
+									class="message-action-btn"
+									onclick={onregenerate}
+									disabled={regenerateDisabled}
+									aria-label="Regenerate response"
+									data-tooltip="Regenerate"
+								>
+									<RotateCcw size={14} aria-hidden="true" />
+								</button>
+							{/if}
+							{#if copyStatus !== 'idle'}
+								<span class="sr-only" role="status" aria-live="polite">
+									{copyStatus === 'copied'
+										? 'Response copied to clipboard.'
+										: 'Could not copy response. Try again.'}
+								</span>
+							{/if}
+						{/if}
+					</div>
+				{/if}
+				{#if context}
+					<MessageContextLine {context} />
 				{/if}
 			</Message.Footer>
 		{/if}
@@ -438,6 +469,11 @@
 	:global(.chat-message-footer) {
 		gap: 4px;
 		padding-inline: 0;
+	}
+	.footer-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
 	}
 	.message-action-btn {
 		position: relative;

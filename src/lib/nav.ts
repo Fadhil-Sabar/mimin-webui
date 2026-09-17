@@ -6,6 +6,7 @@ import {
 	MessageSquare,
 	Puzzle,
 	Settings,
+	SlidersHorizontal,
 	Sparkles,
 	User
 } from '@lucide/svelte';
@@ -27,6 +28,7 @@ export type NavHref =
 	| '/admin/users'
 	| '/settings'
 	| '/settings/instructions'
+	| '/settings/preferences'
 	| '/skills'
 	| '/settings/web-search'
 	| '/settings/browser-extension';
@@ -95,6 +97,13 @@ export const NAV_SECTIONS: NavSection[] = [
 				href: '/settings/browser-extension',
 				icon: Puzzle,
 				match: (pathname) => pathname.startsWith('/settings/browser-extension')
+			},
+			{
+				key: 'preferences',
+				label: 'Preferences',
+				href: '/settings/preferences',
+				icon: SlidersHorizontal,
+				match: (pathname) => pathname.startsWith('/settings/preferences')
 			},
 			{
 				key: 'users',
