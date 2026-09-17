@@ -232,6 +232,48 @@ export function formatFileSize(bytes: number) {
 		: `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+/** File types the chat attachment endpoint accepts, shared by the picker and the guard. */
+export const CHAT_ATTACHMENT_ACCEPT = '.txt,.md,.json,.pdf,.png,.jpg,.jpeg,.webp,.gif';
+const CHAT_ATTACHMENT_PATTERN = /\.(txt|md|json|pdf|png|jpe?g|webp|gif)$/i;
+const IMAGE_ATTACHMENT_PATTERN = /\.(png|jpe?g|webp|gif)$/i;
+
+/** Server-side image vision cap, mirrored so an oversized image fails before it uploads. */
+export const MAX_IMAGE_ATTACHMENT_BYTES = 8 * 1024 * 1024;
+
+const IMAGE_EXTENSION_BY_MIME: Record<string, string> = {
+	'image/png': 'png',
+	'image/jpeg': 'jpg',
+	'image/webp': 'webp',
+	'image/gif': 'gif'
+};
+
+export function isImageAttachment(attachment: { mimeType?: string; filename?: string }) {
+	return (
+		Boolean(attachment.mimeType?.startsWith('image/')) ||
+		Boolean(attachment.filename && IMAGE_ATTACHMENT_PATTERN.test(attachment.filename))
+	);
+}
+
+/** The same check for a not-yet-uploaded `File` from the picker or the clipboard. */
+export function isImageFile(file: File) {
+	return isImageAttachment({ mimeType: file.type, filename: file.name });
+}
+
+/**
+ * A pasted image arrives as a blob with a type but often no usable name. The upload
+ * route is extension-driven, so give it a name it can validate. Returns null for a
+ * file the endpoint would reject anyway.
+ */
+export function normalizeAttachmentFile(file: File): File | null {
+	const extension = IMAGE_EXTENSION_BY_MIME[file.type];
+	if (extension && !CHAT_ATTACHMENT_PATTERN.test(file.name))
+		return new File([file], `pasted-${Date.now().toString(36)}.${extension}`, {
+			type: file.type,
+			lastModified: file.lastModified
+		});
+	return CHAT_ATTACHMENT_PATTERN.test(file.name) ? file : null;
+}
+
 export function getToolSourceList(toolCall: ToolCall): ToolSource[] {
 	if (!toolCall.output || typeof toolCall.output !== 'object') return [];
 	const output = toolCall.output as Record<string, unknown>;

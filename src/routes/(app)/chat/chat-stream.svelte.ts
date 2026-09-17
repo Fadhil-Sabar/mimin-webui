@@ -20,6 +20,7 @@ import { contentText, nowIso, thinkingText } from './chat-format';
 import type {
 	Conversation,
 	ConversationMessage,
+	MessageAttachment,
 	MessageCitation,
 	MessageUsage,
 	PendingSubmission,
@@ -157,7 +158,13 @@ export function createChatStream(deps: ChatStreamDeps) {
 							? {
 									...item,
 									id: String(event.messageId),
-									skill: (event.skill as SkillSummary | null) ?? null
+									skill: (event.skill as SkillSummary | null) ?? null,
+									// The authoritative rows carry the URLs the bubbles render from,
+									// so thumbnails appear as soon as the turn starts rather than
+									// after the post-turn reload.
+									...(Array.isArray(event.attachments)
+										? { attachments: event.attachments as MessageAttachment[] }
+										: {})
 								}
 							: item
 					);

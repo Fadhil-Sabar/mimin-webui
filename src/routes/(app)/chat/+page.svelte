@@ -44,7 +44,13 @@
 	import ChatMessage from './ChatMessage.svelte';
 	import { createChatSettings } from './chat-settings.svelte';
 	import { createChatStream } from './chat-stream.svelte';
-	import { getTurnSources, contentText } from './chat-format';
+	import {
+		contentText,
+		getTurnSources,
+		isImageFile,
+		MAX_IMAGE_ATTACHMENT_BYTES,
+		normalizeAttachmentFile
+	} from './chat-format';
 	import type { Conversation, ConversationMessage, QuestionPayload } from './chat-types';
 
 	let busy = $state(true);
@@ -715,17 +721,24 @@
 		return [];
 	}
 
-	function addAttachments(selected: FileList | null) {
-		if (!selected || selected.length === 0) return false;
-		const allowed = /\.(txt|md|json|pdf)$/i;
+	function addAttachments(selected: File[] | FileList | null) {
+		if (!selected) return false;
+		const incoming = Array.from(selected);
+		if (incoming.length === 0) return false;
 		const accepted: File[] = [];
-		for (const file of Array.from(selected)) {
-			if (!allowed.test(file.name)) {
-				notify(`${file.name}: file type is not supported`);
+		for (const raw of incoming) {
+			// Pasted images often have no usable name, so normalize before validating.
+			const file = normalizeAttachmentFile(raw);
+			if (!file) {
+				notify(`${raw.name || 'That file'}: file type is not supported`);
 				continue;
 			}
 			if (file.size > 25 * 1024 * 1024) {
 				notify(`${file.name}: file exceeds 25 MB`);
+				continue;
+			}
+			if (isImageFile(file) && file.size > MAX_IMAGE_ATTACHMENT_BYTES) {
+				notify(`${file.name}: image exceeds 8 MB`);
 				continue;
 			}
 			accepted.push(file);

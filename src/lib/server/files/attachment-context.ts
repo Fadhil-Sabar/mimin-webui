@@ -1,3 +1,5 @@
+import { isImageAttachment } from './image-vision';
+
 export type AttachmentContextFile = {
 	filename: string;
 	mimeType: string;
@@ -52,13 +54,18 @@ export async function buildAttachmentContext(
 		const pageCount = attachment.pageCount ? ` pages="${attachment.pageCount}"` : '';
 		const error = attachment.extractionError ? ` error="${attachment.extractionError}"` : '';
 		const omitted = omittedForBudget ? ' omitted="budget"' : '';
+		// Images carry no extractable text; their placeholder must say so rather than
+		// claim the content was merely unavailable.
+		const unavailable = isImageAttachment(attachment)
+			? '[Image attached; it is provided to the model as an image, not as text.]'
+			: '[File content is not available as plain text.]';
 		sections.push(
 			`<attachment filename="${attachment.filename}" mime="${attachment.mimeType}"${source}${status}${pageCount}${error}${omitted}>\n` +
 				'[BEGIN UNTRUSTED ATTACHMENT CONTENT]\n' +
 				(content ||
 					(omittedForBudget
 						? '[File content omitted: the attachment budget was already used by more recent files.]'
-						: '[File content is not available as plain text.]')) +
+						: unavailable)) +
 				'\n[END UNTRUSTED ATTACHMENT CONTENT]\n</attachment>'
 		);
 	}

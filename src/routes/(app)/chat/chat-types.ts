@@ -52,6 +52,8 @@ export type MessageAttachment = {
 	filename: string;
 	mimeType: string;
 	sizeBytes: number;
+	/** Conversation-scoped URL that serves the stored bytes; images render from it. */
+	url?: string | null;
 	extractionStatus?: string | null;
 	pageCount?: number | null;
 	extractionError?: string | null;

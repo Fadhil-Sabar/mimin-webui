@@ -10,6 +10,7 @@ import {
 	type PdfExtractionResult
 } from './pdf-extraction';
 import type { PdfOcrStatus } from './pdf-ocr';
+import { hasImageMagicBytes, isImageAttachment } from './image-vision';
 
 const allowed = new Map([
 	['.txt', 'text/plain'],
@@ -17,6 +18,19 @@ const allowed = new Map([
 	['.json', 'application/json'],
 	['.pdf', 'application/pdf']
 ]);
+/** Images are chat-only: project knowledge has no chunk or embedding path for them. */
+const imageAllowed = new Map([
+	['.png', 'image/png'],
+	['.jpg', 'image/jpeg'],
+	['.jpeg', 'image/jpeg'],
+	['.webp', 'image/webp'],
+	['.gif', 'image/gif']
+]);
+
+export type UploadFileOptions = {
+	/** Opt in to image uploads; only chat attachments do. */
+	images?: boolean;
+};
 export const MAX_FILE_SIZE = 25 * 1024 * 1024;
 export const MAX_EXTRACTED_TEXT_CHARS = 500_000;
 export function isSafeStorageKey(storageKey: string) {
@@ -43,19 +57,24 @@ export function resolveStoragePath(storageKey: string) {
 		throw new Error('INVALID_STORAGE_KEY');
 	return candidate;
 }
-export function validateFilename(filename: string) {
+export function validateFilename(filename: string, options: UploadFileOptions = {}) {
 	const clean = basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
 	const ext = clean.slice(clean.lastIndexOf('.')).toLowerCase();
-	if (!clean || !allowed.has(ext)) throw new Error('UNSUPPORTED_FILE');
-	return { filename: clean, ext, mimeType: allowed.get(ext)! };
+	const mimeType = allowed.get(ext) ?? (options.images ? imageAllowed.get(ext) : undefined);
+	if (!clean || !mimeType) throw new Error('UNSUPPORTED_FILE');
+	return { filename: clean, ext, mimeType };
 }
 
-export async function saveUploadedFile(scope: string, file: File) {
+export async function saveUploadedFile(scope: string, file: File, options: UploadFileOptions = {}) {
 	if (file.size > MAX_FILE_SIZE) throw new Error('FILE_TOO_LARGE');
-	const info = validateFilename(file.name);
+	const info = validateFilename(file.name, options);
 	if (info.mimeType === 'application/pdf') {
 		const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
 		if (!hasPdfMagicBytes(header)) throw new Error('INVALID_PDF');
+	}
+	if (isImageAttachment({ mimeType: info.mimeType })) {
+		const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+		if (!hasImageMagicBytes(header, info.mimeType)) throw new Error('INVALID_IMAGE');
 	}
 	const key = `${scope}/${randomUUID()}${info.ext}`;
 	const destination = resolveStoragePath(key);
@@ -75,7 +94,7 @@ export async function saveProjectFile(projectId: string, file: File) {
 
 export type UploadedFileExtraction = {
 	extractedText: string | null;
-	extractionStatus: PdfExtractionResult['status'] | 'not_started';
+	extractionStatus: PdfExtractionResult['status'] | 'not_started' | 'image';
 	pageCount: number | null;
 	extractionError: string | null;
 	/** Page-aware extraction is available for project knowledge citations and chunk metadata. */
@@ -85,9 +104,9 @@ export type UploadedFileExtraction = {
 
 export async function extractUploadedFile(
 	file: File,
-	options: Pick<PdfExtractionOptions, 'ocr' | 'ocrConfig'> = {}
+	options: Pick<PdfExtractionOptions, 'ocr' | 'ocrConfig'> & UploadFileOptions = {}
 ): Promise<UploadedFileExtraction> {
-	const info = validateFilename(file.name);
+	const info = validateFilename(file.name, options);
 	if (info.mimeType === 'application/pdf') {
 		const result = await extractPdfFile(file, options);
 		return {
@@ -99,6 +118,15 @@ export async function extractUploadedFile(
 			ocrStatus: result.ocrStatus
 		};
 	}
+	// Images are handed to the model as image content, never as text: decoding the
+	// binary as UTF-8 would put replacement characters into the prompt.
+	if (isImageAttachment({ mimeType: info.mimeType }))
+		return {
+			extractedText: null,
+			extractionStatus: 'image',
+			pageCount: null,
+			extractionError: null
+		};
 	const text = await file.text();
 	const truncated = text.length > MAX_EXTRACTED_TEXT_CHARS;
 	const extractedText = text.slice(0, MAX_EXTRACTED_TEXT_CHARS);

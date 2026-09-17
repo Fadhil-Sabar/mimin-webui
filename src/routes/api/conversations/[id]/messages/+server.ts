@@ -107,8 +107,9 @@ export const POST: RequestHandler = async (event) => {
 
 		const savedAttachments = [];
 		for (const file of files) {
-			const extraction = await extractUploadedFile(file);
-			const saved = await saveUploadedFile(conversationId, file);
+			// Chat attachments accept images; the shared upload path does not.
+			const extraction = await extractUploadedFile(file, { images: true });
+			const saved = await saveUploadedFile(conversationId, file, { images: true });
 			savedAttachments.push({ ...saved, ...extraction });
 			uploadedKeys.push(saved.storageKey);
 		}
@@ -141,6 +142,10 @@ export const POST: RequestHandler = async (event) => {
 						extractionError: schema.messageAttachments.extractionError
 					})
 			: [];
+		const attachmentPayload = attachmentRecords.map((attachment) => ({
+			...attachment,
+			url: `/api/conversations/${conversationId}/attachments/${attachment.id}`
+		}));
 		if (conversation.title === 'New conversation')
 			await db
 				.update(schema.conversations)
@@ -198,7 +203,7 @@ export const POST: RequestHandler = async (event) => {
 					role: 'user',
 					content: parsed.data.content,
 					skill: getConversationSkillSummary(conversation),
-					attachments: attachmentRecords
+					attachments: attachmentPayload
 				});
 				await runConversationTurn(
 					conversationId,
@@ -223,15 +228,21 @@ export const POST: RequestHandler = async (event) => {
 								? 'The PDF text could not be extracted and its pages could not be rendered for visual analysis.'
 								: code === 'INVALID_PDF'
 									? 'This PDF is invalid or corrupted and could not be analyzed.'
-									: code === 'MODEL_NOT_AVAILABLE'
-										? 'Selected model is not available.'
-										: code === 'PROVIDER_NOT_CONFIGURED'
-											? 'This provider is not configured on the server.'
-											: code === 'CONVERSATION_NOT_FOUND'
-												? 'Conversation not found.'
-												: error instanceof Error
-													? error.message
-													: 'The agent could not complete this turn.';
+									: code === 'IMAGE_VISION_MODEL_UNSUPPORTED'
+										? 'This image needs a vision-capable model. Pick a model that accepts images and resend.'
+										: code === 'IMAGE_VISION_IMAGE_TOO_LARGE'
+											? 'That image is too large to send (limit 8 MB).'
+											: code === 'INVALID_IMAGE'
+												? 'That image is invalid or corrupted.'
+												: code === 'MODEL_NOT_AVAILABLE'
+													? 'Selected model is not available.'
+													: code === 'PROVIDER_NOT_CONFIGURED'
+														? 'This provider is not configured on the server.'
+														: code === 'CONVERSATION_NOT_FOUND'
+															? 'Conversation not found.'
+															: error instanceof Error
+																? error.message
+																: 'The agent could not complete this turn.';
 				send('error', { type: 'error', error: { code, message } });
 			} finally {
 				clearInterval(heartbeatTimer);
@@ -257,7 +268,7 @@ export const POST: RequestHandler = async (event) => {
 				.catch(() => {});
 		if (
 			error instanceof Error &&
-			['UNSUPPORTED_FILE', 'FILE_TOO_LARGE', 'INVALID_PDF'].includes(error.message)
+			['UNSUPPORTED_FILE', 'FILE_TOO_LARGE', 'INVALID_PDF', 'INVALID_IMAGE'].includes(error.message)
 		)
 			return apiError(
 				error.message,
@@ -265,7 +276,9 @@ export const POST: RequestHandler = async (event) => {
 					? 'Each attachment must be 25 MB or smaller.'
 					: error.message === 'INVALID_PDF'
 						? 'The file does not contain a valid PDF header.'
-						: 'File type is not supported.',
+						: error.message === 'INVALID_IMAGE'
+							? 'The file does not contain a valid image.'
+							: 'File type is not supported.',
 				400
 			);
 		return handleApiError(error);

@@ -25,6 +25,7 @@ Available:
 - Project file upload and deletion
 - Basic text extraction for `.txt`, `.md`, and `.json`
 - Bounded PDF text extraction for chat attachments and project knowledge
+- Image attachments (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) pasted or picked into chat messages, sent to vision-capable models and rendered as thumbnails
 - Page-aware project knowledge with local OCR, hybrid keyword/pgvector retrieval, and persistent clickable citations
 - Stop generation with `AbortController` and Pi agent abort
 - Project and conversation CRUD
@@ -459,7 +460,9 @@ Message requests accept content, a model reference, and enabled tools. The messa
 
 #### Chat attachments
 
-The chat composer accepts up to 5 attachments per message. Supported formats are `.txt`, `.md`, `.json`, and `.pdf`; each file and the combined attachments are limited to 25 MB. Plain-text and extractable PDF text are included as bounded, clearly delimited reference context for the agent (including attachments from earlier turns) without changing the visible or stored message text. PDF extraction runs once at upload with limits of 100 pages, 500,000 extracted characters, 10 seconds, and 16 MP per image resource. Empty, corrupt, and password-protected PDFs remain stored with an extraction status/error; chat attachments retain the existing visual fallback. Project Knowledge additionally runs local OCR for sparse/image-only pages.
+The chat composer accepts up to 5 attachments per message. Supported formats are `.txt`, `.md`, `.json`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`; each file and the combined attachments are limited to 25 MB. Plain-text and extractable PDF text are included as bounded, clearly delimited reference context for the agent (including attachments from earlier turns) without changing the visible or stored message text. PDF extraction runs once at upload with limits of 100 pages, 500,000 extracted characters, 10 seconds, and 16 MP per image resource. Empty, corrupt, and password-protected PDFs remain stored with an extraction status/error; chat attachments retain the existing visual fallback. Project Knowledge additionally runs local OCR for sparse/image-only pages.
+
+Images can be picked with the attach button or pasted straight into the composer. They are sent to the model as image content rather than text, so the selected model must accept images; a model without vision fails the turn with an explicit message instead of answering blind. Image bytes are validated against their declared type, capped at 8 MB each and 16 MB per turn, and served back through `GET /api/conversations/:id/attachments/:attachmentId` so the transcript renders them as thumbnails. Images are a chat-only attachment type; project knowledge still accepts only the text and PDF formats above.
 
 Multipart requests use `content`, optional `model`, and repeated `files` fields:
 

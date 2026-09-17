@@ -11,6 +11,13 @@ import {
 	PDF_VISION_MAX_PAGES,
 	isPdfVisionFallbackEligible
 } from '../src/lib/server/files/pdf-vision';
+import {
+	buildImageVisionContent,
+	hasImageMagicBytes,
+	IMAGE_VISION_MAX_BYTES,
+	IMAGE_VISION_MAX_PER_IMAGE_BYTES,
+	isImageAttachment
+} from '../src/lib/server/files/image-vision';
 
 describe('attachment context', () => {
 	it('delimits attachment data as untrusted and preserves file boundaries', async () => {
@@ -232,5 +239,126 @@ describe('attachment context', () => {
 		);
 		expect(result.images).toHaveLength(1);
 		expect(result.notice).toContain('remaining page omitted');
+	});
+});
+
+function imageBytes(size: number) {
+	const data = new Uint8Array(size);
+	data.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+	return data;
+}
+
+describe('image vision', () => {
+	it('recognizes image mime types and validates magic bytes per format', () => {
+		expect(isImageAttachment({ mimeType: 'image/png' })).toBe(true);
+		expect(isImageAttachment({ mimeType: 'image/jpeg' })).toBe(true);
+		expect(isImageAttachment({ mimeType: 'application/pdf' })).toBe(false);
+
+		const pngSignature = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+		expect(hasImageMagicBytes(pngSignature, 'image/png')).toBe(true);
+		expect(hasImageMagicBytes(pngSignature.subarray(0, 4), 'image/png')).toBe(false);
+		expect(hasImageMagicBytes(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), 'image/jpeg')).toBe(true);
+		expect(hasImageMagicBytes(new TextEncoder().encode('GIF89a'), 'image/gif')).toBe(true);
+		expect(
+			hasImageMagicBytes(new Uint8Array([82, 73, 70, 70, 0, 0, 0, 0, 87, 69, 66, 80]), 'image/webp')
+		).toBe(true);
+
+		expect(hasImageMagicBytes(new TextEncoder().encode('not an image'), 'image/png')).toBe(false);
+		expect(hasImageMagicBytes(new Uint8Array([0xff, 0xd8, 0xff]), 'image/png')).toBe(false);
+		expect(hasImageMagicBytes(new Uint8Array(), 'image/gif')).toBe(false);
+	});
+
+	it('describes an image attachment instead of claiming its text is unavailable', async () => {
+		let readCount = 0;
+		const context = await buildAttachmentContext(
+			[{ filename: 'diagram.png', mimeType: 'image/png', storageKey: 'diagram' }],
+			async () => {
+				readCount += 1;
+				return new Uint8Array();
+			}
+		);
+
+		expect(context).toContain('filename="diagram.png"');
+		expect(context).toContain('provided to the model as an image');
+		expect(context).not.toContain('not available as plain text');
+		expect(readCount).toBe(0);
+	});
+
+	it('encodes image bytes as base64 and preserves the declared mime type', async () => {
+		const bytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4]);
+		const result = await buildImageVisionContent(
+			[{ filename: 'photo.jpg', mimeType: 'image/jpeg', storageKey: 'photo' }],
+			async () => bytes,
+			true
+		);
+
+		expect(result.images).toHaveLength(1);
+		expect(result.images[0]).toMatchObject({ type: 'image', mimeType: 'image/jpeg' });
+		expect(new Uint8Array(Buffer.from(result.images[0].data, 'base64'))).toEqual(bytes);
+		expect(result.notice).toBeNull();
+	});
+
+	it('requires a vision-capable model before reading any bytes', async () => {
+		let readCount = 0;
+		await expect(
+			buildImageVisionContent(
+				[{ filename: 'photo.png', mimeType: 'image/png', storageKey: 'photo' }],
+				async () => {
+					readCount += 1;
+					return imageBytes(16);
+				},
+				false
+			)
+		).rejects.toThrow('IMAGE_VISION_MODEL_UNSUPPORTED');
+		expect(readCount).toBe(0);
+	});
+
+	it('skips non-image attachments and rejects bytes that contradict the extension', async () => {
+		const result = await buildImageVisionContent(
+			[
+				{ filename: 'notes.txt', mimeType: 'text/plain', storageKey: 'notes' },
+				{ filename: 'report.pdf', mimeType: 'application/pdf', storageKey: 'report' }
+			],
+			async () => {
+				throw new Error('should not read non-image attachments');
+			},
+			true
+		);
+		expect(result.images).toHaveLength(0);
+
+		await expect(
+			buildImageVisionContent(
+				[{ filename: 'fake.png', mimeType: 'image/png', storageKey: 'fake' }],
+				async () => new TextEncoder().encode('not a png'),
+				true
+			)
+		).rejects.toThrow('INVALID_IMAGE');
+	});
+
+	it('fails loudly when a single image exceeds the per-image cap', async () => {
+		await expect(
+			buildImageVisionContent(
+				[{ filename: 'huge.png', mimeType: 'image/png', storageKey: 'huge' }],
+				async () => imageBytes(IMAGE_VISION_MAX_PER_IMAGE_BYTES + 1),
+				true
+			)
+		).rejects.toThrow('IMAGE_VISION_IMAGE_TOO_LARGE');
+	});
+
+	it('omits images past the aggregate byte budget with an explicit notice', async () => {
+		const halfBudget = Math.floor(IMAGE_VISION_MAX_BYTES / 2) - 1024;
+		const result = await buildImageVisionContent(
+			[
+				{ filename: 'first.png', mimeType: 'image/png', storageKey: 'first' },
+				{ filename: 'second.png', mimeType: 'image/png', storageKey: 'second' },
+				{ filename: 'third.png', mimeType: 'image/png', storageKey: 'third' }
+			],
+			async () => imageBytes(halfBudget),
+			true
+		);
+
+		expect(result.images).toHaveLength(2);
+		expect(result.notice).toContain('third.png');
+		expect(result.notice).toContain('budget');
 	});
 });

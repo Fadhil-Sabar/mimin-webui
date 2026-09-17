@@ -107,10 +107,18 @@ export const GET: RequestHandler = async (event) => {
 						)
 					)
 			: [];
-		const attachmentsByMessage = new Map<string, typeof attachmentRows>();
+		const attachmentsByMessage = new Map<
+			string,
+			Array<(typeof attachmentRows)[number] & { url: string }>
+		>();
 		for (const attachment of attachmentRows) {
 			const current = attachmentsByMessage.get(attachment.messageId) ?? [];
-			current.push(attachment);
+			// The bubble needs a URL it can render; the bytes are served by the
+			// conversation-scoped attachment route, which re-checks ownership.
+			current.push({
+				...attachment,
+				url: `/api/conversations/${id}/attachments/${attachment.id}`
+			});
 			attachmentsByMessage.set(attachment.messageId, current);
 		}
 		const citationRows = rows.length

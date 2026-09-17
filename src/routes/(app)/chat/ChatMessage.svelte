@@ -21,6 +21,7 @@
 		formatFileSize,
 		formatTime,
 		formatToolLabel,
+		isImageAttachment,
 		messageContextSummary,
 		thinkingText
 	} from './chat-format';
@@ -86,6 +87,14 @@
 	 * already on screen — the exact whole-thread flash the arming exists to prevent.
 	 */
 	const animateEnter = untrack(() => enterMotion);
+
+	/** Short status suffix for an attachment chip; images carry no extraction state. */
+	function attachmentStatusLabel(status?: string | null) {
+		if (status === 'failed') return 'text unavailable';
+		if (status === 'empty') return 'no text';
+		if (status === 'image') return '';
+		return status ? 'ready' : '';
+	}
 
 	// While the thinking block streams it renders as a fixed-height scroller, so
 	// follow the text down like the transcript does — but stop once the reader
@@ -190,17 +199,34 @@
 				{#if message.attachments?.length}
 					<div class="attachment-list message-attachments" aria-label="Attached files">
 						{#each message.attachments as attachment (attachment.id)}
-							<div class="attachment-chip">
-								<Paperclip size={13} aria-hidden="true" />
-								<span>{attachment.filename}</span><small>
-									{formatFileSize(
-										attachment.sizeBytes
-									)}{#if attachment.extractionStatus === 'failed'}
-										· text unavailable{:else if attachment.extractionStatus === 'empty'}
-										· no text{:else if attachment.extractionStatus}
-										· ready{/if}
-								</small>
-							</div>
+							{#if isImageAttachment(attachment) && attachment.url}
+								<!-- eslint-disable svelte/no-navigation-without-resolve -->
+								<a
+									class="attachment-thumb-link"
+									href={attachment.url}
+									target="_blank"
+									rel="noreferrer"
+									title={`${attachment.filename} · ${formatFileSize(attachment.sizeBytes)}`}
+								>
+									<img
+										class="attachment-thumb"
+										src={attachment.url}
+										alt={attachment.filename}
+										loading="lazy"
+									/>
+								</a>
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							{:else}
+								<div class="attachment-chip">
+									<Paperclip size={13} aria-hidden="true" />
+									<span>{attachment.filename}</span><small>
+										{formatFileSize(
+											attachment.sizeBytes
+										)}{#if attachmentStatusLabel(attachment.extractionStatus)}
+											· {attachmentStatusLabel(attachment.extractionStatus)}{/if}
+									</small>
+								</div>
+							{/if}
 						{/each}
 					</div>
 				{/if}
@@ -438,6 +464,25 @@
 	}
 	.message-attachments {
 		margin-bottom: 12px;
+	}
+	.attachment-thumb-link {
+		display: block;
+		line-height: 0;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		overflow: hidden;
+		transition: border-color var(--duration-short3) var(--ease-standard);
+	}
+	.attachment-thumb-link:hover {
+		border-color: var(--border-strong);
+	}
+	.attachment-thumb {
+		display: block;
+		max-width: 240px;
+		max-height: 200px;
+		width: auto;
+		height: auto;
+		object-fit: contain;
 	}
 	.response-text {
 		margin: 0;

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ArrowUp, Paperclip, Sparkles, Square, X } from '@lucide/svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import ModelPicker, {
 		type ModelOption,
 		type ThinkingLevel
@@ -7,7 +8,7 @@
 	import ToolPicker, { type ToolOption } from '$lib/components/ToolPicker.svelte';
 	import SkillPicker from '$lib/components/SkillPicker.svelte';
 	import type { Skill, SkillSummary } from '$lib/skills';
-	import { formatFileSize } from './chat-format';
+	import { CHAT_ATTACHMENT_ACCEPT, formatFileSize, isImageFile } from './chat-format';
 	import type { Conversation } from './chat-types';
 
 	type Props = {
@@ -33,7 +34,7 @@
 		toolsLoading?: boolean;
 		suggestion?: SkillSummary | null;
 		suggestionDismissed?: boolean;
-		onattach: (files: FileList | null) => boolean;
+		onattach: (files: File[] | FileList | null) => boolean;
 		onremoveattachment: (index: number) => void;
 		onsend: () => void;
 		onstop: () => void;
@@ -84,12 +85,61 @@
 
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 
+	/**
+	 * Object URLs backing the thumbnails of images waiting to be sent. They are keyed
+	 * by `File` identity and revoked as soon as their file leaves `attachments`.
+	 */
+	let previews = $state<{ file: File; url: string }[]>([]);
+
+	$effect(() => {
+		const files = attachments;
+		const previous = untrack(() => previews);
+		const next = files.filter(isImageFile).map(
+			(file) =>
+				previous.find((preview) => preview.file === file) ?? {
+					file,
+					url: URL.createObjectURL(file)
+				}
+		);
+		for (const preview of previous) if (!next.includes(preview)) URL.revokeObjectURL(preview.url);
+		previews = next;
+	});
+
+	onDestroy(() => {
+		for (const preview of previews) URL.revokeObjectURL(preview.url);
+	});
+
+	function previewUrl(file: File) {
+		return previews.find((preview) => preview.file === file)?.url;
+	}
+
+	function blocked() {
+		return running || conversationLoading || skillSaving || toolsSaving || modelSaving;
+	}
+
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
-			if (!running && !conversationLoading && !skillSaving && !toolsSaving && !modelSaving)
-				void onsend();
+			if (!blocked()) void onsend();
 		}
+	}
+
+	/** Images pasted from the clipboard join the pending attachments like picked files. */
+	function handlePaste(event: ClipboardEvent) {
+		if (blocked()) return;
+		const items = event.clipboardData?.items;
+		if (!items) return;
+		const files: File[] = [];
+		for (let index = 0; index < items.length; index += 1) {
+			const item = items[index];
+			if (item.kind !== 'file') continue;
+			const file = item.getAsFile();
+			if (file) files.push(file);
+		}
+		if (files.length === 0) return;
+		// Only swallow the paste when it actually carried files; text must paste normally.
+		event.preventDefault();
+		onattach(files);
 	}
 </script>
 
@@ -146,8 +196,15 @@
 		{#if attachments.length}
 			<div class="attachment-list" aria-label="Files to attach">
 				{#each attachments as file, index (file.name + file.size + index)}
-					<div class="attachment-chip pending-attachment">
-						<Paperclip size={13} aria-hidden="true" />
+					<div
+						class="attachment-chip pending-attachment"
+						class:image-attachment={isImageFile(file)}
+					>
+						{#if isImageFile(file) && previewUrl(file)}
+							<img class="attachment-thumb" src={previewUrl(file)} alt={file.name} />
+						{:else}
+							<Paperclip size={13} aria-hidden="true" />
+						{/if}
 						<span>{file.name}</span><small>{formatFileSize(file.size)}</small>
 						<button
 							type="button"
@@ -166,14 +223,15 @@
 			placeholder={running
 				? 'Prepare your next message...'
 				: 'Ask Mimin to think, write, or plan...'}
-			onkeydown={handleKeydown}></textarea>
+			onkeydown={handleKeydown}
+			onpaste={handlePaste}></textarea>
 		<div class="composer-row">
 			<div class="composer-tools">
 				<input
 					bind:this={fileInput}
 					type="file"
 					multiple
-					accept=".txt,.md,.json,.pdf"
+					accept={CHAT_ATTACHMENT_ACCEPT}
 					hidden
 					onchange={(event) => {
 						if (onattach(event.currentTarget.files)) event.currentTarget.value = '';
@@ -181,7 +239,7 @@
 				/>
 				<button
 					class="control"
-					title="Attach files"
+					title="Attach files or images"
 					disabled={running || conversationLoading || skillSaving || toolsSaving || modelSaving}
 					onclick={() => fileInput?.click()}><Paperclip size={15} /> File</button
 				>
@@ -430,6 +488,17 @@
 	.attachment-chip small {
 		color: var(--text-faint);
 		white-space: nowrap;
+	}
+	.image-attachment {
+		padding: 4px 8px 4px 5px;
+	}
+	.attachment-thumb {
+		display: block;
+		width: 30px;
+		height: 30px;
+		border-radius: 4px;
+		object-fit: cover;
+		flex-shrink: 0;
 	}
 	.remove-attachment {
 		display: grid;

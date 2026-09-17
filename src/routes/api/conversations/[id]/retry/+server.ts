@@ -117,6 +117,10 @@ export const POST: RequestHandler = async (event) => {
 			})
 			.from(schema.messageAttachments)
 			.where(eq(schema.messageAttachments.messageId, userMessage.id));
+		const attachmentPayload = attachmentRecords.map((attachment) => ({
+			...attachment,
+			url: `/api/conversations/${conversationId}/attachments/${attachment.id}`
+		}));
 
 		const prompt =
 			typeof userMessage.content === 'string'
@@ -179,7 +183,7 @@ export const POST: RequestHandler = async (event) => {
 					role: 'user',
 					content: prompt,
 					skill: skillSnapshotToSummary(getTurnSkillSnapshot(userMessage, conversation)),
-					attachments: attachmentRecords
+					attachments: attachmentPayload
 				});
 				await runConversationTurn(
 					conversationId,
@@ -204,15 +208,21 @@ export const POST: RequestHandler = async (event) => {
 								? 'The PDF text could not be extracted and its pages could not be rendered for visual analysis.'
 								: code === 'INVALID_PDF'
 									? 'This PDF is invalid or corrupted and could not be analyzed.'
-									: code === 'MODEL_NOT_AVAILABLE'
-										? 'Selected model is not available.'
-										: code === 'PROVIDER_NOT_CONFIGURED'
-											? 'This provider is not configured on the server.'
-											: code === 'CONVERSATION_NOT_FOUND'
-												? 'Conversation not found.'
-												: error instanceof Error
-													? error.message
-													: 'The agent could not complete this turn.';
+									: code === 'IMAGE_VISION_MODEL_UNSUPPORTED'
+										? 'This image needs a vision-capable model. Pick a model that accepts images and resend.'
+										: code === 'IMAGE_VISION_IMAGE_TOO_LARGE'
+											? 'That image is too large to send (limit 8 MB).'
+											: code === 'INVALID_IMAGE'
+												? 'That image is invalid or corrupted.'
+												: code === 'MODEL_NOT_AVAILABLE'
+													? 'Selected model is not available.'
+													: code === 'PROVIDER_NOT_CONFIGURED'
+														? 'This provider is not configured on the server.'
+														: code === 'CONVERSATION_NOT_FOUND'
+															? 'Conversation not found.'
+															: error instanceof Error
+																? error.message
+																: 'The agent could not complete this turn.';
 				send('error', { type: 'error', error: { code, message } });
 			} finally {
 				releaseConversationTurn(conversationId, turnToken);

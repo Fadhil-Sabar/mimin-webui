@@ -41,13 +41,23 @@ vi.mock('$lib/server/ai/model.service', () => ({
 }));
 
 vi.mock('$lib/server/db/client', () => {
+	const schema = {
+		messages: { id: 'id', conversationId: 'conversationId', createdAt: 'createdAt' },
+		messageAttachments: { id: 'id', messageId: 'messageId' },
+		conversations: { id: 'id', model: 'model', updatedAt: 'updatedAt' }
+	};
 	const db = {
 		select: vi.fn(() => ({
-			from: vi.fn(() => ({
-				where: vi.fn(() => ({
-					orderBy: vi.fn(async () => state.conversationMessages)
-				}))
-			}))
+			from: vi.fn((table: unknown) => {
+				const rows = table === schema.messageAttachments ? [] : state.conversationMessages;
+				const query = {
+					where: vi.fn(() => query),
+					orderBy: vi.fn(async () => rows),
+					then: (resolve: (value: unknown) => unknown, reject?: (error: unknown) => unknown) =>
+						Promise.resolve(rows).then(resolve, reject)
+				};
+				return query;
+			})
 		})),
 		update: vi.fn(() => ({
 			set: vi.fn((values: Record<string, unknown>) => ({
@@ -64,14 +74,7 @@ vi.mock('$lib/server/db/client', () => {
 			})
 		}))
 	};
-	return {
-		getDb: () => db,
-		schema: {
-			messages: { id: 'id', conversationId: 'conversationId', createdAt: 'createdAt' },
-			messageAttachments: { id: 'id', messageId: 'messageId' },
-			conversations: { id: 'id', model: 'model', updatedAt: 'updatedAt' }
-		}
-	};
+	return { getDb: () => db, schema };
 });
 
 vi.mock('$lib/server/ai/agent.service', async (importOriginal) => ({
