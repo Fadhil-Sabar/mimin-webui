@@ -646,7 +646,7 @@
 	}
 	.message-retry-btn:hover:not(:disabled) {
 		color: var(--text);
-		border-color: var(--border-hover);
+		border-color: var(--border-strong);
 		background: var(--surface-hover);
 	}
 	.message-retry-btn:disabled {

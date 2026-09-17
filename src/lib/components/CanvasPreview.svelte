@@ -56,8 +56,8 @@
 		height: 100%;
 		position: relative;
 		overflow: hidden;
-		background: #ffffff;
-		border-radius: 8px;
+		background: var(--surface);
+		border-radius: var(--radius-lg);
 		display: flex;
 		justify-content: center;
 	}
@@ -71,6 +71,6 @@
 		height: 100%;
 		border: none;
 		display: block;
-		background: #ffffff;
+		background: var(--canvas-bg);
 	}
 </style>

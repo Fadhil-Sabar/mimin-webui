@@ -192,7 +192,7 @@
 		min-height: 38px;
 		min-width: 0;
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		padding: 7px 11px;
 		color: var(--text-muted);
@@ -200,7 +200,9 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		cursor: pointer;
-		transition: var(--duration-short4) var(--ease-standard);
+		transition:
+			color var(--duration-short4) var(--ease-standard),
+			border-color var(--duration-short4) var(--ease-standard);
 	}
 	:global(.tool-trigger:hover:not(:disabled)) {
 		color: var(--text-strong);
@@ -276,9 +278,9 @@
 		justify-content: space-between;
 		gap: 12px;
 		padding: 8px 10px;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		cursor: pointer;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition: background-color var(--duration-short3) var(--ease-standard);
 		background: transparent;
 		user-select: none;
 		width: 100%;
@@ -331,9 +333,9 @@
 		border: 1px solid var(--border);
 	}
 	.tool-status-badge.enabled {
-		background: rgba(34, 197, 94, 0.12);
-		color: var(--status-ok-text, #22c55e);
-		border-color: rgba(34, 197, 94, 0.25);
+		background: color-mix(in srgb, var(--status-ok-text) 14%, transparent);
+		color: var(--status-ok-text);
+		border-color: color-mix(in srgb, var(--status-ok-text) 30%, transparent);
 	}
 	.tool-desc {
 		margin: 0;
@@ -356,7 +358,7 @@
 		transition: color var(--duration-short3) var(--ease-standard);
 	}
 	.tool-settings-info a:hover {
-		color: var(--focus, #3b82f6);
+		color: var(--focus);
 	}
 	.tool-empty {
 		padding: 16px 8px;

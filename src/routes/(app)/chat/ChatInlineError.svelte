@@ -39,10 +39,10 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		background: rgba(141, 47, 38, 0.09);
-		border: 1px solid rgba(141, 47, 38, 0.35);
+		background: color-mix(in srgb, var(--danger-bg) 12%, transparent);
+		border: 1px solid color-mix(in srgb, var(--danger-bg) 40%, transparent);
 		color: var(--danger-text);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		padding: 10px 12px;
 		margin: 18px 0 0;
 		font-size: var(--text-body-md);
@@ -75,8 +75,8 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--danger-text);
-		background: rgba(141, 47, 38, 0.12);
-		border: 1px solid rgba(141, 47, 38, 0.4);
+		background: color-mix(in srgb, var(--danger-bg) 14%, transparent);
+		border: 1px solid color-mix(in srgb, var(--danger-bg) 45%, transparent);
 		border-radius: 5px;
 		cursor: pointer;
 		transition:
@@ -84,8 +84,8 @@
 			border-color var(--duration-short3) var(--ease-standard);
 	}
 	.inline-error-retry:hover:not(:disabled) {
-		background: rgba(141, 47, 38, 0.22);
-		border-color: rgba(141, 47, 38, 0.6);
+		background: color-mix(in srgb, var(--danger-bg) 24%, transparent);
+		border-color: color-mix(in srgb, var(--danger-bg) 65%, transparent);
 	}
 	.inline-error-retry:disabled {
 		opacity: 0.5;

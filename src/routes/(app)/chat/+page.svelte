@@ -22,6 +22,7 @@
 	import type { CanvasDetail, CanvasScene, StyleGuideline, ViewportDevice } from '$lib/canvas';
 	import CanvasWorkspace from '$lib/components/CanvasWorkspace.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import {
 		conversationSearch,
 		conversationsState,
@@ -836,7 +837,18 @@
 		>
 			<div class="chat-wrap">
 				{#if busy}
-					<div class="empty-state" role="status">Loading conversations...</div>
+					<div class="loading-thread" role="status" aria-label="Loading conversation">
+						{#each [1, 2, 3] as i (i)}
+							<div class="loading-turn" class:from-user={i % 2 === 0}>
+								<Skeleton width="104px" height="12px" />
+								<Skeleton
+									width={i % 2 === 0 ? '58%' : '82%'}
+									height={i % 2 === 0 ? '52px' : '76px'}
+									radius="var(--radius-lg)"
+								/>
+							</div>
+						{/each}
+					</div>
 				{:else if stream.messages.length === 0}
 					<div class="empty-state">Ask something to start a conversation.</div>
 				{/if}
@@ -1073,6 +1085,24 @@
 		display: flex;
 		flex-direction: column;
 		padding: 34px 44px 20px;
+	}
+
+	/* Placeholder transcript: alternating turn shapes, sized to the bubbles they
+	 * stand in for so the composer does not jump when the real messages land. */
+	.loading-thread {
+		display: flex;
+		flex-direction: column;
+		gap: 28px;
+		padding: 6px 0 10px;
+	}
+	.loading-turn {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+	.loading-turn.from-user {
+		align-items: flex-end;
 	}
 
 	.empty-state {

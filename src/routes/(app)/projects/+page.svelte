@@ -8,6 +8,7 @@
 	import Topbar from '$lib/components/Topbar.svelte';
 	import Page from '$lib/components/Page.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 
 	type Project = {
 		id: string;
@@ -140,7 +141,23 @@
 		</div>
 	</div>
 	{#if loading}
-		<div class="empty-state" role="status">Loading projects...</div>
+		<div
+			class:grid-view={view === 'grid'}
+			class:list-view={view === 'list'}
+			class="project-grid"
+			role="status"
+			aria-label="Loading projects"
+		>
+			{#each [1, 2, 3, 4, 5, 6] as i (i)}
+				<div class="project-skeleton">
+					<Skeleton width="36px" height="36px" radius="var(--radius-lg)" />
+					<Skeleton width="60%" height="1.125rem" />
+					<Skeleton width="100%" />
+					<Skeleton width="84%" />
+					<Skeleton width="52%" />
+				</div>
+			{/each}
+		</div>
 	{:else if projects.length === 0}
 		<div class="empty-state">
 			No projects yet. Create your first project to give the agent persistent context.
@@ -312,6 +329,18 @@
 		transition: var(--duration-short4) var(--ease-standard);
 		text-decoration: none;
 		color: inherit;
+	}
+	/* Mirrors `.project-card`'s box so the placeholder occupies the space the real
+	 * card will, keeping the grid from reflowing when the data lands. */
+	.project-skeleton {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		min-height: 220px;
+		padding: 18px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		background: var(--surface);
 	}
 	.project-card:hover {
 		border-color: var(--text-dim);

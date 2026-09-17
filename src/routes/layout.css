@@ -297,6 +297,14 @@
 	--duration-long4: 600ms;
 }
 
+/* ---------- Canvas mockup canvas ----------
+ * Mockup previews render author-supplied HTML, so the page behind it stays white
+ * in both themes: a dark page would make an unstyled mockup look broken. This is
+ * deliberately theme-invariant, which is why it is not repeated in the dark block. */
+:root {
+	--canvas-bg: #ffffff;
+}
+
 /* ---------- Theme tokens (light) ---------- */
 :root {
 	--bg: #fafaf9;
@@ -331,6 +339,9 @@
 	--status-ok-dot: #6a9870;
 	--status-working-text: #906b2f;
 	--status-working-dot: #b58a45;
+	/* Warnings share the amber family; there is no separate warning hue. */
+	--warning-bg: var(--status-working-dot);
+	--warning-text: var(--status-working-text);
 	font-family: var(--font-body);
 	font-size: 16px;
 	color: var(--text);
@@ -373,6 +384,8 @@
 	--status-ok-dot: #6a9870;
 	--status-working-text: #d8ae65;
 	--status-working-dot: #c8984d;
+	--warning-bg: var(--status-working-dot);
+	--warning-text: var(--status-working-text);
 	color-scheme: dark;
 }
 
@@ -504,6 +517,32 @@ svg {
 	background-clip: text;
 	-webkit-background-clip: text;
 	-webkit-text-fill-color: transparent;
+	animation: shimmer-sweep 2.2s linear infinite;
+}
+
+/* ---------- Skeleton placeholders ----------
+ * A loading state used to be one line of dim text. This is the same shimmer idea
+ * as `.shimmer-text`, applied to a block: a band of `--skeleton-peak` sweeps across
+ * a `--skeleton-base` fill, reusing the one shared `shimmer-sweep` keyframe rather
+ * than adding a second animation. Both colours are local custom properties so a
+ * caller sitting on a different surface can re-point them without a new global
+ * token.
+ *
+ * The `background-color` carries the reduced-motion fallback: the block at the end of
+ * this file strips the gradient outright so the placeholder reads as a flat fill
+ * rather than as a half-swept gradient frozen mid-animation. */
+.skeleton {
+	--skeleton-base: var(--surface-2);
+	--skeleton-peak: var(--surface-hover);
+	display: block;
+	background-color: var(--skeleton-base);
+	background-image: linear-gradient(
+		90deg,
+		var(--skeleton-base) 0%,
+		var(--skeleton-peak) 50%,
+		var(--skeleton-base) 100%
+	);
+	background-size: 200% 100%;
 	animation: shimmer-sweep 2.2s linear infinite;
 }
 
@@ -1704,6 +1743,12 @@ svg {
 		background-image: none;
 		-webkit-text-fill-color: currentColor;
 	}
+	/* Same reasoning, for the block placeholders. Freezing the sweep leaves an
+	 * arbitrary half-lit gradient on screen, which reads as a rendering fault; the
+	 * flat `--skeleton-base` fill it falls back to reads as a placeholder. */
+	.skeleton {
+		background-image: none;
+	}
 }
 /* Keep the source offer visible for AGPL network deployments. */
 .source-link {
@@ -1714,7 +1759,7 @@ svg {
 	font-size: var(--text-label-sm);
 	line-height: var(--text-label-sm--line-height);
 	letter-spacing: var(--text-label-sm--letter-spacing);
-	color: var(--text-muted, #6b7280);
+	color: var(--text-muted);
 	text-decoration: none;
 	opacity: 0.75;
 }

@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Check, Copy, KeyRound, UserPlus, Users } from '@lucide/svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import Skeleton from '$lib/components/Skeleton.svelte';
 	import { authClient } from '$lib/client/auth';
 
 	type ManagedUser = {
@@ -195,7 +196,18 @@
 				<h2>Workspace users</h2>
 				<span class="count">{total}</span>
 			</div>
-			{#if loading}<p class="muted">Loading users…</p>
+			{#if loading}
+				<div class="user-list" role="status" aria-label="Loading users">
+					{#each [1, 2, 3, 4, 5] as i (i)}
+						<div class="user-entry">
+							<Skeleton width="32px" height="32px" radius="50%" />
+							<div class="identity">
+								<Skeleton width="140px" height="14px" />
+								<Skeleton width="200px" height="12px" />
+							</div>
+						</div>
+					{/each}
+				</div>
 			{:else if users.length === 0}<p class="muted">No users found.</p>
 			{:else}
 				<div class="user-list">
@@ -360,7 +372,7 @@
 		background: color-mix(in srgb, var(--danger-text) 10%, transparent);
 	}
 	.success {
-		color: var(--success-text, var(--text));
+		color: var(--status-ok-text);
 		background: color-mix(in srgb, var(--accent-bg) 18%, transparent);
 	}
 	.user-list {

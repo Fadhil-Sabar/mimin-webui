@@ -191,10 +191,10 @@
 		gap: 8px;
 		margin-bottom: 16px;
 		padding: 10px 14px;
-		background: color-mix(in srgb, var(--warning-bg, var(--bg-tertiary)) 16%, transparent);
+		background: color-mix(in srgb, var(--warning-bg) 16%, transparent);
 		border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-		border-radius: 8px;
-		color: var(--text-secondary);
+		border-radius: var(--radius-lg);
+		color: var(--warning-text);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);

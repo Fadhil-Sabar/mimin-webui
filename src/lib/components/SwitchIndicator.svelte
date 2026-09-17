@@ -23,7 +23,7 @@
 		width: 34px;
 		height: 20px;
 		border-radius: 10px;
-		background: var(--surface-3, #333);
+		background: var(--surface-3);
 		border: 1px solid var(--border);
 		transition:
 			background-color var(--duration-short4) var(--ease-standard),
@@ -45,11 +45,14 @@
 		width: 14px;
 		height: 14px;
 		border-radius: 50%;
-		background: #ffffff;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-		transition: transform var(--duration-short4) var(--ease-standard);
+		background: var(--text-dim);
+		box-shadow: 0 1px 3px var(--shadow);
+		transition:
+			transform var(--duration-short4) var(--ease-standard),
+			background-color var(--duration-short4) var(--ease-standard);
 	}
 	.switch-indicator.checked .switch-indicator-handle {
+		background: var(--accent-fg);
 		transform: translateX(14px);
 	}
 </style>
