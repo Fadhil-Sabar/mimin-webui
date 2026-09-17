@@ -4,6 +4,37 @@ All notable changes to Mimin WebUI are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-17
+
+The release that makes a conversation survive a bad turn, and gives the interface Material's own motion.
+
+### Added
+
+- Image attachments in chat: paste from the clipboard or pick a file, validated by magic bytes, sent as image content rather than text, and served back through a conversation-scoped route so the transcript shows thumbnails. A model without vision fails the turn with an explicit message instead of answering as if it had seen the image.
+- Recoverable turns: assistant messages record `turn_state` and `completed_at`, so a turn that dies mid-flight (dropped stream, provider error, restart) reads back as `interrupted` and offers a retry, while a deliberate Stop stays quiet.
+- Superseded answers: regenerating a reply resolves the model first and keeps the replaced rows marked `superseded` instead of deleting them. They stay out of the transcript and out of the agent's context, but they are never destroyed.
+- Context budgeting against the model's real context window instead of a fixed message count, with attachments prioritised newest-first and an explicit omitted marker when the budget runs out.
+- Estimated generation rate (output tokens over the turn's wall clock) in the answer context, with a tooltip noting the estimate includes tool time.
+- New Settings > Preferences page with a "Show answer context" toggle, stored per browser alongside theme, drafts and last-used model.
+- Settings as an in-place modal with tabs, covering models, preferences, instructions, users, web search and the browser extension.
+- Project file status: live processing state, open or download, "Ask about this file", and project skills listed inline with "Use in chat".
+
+### Changed
+
+- Feedback motion: hard-blinking status indicators (pulse dots, a `steps(2)` caret) replaced by a shimmer travelling across the label, plus a sine-fade caret. Labels keep their role colour as the gradient base, and the gradient is dropped under `prefers-reduced-motion` so nothing parks mid-animation.
+- Motion system: roughly 40 hard-coded durations and easings replaced with Material Design 3 motion tokens in `@theme inline` (CSS only, no new dependency, no new chunks). Dialogs, alert dialogs, popovers, dropdowns, selects, sheets and tooltips move from Tailwind's stock 100/200 ms onto MD3 timings, and Material state layers (8% hover, 10% focus and press) land as a `::before` overlay in `@layer components`.
+- The answer context summary moved from a collapsed block inside the reply bubble to a compact line in the message footer, sharing the row with the copy and regenerate actions, with the full breakdown kept as its tooltip. It now needs something substantive (tokens, duration, attachments, tool calls or sources) instead of appearing under every reply in a project.
+
+### Fixed
+
+- Message history could not be reached past the first page: the messages endpoint returned the oldest page and the chat page never sent a cursor. It now returns the newest page and walks backwards with `olderCursor`, and the page merges a page into the transcript instead of replacing it, so the reload after every turn no longer discards history the reader had paged in.
+- Regenerating a reply no longer destroys the answer it was meant to replace when no model is available.
+- Password reset links are no longer written to the server log; the admin console already copies them.
+
+### Database
+
+- `0021_overjoyed_runaways.sql`: adds `messages.turn_state` (text, default `complete`, not null) and `messages.completed_at` (timestamptz). Applied automatically on start when `AUTO_MIGRATE=true`.
+
 ## [0.2.0] - 2026-09-17
 
 The release that turns the first working shell into a usable agent workspace: a visual canvas, project-wide knowledge search, real-page browsing tools, password reset, and a UI rebuilt on shadcn-svelte with the Material Design 3 type scale.
@@ -54,5 +85,6 @@ The release that turns the first working shell into a usable agent workspace: a 
 - Email/password authentication with session cookies.
 - Full performance pass over the initial implementation.
 
-[0.2.0]: https://github.com/Fadhil-Sabar/mimin-webui/compare/v0.1.0...v0.2.0
+[0.3.0]: https://github.com/Fadhil-Sabar/mimin-webui/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/Fadhil-Sabar/mimin-webui/releases/tag/v0.2.0
 [0.1.0]: https://github.com/Fadhil-Sabar/mimin-webui/releases/tag/v0.1.0
