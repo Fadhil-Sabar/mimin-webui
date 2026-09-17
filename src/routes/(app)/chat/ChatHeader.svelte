@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { LayoutTemplate, Search } from '@lucide/svelte';
+	import { LayoutTemplate } from '@lucide/svelte';
 	import Topbar from '$lib/components/Topbar.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { conversationSearch } from '$lib/client/conversations.svelte';
 	import type { Conversation } from './chat-types';
 
 	type Props = {
@@ -25,7 +23,6 @@
 <Topbar
 	breadcrumbs={[{ label: 'Chat' }, { label: conversation?.title ?? 'New session' }]}
 	separator="chevron-down"
-	showAvatar={false}
 >
 	{#snippet actions()}
 		{#if ontogglecanvas}
@@ -42,13 +39,6 @@
 				{#if hasCanvas}<span class="canvas-active-dot"></span>{/if}
 			</button>
 		{/if}
-		<Button
-			variant="ghost"
-			size="icon"
-			aria-label="Search conversations"
-			title="Search conversations (⌘O)"
-			onclick={() => conversationSearch.open()}><Search size={17} /></Button
-		>
 	{/snippet}
 </Topbar>
 

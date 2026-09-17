@@ -17,7 +17,6 @@
 
 	const initialProjectId = page.url.searchParams.get('projectId') ?? '';
 
-	let { data } = $props();
 	let skills = $state<Skill[]>([]);
 	let projects = $state<Project[]>([]);
 	let tools = $state<Tool[]>([]);
@@ -316,7 +315,7 @@
 	<title>Skills · Mimin</title>
 </svelte:head>
 
-<Topbar breadcrumbs={[{ label: 'Skills' }]} user={data.user} />
+<Topbar />
 
 <Page>
 	<PageHeader title="Skills" subtitle="Specialized instructions and workflows for your assistant.">

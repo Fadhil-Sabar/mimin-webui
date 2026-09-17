@@ -35,7 +35,6 @@
 		fileQuery?: string;
 	};
 
-	let { data } = $props();
 	let project = $state<Project | null>(null);
 	let files = $state<ProjectFile[]>([]);
 	let conversations = $state<Conversation[]>([]);
@@ -414,8 +413,6 @@
 		{ label: project?.name ?? '...', strong: true }
 	]}
 	separator="chevron-right"
-	user={data.user}
-	showAvatar={false}
 >
 	{#snippet actions()}
 		<ProjectSearch bind:value={projectQuery} />

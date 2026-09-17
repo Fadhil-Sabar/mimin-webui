@@ -19,7 +19,6 @@
 	import Page from '$lib/components/Page.svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 
-	let { data } = $props();
 	let loading = $state(true);
 	let saving = $state(false);
 	let testing = $state(false);
@@ -232,7 +231,7 @@
 	<title>Web Search Settings · Mimin</title>
 </svelte:head>
 
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Web Search' }]} user={data.user} />
+<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Web Search' }]} />
 
 <Page>
 	<PageHeader

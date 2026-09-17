@@ -37,9 +37,9 @@ export type NavSection = {
 };
 
 /**
- * Two groups, split by concern rather than by route: workspace surfaces first,
- * then everything that configures the workspace. `Settings` mirrors the
- * `/settings/*` route family so the label and the URL agree.
+ * Two groups, split by concern: the surfaces you work in first, then everything
+ * that configures the workspace. Admin-only entries sit with the rest of the
+ * configuring surfaces rather than among the workspace ones.
  */
 export const NAV_SECTIONS: NavSection[] = [
 	{
@@ -66,14 +66,6 @@ export const NAV_SECTIONS: NavSection[] = [
 				href: '/skills',
 				icon: Sparkles,
 				match: (pathname) => pathname.startsWith('/skills')
-			},
-			{
-				key: 'users',
-				label: 'Users',
-				href: '/admin/users',
-				icon: User,
-				match: (pathname) => pathname.startsWith('/admin'),
-				adminOnly: true
 			}
 		]
 	},
@@ -107,6 +99,14 @@ export const NAV_SECTIONS: NavSection[] = [
 				href: '/settings/browser-extension',
 				icon: Puzzle,
 				match: (pathname) => pathname.startsWith('/settings/browser-extension')
+			},
+			{
+				key: 'users',
+				label: 'Users',
+				href: '/admin/users',
+				icon: User,
+				match: (pathname) => pathname.startsWith('/admin'),
+				adminOnly: true
 			}
 		]
 	}

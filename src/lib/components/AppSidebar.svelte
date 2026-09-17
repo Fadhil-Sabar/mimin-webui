@@ -86,7 +86,6 @@
 			<span class="avatar">{initial}</span>
 			<div class="user-meta">
 				<strong>{user?.name ?? 'User'}</strong>
-				<small>Personal workspace</small>
 			</div>
 			<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
 				<LogOut size={15} />

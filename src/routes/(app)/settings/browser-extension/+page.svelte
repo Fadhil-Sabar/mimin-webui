@@ -72,7 +72,7 @@
 	<title>Browser Extension · Mimin</title>
 </svelte:head>
 
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Browser Extension' }]} user={data.user} />
+<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Browser Extension' }]} />
 
 <Page>
 	<PageHeader

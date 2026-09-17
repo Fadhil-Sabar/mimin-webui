@@ -14,22 +14,13 @@
 	};
 
 	type Props = {
-		breadcrumbs: Crumb[];
-		user?: { name?: string | null } | null;
-		showAvatar?: boolean;
+		/** Rendered only when there are two or more: a lone crumb echoes the page title. */
+		breadcrumbs?: Crumb[];
 		separator?: 'slash' | 'chevron-right' | 'chevron-down';
 		actions?: Snippet;
 	};
 
-	let {
-		breadcrumbs,
-		user = null,
-		showAvatar = true,
-		separator = 'slash',
-		actions
-	}: Props = $props();
-
-	let initial = $derived(user?.name?.[0]?.toUpperCase() ?? 'U');
+	let { breadcrumbs = [], separator = 'slash', actions }: Props = $props();
 </script>
 
 <header class="topbar">
@@ -40,31 +31,32 @@
 			title="Toggle sidebar"
 			aria-label="Toggle sidebar"><PanelLeft size={16} /></button
 		>
-		<nav class="breadcrumb" aria-label="Breadcrumb">
-			{#each breadcrumbs as crumb, index (crumb.label)}
-				{#if index > 0}
-					{#if separator === 'chevron-right'}
-						<ChevronRight size={14} />
-					{:else if separator === 'chevron-down'}
-						<ChevronDown size={14} />
-					{:else}
-						<span class="crumb-sep">/</span>
+		{#if breadcrumbs.length > 1}
+			<nav class="breadcrumb" aria-label="Breadcrumb">
+				{#each breadcrumbs as crumb, index (crumb.label)}
+					{#if index > 0}
+						{#if separator === 'chevron-right'}
+							<ChevronRight size={14} />
+						{:else if separator === 'chevron-down'}
+							<ChevronDown size={14} />
+						{:else}
+							<span class="crumb-sep">/</span>
+						{/if}
 					{/if}
-				{/if}
-				{#if crumb.href}
-					<a href={resolve(crumb.href)}>{crumb.label}</a>
-				{:else if crumb.strong ?? index === 0}
-					<strong>{crumb.label}</strong>
-				{:else}
-					<span>{crumb.label}</span>
-				{/if}
-			{/each}
-		</nav>
+					{#if crumb.href}
+						<a href={resolve(crumb.href)}>{crumb.label}</a>
+					{:else if crumb.strong ?? index === 0}
+						<strong>{crumb.label}</strong>
+					{:else}
+						<span>{crumb.label}</span>
+					{/if}
+				{/each}
+			</nav>
+		{/if}
 	</div>
 	<div class="top-actions">
 		{@render actions?.()}
 		<ThemeToggle />
-		{#if showAvatar}<span class="avatar avatar-top">{initial}</span>{/if}
 	</div>
 </header>
 

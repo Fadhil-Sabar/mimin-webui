@@ -771,15 +771,6 @@ svg {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.user-meta small {
-	font-size: var(--text-body-sm);
-	line-height: var(--text-body-sm--line-height);
-	letter-spacing: var(--text-body-sm--letter-spacing);
-	color: var(--text-dim);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
 .avatar {
 	display: grid;
 	place-items: center;

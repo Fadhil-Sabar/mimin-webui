@@ -27,7 +27,6 @@
 	let newInstructions = $state('');
 	let creating = $state(false);
 	let createProjectTrigger = $state<HTMLButtonElement | null>(null);
-	let { data } = $props();
 	let loading = $state(true);
 	let projects = $state<Project[]>([]);
 	let filteredProjects = $derived(
@@ -103,7 +102,7 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | Projects</title></svelte:head>
-<Topbar breadcrumbs={[{ label: 'Projects' }]} user={data.user} />
+<Topbar />
 <Page>
 	<PageHeader title="Projects" subtitle="Persistent context for the work you return to.">
 		{#snippet actions()}

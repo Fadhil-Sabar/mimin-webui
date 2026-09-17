@@ -27,7 +27,6 @@
 	let email = $state('');
 	let password = $state('');
 	let role = $state<'user' | 'admin'>('user');
-	let { data } = $props();
 
 	type ResetLink = { email: string; url: string; expiresAt: string };
 	let resetLink = $state<ResetLink | null>(null);
@@ -147,7 +146,7 @@
 
 <svelte:head><title>User management | Mimin WebUI</title></svelte:head>
 
-<Topbar breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]} user={data.user} />
+<Topbar breadcrumbs={[{ label: 'Admin' }, { label: 'Users' }]} />
 <Page width="wide">
 	<PageHeader
 		title="User management"

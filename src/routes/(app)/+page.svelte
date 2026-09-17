@@ -18,7 +18,6 @@
 	} from '$lib/client/navigation-handoff';
 	import Topbar from '$lib/components/Topbar.svelte';
 	let prompt = $state('');
-	let { data } = $props();
 	let conversations = $state<ConversationSummary[]>([]);
 	let models = $state<ModelOption[]>([]);
 	let modelsLoading = $state(true);
@@ -130,7 +129,7 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | Home</title></svelte:head>
-<Topbar breadcrumbs={[{ label: 'Home' }]} user={data.user} />
+<Topbar />
 <div class="home-wrap">
 	<span class="workbench-label">Your workbench</span>
 	<h1>Start with the work<br />in front of you.</h1>

@@ -42,7 +42,6 @@
 		}
 	];
 
-	let { data } = $props();
 	let loading = $state(true);
 	let saving = $state(false);
 	let providers = $state<ProviderState[]>([]);
@@ -324,7 +323,7 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | Settings</title></svelte:head>
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Models' }]} user={data.user} />
+<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Models' }]} />
 <Page>
 	<PageHeader
 		title="Models & connections"

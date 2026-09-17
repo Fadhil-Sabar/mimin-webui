@@ -8,7 +8,6 @@
 
 	const MAX_LENGTH = 10000;
 
-	let { data } = $props();
 	let instructions = $state('');
 	let savedInstructions = $state('');
 	let loading = $state(true);
@@ -84,7 +83,7 @@
 	<title>Instructions · Mimin</title>
 </svelte:head>
 
-<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Instructions' }]} user={data.user} />
+<Topbar breadcrumbs={[{ label: 'Settings' }, { label: 'Instructions' }]} />
 
 <Page>
 	<PageHeader
