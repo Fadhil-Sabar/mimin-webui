@@ -7,6 +7,8 @@ const state = vi.hoisted(() => ({
 	deletedIds: [] as string[],
 	updateCount: 0,
 	updatedConversation: null as Record<string, unknown> | null,
+	/** Values written by the message-level updates (superseding the previous answer). */
+	messageUpdates: [] as Array<Record<string, unknown>>,
 	turn: null as null | { resolve: () => void },
 	runModels: [] as string[],
 	runPrompts: [] as string[],
@@ -51,7 +53,8 @@ vi.mock('$lib/server/db/client', () => {
 			set: vi.fn((values: Record<string, unknown>) => ({
 				where: vi.fn(async () => {
 					state.updateCount++;
-					state.updatedConversation = values;
+					if ('turnState' in values) state.messageUpdates.push(values);
+					else state.updatedConversation = values;
 				})
 			}))
 		})),
@@ -114,6 +117,7 @@ beforeEach(() => {
 	state.deletedIds = [];
 	state.updateCount = 0;
 	state.updatedConversation = null;
+	state.messageUpdates = [];
 	state.turn = null;
 	state.runModels.length = 0;
 	state.runPrompts.length = 0;
@@ -138,7 +142,7 @@ describe('conversation retry route', () => {
 		expect(state.runModels).toEqual(['openai/gpt-4o-mini']);
 	});
 
-	it('cleans up trailing assistant messages following the last user message', async () => {
+	it('supersedes trailing assistant messages instead of deleting them', async () => {
 		state.conversationMessages = [
 			{
 				id: 'msg-user-1',
@@ -156,9 +160,41 @@ describe('conversation retry route', () => {
 		const res = await POST(event());
 		expect(res.status).toBe(200);
 		await res.text();
-		expect(state.deleteCount).toBe(1);
+		// Regenerating retires the previous answer by state so nothing is ever lost.
+		expect(state.messageUpdates).toEqual([{ turnState: 'superseded' }]);
+		expect(state.deleteCount).toBe(0);
 		expect(state.runPrompts).toEqual(['Why did it fail?']);
 		expect(state.runMessageIds).toEqual(['msg-user-1']);
+	});
+
+	it('leaves history untouched when no model is available', async () => {
+		state.conversationMessages = [
+			{
+				id: 'msg-user-1',
+				role: 'user',
+				content: 'Why did it fail?',
+				createdAt: new Date(1000)
+			},
+			{
+				id: 'msg-asst-previous',
+				role: 'assistant',
+				content: 'The previous answer',
+				createdAt: new Date(2000)
+			}
+		];
+		state.modelAvailable = false;
+		state.available = [];
+
+		const res = await POST(event());
+
+		expect(res.status).toBe(400);
+		const json = await res.json();
+		expect(json.error?.code).toBe('MODEL_NOT_AVAILABLE');
+		// The model is resolved before anything is written: a regenerate that cannot
+		// run must not cost the user the answer they were trying to replace.
+		expect(state.updateCount).toBe(0);
+		expect(state.messageUpdates).toEqual([]);
+		expect(state.deleteCount).toBe(0);
 	});
 
 	it('returns 400 when there are no user messages to retry', async () => {

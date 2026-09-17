@@ -21,6 +21,7 @@ import type {
 	Conversation,
 	ConversationMessage,
 	MessageCitation,
+	MessageUsage,
 	PendingSubmission,
 	ToolCall
 } from './chat-types';
@@ -69,14 +70,43 @@ export function createChatStream(deps: ChatStreamDeps) {
 	let lastFailedSubmission = $state<PendingSubmission | null>(null);
 	let abortController: AbortController | undefined;
 
-	const canRetry = $derived(
-		!running &&
-			Boolean(
-				liveError ||
-				(messages.length > 0 && messages[messages.length - 1]?.role === 'user') ||
-				(lastFailedSubmission && lastFailedSubmission.conversationId === deps.getActiveId())
-			)
-	);
+	const canRetry = $derived.by(() => {
+		if (running) return false;
+		const last = messages.length > 0 ? messages[messages.length - 1] : null;
+		return Boolean(
+			liveError ||
+			// A turn that never produced an answer, or one that died mid-flight.
+			last?.role === 'user' ||
+			last?.turnState === 'interrupted' ||
+			(lastFailedSubmission && lastFailedSubmission.conversationId === deps.getActiveId())
+		);
+	});
+
+	/** Local ids belong to the optimistic user message and its attachment chips. */
+	function isLocalMessageId(id: string) {
+		return id.includes(':user:') || id.includes(':attachment:');
+	}
+
+	function compareMessages(a: ConversationMessage, b: ConversationMessage) {
+		if (a.createdAt === b.createdAt) return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+		return a.createdAt < b.createdAt ? -1 : 1;
+	}
+
+	/**
+	 * Fold a freshly fetched page into the transcript.
+	 *
+	 * A page holds only the newest messages, so anything already loaded that the
+	 * server did not resend is kept: without this the reload that follows every turn
+	 * would throw away the earlier history the reader had paged in. Optimistic local
+	 * rows are dropped because the server always resends their authoritative copies.
+	 */
+	function mergeMessages(next: ConversationMessage[]) {
+		const resent = next.map((message) => message.id);
+		const kept = messages.filter(
+			(message) => !isLocalMessageId(message.id) && !resent.includes(message.id)
+		);
+		messages = [...kept, ...next].sort(compareMessages);
+	}
 
 	function applyStreamingDeltas(deltas: StreamingDelta[]) {
 		for (const { id, thinking, text } of deltas) {
@@ -257,11 +287,16 @@ export function createChatStream(deps: ChatStreamDeps) {
 			streamingDeltas.flush();
 			lastFailedSubmission = null;
 			const msgId = String(event.messageId);
+			const usage = (event.usage as MessageUsage | null | undefined) ?? null;
+			const completedAt = typeof event.completedAt === 'string' ? event.completedAt : nowIso();
 			messages = messages.map((msg) =>
 				msg.id === msgId
 					? {
 							...msg,
 							isStreaming: false,
+							turnState: 'complete',
+							usage,
+							completedAt,
 							content: event.content !== undefined ? event.content : msg.content,
 							...(Array.isArray(event.citations)
 								? { citations: event.citations as MessageCitation[] }
@@ -289,7 +324,16 @@ export function createChatStream(deps: ChatStreamDeps) {
 		} else if (event.type === 'error') {
 			streamingDeltas.flush();
 			liveError = extractSseErrorMessage(event.error);
-			messages = messages.map((msg) => ({ ...msg, isStreaming: false }));
+			// Whatever the turn managed to write is unfinished, and the server records it
+			// that way too; presenting it as a live reply would be wrong.
+			const unfinished = messages.findLastIndex(
+				(message) => message.role === 'assistant' && message.isStreaming
+			);
+			messages = messages.map((message, index) => ({
+				...message,
+				isStreaming: false,
+				...(index === unfinished ? { turnState: 'interrupted' as const } : {})
+			}));
 			consentBuffer = {};
 		}
 	}
@@ -515,6 +559,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 			return messages;
 		},
 		setMessages,
+		mergeMessages,
 		get running() {
 			return running;
 		},

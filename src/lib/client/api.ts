@@ -135,6 +135,47 @@ export async function searchConversations(
 	return (data.conversations ?? []) as import('./conversations.svelte').ConversationSummary[];
 }
 
+export type ConversationPage<M> = {
+	conversation: Record<string, unknown>;
+	messages: M[];
+	/** A further page of older messages exists. */
+	hasMore: boolean;
+	/** Pass back as `before` to load the messages immediately preceding this page. */
+	olderCursor: string | null;
+};
+
+/**
+ * Read one page of a conversation's transcript.
+ *
+ * The endpoint returns the *newest* messages by default, because that is what a
+ * long conversation has to show on load; pass `before` (the previous page's
+ * `olderCursor`) to walk backwards through older history.
+ */
+export async function fetchConversationPage<M = unknown>(
+	id: string,
+	options: { before?: string | null; limit?: number; signal?: AbortSignal } = {}
+): Promise<ConversationPage<M>> {
+	const params = new URLSearchParams();
+	if (options.before) params.set('cursor', options.before);
+	if (options.limit) params.set('limit', String(options.limit));
+	const query = params.toString();
+	const response = await fetch(`/api/conversations/${id}${query ? `?${query}` : ''}`, {
+		signal: options.signal
+	});
+	if (!response.ok) {
+		throw new Error(
+			(await response.json().catch(() => null))?.error?.message ?? 'Could not load conversation'
+		);
+	}
+	const data = await response.json();
+	return {
+		conversation: data.conversation ?? null,
+		messages: (data.messages ?? []) as M[],
+		hasMore: data.hasMore === true,
+		olderCursor: typeof data.olderCursor === 'string' ? data.olderCursor : null
+	};
+}
+
 export async function streamMessage(
 	id: string,
 	content: string,

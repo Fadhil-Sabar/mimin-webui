@@ -58,10 +58,11 @@ vi.mock('$lib/server/files/storage', () => ({
 
 const { GET } = await import('../src/routes/api/projects/[id]/files/[fileId]/+server');
 
-function event(user = state.user) {
+function event(user = state.user, url = 'http://localhost/api/projects/project-1/files/file-1') {
 	return {
 		locals: { user },
 		params: { id: 'project-1', fileId: 'file-1' },
+		url: new URL(url),
 		request: new Request('http://localhost/api/projects/project-1/files/file-1')
 	} as never;
 }
@@ -111,8 +112,20 @@ describe('project citation file route', () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get('content-type')).toBe('application/pdf');
+		expect(response.headers.get('content-disposition')).toContain('inline');
 		expect(response.headers.get('content-disposition')).toContain('requirements.pdf');
 		expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([80, 68, 70]));
 		expect(state.readCount).toBe(1);
+	});
+
+	it('serves the same bytes as a download when asked to', async () => {
+		const response = await GET(
+			event(state.user, 'http://localhost/api/projects/project-1/files/file-1?download=1')
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get('content-disposition')).toContain('attachment');
+		expect(response.headers.get('content-disposition')).toContain('requirements.pdf');
+		expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([80, 68, 70]));
 	});
 });

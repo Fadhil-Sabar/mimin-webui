@@ -1,12 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { and, asc, eq, gt, inArray, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, ne, or } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable } from '$lib/server/ai/model.service';
 import { conversationInput } from '$lib/server/validation';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
 import { decodeMessageCursor, encodeMessageCursor } from '$lib/server/conversations';
+import { hasActiveConversationTurn } from '$lib/server/ai/agent.service';
 import { clearBrowserSession } from '$lib/server/browser/bridge';
 import {
 	resolveConversationSkill,
@@ -30,45 +31,55 @@ export const GET: RequestHandler = async (event) => {
 		const cursorValue = event.url.searchParams.get('cursor');
 		const cursor = cursorValue ? decodeMessageCursor(cursorValue) : null;
 		if (cursorValue && !cursor) return apiError('INVALID_INPUT', 'Invalid messages cursor.');
+		// The newest page is the useful one: a long conversation must show its latest
+		// turn on load, so this orders newest-first and the `cursor` walks backwards
+		// through older messages rather than forwards.
 		const messageQuery = db
 			.select()
 			.from(schema.messages)
 			.where(
 				and(
 					eq(schema.messages.conversationId, id),
+					// A regenerated reply is kept for history but must not be shown twice.
+					ne(schema.messages.turnState, 'superseded'),
 					cursor
 						? or(
-								gt(schema.messages.createdAt, cursor.createdAt),
+								lt(schema.messages.createdAt, cursor.createdAt),
 								and(
 									eq(schema.messages.createdAt, cursor.createdAt),
-									gt(schema.messages.id, cursor.id)
+									lt(schema.messages.id, cursor.id)
 								)
 							)
 						: undefined
 				)
 			)
-			.orderBy(asc(schema.messages.createdAt), asc(schema.messages.id));
+			.orderBy(desc(schema.messages.createdAt), desc(schema.messages.id));
 		const rawRows = await (typeof (messageQuery as { limit?: unknown }).limit === 'function'
 			? messageQuery.limit(limit + 1)
 			: messageQuery);
 		const hasMore = rawRows.length > limit;
-		const rows = rawRows.slice(0, limit);
-		const calls = await db
-			.select({
-				id: schema.toolCalls.id,
-				messageId: schema.toolCalls.messageId,
-				toolCallId: schema.toolCalls.toolCallId,
-				toolName: schema.toolCalls.toolName,
-				input: schema.toolCalls.input,
-				output: schema.toolCalls.output,
-				status: schema.toolCalls.status,
-				startedAt: schema.toolCalls.startedAt,
-				completedAt: schema.toolCalls.completedAt
-			})
-			.from(schema.toolCalls)
-			.innerJoin(schema.messages, eq(schema.toolCalls.messageId, schema.messages.id))
-			.where(eq(schema.messages.conversationId, id))
-			.orderBy(asc(schema.toolCalls.startedAt));
+		// The page boundary comes from a newest-first query, but the client renders
+		// chronologically, so the kept slice is reversed back.
+		const rows = rawRows.slice(0, limit).reverse();
+		const pageMessageIds = rows.map((row) => row.id);
+		const calls = pageMessageIds.length
+			? await db
+					.select({
+						id: schema.toolCalls.id,
+						messageId: schema.toolCalls.messageId,
+						toolCallId: schema.toolCalls.toolCallId,
+						toolName: schema.toolCalls.toolName,
+						input: schema.toolCalls.input,
+						output: schema.toolCalls.output,
+						status: schema.toolCalls.status,
+						startedAt: schema.toolCalls.startedAt,
+						completedAt: schema.toolCalls.completedAt
+					})
+					.from(schema.toolCalls)
+					.innerJoin(schema.messages, eq(schema.toolCalls.messageId, schema.messages.id))
+					.where(inArray(schema.messages.id, pageMessageIds))
+					.orderBy(asc(schema.toolCalls.startedAt))
+			: [];
 		const toolCallsByMessage = new Map<string, typeof calls>();
 		for (const call of calls) {
 			if (!call.messageId) continue;
@@ -140,29 +151,31 @@ export const GET: RequestHandler = async (event) => {
 			.from(schema.canvases)
 			.where(and(eq(schema.canvases.conversationId, id), eq(schema.canvases.userId, user.id)))
 			.limit(1);
+		// A row still marked `streaming` with no live turn behind it can only be a turn
+		// that died without finalizing (dropped connection, provider error, restart).
+		const turnActive = hasActiveConversationTurn(id);
 		return json({
 			conversation: {
 				...toPublicConversation(conversation),
 				canvasId: linkedCanvas?.id ?? null
 			},
 			messages: rows.map((row) => {
-				// `usage` is diagnostic data for the server; keep it out of the payload.
-				const message = toPublicMessage(row) as Record<string, unknown> & { usage?: unknown };
-				delete message.usage;
+				const message = toPublicMessage(row);
 				return {
 					...message,
+					turnState:
+						!turnActive && message.turnState === 'streaming' ? 'interrupted' : message.turnState,
 					attachments: attachmentsByMessage.get(row.id) ?? [],
 					toolCalls: toolCallsByMessage.get(row.id) ?? [],
 					citations: citationsByMessage.get(row.id) ?? []
 				};
 			}),
 			toolCalls: calls,
-			nextCursor:
+			hasMore,
+			// The oldest row in this page: send it back as `cursor` to load what came before.
+			olderCursor:
 				hasMore && rows.length
-					? encodeMessageCursor({
-							createdAt: rows[rows.length - 1].createdAt,
-							id: rows[rows.length - 1].id
-						})
+					? encodeMessageCursor({ createdAt: rows[0].createdAt, id: rows[0].id })
 					: null
 		});
 	} catch (error) {

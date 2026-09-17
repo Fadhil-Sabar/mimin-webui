@@ -50,3 +50,64 @@ describe('ChatMessage assistant actions', () => {
 		expect(body).toContain('disabled=""');
 	});
 });
+
+describe('ChatMessage interrupted turns', () => {
+	it('labels a partly written reply that was interrupted', () => {
+		const body = renderMessage(assistant({ turnState: 'interrupted' }), {
+			canRetry: true,
+			canRegenerate: false
+		});
+
+		expect(body).toContain('This reply was interrupted before it finished.');
+		// The notice carries the retry when the footer has no regenerate action to offer.
+		expect(body).toContain('interrupted-retry');
+	});
+
+	it('does not repeat the retry the footer already offers', () => {
+		const body = renderMessage(assistant({ turnState: 'interrupted' }), {
+			canRetry: true,
+			canRegenerate: true
+		});
+
+		expect(body).toContain('interrupted-notice');
+		expect(body).not.toContain('interrupted-retry');
+		expect(body).toContain('aria-label="Regenerate response"');
+	});
+
+	it('says the turn was interrupted rather than blaming the output budget', () => {
+		const body = renderMessage(assistant({ content: '', turnState: 'interrupted' }), {
+			canRetry: true
+		});
+
+		expect(body).toContain('This turn was interrupted before writing an answer.');
+		expect(body).not.toContain('stopped before writing an answer');
+	});
+
+	it('stays quiet for a turn that finished normally', () => {
+		expect(renderMessage(assistant())).not.toContain('interrupted-notice');
+	});
+});
+
+describe('ChatMessage context panel', () => {
+	it('reports the tokens a finished turn used', () => {
+		const body = renderMessage(
+			assistant({
+				usage: { input: 1500, output: 300, totalTokens: 1800 },
+				completedAt: '2026-01-01T00:00:04.000Z'
+			}),
+			{ contextAttachments: ['notes.md'], projectName: 'Launch' }
+		);
+
+		expect(body).toContain('Context');
+		expect(body).toContain('1,800 tokens');
+		expect(body).toContain('notes.md');
+		expect(body).toContain('Launch');
+		expect(body).toContain('Duration');
+	});
+
+	it('does not claim a token count for a turn that reported none', () => {
+		const body = renderMessage(assistant());
+
+		expect(body).not.toContain('tokens');
+	});
+});

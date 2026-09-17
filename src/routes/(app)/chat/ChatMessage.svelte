@@ -1,9 +1,18 @@
 <script lang="ts">
-	import { Check, Clipboard, ChevronDown, Paperclip, RotateCcw, Sparkles } from '@lucide/svelte';
+	import {
+		AlertTriangle,
+		Check,
+		Clipboard,
+		ChevronDown,
+		Paperclip,
+		RotateCcw,
+		Sparkles
+	} from '@lucide/svelte';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import * as Bubble from '$lib/components/ui/bubble';
 	import * as Message from '$lib/components/ui/message';
 	import type { SkillSummary } from '$lib/skills';
+	import MessageContextPanel from './MessageContextPanel.svelte';
 	import ToolCallPanel from './ToolCallPanel.svelte';
 	import {
 		contentText,
@@ -33,6 +42,9 @@
 		onregenerate?: () => void;
 		onquestionsubmit?: QuestionSubmitHandler;
 		onconsentsubmit?: ConsentSubmitHandler;
+		/** Filenames attached to the user message this turn answers. */
+		contextAttachments?: string[];
+		projectName?: string | null;
 	};
 
 	let {
@@ -48,7 +60,9 @@
 		regenerateDisabled = false,
 		onregenerate,
 		onquestionsubmit,
-		onconsentsubmit
+		onconsentsubmit,
+		contextAttachments = [],
+		projectName = null
 	}: Props = $props();
 
 	// While the thinking block streams it renders as a fixed-height scroller, so
@@ -60,14 +74,22 @@
 
 	/**
 	 * A finished assistant reply with no text and no tool call: the turn ended
-	 * before an answer was written (see the server's turn outcome).
+	 * before an answer was written (see the server's turn outcome). An interrupted
+	 * turn gets its own notice instead, which says what actually happened.
 	 */
 	const incompleteReply = $derived(
 		message.role === 'assistant' &&
+			message.turnState !== 'interrupted' &&
 			!message.isStreaming &&
 			!contentText(message.content).trim() &&
 			(message.toolCalls?.length ?? 0) === 0
 	);
+
+	/**
+	 * The footer already offers Regenerate for the latest reply and it runs the same
+	 * retry, so the notice only carries its own action when the footer will not.
+	 */
+	const showInterruptedRetry = $derived(canRetry && !(isLast && canRegenerate));
 
 	function handleThinkingScroll() {
 		if (!thinkingEl) return;
@@ -185,6 +207,27 @@
 						{onconsentsubmit}
 					/>
 				{/if}
+				{#if message.role === 'assistant' && message.turnState === 'interrupted'}
+					<div class="interrupted-notice" role="status">
+						<AlertTriangle size={13} aria-hidden="true" />
+						<span>
+							{contentText(message.content).trim()
+								? 'This reply was interrupted before it finished.'
+								: 'This turn was interrupted before writing an answer.'}
+						</span>
+						{#if showInterruptedRetry}
+							<button
+								type="button"
+								class="interrupted-retry"
+								onclick={onretry}
+								disabled={retryDisabled}
+							>
+								<RotateCcw size={12} aria-hidden="true" /> Retry
+							</button>
+						{/if}
+					</div>
+				{/if}
+				<MessageContextPanel {message} {skill} {contextAttachments} {projectName} />
 			</Bubble.Content>
 		</Bubble.Root>
 		{#if (message.role === 'user' && isLast && canRetry) || (message.role === 'assistant' && !message.isStreaming && contentText(message.content))}
@@ -352,6 +395,45 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
+	}
+	.interrupted-notice {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 8px;
+		margin-top: 10px;
+		padding: 7px 10px;
+		border: 1px solid var(--border);
+		border-radius: 8px;
+		background: var(--surface-subtle);
+		color: var(--status-working-text);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-weight: var(--text-body-sm--font-weight);
+	}
+	.interrupted-retry {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		margin-left: auto;
+		padding: 2px 8px;
+		border: 1px solid var(--border-strong);
+		border-radius: 6px;
+		background: transparent;
+		color: var(--text);
+		font-size: var(--text-label-md);
+		line-height: var(--text-label-md--line-height);
+		letter-spacing: var(--text-label-md--letter-spacing);
+		font-weight: var(--text-label-md--font-weight);
+		cursor: pointer;
+	}
+	.interrupted-retry:hover:not(:disabled) {
+		background: var(--surface-2);
+	}
+	.interrupted-retry:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 	:global(.chat-message-footer) {
 		gap: 4px;

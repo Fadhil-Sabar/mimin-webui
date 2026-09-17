@@ -45,9 +45,11 @@ export async function deliverPasswordResetLink(input: {
 
 		const status = getMailStatus();
 		if (!status.configured) {
+			// The link is a bearer credential, so the log says one was created and never
+			// what it is. An administrator copies it from the users console instead.
 			console.warn(
-				`[auth] Password reset link for ${input.email}: ${url} ` +
-					'(no SMTP_HOST configured; an administrator can read it from the admin console or this log line).'
+				`[auth] Password reset link generated for ${input.email} ` +
+					'(no SMTP_HOST configured; an administrator can copy the link from the admin console).'
 			);
 			return;
 		}

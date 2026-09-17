@@ -196,6 +196,27 @@ describe('password reset delivery', () => {
 		).toBe('https://other.example.com/reset-password?token=token%202');
 	});
 
+	it('never writes the reset link or its token to the log', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		try {
+			await deliverPasswordResetLink({
+				email: 'someone@example.com',
+				url: 'https://mimin.example.com/api/auth/reset-password/token-secret?callbackURL=x',
+				token: 'token-secret'
+			});
+
+			const logged = warn.mock.calls.flat().join(' ');
+			// The link is a bearer credential: the log may only say one was created, and
+			// an administrator copies the actual link from the admin console.
+			expect(logged).not.toContain('token-secret');
+			expect(logged).not.toContain('/reset-password');
+			expect(logged).toContain('someone@example.com');
+			expect(peekResetLink('someone@example.com')?.url).toContain('token-secret');
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
 	it('records a link even when the generated url cannot be parsed', async () => {
 		await expect(
 			deliverPasswordResetLink({ email: 'someone@example.com', url: 'not a url', token: 'token-3' })

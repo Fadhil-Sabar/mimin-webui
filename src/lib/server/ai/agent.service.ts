@@ -1,7 +1,7 @@
 import { Agent } from '@earendil-works/pi-agent-core';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { clampThinkingLevel, type ModelThinkingLevel } from '@earendil-works/pi-ai';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import {
 	configuredModelMaxTokens,
@@ -27,7 +27,12 @@ import { readStoredFile } from '$lib/server/files/storage';
 import { buildAttachmentContext } from '$lib/server/files/attachment-context';
 import { buildPdfVisionFallback } from '$lib/server/files/pdf-vision';
 import { buildProjectSystemPrompt, getProjectConversationTools } from './project-context';
-import { selectContextWindow } from './context-window';
+import {
+	attachmentBudgetChars,
+	contextWindowLimit,
+	historyBudgetTokens,
+	selectContextWithinBudget
+} from './context-window';
 import { assertAllowedOutboundUrl } from '../outbound';
 import { cancelBrowserRequests, type BrowserBridgeContext } from '../browser/bridge';
 import { cancelBrowserConsents } from '../browser/consent';
@@ -109,6 +114,17 @@ export function releaseConversationTurn(conversationId: string, token: string) {
 
 export function isConversationTurnCanceled(token: string) {
 	return canceledTurns.has(token);
+}
+
+/**
+ * True while this process holds a live or reserved turn for the conversation.
+ *
+ * Read paths use it to tell a turn that is still running from one that was
+ * abandoned by a dropped connection or a process restart — both leave the message
+ * row marked `streaming`, and only the live case may keep showing it as active.
+ */
+export function hasActiveConversationTurn(conversationId: string) {
+	return activeAgents.has(conversationId) || reservedTurns.has(conversationId);
 }
 
 type AgentEvent = {
@@ -349,6 +365,10 @@ export async function runConversationTurn(
 		...(credential?.baseUrl ? { baseUrl: credential.baseUrl } : {}),
 		...(isCustomOpenAi ? { api: 'openai-completions' as const } : {})
 	};
+	// A custom provider gets an output cap only when its model entry declares one.
+	// Reasoning and the answer share that budget, so it has to be known before the
+	// context budget is worked out below.
+	const configuredMaxTokens = configuredModelMaxTokens(credential, modelId);
 	const savedThinkingLevel = effectiveUserId
 		? await getModelThinkingPreference(effectiveUserId, selectedModelRef)
 		: 'off';
@@ -362,7 +382,14 @@ export async function runConversationTurn(
 			createdAt: schema.messages.createdAt
 		})
 		.from(schema.messages)
-		.where(eq(schema.messages.conversationId, conversationId))
+		.where(
+			and(
+				eq(schema.messages.conversationId, conversationId),
+				// A regenerated reply is kept for history but must not re-enter the context,
+				// otherwise the model sees its replaced answer as part of the conversation.
+				ne(schema.messages.turnState, 'superseded')
+			)
+		)
 		.orderBy(asc(schema.messages.createdAt), asc(schema.messages.id));
 	const historicalRows = historyRows.filter((row) => row.id !== currentMessageId);
 	const toolRows: HistoricalToolCall[] = historicalRows.length
@@ -391,7 +418,14 @@ export async function runConversationTurn(
 			.map((row) => row.messageId)
 			.filter((messageId): messageId is string => typeof messageId === 'string')
 	);
-	const history = selectContextWindow(historicalRows, undefined, toolMessageIds);
+	// Budget history against the model's own window rather than a fixed message count:
+	// 100 messages of long documents can exceed a 128k context outright, and the
+	// message-count setting stays as the secondary bound.
+	const history = selectContextWithinBudget(historicalRows, {
+		budgetTokens: historyBudgetTokens(requestModel.contextWindow, configuredMaxTokens),
+		maxMessages: contextWindowLimit(),
+		toolMessageIds
+	});
 	const includedMessageIds = new Set(history.map((row) => row.id));
 	const toolCallsByMessage = new Map<string, HistoricalToolCall[]>();
 	for (const toolRow of toolRows) {
@@ -441,8 +475,26 @@ export async function runConversationTurn(
 		})
 		.from(schema.messageAttachments)
 		.innerJoin(schema.messages, eq(schema.messageAttachments.messageId, schema.messages.id))
-		.where(eq(schema.messages.conversationId, conversationId));
-	const attachmentContext = await buildAttachmentContext(attachmentRows, readStoredFile);
+		.where(
+			and(
+				eq(schema.messages.conversationId, conversationId),
+				ne(schema.messages.turnState, 'superseded')
+			)
+		);
+	// The character budget below is consumed in order, so the files the user just
+	// sent come first and earlier ones take only what is left, newest first.
+	const messageOrder = new Map(historyRows.map((row, index) => [row.id, index]));
+	attachmentRows.sort((a, b) => {
+		const aCurrent = a.messageId === currentMessageId ? 1 : 0;
+		const bCurrent = b.messageId === currentMessageId ? 1 : 0;
+		if (aCurrent !== bCurrent) return bCurrent - aCurrent;
+		return (messageOrder.get(b.messageId) ?? -1) - (messageOrder.get(a.messageId) ?? -1);
+	});
+	const attachmentContext = await buildAttachmentContext(
+		attachmentRows,
+		readStoredFile,
+		attachmentBudgetChars(requestModel.contextWindow, configuredMaxTokens)
+	);
 	const pdfVisionFallback = await buildPdfVisionFallback(
 		attachmentRows.filter((attachment) => attachment.messageId === currentMessageId),
 		readStoredFile,
@@ -609,12 +661,11 @@ Instructions for Canvas Mockups:
 			systemPrompt = `${systemPrompt} Browser tools are not available in this request because the browser bridge is not connected. Do not substitute another tool for the pending action; explain that the bridge still is not detected.`;
 		}
 	}
-	// A custom provider gets an output cap only when its model entry declares one.
-	// Reasoning and the answer share that budget, and an uncapped reasoning phase can
-	// consume the whole response (see the "no answer" outcome in turn-outcome.ts).
+	// An uncapped reasoning phase can consume the whole response, so the output cap
+	// resolved above is applied to every stream call (see the "no answer" outcome in
+	// turn-outcome.ts).
 	const registry = modelRegistry();
 	const registryStream = registry.streamSimple.bind(registry);
-	const configuredMaxTokens = configuredModelMaxTokens(credential, modelId);
 	const streamFn: typeof registryStream = (model, context, options) =>
 		registryStream(
 			model,
@@ -755,7 +806,9 @@ Instructions for Canvas Mockups:
 		if (currentAssistantMessageId) return currentAssistantMessageId;
 		const [msg] = await db
 			.insert(schema.messages)
-			.values({ conversationId, role: 'assistant', content: '' })
+			// Marked `streaming` on insert so a turn that never finalizes (dropped
+			// connection, restart) is still recognisable as unfinished on read.
+			.values({ conversationId, role: 'assistant', content: '', turnState: 'streaming' })
 			.returning();
 		currentAssistantMessageId = msg.id;
 		lastAssistantMessageId = msg.id;
@@ -792,12 +845,15 @@ Instructions for Canvas Mockups:
 			text,
 			toolCallCount: currentToolCallCount
 		});
+		const completedAt = new Date();
 		await db
 			.update(schema.messages)
 			.set({
 				content,
 				stopReason: persistedStopReason(outcome, finish.stopReason),
-				usage: finish.usage ?? null
+				usage: finish.usage ?? null,
+				turnState: 'complete',
+				completedAt
 			})
 			.where(eq(schema.messages.id, msgId));
 		turnOutcome.last = outcome.incomplete ? { ...outcome, messageId: msgId } : null;
@@ -805,7 +861,10 @@ Instructions for Canvas Mockups:
 		emit({
 			type: 'message.end',
 			messageId: msgId,
-			content
+			content,
+			// Token counts and the completion time drive the client's context panel.
+			usage: finish.usage ?? null,
+			completedAt: completedAt.toISOString()
 		});
 		currentAssistantMessageId = null;
 		currentAssistantText = '';
@@ -1021,25 +1080,36 @@ Instructions for Canvas Mockups:
 		// between events. Drain queued persistence work before cleanup so a late
 		// event cannot write after a failed turn.
 		await agentEvents.drain().catch(() => {});
+		// A turn the user stopped on purpose ends quietly; anything else that dies here
+		// (dropped stream, provider failure, restart) leaves a reply that is unfinished
+		// and has to be recognisable as such on the next read.
+		const stoppedByUser = isConversationTurnCanceled(turnToken);
 		for (const msgId of createdAssistantMessageIds) {
 			const [msg] = await db
 				.select()
 				.from(schema.messages)
 				.where(eq(schema.messages.id, msgId))
 				.catch(() => []);
-			if (msg) {
-				const hasContent =
-					typeof msg.content === 'string'
-						? msg.content.trim().length > 0
-						: Array.isArray(msg.content)
-							? msg.content.length > 0
-							: Boolean(msg.content);
-				if (!hasContent) {
-					await db
-						.delete(schema.messages)
-						.where(eq(schema.messages.id, msgId))
-						.catch(() => {});
-				}
+			if (!msg) continue;
+			const hasContent =
+				typeof msg.content === 'string'
+					? msg.content.trim().length > 0
+					: Array.isArray(msg.content)
+						? msg.content.length > 0
+						: Boolean(msg.content);
+			if (!hasContent) {
+				await db
+					.delete(schema.messages)
+					.where(eq(schema.messages.id, msgId))
+					.catch(() => {});
+				continue;
+			}
+			if (!stoppedByUser) {
+				await db
+					.update(schema.messages)
+					.set({ turnState: 'interrupted', completedAt: new Date() })
+					.where(eq(schema.messages.id, msgId))
+					.catch(() => {});
 			}
 		}
 		throw error;
@@ -1065,6 +1135,10 @@ export function stopConversation(conversationId: string, token?: string) {
 		return false;
 	}
 	if (token && active.token !== token) return false;
+	// A stop with no turn token is the user pressing Stop, not a stream that dropped,
+	// so it is recorded as intentional: the partial reply ends quietly instead of
+	// being surfaced afterwards as an interrupted turn.
+	if (!token) canceledTurns.add(active.token);
 	cancelBrowserRequests(conversationId, active.token);
 	cancelBrowserConsents(conversationId, active.token);
 	cancelQuestionRequests(conversationId, active.token);
