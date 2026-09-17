@@ -55,7 +55,7 @@
 		width: 324px;
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: 12px;
+		border-radius: var(--radius-xl);
 		overflow: visible;
 		box-shadow: 0 8px 28px var(--shadow-softer);
 		color: var(--text-strong);
@@ -66,17 +66,17 @@
 	}
 	.frame-heading {
 		height: 42px;
-		padding: 0 12px;
+		padding: 0 var(--space-3);
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		border-bottom: 1px solid var(--border);
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.frame-title {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		min-width: 0;
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -108,7 +108,7 @@
 	.frame-foot {
 		display: flex;
 		justify-content: space-between;
-		padding: 0 12px 11px;
+		padding: 0 var(--space-3) 11px;
 		color: var(--text-muted);
 		font-size: var(--text-label-sm);
 		line-height: var(--text-label-sm--line-height);

@@ -3,15 +3,14 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<meta name="text-scale" content="scale" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<!-- One request for both families, narrowed to the weights the MD3 scale actually
+		     uses: 400 and 500 (there are no 600/700 roles). Roboto keeps the italic axis
+		     because the transcript and markdown render <em> text; Newsreader does not
+		     use italics. `opsz` stays variable on Newsreader. -->
 		<link
-			href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap"
-			rel="stylesheet"
-		/>
-		<link
-			href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,600;1,6..72,400&display=swap"
+			href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400..500&family=Roboto:ital,wght@0,400..500;1,400..500&display=swap"
 			rel="stylesheet"
 		/>
 		<script>

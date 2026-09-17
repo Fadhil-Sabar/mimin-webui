@@ -73,7 +73,7 @@
 		padding: 3px;
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 	}
 	.scope-tabs button {
 		min-height: 30px;
@@ -81,12 +81,15 @@
 		color: var(--text-muted);
 		background: transparent;
 		border: 0;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			box-shadow var(--duration-short3) var(--ease-standard);
 	}
 	.scope-tabs button:hover {
 		color: var(--text-strong);
@@ -97,7 +100,7 @@
 		box-shadow: 0 1px 3px var(--shadow-soft);
 	}
 	.scope-tabs span {
-		margin-left: 4px;
+		margin-left: var(--space-1);
 		color: var(--text-faint);
 		font-size: var(--text-label-sm);
 		line-height: var(--text-label-sm--line-height);
@@ -107,18 +110,18 @@
 	.toolbar-tools {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.search-field,
 	.project-filter {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		min-height: 38px;
 		color: var(--text-dim);
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 	}
 	.search-field {
 		width: 220px;
@@ -131,7 +134,6 @@
 		font-family: var(--font-body);
 		background: transparent;
 		border: 0;
-		outline: 0;
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -145,7 +147,7 @@
 	}
 	.project-filter select {
 		appearance: none;
-		padding: 8px 22px 8px 2px;
+		padding: var(--space-2) 22px var(--space-2) 2px;
 		cursor: pointer;
 	}
 	:global(.project-filter svg) {
@@ -168,7 +170,7 @@
 		white-space: nowrap;
 		border: 0;
 	}
-	@media (max-width: 720px) {
+	@media (max-width: 760px) {
 		.toolbar {
 			align-items: stretch;
 			flex-direction: column;

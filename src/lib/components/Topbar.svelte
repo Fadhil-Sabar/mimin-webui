@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { ChevronDown, ChevronRight, PanelLeft } from '@lucide/svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import type { NavHref } from '$lib/nav';
 
@@ -25,11 +26,15 @@
 
 <header class="topbar">
 	<div class="topbar-left">
-		<button
-			class="sidebar-toggle topbar-toggle"
+		<!-- Visibility is owned by the global `.topbar-toggle` rules: it depends on the
+		     `.app-shell` ancestor's collapsed state, which no utility can express. -->
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			class="topbar-toggle hover:bg-[var(--surface-hover)] hover:text-[var(--text-strong)]"
 			onclick={() => sidebar.toggle()}
 			title="Toggle sidebar"
-			aria-label="Toggle sidebar"><PanelLeft size={16} /></button
+			aria-label="Toggle sidebar"><PanelLeft size={16} /></Button
 		>
 		{#if breadcrumbs.length > 1}
 			<nav class="breadcrumb" aria-label="Breadcrumb">

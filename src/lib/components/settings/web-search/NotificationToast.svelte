@@ -14,7 +14,7 @@
 		margin-bottom: 20px;
 		background: var(--surface-2);
 		border: 1px solid var(--border-strong);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);

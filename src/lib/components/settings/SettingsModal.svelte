@@ -190,14 +190,14 @@
 	.settings-navigation {
 		min-height: 0;
 		overflow-y: auto;
-		padding: 20px 12px;
+		padding: 20px var(--space-3);
 		background: var(--surface-2);
 		border-right: 1px solid var(--border);
 	}
 	.settings-nav-header {
 		display: flex;
 		align-items: center;
-		gap: 12px;
+		gap: var(--space-3);
 		margin-bottom: 18px;
 	}
 	.settings-nav-header h2 {
@@ -217,7 +217,7 @@
 		width: 36px;
 		height: 36px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-3);
 		color: var(--text-strong);
 		cursor: pointer;
@@ -230,18 +230,17 @@
 		display: flex;
 		align-items: center;
 		gap: 9px;
-		padding: 0 12px;
+		padding: 0 var(--space-3);
 		height: 39px;
 		border: 1px solid var(--border-strong);
-		border-radius: 9px;
+		border-radius: var(--radius-lg);
 		color: var(--text-muted);
-		margin-bottom: 16px;
+		margin-bottom: var(--space-4);
 	}
 	.settings-search input {
 		min-width: 0;
 		width: 100%;
 		border: 0;
-		outline: 0;
 		background: transparent;
 		color: var(--text-strong);
 		font-family: var(--font-body);
@@ -262,9 +261,9 @@
 		align-items: center;
 		gap: 11px;
 		min-height: 39px;
-		padding: 8px 11px;
+		padding: var(--space-2) 11px;
 		border: 0;
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		background: transparent;
 		color: var(--text-body);
 		text-align: left;
@@ -315,12 +314,12 @@
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
-			padding: 12px 16px;
+			padding: var(--space-3) var(--space-4);
 			border-bottom: 1px solid var(--border);
 		}
 		.mobile-detail-header button:first-child {
 			width: auto;
-			gap: 8px;
+			gap: var(--space-2);
 			padding: 0 10px;
 			font-family: var(--font-body);
 			font-size: var(--text-label-lg);

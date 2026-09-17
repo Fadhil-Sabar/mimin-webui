@@ -61,7 +61,6 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		font-weight: 500;
 	}
 	.section-label-row p {
 		margin: 0;
@@ -80,8 +79,8 @@
 	.tool-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 8px;
-		margin-top: 12px;
+		gap: var(--space-2);
+		margin-top: var(--space-3);
 	}
 	.tool-option {
 		display: flex;
@@ -91,9 +90,11 @@
 		padding: 10px;
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 		cursor: pointer;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition:
+			border-color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 	.tool-option:hover:not(.disabled) {
 		border-color: var(--border-strong);

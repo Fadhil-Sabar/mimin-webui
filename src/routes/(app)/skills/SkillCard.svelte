@@ -73,9 +73,12 @@
 		padding: 18px;
 		text-align: left;
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 		background: var(--surface);
-		transition: var(--duration-short4) var(--ease-standard);
+		transition:
+			border-color var(--duration-short4) var(--ease-standard),
+			box-shadow var(--duration-short4) var(--ease-standard),
+			transform var(--duration-short4) var(--ease-standard);
 		text-decoration: none;
 		color: inherit;
 		display: flex;
@@ -90,14 +93,14 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.card-icon {
 		display: grid;
 		place-items: center;
 		width: 36px;
 		height: 36px;
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 		color: var(--text-strong);
@@ -106,8 +109,8 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;
-		padding: 3px 8px;
-		border-radius: 4px;
+		padding: 3px var(--space-2);
+		border-radius: var(--radius-sm);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
 		color: var(--text-muted);
@@ -127,7 +130,6 @@
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.skill-description {
@@ -145,7 +147,7 @@
 	.card-footer {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
+		gap: var(--space-1);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -207,8 +209,10 @@
 		color: var(--text-muted);
 		background: transparent;
 		border: 1px solid var(--border);
-		border-radius: 5px;
-		transition: var(--duration-short3) var(--ease-standard);
+		border-radius: var(--radius-sm);
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 	.icon-action + .icon-action {
 		margin-left: 0;

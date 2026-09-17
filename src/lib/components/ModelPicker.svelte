@@ -296,14 +296,17 @@
 		min-width: 0;
 		max-width: 260px;
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		padding: 7px 9px;
 		color: var(--text-muted);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		transition: var(--duration-short4) var(--ease-standard);
+		transition:
+			color var(--duration-short4) var(--ease-standard),
+			background var(--duration-short4) var(--ease-standard),
+			border-color var(--duration-short4) var(--ease-standard);
 	}
 	:global(.model-trigger:hover:not(:disabled)) {
 		color: var(--text-strong);
@@ -339,11 +342,11 @@
 		display: flex;
 		align-items: center;
 		gap: 7px;
-		padding: 6px 8px;
+		padding: 6px var(--space-2);
 		margin-top: 6px;
 		margin-bottom: 0;
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
 		color: var(--text-dim);
 		flex-shrink: 0;
@@ -352,7 +355,6 @@
 		flex: 1;
 		min-width: 0;
 		border: 0;
-		outline: 0;
 		background: transparent;
 		font: inherit;
 		font-size: var(--text-body-md);
@@ -364,7 +366,7 @@
 		color: var(--text-dim);
 	}
 	.model-no-results {
-		padding: 16px 8px;
+		padding: var(--space-4) var(--space-2);
 		text-align: center;
 		color: var(--text-dim);
 		font-size: var(--text-body-md);
@@ -377,7 +379,7 @@
 		border-top: 1px solid var(--border);
 	}
 	.model-group-label {
-		padding: 6px 8px 5px;
+		padding: 6px var(--space-2) 5px;
 		color: var(--text-muted);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -388,12 +390,12 @@
 	.model-option {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		width: 100%;
 		border: 0;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: transparent;
-		padding: 8px;
+		padding: var(--space-2);
 		color: var(--text-body);
 		text-align: left;
 	}
@@ -437,7 +439,7 @@
 	.model-badge {
 		margin-left: auto;
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 35%, transparent);
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		padding: 2px 5px;
 		color: var(--status-ok-text);
 		font-size: var(--text-body-sm);
@@ -445,10 +447,10 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		white-space: nowrap;
 	}
-	@media (max-width: 700px) {
+	@media (max-width: 760px) {
 		:global(.model-trigger) {
 			min-height: 34px;
-			padding: 5px 8px;
+			padding: 5px var(--space-2);
 			font-size: var(--text-body-sm);
 			line-height: var(--text-body-sm--line-height);
 			letter-spacing: var(--text-body-sm--letter-spacing);
@@ -463,7 +465,7 @@
 			max-width: calc(100vw - 24px);
 			max-height: min(460px, 75dvh);
 			border: 1px solid var(--border-strong);
-			border-radius: 12px;
+			border-radius: var(--radius-xl);
 			box-shadow: 0 16px 48px var(--shadow);
 		}
 	}

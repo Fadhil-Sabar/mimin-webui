@@ -138,10 +138,9 @@
 		width: 100%;
 		min-height: 42px;
 		margin-top: 6px;
-		padding: 8px 11px;
+		padding: var(--space-2) 11px;
 		border: 1px solid var(--input-border);
-		border-radius: 6px;
-		outline: none;
+		border-radius: var(--radius-md);
 		background: var(--surface);
 		color: var(--text-strong);
 		font-family: var(--font-body);
@@ -158,6 +157,6 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 400;
-		margin-left: 4px;
+		margin-left: var(--space-1);
 	}
 </style>

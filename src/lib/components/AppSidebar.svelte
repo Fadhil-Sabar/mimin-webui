@@ -4,6 +4,7 @@
 	import { LogOut, PanelLeft, Plus, Sparkles } from '@lucide/svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
 	import SettingsMenu from '$lib/components/SettingsMenu.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { authClient } from '$lib/client/auth';
 	import { shell } from '$lib/client/shell.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
@@ -34,16 +35,19 @@
 				class="brand-muted">/ workbench</span
 			>
 		</div>
-		<button
-			class="sidebar-toggle"
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			class="mb-[var(--space-4)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-strong)]"
 			onclick={() => sidebar.toggle()}
 			title="Collapse sidebar"
-			aria-label="Collapse sidebar"><PanelLeft size={16} /></button
+			aria-label="Collapse sidebar"><PanelLeft size={16} /></Button
 		>
 	</div>
 	{#if shell.newChat}
-		<button
-			class="new-chat state-layer"
+		<Button
+			variant="default"
+			class="mb-[var(--space-4)] w-full justify-start px-[11px] py-[8px] text-left shadow-[0_2px_8px_var(--shadow-soft)] hover:-translate-y-px active:translate-y-0 active:scale-[0.97]"
 			disabled={shell.newChatDisabled}
 			title={shell.newChatEmpty ? 'Already on a new conversation' : 'New chat'}
 			onclick={() => {
@@ -51,13 +55,15 @@
 				shell.newChat?.();
 			}}
 		>
-			<Plus size={16} /> New chat <kbd>⌘ K</kbd>
-		</button>
+			<Plus size={16} /> New chat<kbd class="side-kbd">⌘ K</kbd>
+		</Button>
 	{:else}
-		<a
-			class="new-chat state-layer"
+		<Button
+			variant="default"
 			href={resolve('/chat?new=1')}
-			onclick={() => sidebar.closeMobile()}><Plus size={16} /> New chat <kbd>⌘ K</kbd></a
+			class="mb-[var(--space-4)] w-full justify-start px-[11px] py-[8px] text-left shadow-[0_2px_8px_var(--shadow-soft)] hover:-translate-y-px active:translate-y-0 active:scale-[0.97]"
+			onclick={() => sidebar.closeMobile()}
+			><Plus size={16} /> New chat<kbd class="side-kbd">⌘ K</kbd></Button
 		>
 	{/if}
 	<div class="sidebar-scroll">
@@ -94,9 +100,14 @@
 			</div>
 			<div class="user-actions">
 				<SettingsMenu />
-				<button class="logout-btn" onclick={logout} title="Log out" aria-label="Log out">
-					<LogOut size={15} />
-				</button>
+				<Button
+					variant="ghost"
+					size="icon-xs"
+					class="hover:bg-[color-mix(in_srgb,var(--danger-text)_10%,transparent)] hover:text-[var(--danger-text)]"
+					onclick={logout}
+					title="Log out"
+					aria-label="Log out"><LogOut size={15} /></Button
+				>
 			</div>
 		</div>
 	</div>
@@ -110,10 +121,17 @@
 		margin-left: auto;
 	}
 
-	.new-chat:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-		transform: none;
-		box-shadow: none;
+	.side-kbd {
+		margin-left: auto;
+		padding: 1px 5px;
+		border-radius: var(--radius-sm);
+		background: color-mix(in srgb, var(--accent-fg) 12%, transparent);
+		color: var(--accent-fg);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-weight: var(--text-label-sm--font-weight);
+		opacity: 0.65;
 	}
 </style>

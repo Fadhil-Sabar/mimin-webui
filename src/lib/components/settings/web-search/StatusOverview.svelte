@@ -43,11 +43,11 @@
 	.status-card {
 		display: flex;
 		align-items: center;
-		gap: 16px;
-		padding: 16px 20px;
+		gap: var(--space-4);
+		padding: var(--space-4) 20px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 		margin-bottom: 28px;
 	}
 	.status-icon {
@@ -59,7 +59,7 @@
 		color: var(--text-muted);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 	}
 	.status-content {
 		flex: 1;
@@ -69,7 +69,7 @@
 		display: flex;
 		align-items: center;
 		gap: 10px;
-		margin-bottom: 4px;
+		margin-bottom: var(--space-1);
 	}
 	.status-title-row strong {
 		font-size: var(--text-body-lg);
@@ -82,7 +82,7 @@
 		display: flex;
 		align-items: center;
 		flex-wrap: wrap;
-		gap: 8px;
+		gap: var(--space-2);
 		color: var(--text-muted);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -99,7 +99,7 @@
 		font-weight: 400;
 		background: var(--surface-2);
 		padding: 2px 6px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		border: 1px solid var(--border);
 		color: var(--text-strong);
 	}

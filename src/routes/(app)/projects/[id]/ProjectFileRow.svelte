@@ -101,11 +101,13 @@
 			<RefreshCw size={15} class={reindexing === file.id ? 'animate-spin' : undefined} />
 			{#if reindexing === file.id}<span class="row-action-label">Indexing…</span>{/if}
 		</Button>
-		<button
-			class="row-menu"
+		<Button
+			variant="ghost"
+			size="icon-xs"
+			class="text-[var(--text-dim)] hover:bg-[color-mix(in_srgb,var(--danger-text)_10%,transparent)] hover:text-[var(--danger-text)]"
 			type="button"
 			aria-label={`Delete ${file.filename}`}
-			onclick={() => ondelete(file)}><Trash2 size={15} /></button
+			onclick={() => ondelete(file)}><Trash2 size={15} /></Button
 		>
 	</div>
 </div>
@@ -114,7 +116,7 @@
 	.file-row {
 		display: grid;
 		align-items: center;
-		gap: 12px;
+		gap: var(--space-3);
 		min-height: 52px;
 		width: 100%;
 		padding: 10px 14px;
@@ -137,7 +139,7 @@
 		color: var(--text-muted);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 	}
 	.file-name {
 		min-width: 0;
@@ -180,23 +182,6 @@
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
-	}
-	.row-menu {
-		display: grid;
-		place-items: center;
-		width: 28px;
-		height: 28px;
-		color: var(--text-dim);
-		background: transparent;
-		border: 0;
-		border-radius: 4px;
-		transition:
-			color var(--duration-short3) var(--ease-standard),
-			background var(--duration-short3) var(--ease-standard);
-	}
-	.row-menu:hover {
-		color: var(--danger-text);
-		background: color-mix(in srgb, var(--danger-text) 10%, transparent);
 	}
 	.extraction-state {
 		display: inline-block;

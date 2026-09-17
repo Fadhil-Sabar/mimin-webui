@@ -17,6 +17,7 @@
 		peekNavigationHandoff
 	} from '$lib/client/navigation-handoff';
 	import { settingsModal } from '$lib/client/settings-modal.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import Topbar from '$lib/components/Topbar.svelte';
 	let prompt = $state('');
 	let conversations = $state<ConversationSummary[]>([]);
@@ -160,11 +161,13 @@
 					setLastUsedModel(model);
 				}}
 			/>
-			<button
-				class="send-button"
+			<Button
+				variant="default"
+				size="icon-lg"
+				class="ml-auto rounded-lg"
 				aria-label="Send prompt"
 				title="Send prompt"
-				onclick={submitPrompt}><Send size={16} aria-hidden="true" /></button
+				onclick={submitPrompt}><Send size={16} aria-hidden="true" /></Button
 			>
 		</div>
 	</div>
@@ -180,20 +183,19 @@
 	.home-wrap {
 		max-width: 800px;
 		margin: auto;
-		padding: clamp(64px, 15vh, 150px) 32px 80px;
+		padding: clamp(64px, 15vh, 150px) var(--space-6) 80px;
 	}
 	.home-wrap h1 {
 		font-family: var(--font-body);
 		font-size: var(--text-display-sm);
 		line-height: var(--text-display-sm--line-height);
 		letter-spacing: var(--text-display-sm--letter-spacing);
-		font-weight: 500;
 		color: var(--text-strong);
 		margin: 0 0 14px;
 	}
 	.workbench-label {
 		display: inline-flex;
-		margin-bottom: 12px;
+		margin-bottom: var(--space-3);
 		color: var(--text-muted);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
@@ -207,19 +209,19 @@
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
-		margin: 0 0 32px;
+		margin: 0 0 var(--space-6);
 	}
 	.setup-callout {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		max-width: 640px;
-		margin: 0 0 16px;
+		margin: 0 0 var(--space-4);
 		padding: 10px 14px;
 		color: var(--text-body);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -235,8 +237,8 @@
 	.home-composer {
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: 12px;
-		padding: 16px;
+		border-radius: var(--radius-xl);
+		padding: var(--space-4);
 		box-shadow: 0 10px 30px var(--shadow-soft);
 	}
 	.home-composer textarea {
@@ -244,7 +246,6 @@
 		width: 100%;
 		min-height: 78px;
 		border: 0;
-		outline: 0;
 		resize: none;
 		font-family: inherit;
 		font-size: var(--text-body-lg);
@@ -257,28 +258,11 @@
 		align-items: center;
 		gap: 7px;
 		border-top: 1px solid var(--border);
-		padding-top: 12px;
-	}
-	.send-button {
-		display: grid;
-		place-items: center;
-		margin-left: auto;
-		width: 40px;
-		height: 40px;
-		flex: 0 0 auto;
-		border: 0;
-		border-radius: 8px;
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		text-decoration: none;
-		transition: var(--duration-short4) var(--ease-standard);
-	}
-	.send-button:hover {
-		background: var(--accent-bg-hover);
+		padding-top: var(--space-3);
 	}
 	.example-row {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		margin-top: 18px;
 	}
@@ -286,7 +270,7 @@
 		border: 1px solid var(--border);
 		background: transparent;
 		color: var(--text-muted);
-		border-radius: 18px;
+		border-radius: 999px;
 		padding: 7px 11px;
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
@@ -296,9 +280,9 @@
 		color: var(--text-body);
 		background: var(--surface-hover);
 	}
-	@media (max-width: 700px) {
+	@media (max-width: 760px) {
 		.home-wrap {
-			padding: clamp(48px, 10vh, 84px) 18px 60px;
+			padding: clamp(var(--space-7), 10vh, 84px) 18px 60px;
 		}
 		.home-wrap h1 {
 			font-size: var(--text-headline-md);
@@ -307,9 +291,6 @@
 		}
 		.composer-row {
 			flex-wrap: wrap;
-		}
-		.send-button {
-			margin-left: auto;
 		}
 	}
 </style>

@@ -21,11 +21,13 @@
 		height: 28px;
 		flex: 0 0 28px;
 		border: 0;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		background: transparent;
 		color: var(--text-muted);
 		padding: 0;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 	.settings-btn:hover {
 		color: var(--text-strong);

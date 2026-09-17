@@ -1045,7 +1045,7 @@
 		width: 2px;
 		height: 24px;
 		background: var(--border-strong);
-		border-radius: 2px;
+		border-radius: var(--radius-sm);
 	}
 
 	/* `mobile-tabs` is the Tabs.Root element, so its class is passed to a child component
@@ -1054,7 +1054,7 @@
 		display: none;
 		background: var(--surface);
 		border-bottom: 1px solid var(--border);
-		padding: 4px 12px;
+		padding: var(--space-1) var(--space-3);
 		gap: 6px;
 		flex-shrink: 0;
 	}
@@ -1122,7 +1122,7 @@
 	.history-loader {
 		display: flex;
 		justify-content: center;
-		padding: 0 0 8px;
+		padding: 0 0 var(--space-2);
 	}
 
 	@media (max-width: 900px) {
@@ -1147,13 +1147,13 @@
 		}
 
 		.chat-wrap {
-			padding: 24px 16px 20px;
+			padding: var(--space-5) var(--space-4) 20px;
 		}
 	}
 
-	@media (max-width: 420px) {
+	@media (max-width: 560px) {
 		.chat-wrap {
-			padding-inline: 12px;
+			padding-inline: var(--space-3);
 		}
 	}
 </style>

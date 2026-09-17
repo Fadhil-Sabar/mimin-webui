@@ -287,8 +287,8 @@
 		border: 0;
 		color: var(--text-faint);
 		cursor: pointer;
-		padding: 4px;
-		border-radius: 4px;
+		padding: var(--space-1);
+		border-radius: var(--radius-sm);
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;

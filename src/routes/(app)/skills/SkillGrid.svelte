@@ -52,16 +52,18 @@
 		padding: 18px;
 		text-align: left;
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 		background: var(--surface);
-		transition: var(--duration-short4) var(--ease-standard);
+		transition:
+			border-color var(--duration-short4) var(--ease-standard),
+			background var(--duration-short4) var(--ease-standard);
 		text-decoration: none;
 		color: inherit;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 8px;
+		gap: var(--space-2);
 		color: var(--text-muted);
 		border-style: dashed;
 		background: transparent;
@@ -84,7 +86,7 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-dim);
 	}
-	@media (max-width: 850px) {
+	@media (max-width: 900px) {
 		.skill-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}

@@ -265,23 +265,23 @@
 
 <style>
 	.models-section {
-		margin-top: 16px;
+		margin-top: var(--space-4);
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 	.models-label-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
-		margin-top: 4px;
+		margin-top: var(--space-1);
 		margin-bottom: 2px;
 	}
 	.models-title-wrap {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.field-title {
@@ -298,7 +298,7 @@
 		color: var(--text-muted);
 		background: var(--surface-2);
 		padding: 2px 7px;
-		border-radius: 12px;
+		border-radius: var(--radius-xl);
 		border: 1px solid var(--border);
 	}
 	.optional {
@@ -307,7 +307,7 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 400;
-		margin-left: 4px;
+		margin-left: var(--space-1);
 	}
 	.models-header-actions {
 		display: flex;
@@ -334,7 +334,7 @@
 	.fetch-models-btn {
 		background: var(--surface-subtle, rgba(255, 255, 255, 0.05));
 		border: 1px solid var(--border);
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		color: var(--text-muted);
 		font-family: var(--font-body);
 		font-size: var(--text-label-sm);
@@ -343,7 +343,10 @@
 		font-weight: 500;
 		padding: 3px 9px;
 		cursor: pointer;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 	.fetch-models-btn:hover:not(:disabled) {
 		color: var(--text);
@@ -357,8 +360,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
-		margin-top: 4px;
+		gap: var(--space-2);
+		margin-top: var(--space-1);
 		flex-wrap: wrap;
 	}
 	.btn-group-selection {
@@ -366,7 +369,7 @@
 		align-items: center;
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		overflow: hidden;
 	}
 	.filter-btn {
@@ -404,8 +407,8 @@
 		gap: 6px;
 		background: var(--surface);
 		border: 1px solid var(--input-border);
-		border-radius: 6px;
-		padding: 3px 8px;
+		border-radius: var(--radius-md);
+		padding: 3px var(--space-2);
 		flex: 1;
 		min-width: 120px;
 		max-width: 190px;
@@ -414,7 +417,6 @@
 	.models-search-box input {
 		width: 100%;
 		border: none;
-		outline: none;
 		background: transparent;
 		color: var(--text);
 		font-size: var(--text-body-sm);
@@ -440,7 +442,7 @@
 		max-height: 220px;
 		overflow-y: auto;
 		border: 1px solid var(--input-border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		background: var(--surface);
 		display: flex;
 		flex-direction: column;
@@ -516,7 +518,7 @@
 		font-weight: 500;
 		text-transform: uppercase;
 		padding: 1px 5px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		color: var(--status-ok-text);
 		background: color-mix(in srgb, var(--status-ok-dot) 15%, transparent);
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 30%, transparent);
@@ -526,7 +528,7 @@
 		line-height: var(--text-label-sm--line-height);
 		letter-spacing: var(--text-label-sm--letter-spacing);
 		padding: 1px 5px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		color: var(--text-dim);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
@@ -536,8 +538,8 @@
 		border: none;
 		color: var(--text-dim);
 		cursor: pointer;
-		padding: 4px;
-		border-radius: 4px;
+		padding: var(--space-1);
+		border-radius: var(--radius-sm);
 		opacity: 0;
 		transition:
 			opacity var(--duration-short3) var(--ease-standard),
@@ -554,7 +556,7 @@
 	}
 	.models-empty-state {
 		border: 1px dashed var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		padding: 18px 14px;
 		text-align: center;
 		background: var(--surface-2);
@@ -567,7 +569,7 @@
 		color: var(--text-muted);
 	}
 	.models-empty-filter {
-		padding: 16px;
+		padding: var(--space-4);
 		text-align: center;
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);

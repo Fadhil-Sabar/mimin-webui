@@ -50,11 +50,11 @@
 	</div>
 	<div class="connection-actions">
 		{#if fromUser}
-			<Button variant="default" class="max-[700px]:w-full" type="button" onclick={onconnect}>
+			<Button variant="default" class="max-[760px]:w-full" type="button" onclick={onconnect}>
 				Manage
 			</Button>
 		{:else}
-			<Button variant="default" class="max-[700px]:w-full" type="button" onclick={onconnect}>
+			<Button variant="default" class="max-[760px]:w-full" type="button" onclick={onconnect}>
 				Connect
 			</Button>
 		{/if}
@@ -67,11 +67,11 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 18px;
-		padding: 16px 18px;
+		padding: var(--space-4) 18px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
-		transition: var(--duration-short4) var(--ease-standard);
+		border-radius: var(--radius-xl);
+		transition: border-color var(--duration-short4) var(--ease-standard);
 	}
 	.connection-card:hover {
 		border-color: var(--text-dim);
@@ -91,7 +91,7 @@
 		color: var(--text-muted);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 	}
 	.connection-info {
 		min-width: 0;
@@ -110,7 +110,7 @@
 		color: var(--text-strong);
 	}
 	.connection-info p {
-		margin: 5px 0 8px;
+		margin: 5px 0 var(--space-2);
 		color: var(--text-muted);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
@@ -146,11 +146,11 @@
 	.connection-actions {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		flex: 0 0 auto;
 	}
 
-	@media (max-width: 700px) {
+	@media (max-width: 760px) {
 		.connection-card {
 			flex-direction: column;
 			align-items: stretch;

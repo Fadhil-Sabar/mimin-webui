@@ -72,25 +72,25 @@
 
 <style>
 	.project-canvases {
-		margin-top: 24px;
+		margin-top: var(--space-5);
 		padding: 20px;
 		background: var(--surface);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 	}
 
 	.section-header {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: 16px;
-		margin-bottom: 16px;
+		gap: var(--space-4);
+		margin-bottom: var(--space-4);
 	}
 
 	.header-title-row {
 		display: flex;
 		align-items: center;
-		gap: 8px;
+		gap: var(--space-2);
 		color: var(--text-strong);
 	}
 
@@ -99,7 +99,6 @@
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
 	}
 
 	.count-badge {
@@ -109,12 +108,12 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		padding: 1px 6px;
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 		color: var(--text-muted);
 	}
 
 	.header-desc {
-		margin: 4px 0 0;
+		margin: var(--space-1) 0 0;
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -127,14 +126,14 @@
 		align-items: center;
 		justify-content: center;
 		gap: 10px;
-		padding: 32px 16px;
+		padding: var(--space-6) var(--space-4);
 		text-align: center;
 		color: var(--text-muted);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		border: 1px dashed var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 	}
 
 	.canvases-grid {
@@ -146,11 +145,11 @@
 	.canvas-card {
 		background: var(--surface-subtle);
 		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		padding: 14px;
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: var(--space-2);
 		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 
@@ -209,7 +208,7 @@
 		line-height: var(--text-label-sm--line-height);
 		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-dim);
-		padding-top: 8px;
+		padding-top: var(--space-2);
 		border-top: 1px solid var(--border);
 	}
 
@@ -217,11 +216,11 @@
 	.canvas-date {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 	}
 
 	.open-canvas-link {
-		margin-top: 4px;
+		margin-top: var(--space-1);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -230,7 +229,7 @@
 		text-decoration: none;
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 		transition: color var(--duration-short3) var(--ease-standard);
 	}
 

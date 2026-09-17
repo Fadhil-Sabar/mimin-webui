@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import AuthShell from '$lib/components/AuthShell.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 	import { authClient } from '$lib/client/auth';
 	let email = $state('');
 	let password = $state('');
@@ -68,8 +69,8 @@
 			/></label
 		>
 		{#if error}<div class="auth-error" role="alert">{error}</div>{/if}
-		<button class="auth-submit" type="submit" disabled={busy}
-			>{busy ? 'Signing in...' : 'Sign in'}</button
+		<Button class="mt-[var(--space-1)] min-h-[44px] w-full" size="lg" type="submit" disabled={busy}
+			>{busy ? 'Signing in...' : 'Sign in'}</Button
 		>
 	</form>
 	<p class="auth-links"><a href={resolve('/forgot-password')}>Forgot your password?</a></p>

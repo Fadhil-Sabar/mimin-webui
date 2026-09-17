@@ -72,7 +72,6 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		font-weight: 500;
 	}
 	.section-label-row p {
 		margin: 0;
@@ -90,8 +89,8 @@
 	}
 	.trigger-input {
 		display: flex;
-		gap: 8px;
-		margin-top: 12px;
+		gap: var(--space-2);
+		margin-top: var(--space-3);
 	}
 	.trigger-input input {
 		min-width: 0;
@@ -100,8 +99,7 @@
 		color: var(--text-strong);
 		background: var(--surface-subtle);
 		border: 1px solid var(--input-border);
-		border-radius: 6px;
-		outline: 0;
+		border-radius: var(--radius-md);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -124,7 +122,7 @@
 		color: var(--text-body);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -138,7 +136,7 @@
 		color: var(--text-dim);
 		background: transparent;
 		border: 0;
-		border-radius: 3px;
+		border-radius: var(--radius-sm);
 	}
 	.trigger-chip button:hover {
 		color: var(--danger-text);

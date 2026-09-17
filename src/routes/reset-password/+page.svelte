@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { authClient } from '$lib/client/auth';
 	import AuthShell from '$lib/components/AuthShell.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	const MIN_PASSWORD_LENGTH = 8;
 
@@ -96,8 +97,11 @@
 				/></label
 			>
 			{#if error}<div class="auth-error" role="alert">{error}</div>{/if}
-			<button class="auth-submit" type="submit" disabled={busy}
-				>{busy ? 'Saving...' : 'Set new password'}</button
+			<Button
+				class="mt-[var(--space-1)] min-h-[44px] w-full"
+				size="lg"
+				type="submit"
+				disabled={busy}>{busy ? 'Saving...' : 'Set new password'}</Button
 			>
 		</form>
 		<p class="auth-links"><a href={resolve('/login')}>Back to sign in</a></p>

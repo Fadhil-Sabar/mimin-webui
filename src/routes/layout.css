@@ -321,7 +321,11 @@
 	--text-body: #444444;
 	--text-muted: #686862;
 	--text-dim: #70706a;
-	--text-faint: #85857e;
+	/* Raised from #85857e, which measured 3.56:1 on --bg and 3.71:1 on --surface --
+	 * below the 4.5:1 AA floor for the small meta text this token styles. #72726b is
+	 * the smallest darkening that clears the floor on both (4.64:1 / 4.84:1) while
+	 * keeping the warm-grey hue and staying lighter than --text-muted. */
+	--text-faint: #72726b;
 	--accent-bg: #181818;
 	--accent-bg-hover: #3a3a3a;
 	--accent-fg: #ffffff;
@@ -334,7 +338,10 @@
 	--shadow-softer: rgba(0, 0, 0, 0.03);
 	--shadow-faint: rgba(0, 0, 0, 0.08);
 	--scrollbar-thumb: #cfcfc9;
-	--brand-muted: #8b8b84;
+	/* Raised from #8b8b84 (3.28:1 on --bg). #74746d clears 4.5:1 on both surfaces
+	 * this token is used on (4.51:1 on --bg, 4.71:1 on --surface) and stays a step
+	 * lighter than --text-faint so the two faint tiers still read apart. */
+	--brand-muted: #74746d;
 	--status-ok-text: #4e6b53;
 	--status-ok-dot: #6a9870;
 	--status-working-text: #906b2f;
@@ -418,7 +425,10 @@ button:disabled {
 	color: var(--accent-fg);
 	background: var(--accent-bg);
 }
-:where(a, button, input, textarea):focus-visible {
+/* The app's single focus idiom (see `@utility focus-outline` above). `select` is
+ * included so a native select gets the same treatment as an input: several rules
+ * below used to set `outline: 0` on selects, which left them with only the UA ring. */
+:where(a, button, input, textarea, select):focus-visible {
 	outline: 2px solid var(--focus);
 	outline-offset: 3px;
 }
@@ -550,8 +560,9 @@ svg {
  * Material's interaction feedback is a translucent overlay laid over whatever the
  * surface already is: 8% on hover, 10% on focus and press. It has to be an overlay
  * rather than a `background-color` swap for two reasons:
- *  - a swap replaces the element's own fill, so a filled control (`.new-chat`, the
- *    primary Button) would lose its background and turn into a faint ghost;
+ *  - a swap replaces the element's own fill, so a filled control (the primary
+ *    `Button`, the sidebar's "New chat") would lose its background and turn into a
+ *    faint ghost;
  *  - several surfaces set their hover background from a scoped component `<style>`
  *    block, which merely ties with a plain `.state-layer` rule on specificity, so
  *    which one won would depend on stylesheet order.
@@ -617,31 +628,21 @@ svg {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 8px;
+	gap: var(--space-2);
 	margin-bottom: 2px;
 }
 .sidebar-top-row .brand {
-	padding: 2px 4px 18px;
+	padding: 2px var(--space-1) 18px;
 }
-.sidebar-toggle {
+/* The sidebar and topbar collapse toggles are shared `Button`s now; only the
+ * topbar one needs a rule here, and only for visibility. Whether it is shown
+ * depends on the `.app-shell` ancestor's collapsed state, which a utility on the
+ * button itself cannot express. */
+.topbar-toggle {
+	display: none;
+}
+.app-shell.sidebar-collapsed .topbar-toggle {
 	display: grid;
-	place-items: center;
-	width: 32px;
-	height: 32px;
-	color: var(--text-muted);
-	background: transparent;
-	border: 0;
-	border-radius: 6px;
-	padding: 0;
-	margin-bottom: 16px;
-	cursor: pointer;
-	transition:
-		color var(--duration-short3) var(--ease-standard),
-		background var(--duration-short3) var(--ease-standard);
-}
-.sidebar-toggle:hover {
-	color: var(--text-strong);
-	background: var(--surface-hover);
 }
 .sidebar-scroll {
 	flex: 1 1 auto;
@@ -653,8 +654,8 @@ svg {
 .brand {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	padding: 2px 8px 18px;
+	gap: var(--space-2);
+	padding: 2px var(--space-2) 18px;
 	font-family: var(--font-display);
 	font-size: var(--text-title-lg);
 	line-height: var(--text-title-lg--line-height);
@@ -667,7 +668,7 @@ svg {
 	height: 24px;
 	color: var(--accent-fg);
 	background: var(--accent-bg);
-	border-radius: 7px;
+	border-radius: var(--radius-md);
 	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-fg) 10%, transparent);
 }
 .brand-muted {
@@ -679,56 +680,6 @@ svg {
 	font-weight: 400;
 	margin-left: 0;
 }
-.new-chat {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	gap: 8px;
-	border-radius: 6px;
-	transition: var(--duration-short4) var(--ease-standard);
-}
-.new-chat {
-	width: 100%;
-	min-height: 38px;
-	justify-content: flex-start;
-	color: var(--accent-fg);
-	background: var(--accent-bg);
-	border: 1px solid var(--accent-bg);
-	border-radius: 7px;
-	padding: 8px 11px;
-	text-align: left;
-	margin: 0 0 16px;
-	font-size: var(--text-body-md);
-	line-height: var(--text-body-md--line-height);
-	letter-spacing: var(--text-body-md--letter-spacing);
-	font-weight: 500;
-	box-shadow: 0 2px 8px var(--shadow-soft);
-}
-.new-chat:hover {
-	color: var(--accent-fg);
-	background: var(--accent-bg-hover);
-	border-color: var(--accent-bg-hover);
-	transform: translateY(-1px);
-}
-/* The state layer supplies the visual press; dropping the hover lift and shrinking
- * slightly is what makes the same press felt. This is the app's only hover transform,
- * so it reads as the rule for a primary control rather than a one-off. */
-.new-chat:active:not(:disabled) {
-	transform: translateY(0) scale(0.97);
-}
-.new-chat kbd {
-	margin-left: auto;
-	color: var(--accent-fg);
-	opacity: 0.65;
-	font-family: var(--font-body);
-	padding: 1px 5px;
-	border-radius: 4px;
-	background: rgba(255, 255, 255, 0.12);
-	font-size: var(--text-label-sm);
-	line-height: var(--text-label-sm--line-height);
-	letter-spacing: var(--text-label-sm--letter-spacing);
-	font-weight: var(--text-label-sm--font-weight);
-}
 .nav-label {
 	color: var(--text-faint);
 	font-size: var(--text-label-md);
@@ -736,7 +687,7 @@ svg {
 	letter-spacing: var(--text-label-md--letter-spacing);
 	font-weight: var(--text-label-md--font-weight);
 	text-transform: uppercase;
-	padding: 8px 10px 4px;
+	padding: var(--space-2) 10px var(--space-1);
 }
 /* Space above every nav group except the first. */
 .nav-label-group {
@@ -757,7 +708,7 @@ svg {
 	font-weight: 500;
 	background: transparent;
 	border: 0;
-	border-radius: 6px;
+	border-radius: var(--radius-md);
 	padding: 7px 10px;
 	text-align: left;
 	transition:
@@ -814,7 +765,7 @@ svg {
 	display: flex;
 	align-items: center;
 	min-height: 32px;
-	border-radius: 6px;
+	border-radius: var(--radius-md);
 	transition: background var(--duration-short3) var(--ease-standard);
 }
 .recent-chat-item:hover {
@@ -831,11 +782,11 @@ svg {
 	min-width: 0;
 	min-height: 32px;
 	color: var(--text-dim);
-	padding: 6px 4px 6px 10px;
+	padding: 6px var(--space-1) 6px 10px;
 	background: transparent;
 	border: 0;
 	text-align: left;
-	border-radius: 6px;
+	border-radius: var(--radius-md);
 	font-size: var(--text-body-md);
 	line-height: var(--text-body-md--line-height);
 	letter-spacing: var(--text-body-md--letter-spacing);
@@ -885,7 +836,7 @@ svg {
 	top: 50%;
 	transform: translateY(-50%);
 	padding-left: 14px;
-	padding-right: 4px;
+	padding-right: var(--space-1);
 	background: linear-gradient(
 		to right,
 		transparent,
@@ -900,29 +851,6 @@ svg {
 	opacity: 1;
 	pointer-events: auto;
 }
-.item-action-btn {
-	display: grid;
-	place-items: center;
-	width: 22px;
-	height: 22px;
-	border: 0;
-	border-radius: 4px;
-	background: transparent;
-	color: var(--text-muted);
-	padding: 0;
-	cursor: pointer;
-	transition:
-		color var(--duration-short3) var(--ease-standard),
-		background var(--duration-short3) var(--ease-standard);
-}
-.item-action-btn:hover {
-	color: var(--text-strong);
-	background: var(--surface-3);
-}
-.item-action-btn.danger:hover {
-	color: var(--danger-text);
-	background: color-mix(in srgb, var(--danger-text) 12%, transparent);
-}
 .inline-rename-form {
 	display: flex;
 	align-items: center;
@@ -936,17 +864,15 @@ svg {
 	height: 26px;
 	background: var(--surface);
 	border: 1px solid var(--border-strong);
-	border-radius: 4px;
+	border-radius: var(--radius-sm);
 	padding: 2px 6px;
 	font-size: var(--text-body-md);
 	line-height: var(--text-body-md--line-height);
 	letter-spacing: var(--text-body-md--letter-spacing);
 	color: var(--text-strong);
-	outline: none;
 }
 .inline-rename-input:focus {
 	border-color: var(--focus);
-	box-shadow: 0 0 0 1px var(--focus);
 }
 .sidebar-bottom {
 	margin-top: auto;
@@ -957,8 +883,8 @@ svg {
 	display: flex;
 	align-items: center;
 	gap: 9px;
-	padding: 7px 8px;
-	border-radius: 8px;
+	padding: 7px var(--space-2);
+	border-radius: var(--radius-lg);
 	background: var(--surface);
 	border: 1px solid var(--border);
 	color: var(--text-body);
@@ -1001,25 +927,6 @@ svg {
 	letter-spacing: var(--text-body-sm--letter-spacing);
 	font-weight: 500;
 }
-.logout-btn {
-	display: grid;
-	place-items: center;
-	width: 28px;
-	height: 28px;
-	flex: 0 0 28px;
-	margin-left: auto;
-	border: 0;
-	border-radius: 5px;
-	background: transparent;
-	color: var(--text-muted);
-	transition: var(--duration-short3) var(--ease-standard);
-	padding: 0;
-}
-.logout-btn:hover {
-	color: var(--danger-text);
-	background: color-mix(in srgb, var(--danger-text) 10%, transparent);
-}
-
 /* ---------- Topbar ---------- */
 .main-content {
 	min-width: 0;
@@ -1046,7 +953,7 @@ svg {
 .topbar-left {
 	display: flex;
 	align-items: center;
-	gap: 12px;
+	gap: var(--space-3);
 	min-width: 0;
 }
 .topbar-toggle {
@@ -1080,48 +987,13 @@ svg {
 	align-items: center;
 	gap: 13px;
 }
-.row-menu {
-	display: grid;
-	place-items: center;
-	min-width: 36px;
-	min-height: 36px;
-	color: var(--text-muted);
-	background: transparent;
-	border: 0;
-	border-radius: 6px;
-}
-.row-menu:hover {
-	color: var(--text);
-}
-
-/* ---------- Theme toggle ---------- */
-.theme-toggle {
-	display: grid;
-	place-items: center;
-	width: 40px;
-	height: 40px;
-	color: var(--text-muted);
-	background: transparent;
-	border: 0;
-	border-radius: 6px;
-	padding: 0;
-	transition: var(--duration-short4) var(--ease-standard);
-}
-.theme-toggle:hover {
-	color: var(--text);
-}
-.theme-toggle svg {
-	display: block;
-	animation: icon-in var(--duration-short4) var(--ease-emphasized-decelerate);
-}
-
 /* ---------- Project detail page ---------- */
 .hero {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
-	gap: 28px;
-	padding-bottom: 28px;
+	gap: var(--space-5);
+	padding-bottom: var(--space-5);
 	border-bottom: 1px solid var(--border);
 }
 .title-row {
@@ -1137,15 +1009,14 @@ svg {
 	color: var(--text-body);
 	background: var(--surface-3);
 	border: 1px solid var(--border);
-	border-radius: 10px;
+	border-radius: var(--radius-xl);
 }
 .hero h1 {
-	margin: 0 0 8px;
+	margin: 0 0 var(--space-2);
 	font-family: var(--font-body);
 	font-size: var(--text-headline-md);
 	line-height: var(--text-headline-md--line-height);
 	letter-spacing: var(--text-headline-md--letter-spacing);
-	font-weight: 500;
 	color: var(--text-strong);
 }
 .hero p {
@@ -1158,13 +1029,13 @@ svg {
 }
 .hero-actions {
 	display: flex;
-	gap: 8px;
+	gap: var(--space-2);
 }
 .stats {
 	display: flex;
 	align-items: center;
-	gap: 35px;
-	padding: 19px 0;
+	gap: var(--space-6);
+	padding: var(--space-4) 0;
 	border-bottom: 1px solid var(--border);
 }
 .stats strong,
@@ -1214,14 +1085,13 @@ svg {
 	align-items: center;
 	justify-content: space-between;
 	gap: 15px;
-	margin-bottom: 12px;
+	margin-bottom: var(--space-3);
 }
 .section-heading h2 {
 	margin: 0 0 3px;
 	font-size: var(--text-body-lg);
 	line-height: var(--text-body-lg--line-height);
 	letter-spacing: var(--text-body-lg--letter-spacing);
-	font-weight: 500;
 	color: var(--text-strong);
 }
 .section-heading p {
@@ -1241,7 +1111,7 @@ svg {
 	color: var(--text-muted);
 	background: var(--surface-subtle);
 	border: 1px dashed var(--border-strong);
-	border-radius: 7px;
+	border-radius: var(--radius-md);
 	text-align: left;
 }
 .upload-zone:hover {
@@ -1265,41 +1135,12 @@ svg {
 	letter-spacing: var(--text-body-sm--letter-spacing);
 	color: var(--text-dim);
 }
-/* Shared pagination button used by the project knowledge + conversations lists. */
-.load-more {
-	display: block;
-	width: 100%;
-	margin-top: 10px;
-	padding: 9px 12px;
-	color: var(--text-muted);
-	background: var(--surface);
-	border: 1px solid var(--border);
-	border-radius: 6px;
-	font-size: var(--text-body-md);
-	line-height: var(--text-body-md--line-height);
-	letter-spacing: var(--text-body-md--letter-spacing);
-	font-weight: 500;
-	transition: var(--duration-short3) var(--ease-standard);
-}
-.load-more:hover:not(:disabled) {
-	color: var(--text-strong);
-	border-color: var(--text-dim);
-	background: var(--surface-2);
-}
-.load-more:focus-visible {
-	outline: 2px solid var(--focus);
-	outline-offset: 2px;
-}
-.load-more:disabled {
-	cursor: wait;
-	opacity: 0.65;
-}
 .file-list,
 .conversation-list {
 	overflow: hidden;
 	background: var(--surface);
 	border: 1px solid var(--border);
-	border-radius: 7px;
+	border-radius: var(--radius-md);
 }
 .file-row,
 .conversation-row {
@@ -1307,7 +1148,7 @@ svg {
 	align-items: center;
 	gap: 11px;
 	width: 100%;
-	padding: 12px 14px;
+	padding: var(--space-3) 14px;
 	border: 0;
 	border-bottom: 1px solid var(--border);
 	text-align: left;
@@ -1336,7 +1177,7 @@ svg {
 	color: var(--text-muted);
 	background: var(--surface-3);
 	border: 1px solid var(--border);
-	border-radius: 5px;
+	border-radius: var(--radius-sm);
 }
 .conversation-icon {
 	height: 28px;
@@ -1377,9 +1218,6 @@ svg {
 	letter-spacing: var(--text-body-sm--letter-spacing);
 	font-variant-numeric: tabular-nums;
 }
-.row-menu {
-	width: 24px;
-}
 .conversations {
 	padding-bottom: 30px;
 }
@@ -1387,20 +1225,20 @@ svg {
 /* ---------- Modal ---------- */
 .modal {
 	width: min(420px, 100%);
-	padding: 24px;
+	padding: var(--space-5);
 	background: var(--surface);
 	border: 1px solid var(--border-strong);
-	border-radius: 12px;
+	border-radius: var(--radius-xl);
 	box-shadow: 0 20px 50px var(--shadow);
 }
 .modal-head {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
-	gap: 16px;
+	gap: var(--space-4);
 }
 .modal h2 {
-	margin: 0 0 16px;
+	margin: 0 0 var(--space-4);
 	font-family: var(--font-body);
 	font-size: var(--text-title-lg);
 	line-height: var(--text-title-lg--line-height);
@@ -1425,8 +1263,7 @@ svg {
 	margin-top: 6px;
 	padding: 10px;
 	border: 1px solid var(--input-border);
-	border-radius: 6px;
-	outline: none;
+	border-radius: var(--radius-md);
 	background: var(--surface);
 	color: var(--text);
 	font-family: var(--font-body);
@@ -1445,7 +1282,7 @@ svg {
 .modal-actions {
 	display: flex;
 	justify-content: flex-end;
-	gap: 8px;
+	gap: var(--space-2);
 	margin-top: 22px;
 }
 
@@ -1455,7 +1292,7 @@ svg {
 	display: grid;
 	place-items: center;
 	background: var(--bg);
-	padding: 24px;
+	padding: var(--space-5);
 }
 .auth-theme-toggle {
 	position: fixed;
@@ -1467,14 +1304,14 @@ svg {
 	max-width: 380px;
 	background: var(--surface);
 	border: 1px solid var(--border);
-	border-radius: 14px;
+	border-radius: var(--radius-xl);
 	padding: 36px 30px;
 	box-shadow: 0 12px 34px var(--shadow-soft);
 }
 .auth-brand {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: var(--space-2);
 	font-family: var(--font-display);
 	font-size: var(--text-title-lg);
 	line-height: var(--text-title-lg--line-height);
@@ -1488,12 +1325,12 @@ svg {
 	height: 23px;
 	color: var(--accent-fg);
 	background: var(--accent-bg);
-	border-radius: 7px;
+	border-radius: var(--radius-md);
 }
 .auth-brand-muted {
 	color: var(--brand-muted);
 	font-weight: 500;
-	margin-left: -4px;
+	margin-left: calc(-1 * var(--space-1));
 }
 .auth-title {
 	margin: 0 0 5px;
@@ -1505,7 +1342,7 @@ svg {
 	color: var(--text-strong);
 }
 .auth-subtitle {
-	margin: 0 0 24px;
+	margin: 0 0 var(--space-5);
 	color: var(--text-muted);
 	font-size: var(--text-body-md);
 	line-height: var(--text-body-md--line-height);
@@ -1527,11 +1364,10 @@ svg {
 	min-height: 44px;
 	padding: 10px 11px;
 	border: 1px solid var(--input-border);
-	border-radius: 7px;
+	border-radius: var(--radius-md);
 	font-size: var(--text-body-lg);
 	line-height: var(--text-body-lg--line-height);
 	letter-spacing: var(--text-body-lg--letter-spacing);
-	outline: 0;
 	background: var(--surface-subtle);
 	color: var(--text);
 }
@@ -1546,7 +1382,7 @@ svg {
 	background: color-mix(in srgb, var(--danger-text) 10%, transparent);
 	border: 1px solid color-mix(in srgb, var(--danger-text) 45%, transparent);
 	color: var(--danger-text);
-	border-radius: 6px;
+	border-radius: var(--radius-md);
 	padding: 9px 11px;
 	font-size: var(--text-body-md);
 	line-height: var(--text-body-md--line-height);
@@ -1555,33 +1391,12 @@ svg {
 .auth-notice {
 	background: var(--surface-3);
 	border: 1px solid var(--border);
-	border-radius: 6px;
-	padding: 11px 12px;
+	border-radius: var(--radius-md);
+	padding: 11px var(--space-3);
 	color: var(--text-body);
 	font-size: var(--text-body-md);
 	line-height: var(--text-body-md--line-height);
 	letter-spacing: var(--text-body-md--letter-spacing);
-}
-.auth-submit {
-	width: 100%;
-	min-height: 44px;
-	margin-top: 4px;
-	padding: 11px;
-	border: 0;
-	border-radius: 7px;
-	background: var(--accent-bg);
-	color: var(--accent-fg);
-	font-size: var(--text-body-lg);
-	line-height: var(--text-body-lg--line-height);
-	letter-spacing: var(--text-body-lg--letter-spacing);
-	font-weight: 500;
-}
-.auth-submit:hover {
-	background: var(--accent-bg-hover);
-}
-.auth-submit:disabled {
-	opacity: 0.6;
-	cursor: default;
 }
 .auth-hint {
 	margin: 18px 0 0;
@@ -1594,7 +1409,7 @@ svg {
 .auth-hint code {
 	background: var(--surface-3);
 	border: 1px solid var(--border);
-	border-radius: 4px;
+	border-radius: var(--radius-sm);
 	padding: 1px 5px;
 	color: var(--text-muted);
 }
@@ -1618,6 +1433,28 @@ svg {
 	border-bottom-color: var(--text-strong);
 }
 
+/* ---------- Breakpoints ----------
+ * One small set, replacing eight ad-hoc widths (420/500/520/540/560/600/700/720/
+ * 760/800/850/900) that had drifted apart. Custom properties cannot be used in a
+ * media query, so the set is documented here and referenced by literal number:
+ *
+ *   560px  — phone. Single-column stacks, full-width controls, compact toolbars.
+ *   760px  — the primary step (`sm` equivalent). The app shell collapses the
+ *            sidebar into a drawer here, and the 56px topbar/bottom-nav heights
+ *            apply. Also the JS `matchMedia` width used by SettingsModal.
+ *   900px  — wide layouts: multi-column grids and the chat split view collapse.
+ *   1024px — the settings pane's two-column admin grid, which needs more room than
+ *            the viewport alone suggests because the 252px settings nav sits beside
+ *            it inside the modal.
+ *
+ * 760px is the anchor because it was already the most common width and the one the
+ * shell's behaviour is built around. The others are the nearest neighbours of the
+ * widths they replace: the old 420-600 queries collapse onto 560, 700-800 onto
+ * 760, and 850 onto 900 (the one upward round — the skill grid drops to two
+ * columns slightly earlier there, which is safe, rather than holding three columns
+ * inside the space the 260px sidebar still occupies at ~800px). 1024px is new: the
+ * admin grid used to stay two-up down to 761px, where its second column was too
+ * narrow for its own rows. */
 @media (max-width: 760px) {
 	:root {
 		--topbar-h: 56px;
@@ -1683,7 +1520,7 @@ svg {
 		display: grid !important;
 	}
 	.topbar {
-		padding: 0 16px;
+		padding: 0 var(--space-4);
 	}
 	.breadcrumb {
 		min-width: 0;
@@ -1715,7 +1552,7 @@ svg {
 		display: none;
 	}
 }
-@media (max-width: 420px) {
+@media (max-width: 560px) {
 	.sidebar .brand-muted {
 		display: none;
 	}
@@ -1723,7 +1560,7 @@ svg {
 		padding-inline: 14px;
 	}
 	.top-actions {
-		gap: 4px;
+		gap: var(--space-1);
 	}
 }
 @media (prefers-reduced-motion: reduce) {

@@ -31,8 +31,8 @@
 	.form-actions {
 		display: flex;
 		align-items: center;
-		gap: 12px;
-		padding-top: 12px;
+		gap: var(--space-3);
+		padding-top: var(--space-3);
 		border-top: 1px solid var(--border);
 	}
 </style>

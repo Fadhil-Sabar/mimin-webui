@@ -2,6 +2,7 @@
 	import { resolve } from '$app/paths';
 	import { authClient } from '$lib/client/auth';
 	import AuthShell from '$lib/components/AuthShell.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
 
 	let { data } = $props();
 
@@ -69,8 +70,11 @@
 				/></label
 			>
 			{#if error}<div class="auth-error" role="alert">{error}</div>{/if}
-			<button class="auth-submit" type="submit" disabled={busy}
-				>{busy ? 'Requesting...' : 'Request reset link'}</button
+			<Button
+				class="mt-[var(--space-1)] min-h-[44px] w-full"
+				size="lg"
+				type="submit"
+				disabled={busy}>{busy ? 'Requesting...' : 'Request reset link'}</Button
 			>
 		</form>
 	{/if}

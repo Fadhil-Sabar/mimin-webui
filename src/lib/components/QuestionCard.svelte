@@ -328,11 +328,11 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		margin: 8px 0;
-		padding: 12px 14px;
+		margin: var(--space-2) 0;
+		padding: var(--space-3) 14px;
 		background: var(--surface-subtle);
 		border: 1px solid var(--border-strong);
-		border-radius: 9px;
+		border-radius: var(--radius-lg);
 		transition:
 			border-color var(--duration-short4) var(--ease-standard),
 			box-shadow var(--duration-short4) var(--ease-standard);
@@ -356,7 +356,7 @@
 		justify-content: center;
 		width: 26px;
 		height: 26px;
-		border-radius: 5px;
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		color: var(--text-dim);
 		flex-shrink: 0;
@@ -380,7 +380,7 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 8px;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 
@@ -395,13 +395,13 @@
 	.header-status-badge {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 		font-size: var(--text-label-sm);
 		line-height: var(--text-label-sm--line-height);
 		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		padding: 2px 7px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		color: var(--text-muted);
 		border: 1px solid var(--border);
@@ -441,15 +441,15 @@
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
-		margin-top: 4px;
+		margin-top: var(--space-1);
 	}
 
 	.question-item {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
-		padding: 8px 10px;
-		border-radius: 6px;
+		gap: var(--space-2);
+		padding: var(--space-2) 10px;
+		border-radius: var(--radius-md);
 		background: var(--surface);
 		border: 1px solid var(--border);
 	}
@@ -478,7 +478,7 @@
 		font-weight: 500;
 		text-transform: uppercase;
 		padding: 1px 5px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		color: var(--text-dim);
 	}
@@ -486,16 +486,16 @@
 	.options-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-		gap: 8px;
+		gap: var(--space-2);
 		margin-top: 2px;
 	}
 
 	.option-pill {
 		display: flex;
 		align-items: flex-start;
-		gap: 8px;
-		padding: 8px 10px;
-		border-radius: 6px;
+		gap: var(--space-2);
+		padding: var(--space-2) 10px;
+		border-radius: var(--radius-md);
 		border: 1px solid var(--border);
 		background: var(--surface-subtle);
 		color: var(--text-body);
@@ -525,7 +525,7 @@
 		justify-content: center;
 		width: 16px;
 		height: 16px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		border: 1px solid var(--border-strong);
 		background: var(--surface);
 		color: var(--text-muted);
@@ -572,21 +572,18 @@
 	.custom-input {
 		width: 100%;
 		padding: 7px 10px;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		border: 1px solid var(--border);
 		background: var(--surface);
 		color: var(--text);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
-		outline: none;
 		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.custom-input:focus {
 		border-color: var(--border-strong);
-		outline: 2px solid var(--focus);
-		outline-offset: 1px;
 	}
 
 	.completed-summary {
@@ -604,13 +601,13 @@
 	.selected-pill {
 		display: inline-flex;
 		align-items: center;
-		gap: 4px;
+		gap: var(--space-1);
 		font-size: var(--text-label-sm);
 		line-height: var(--text-label-sm--line-height);
 		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		padding: 2px 7px;
-		border-radius: 4px;
+		border-radius: var(--radius-sm);
 		background: color-mix(in srgb, var(--status-ok-dot) 15%, transparent);
 		color: var(--status-ok-text);
 		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 30%, transparent);
@@ -643,9 +640,9 @@
 	.question-footer {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
-		margin-top: 4px;
-		padding-top: 8px;
+		gap: var(--space-2);
+		margin-top: var(--space-1);
+		padding-top: var(--space-2);
 		border-top: 1px solid var(--border);
 	}
 
@@ -653,12 +650,12 @@
 		display: flex;
 		align-items: center;
 		justify-content: flex-end;
-		gap: 8px;
+		gap: var(--space-2);
 	}
 
 	.btn-skip {
-		padding: 6px 12px;
-		border-radius: 6px;
+		padding: 6px var(--space-3);
+		border-radius: var(--radius-md);
 		border: 1px solid var(--border);
 		background: transparent;
 		color: var(--text-muted);
@@ -683,7 +680,7 @@
 		align-items: center;
 		gap: 6px;
 		padding: 6px 14px;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		border: 1px solid var(--accent-bg);
 		background: var(--accent-bg);
 		color: var(--accent-fg);

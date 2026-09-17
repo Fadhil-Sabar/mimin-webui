@@ -158,8 +158,8 @@
 		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-body);
 		background: var(--surface-2);
-		padding: 1px 4px;
-		border-radius: 4px;
+		padding: 1px var(--space-1);
+		border-radius: var(--radius-sm);
 	}
 	.modal-description {
 		margin: -10px 0 0;
@@ -189,8 +189,8 @@
 		color: var(--text-muted);
 		display: grid;
 		place-items: center;
-		padding: 4px;
-		border-radius: 4px;
+		padding: var(--space-1);
+		border-radius: var(--radius-sm);
 	}
 	.toggle-eye-btn:hover {
 		color: var(--text-strong);
@@ -201,16 +201,15 @@
 	input[type='url'] {
 		width: 100%;
 		min-height: 40px;
-		padding: 8px 12px;
+		padding: var(--space-2) var(--space-3);
 		background: var(--surface);
 		border: 1px solid var(--input-border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		color: var(--text-strong);
 		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		outline: none;
 		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 	input[type='text']:focus,

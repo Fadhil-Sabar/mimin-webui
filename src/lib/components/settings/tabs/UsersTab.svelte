@@ -3,6 +3,9 @@
 	import { Check, Copy, KeyRound, UserPlus, Users } from '@lucide/svelte';
 	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
+	import { Button } from '$lib/components/ui/button/index.js';
+	import { Card } from '$lib/components/ui/card/index.js';
+	import { Input } from '$lib/components/ui/input/index.js';
 	import { authClient } from '$lib/client/auth';
 
 	type ManagedUser = {
@@ -153,10 +156,10 @@
 	</PageHeader>
 
 	<div class="admin-grid">
-		<section class="panel">
+		<Card shadow="raised">
 			<div class="panel-heading">
 				<UserPlus size={18} />
-				<h2>Create account</h2>
+				<h2 class="md-body-lg">Create account</h2>
 			</div>
 			<p class="muted">Users receive access immediately with the initial password you provide.</p>
 			<form
@@ -166,13 +169,22 @@
 				}}
 				aria-busy={saving}
 			>
-				<label>Name<input bind:value={name} autocomplete="name" required /></label>
-				<label>Email<input bind:value={email} type="email" autocomplete="email" required /></label>
+				<label>Name<Input class="mt-1.5" bind:value={name} autocomplete="name" required /></label>
 				<label
-					>Initial password<input
+					>Email<Input
+						class="mt-1.5"
+						bind:value={email}
+						type="email"
+						autocomplete="email"
+						required
+					/></label
+				>
+				<label
+					>Initial password<Input
+						class="mt-1.5"
 						bind:value={password}
 						type="password"
-						minlength="8"
+						minlength={8}
 						autocomplete="new-password"
 						required
 					/></label
@@ -184,16 +196,16 @@
 				>
 				{#if error}<p class="message error" role="alert">{error}</p>{/if}
 				{#if success}<p class="message success" role="status">{success}</p>{/if}
-				<button class="primary" type="submit" disabled={saving}
-					>{saving ? 'Creating…' : 'Create user'}</button
+				<Button class="mt-[var(--space-2)] w-full" size="lg" type="submit" disabled={saving}
+					>{saving ? 'Creating…' : 'Create user'}</Button
 				>
 			</form>
-		</section>
+		</Card>
 
-		<section class="panel users-panel">
+		<Card shadow="raised">
 			<div class="panel-heading">
 				<Users size={18} />
-				<h2>Workspace users</h2>
+				<h2 class="md-body-lg">Workspace users</h2>
 				<span class="count">{total}</span>
 			</div>
 			{#if loading}
@@ -220,14 +232,15 @@
 							<span class:admin-role={managedUser.role === 'admin'} class="role"
 								>{managedUser.role ?? 'user'}</span
 							>
-							<button
-								type="button"
-								class="ghost"
+							<Button
+								variant="secondary"
+								size="sm"
+								class="whitespace-nowrap"
 								onclick={() => createResetLink(managedUser)}
 								disabled={resetLinkBusyId === managedUser.id}
 							>
 								{resetLinkBusyId === managedUser.id ? 'Creating…' : 'Reset link'}
-							</button>
+							</Button>
 						</div>
 					{/each}
 				</div>
@@ -243,38 +256,50 @@
 							{new Date(resetLink.expiresAt).toLocaleTimeString()}.
 						</p>
 						<div class="reset-link-row">
-							<input readonly value={resetLink.url} aria-label="Password reset link" />
-							<button type="button" class="copy" onclick={copyResetLink}>
+							<Input
+								class="reset-link-input"
+								readonly
+								value={resetLink.url}
+								aria-label="Password reset link"
+							/>
+							<Button
+								variant="outline"
+								size="sm"
+								class="flex-none gap-1.5 px-[var(--space-3)]"
+								onclick={copyResetLink}
+							>
 								{#if resetLinkCopied}<Check size={14} /> Copied{:else}<Copy size={14} /> Copy{/if}
-							</button>
+							</Button>
 						</div>
 					</div>
 				{/if}
 				<div class="pagination">
-					<button
-						type="button"
+					<Button
+						variant="outline"
+						size="sm"
 						onclick={() => {
 							page -= 1;
 							loadUsers();
 						}}
-						disabled={page === 0 || loading}>Previous</button
-					><span>Page {page + 1} of {pageCount}</span><button
-						type="button"
+						disabled={page === 0 || loading}>Previous</Button
+					><span>Page {page + 1} of {pageCount}</span><Button
+						variant="outline"
+						size="sm"
 						onclick={() => {
 							page += 1;
 							loadUsers();
 						}}
-						disabled={page + 1 >= pageCount || loading}>Next</button
+						disabled={page + 1 >= pageCount || loading}>Next</Button
 					>
 				</div>
 			{/if}
-		</section>
+		</Card>
 	</div>
 </div>
 
 <style>
 	.tab-content {
-		padding: 28px 32px 48px;
+		padding: 28px var(--space-6) var(--space-7);
 	}
 	.muted {
 		color: var(--text-muted);
@@ -287,26 +312,16 @@
 		grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
 		gap: 20px;
 	}
-	.panel {
-		padding: 24px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 12px;
-		box-shadow: 0 8px 24px var(--shadow-soft);
-	}
 	.panel-heading {
 		display: flex;
 		align-items: center;
 		gap: 9px;
 		color: var(--text-strong);
+		min-width: 0;
 	}
 	.panel-heading h2 {
 		margin: 0;
 		font-family: var(--font-body);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
 	}
 	.count {
 		margin-left: auto;
@@ -327,42 +342,26 @@
 		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 	}
-	input,
+	/* The inputs are the shared `Input`; the native `<select>` beside them is styled
+	 * to the same treatment so the two read as one field type. */
 	select {
 		display: block;
 		width: 100%;
-		min-height: 42px;
-		margin-top: 6px;
-		padding: 9px 10px;
+		min-height: 44px;
+		margin-top: var(--space-2);
+		padding: var(--space-2) 11px;
 		color: var(--text);
-		background: var(--surface-subtle);
+		background: var(--surface);
 		border: 1px solid var(--input-border);
-		border-radius: 7px;
+		border-radius: var(--radius-md);
 		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 	}
-	.primary {
-		width: 100%;
-		min-height: 42px;
-		margin-top: 8px;
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border: 0;
-		border-radius: 7px;
-		font-family: var(--font-body);
-		font-size: var(--text-label-lg);
-		line-height: var(--text-label-lg--line-height);
-		letter-spacing: var(--text-label-lg--letter-spacing);
-		font-weight: 500;
-	}
-	.primary:disabled {
-		opacity: 0.6;
-	}
 	.message {
 		padding: 9px 11px;
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
@@ -382,7 +381,8 @@
 	.user-entry {
 		display: flex;
 		align-items: center;
-		gap: 11px;
+		flex-wrap: wrap;
+		gap: var(--space-3);
 		padding: 14px 0;
 		border-bottom: 1px solid var(--border);
 	}
@@ -422,7 +422,7 @@
 	}
 	.role {
 		margin-left: auto;
-		padding: 4px 8px;
+		padding: var(--space-1) var(--space-2);
 		color: var(--text-muted);
 		background: var(--surface-3);
 		border-radius: 999px;
@@ -436,31 +436,12 @@
 		color: var(--accent-fg);
 		background: var(--accent-bg);
 	}
-	.ghost {
-		padding: 7px 11px;
-		color: var(--text-body);
-		background: var(--surface-subtle);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		font-family: var(--font-body);
-		font-size: var(--text-label-md);
-		line-height: var(--text-label-md--line-height);
-		letter-spacing: var(--text-label-md--letter-spacing);
-		font-weight: 500;
-		white-space: nowrap;
-	}
-	.ghost:hover {
-		background: var(--surface-hover);
-	}
-	.ghost:disabled {
-		opacity: 0.5;
-	}
 	.reset-link {
-		margin-top: 16px;
+		margin-top: var(--space-4);
 		padding: 14px;
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 10px;
+		border-radius: var(--radius-xl);
 	}
 	.reset-link-head {
 		display: flex;
@@ -472,38 +453,24 @@
 		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.reset-link .muted {
-		margin: 8px 0 10px;
+		margin: var(--space-2) 0 10px;
 	}
 	.reset-link-row {
 		display: flex;
-		gap: 8px;
+		gap: var(--space-2);
 	}
-	.reset-link-row input {
-		margin-top: 0;
+	/* The reset URL is the one field rendered in the mono face. Two-class selector so
+	 * it outranks the shared input primitive's `md-body-md` role class. */
+	:global(.reset-link-row .reset-link-input) {
 		font-family: var(--font-mono);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
-	.copy {
-		display: flex;
-		flex: 0 0 auto;
-		align-items: center;
-		gap: 6px;
-		padding: 0 12px;
-		color: var(--text-body);
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 7px;
-		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		font-weight: 500;
-	}
 	.pagination {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		justify-content: space-between;
 		gap: 10px;
 		margin-top: 18px;
@@ -512,24 +479,12 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
-	.pagination button {
-		padding: 7px 9px;
-		color: var(--text-body);
-		background: var(--surface-subtle);
-		border: 1px solid var(--border);
-		border-radius: 6px;
-		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		font-weight: 500;
-	}
-	.pagination button:disabled {
-		opacity: 0.45;
-	}
-	@media (max-width: 760px) {
+	/* Two columns only once the settings pane is wide enough to give the users panel
+	 * a usable second column: the 260px floor on the form panel leaves the list panel
+	 * too narrow below this, and its rows used to spill past the dialog edge. */
+	@media (max-width: 1024px) {
 		.tab-content {
-			padding: 20px 16px 48px;
+			padding: 20px var(--space-4) var(--space-7);
 		}
 		.admin-grid {
 			grid-template-columns: 1fr;

@@ -82,16 +82,19 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		gap: 12px;
+		gap: var(--space-3);
 		width: 100%;
 		min-height: 72px;
-		padding: 16px;
+		padding: var(--space-4);
 		color: var(--text-muted);
 		background: var(--surface-subtle);
 		border: 1px dashed var(--border-strong);
-		border-radius: 8px;
+		border-radius: var(--radius-lg);
 		text-align: left;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 	.upload-zone:hover {
 		color: var(--text-strong);
@@ -125,7 +128,7 @@
 		color: var(--text-muted);
 		background: var(--surface-2);
 		border: 1px solid var(--border);
-		border-radius: 6px;
+		border-radius: var(--radius-md);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -135,7 +138,7 @@
 		font-weight: 500;
 	}
 	.upload-summary ul {
-		margin: 6px 0 0 16px;
+		margin: 6px 0 0 var(--space-4);
 		padding: 0;
 		color: var(--danger-text);
 		line-height: var(--text-body-md--line-height);
