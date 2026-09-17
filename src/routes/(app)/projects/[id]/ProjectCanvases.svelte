@@ -151,7 +151,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		transition: border-color 0.15s;
+		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.canvas-card:hover {
@@ -231,7 +231,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 4px;
-		transition: color 0.14s ease;
+		transition: color var(--duration-short3) var(--ease-standard);
 	}
 
 	.open-canvas-link:hover {

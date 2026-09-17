@@ -116,11 +116,12 @@
 		border: 1px solid var(--input-border);
 		border-radius: 6px;
 		color: var(--text-strong);
+		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		outline: none;
-		transition: border-color 0.15s ease;
+		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 	input[type='text']:focus {
 		border-color: var(--focus);
@@ -134,6 +135,7 @@
 	}
 	.test-header h3 {
 		margin: 0 0 4px;
+		font-family: var(--font-body);
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
@@ -214,9 +216,10 @@
 	}
 	.answer-label {
 		display: block;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-muted);
 		margin-bottom: 6px;
@@ -232,9 +235,10 @@
 
 	.sources-label {
 		display: block;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-family: var(--font-body);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 		color: var(--text-muted);
 		margin-bottom: 10px;
@@ -260,13 +264,15 @@
 		gap: 8px;
 	}
 	.source-num {
-		font-size: var(--text-body-sm);
+		font-family: var(--font-mono);
+		font-size: var(--text-label-sm);
 		color: var(--text-dim);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
 		font-weight: 500;
 	}
 	.source-link {
+		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);

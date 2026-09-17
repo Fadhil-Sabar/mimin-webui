@@ -297,11 +297,18 @@
 	}
 	.title-row strong,
 	.card-title strong,
-	.privacy-note strong {
+	.privacy-note > div > strong {
 		color: var(--text-strong);
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
+		font-weight: 500;
+	}
+	.privacy-note p strong {
+		color: var(--text-strong);
+		font-size: inherit;
+		line-height: inherit;
+		letter-spacing: inherit;
 		font-weight: 500;
 	}
 	.footnote-perm.warning {
@@ -327,6 +334,9 @@
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
+	}
+	.switch-row b {
+		font-weight: 500;
 	}
 	.privacy-note {
 		display: flex;
@@ -395,6 +405,7 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	code {
+		font-family: var(--font-mono);
 		padding: 1px 4px;
 		color: var(--text-body);
 		background: var(--surface-2);

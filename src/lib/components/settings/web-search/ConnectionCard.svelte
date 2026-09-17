@@ -71,7 +71,7 @@
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: 10px;
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 	}
 	.connection-card:hover {
 		border-color: var(--text-dim);
@@ -102,6 +102,7 @@
 		gap: 9px;
 	}
 	.connection-name strong {
+		font-family: var(--font-body);
 		font-size: var(--text-body-lg);
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);

@@ -963,8 +963,8 @@
 		display: grid;
 		place-items: center;
 		transition:
-			color 0.14s ease,
-			background 0.14s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 
 	.toggle-btn:hover {
@@ -993,9 +993,9 @@
 		color: var(--text-muted);
 		cursor: pointer;
 		transition:
-			color 0.14s ease,
-			background 0.14s ease,
-			border-color 0.14s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.action-btn:hover {
@@ -1023,9 +1023,9 @@
 		cursor: pointer;
 		color: var(--text-muted);
 		transition:
-			color 0.14s ease,
-			background 0.14s ease,
-			border-color 0.14s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.icon-btn:hover:not(:disabled) {
@@ -1070,9 +1070,9 @@
 		cursor: pointer;
 		white-space: nowrap;
 		transition:
-			color 0.14s ease,
-			border-color 0.14s ease,
-			background 0.14s ease;
+			color var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 
 	.add-scene-btn:hover {
@@ -1131,8 +1131,8 @@
 		border-radius: 4px;
 		cursor: pointer;
 		transition:
-			color 0.14s ease,
-			background 0.14s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard);
 	}
 
 	.code-tab:hover {
@@ -1199,15 +1199,6 @@
 
 	:global(.spin) {
 		animation: spin 1s linear infinite;
-	}
-
-	@keyframes spin {
-		from {
-			transform: rotate(0deg);
-		}
-		to {
-			transform: rotate(360deg);
-		}
 	}
 
 	/* Modal Styles */

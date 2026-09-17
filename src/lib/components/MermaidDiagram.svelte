@@ -204,14 +204,14 @@
 				>
 					<Tabs.Trigger
 						value="diagram"
-						class="mermaid-tab h-auto! flex-none gap-1 rounded-sm border-0 bg-transparent px-2 text-[var(--text-muted)] duration-[140ms] hover:text-[var(--text-strong)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-hover)]! data-[state=active]:text-[var(--text-strong)]! data-[state=active]:shadow-[0_1px_2px_var(--shadow-softer)]! [&_svg]:size-3!"
+						class="mermaid-tab h-auto! flex-none gap-1 rounded-sm border-0 bg-transparent px-2 text-[var(--text-muted)] duration-(--duration-short3) hover:text-[var(--text-strong)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-hover)]! data-[state=active]:text-[var(--text-strong)]! data-[state=active]:shadow-[0_1px_2px_var(--shadow-softer)]! [&_svg]:size-3!"
 					>
 						<Eye size={12} />
 						<span>Diagram</span>
 					</Tabs.Trigger>
 					<Tabs.Trigger
 						value="code"
-						class="mermaid-tab h-auto! flex-none gap-1 rounded-sm border-0 bg-transparent px-2 text-[var(--text-muted)] duration-[140ms] hover:text-[var(--text-strong)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-hover)]! data-[state=active]:text-[var(--text-strong)]! data-[state=active]:shadow-[0_1px_2px_var(--shadow-softer)]! [&_svg]:size-3!"
+						class="mermaid-tab h-auto! flex-none gap-1 rounded-sm border-0 bg-transparent px-2 text-[var(--text-muted)] duration-(--duration-short3) hover:text-[var(--text-strong)]! focus-visible:ring-0! data-[state=active]:bg-[var(--surface-hover)]! data-[state=active]:text-[var(--text-strong)]! data-[state=active]:shadow-[0_1px_2px_var(--shadow-softer)]! [&_svg]:size-3!"
 					>
 						<Code size={12} />
 						<span>Code</span>
@@ -416,7 +416,7 @@
 		background: var(--surface-2);
 		overflow: hidden;
 		box-shadow: 0 2px 8px var(--shadow-softer);
-		transition: border-color 0.15s ease;
+		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.mermaid-header {
@@ -496,7 +496,10 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
 		cursor: pointer;
-		transition: all 0.14s ease;
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background-color var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.action-btn:hover {
@@ -564,12 +567,6 @@
 		animation: spin 0.8s linear infinite;
 	}
 
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
 	.mermaid-error-state {
 		display: flex;
 		flex-direction: column;
@@ -613,7 +610,7 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		cursor: pointer;
-		transition: background 0.15s ease;
+		transition: background var(--duration-short3) var(--ease-standard);
 	}
 
 	.view-code-btn:hover {
@@ -704,7 +701,9 @@
 		background: transparent;
 		color: var(--text-muted);
 		cursor: pointer;
-		transition: all 0.14s ease;
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.modal-btn:hover {
@@ -738,7 +737,7 @@
 	}
 
 	.mermaid-transform-target {
-		transition: transform 0.05s ease-out;
+		transition: transform var(--duration-short1) linear;
 		will-change: transform;
 		display: flex;
 		align-items: center;

@@ -303,7 +303,7 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 	}
 	:global(.model-trigger:hover:not(:disabled)) {
 		color: var(--text-strong);
@@ -320,7 +320,7 @@
 	:global(.model-trigger svg:last-child) {
 		flex: 0 0 auto;
 		color: var(--text-faint);
-		transition: transform 0.18s ease;
+		transition: transform var(--duration-short4) var(--ease-standard);
 	}
 	:global(.model-trigger svg:last-child.rotated) {
 		transform: rotate(180deg);

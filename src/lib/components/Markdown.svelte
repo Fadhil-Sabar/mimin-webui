@@ -311,7 +311,7 @@
 		text-decoration: underline;
 		text-underline-offset: 2px;
 		font-weight: 500;
-		transition: background 0.15s ease;
+		transition: background var(--duration-short3) var(--ease-standard);
 	}
 	:global(.markdown-body a:not(.citation-pill):hover) {
 		background: color-mix(in srgb, var(--accent-bg) 16%, transparent);
@@ -368,7 +368,7 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		color: var(--text-muted);
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 	:global(.markdown-body .copy-code-btn:hover) {
 		background: var(--surface-hover);
@@ -444,10 +444,10 @@
 		top: -1px;
 		text-decoration: none;
 		transition:
-			transform 0.15s ease,
-			background 0.15s ease,
-			border-color 0.15s ease,
-			box-shadow 0.15s ease;
+			transform var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard),
+			box-shadow var(--duration-short3) var(--ease-standard);
 		box-shadow: 0 1px 3px var(--shadow-softer);
 		cursor: pointer;
 	}
@@ -490,9 +490,9 @@
 		pointer-events: none;
 		visibility: hidden;
 		transition:
-			opacity 0.16s ease,
-			transform 0.16s ease,
-			visibility 0.16s ease;
+			opacity var(--duration-short3) var(--ease-standard),
+			transform var(--duration-short3) var(--ease-standard),
+			visibility var(--duration-short3) var(--ease-standard);
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
@@ -605,7 +605,10 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
-		transition: all 0.16s ease;
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			background-color var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 		cursor: pointer;
 		user-select: none;
 	}
@@ -634,7 +637,7 @@
 		font-weight: 500;
 	}
 	:global(.sources-chevron) {
-		transition: transform 0.2s ease;
+		transition: transform var(--duration-short4) var(--ease-standard);
 		margin-left: 2px;
 	}
 	:global(.sources-chevron.rotate) {
@@ -656,7 +659,11 @@
 		border: 1px solid var(--border);
 		text-decoration: none;
 		color: inherit;
-		transition: all 0.16s ease;
+		transition:
+			background-color var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard),
+			box-shadow var(--duration-short3) var(--ease-standard),
+			transform var(--duration-short3) var(--ease-standard);
 		box-shadow: 0 1px 3px var(--shadow-softer);
 	}
 	.source-card-item:hover {

@@ -452,7 +452,7 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		user-select: none;
-		transition: color 0.14s ease;
+		transition: color var(--duration-short3) var(--ease-standard);
 	}
 
 	.token-summary:hover {
@@ -534,7 +534,7 @@
 		gap: 4px;
 		padding: 2px 4px;
 		border-radius: 4px;
-		transition: color 0.14s ease;
+		transition: color var(--duration-short3) var(--ease-standard);
 	}
 
 	.text-btn:hover {
@@ -553,9 +553,9 @@
 		cursor: pointer;
 		color: var(--text-muted);
 		transition:
-			color 0.14s ease,
-			background 0.14s ease,
-			border-color 0.14s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.icon-btn:hover {

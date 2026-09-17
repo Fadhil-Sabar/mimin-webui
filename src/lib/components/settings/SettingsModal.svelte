@@ -72,9 +72,7 @@
 	let mobileView = $state<'list' | 'detail'>('detail');
 	let query = $state('');
 
-	let visibleTabs = $derived(
-		TAB_ITEMS.filter((item) => !item.adminOnly || user?.role === 'admin')
-	);
+	let visibleTabs = $derived(TAB_ITEMS.filter((item) => !item.adminOnly || user?.role === 'admin'));
 	let filteredTabs = $derived(
 		visibleTabs.filter((item) => item.label.toLowerCase().includes(query.toLowerCase()))
 	);
@@ -119,7 +117,7 @@
 				{#each filteredTabs as item (item.key)}
 					<button
 						type="button"
-						class="settings-nav-item"
+						class="settings-nav-item state-layer"
 						class:active={item.key === settingsModal.activeTab}
 						aria-current={item.key === settingsModal.activeTab ? 'true' : undefined}
 						onclick={() => selectTab(item.key)}
@@ -187,6 +185,7 @@
 		width: 100%;
 		height: 100%;
 		min-height: 0;
+		font-family: var(--font-body);
 	}
 	.settings-navigation {
 		min-height: 0;
@@ -203,8 +202,11 @@
 	}
 	.settings-nav-header h2 {
 		margin: 0;
-		font-size: var(--text-body-md);
-		font-weight: 600;
+		font-family: var(--font-body);
+		font-size: var(--text-title-lg);
+		line-height: var(--text-title-lg--line-height);
+		letter-spacing: var(--text-title-lg--letter-spacing);
+		font-weight: 500;
 		color: var(--text-strong);
 	}
 	.close-button,
@@ -242,7 +244,14 @@
 		outline: 0;
 		background: transparent;
 		color: var(--text-strong);
-		font-size: var(--text-body-sm);
+		font-family: var(--font-body);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 400;
+	}
+	.settings-search input::placeholder {
+		color: var(--text-dim);
 	}
 	.settings-nav-list {
 		display: grid;
@@ -259,10 +268,16 @@
 		background: transparent;
 		color: var(--text-body);
 		text-align: left;
+		font-family: var(--font-body);
 		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: 500;
 		cursor: pointer;
 		width: 100%;
-		transition: background-color 0.15s ease, color 0.15s ease;
+		transition:
+			background-color var(--duration-short3) var(--ease-standard),
+			color var(--duration-short3) var(--ease-standard);
 	}
 	.settings-nav-item:hover,
 	.settings-nav-item.active {
@@ -307,6 +322,11 @@
 			width: auto;
 			gap: 8px;
 			padding: 0 10px;
+			font-family: var(--font-body);
+			font-size: var(--text-label-lg);
+			line-height: var(--text-label-lg--line-height);
+			letter-spacing: var(--text-label-lg--letter-spacing);
+			font-weight: 500;
 		}
 	}
 </style>

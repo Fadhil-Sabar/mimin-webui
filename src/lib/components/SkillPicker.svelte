@@ -224,7 +224,7 @@
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 		cursor: pointer;
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 	}
 
 	:global(.skill-trigger:hover:not(:disabled)) {
@@ -263,7 +263,7 @@
 	:global(.skill-trigger svg:last-child) {
 		flex: 0 0 auto;
 		color: var(--text-faint);
-		transition: transform 0.18s ease;
+		transition: transform var(--duration-short4) var(--ease-standard);
 	}
 
 	:global(.skill-trigger svg:last-child.rotated) {
@@ -312,7 +312,7 @@
 		background: var(--surface-subtle);
 		color: var(--text-dim);
 		flex-shrink: 0;
-		transition: border-color 0.15s ease;
+		transition: border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.skill-search:focus-within {
@@ -365,7 +365,7 @@
 		padding: 8px 10px;
 		border-radius: 6px;
 		cursor: pointer;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 		background: transparent;
 		user-select: none;
 		width: 100%;
@@ -453,7 +453,7 @@
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		text-decoration: none;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 
 	.manage-link:hover {

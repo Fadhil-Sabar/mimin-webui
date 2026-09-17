@@ -61,6 +61,7 @@
 	h1 {
 		margin: 0;
 		color: var(--text-strong);
+		font-family: var(--font-body);
 		font-size: var(--text-headline-md);
 		line-height: var(--text-headline-md--line-height);
 		letter-spacing: var(--text-headline-md--letter-spacing);
@@ -69,6 +70,7 @@
 	.page-header-eyebrow {
 		margin: 0 0 var(--space-1);
 		color: var(--text-muted);
+		font-family: var(--font-body);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
@@ -79,6 +81,7 @@
 		margin: var(--space-1) 0 0;
 		max-width: 62ch;
 		color: var(--text-muted);
+		font-family: var(--font-body);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);

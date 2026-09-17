@@ -60,9 +60,9 @@
 		cursor: pointer;
 		position: relative;
 		transition:
-			color 0.16s ease,
-			background 0.16s ease,
-			border-color 0.16s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 
 	.canvas-toggle-btn:hover:not(:disabled) {

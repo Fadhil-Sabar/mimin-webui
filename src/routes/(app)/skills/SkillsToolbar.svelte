@@ -86,7 +86,7 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 	.scope-tabs button:hover {
 		color: var(--text-strong);

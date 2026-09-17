@@ -92,15 +92,16 @@
 		background: transparent;
 		border: 1px solid var(--border);
 		border-radius: 999px;
+		font-family: var(--font-body);
 		font-size: var(--text-label-lg);
 		line-height: var(--text-label-lg--line-height);
 		letter-spacing: var(--text-label-lg--letter-spacing);
 		font-weight: var(--text-label-lg--font-weight);
 		cursor: pointer;
 		transition:
-			color 0.15s ease,
-			background 0.15s ease,
-			border-color 0.15s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 	.preference-toggle:hover:not(:disabled) {
 		color: var(--text);

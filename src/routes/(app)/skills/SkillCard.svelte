@@ -75,7 +75,7 @@
 		border: 1px solid var(--border);
 		border-radius: 10px;
 		background: var(--surface);
-		transition: 0.18s ease;
+		transition: var(--duration-short4) var(--ease-standard);
 		text-decoration: none;
 		color: inherit;
 		display: flex;
@@ -208,7 +208,7 @@
 		background: transparent;
 		border: 1px solid var(--border);
 		border-radius: 5px;
-		transition: 0.15s ease;
+		transition: var(--duration-short3) var(--ease-standard);
 	}
 	.icon-action + .icon-action {
 		margin-left: 0;

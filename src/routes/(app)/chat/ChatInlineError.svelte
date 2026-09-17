@@ -20,7 +20,7 @@
 		{#if canRetry}
 			<button
 				type="button"
-				class="inline-error-retry"
+				class="inline-error-retry state-layer"
 				onclick={onretry}
 				disabled={retryDisabled}
 				title="Retry last message"
@@ -48,6 +48,7 @@
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
+		animation: message-in var(--duration-medium1) var(--ease-emphasized-decelerate) backwards;
 	}
 	.inline-error-content {
 		min-width: 0;
@@ -78,7 +79,9 @@
 		border: 1px solid rgba(141, 47, 38, 0.4);
 		border-radius: 5px;
 		cursor: pointer;
-		transition: all 0.15s ease;
+		transition:
+			background-color var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
 	}
 	.inline-error-retry:hover:not(:disabled) {
 		background: rgba(141, 47, 38, 0.22);

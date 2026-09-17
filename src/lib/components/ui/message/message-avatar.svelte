@@ -14,7 +14,7 @@
 	bind:this={ref}
 	data-slot="message-avatar"
 	class={cn(
-		'flex w-fit min-w-8 shrink-0 items-center justify-center self-end overflow-hidden rounded-full bg-muted group-has-data-[slot=message-footer]/message:-translate-y-8',
+		'flex w-fit min-w-8 shrink-0 items-center justify-center self-end overflow-hidden rounded-full bg-muted transition-transform duration-(--duration-short4) ease-emphasized group-has-data-[slot=message-footer]/message:-translate-y-8',
 		className
 	)}
 	{...restProps}

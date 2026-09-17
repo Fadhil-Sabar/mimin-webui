@@ -80,6 +80,19 @@
 	let loadingEarlier = $state(false);
 	/** How many older pages the reader paged in, so a reload does not reset the cursor. */
 	let earlierPagesLoaded = 0;
+	/**
+	 * Whether a message mounted right now should rise in. Bulk transcript changes —
+	 * opening a conversation, paging in older history — put messages on screen that
+	 * were not just sent, so they must arrive still; only messages appended to a
+	 * settled transcript animate. `ChatMessage` snapshots this at mount, so disarming
+	 * across a swap and re-arming afterwards cannot restart anything already rendered.
+	 */
+	let enterMotionArmed = $state(true);
+
+	function suppressEnterMotion() {
+		enterMotionArmed = false;
+		void tick().then(() => (enterMotionArmed = true));
+	}
 
 	// Canvas workspace state
 	let activeCanvas = $state<CanvasDetail | null>(null);
@@ -469,6 +482,9 @@
 			const transcript = page.messages.filter(
 				(message) => message.role === 'user' || message.role === 'assistant'
 			);
+			// A loaded page is history, not something the reader just sent, so it is
+			// swapped in without the enter animation.
+			suppressEnterMotion();
 			if (switching) {
 				stream.setMessages(transcript);
 				earlierPagesLoaded = 0;
@@ -509,6 +525,8 @@
 		try {
 			const page = await fetchConversationPage<ConversationMessage>(id, { before: cursor });
 			if (id !== activeId || loadToken !== conversationLoadToken) return;
+			// Older history is paged in above the reader, so it must arrive still.
+			suppressEnterMotion();
 			stream.mergeMessages(
 				page.messages.filter((message) => message.role === 'user' || message.role === 'assistant')
 			);
@@ -839,6 +857,7 @@
 						contextAttachments={turnAttachments(i)}
 						projectName={activeConversation?.projectName ?? null}
 						showContext={displayPreferences.showMessageContext}
+						enterMotion={enterMotionArmed}
 					/>
 				{/each}
 				<ChatInlineError
@@ -986,7 +1005,7 @@
 		padding: 0;
 		border: 0;
 		touch-action: none;
-		transition: background 0.15s;
+		transition: background var(--duration-short3) var(--ease-standard);
 	}
 
 	.split-divider:hover {

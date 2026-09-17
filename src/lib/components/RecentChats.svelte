@@ -163,7 +163,7 @@
 		</button>
 	</div>
 	{#each displayConversations as conversation (conversation.id)}
-		<div class="recent-chat-item" class:active-project={conversation.id === activeId}>
+		<div class="recent-chat-item state-layer" class:active-project={conversation.id === activeId}>
 			{#if effectiveEditingId === conversation.id}
 				<form
 					class="inline-rename-form"
@@ -293,8 +293,8 @@
 		align-items: center;
 		justify-content: center;
 		transition:
-			color 0.15s ease,
-			background-color 0.15s ease;
+			color var(--duration-short3) var(--ease-standard),
+			background-color var(--duration-short3) var(--ease-standard);
 		margin-top: 14px;
 	}
 	.nav-label-action:hover {

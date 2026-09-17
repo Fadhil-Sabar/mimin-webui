@@ -358,19 +358,6 @@
 		flex-shrink: 0;
 	}
 
-	:global(.animate-spin) {
-		animation: spin 1s linear infinite;
-	}
-
-	@keyframes spin {
-		from {
-			transform: rotate(0deg);
-		}
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
 	.search-results-list {
 		flex: 1;
 		overflow-y: auto;
@@ -409,7 +396,7 @@
 		text-align: left;
 		color: var(--text-body);
 		font-family: var(--font-body);
-		transition: background-color 0.12s ease;
+		transition: background-color var(--duration-short2) var(--ease-standard);
 	}
 
 	.search-result-item:hover,
