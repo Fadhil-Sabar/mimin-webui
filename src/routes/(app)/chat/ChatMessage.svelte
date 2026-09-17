@@ -256,9 +256,6 @@
 	}
 	:global(.chat-message) {
 		padding: 12px 0;
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	:global(.chat-message-content) {
 		gap: 6px;
@@ -269,9 +266,6 @@
 	:global(.chat-message-header) {
 		gap: 8px;
 		padding-inline: 0;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	:global(.chat-message[data-align='end'] .chat-message-header) {
 		justify-content: flex-end;
@@ -362,9 +356,6 @@
 	:global(.chat-message-footer) {
 		gap: 4px;
 		padding-inline: 0;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
 	}
 	.message-action-btn {
 		position: relative;
