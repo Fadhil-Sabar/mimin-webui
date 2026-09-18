@@ -1,5 +1,9 @@
 # Mimin Browser Bridge extension
 
+[Back to the README](../README.md) · [Server-side research tools](../docs/api.md#research-tools)
+
+Open **Settings → Browser Extension**, enable the bridge, and install the package for your browser. Reload Mimin in that same browser and check for **Connected**.
+
 Mimin Browser Bridge is an optional Manifest V3 extension for Chromium browsers and Firefox. It connects an enabled Mimin web app to real browser tabs: the app can ask it to search Google/Google Scholar, open and read public HTTP/HTTPS web pages, and (after you approve it in the chat) read and interact with tabs you already have open.
 
 The bridge distinguishes these search and browsing capabilities:
@@ -24,7 +28,13 @@ so a background tab has working layout, computed styles, text, and focus, and a 
 current one is still usable. What a page will not accept is synthesized _trusted_ input, which no extension
 can produce in Firefox; that is what `changed: false` reports (see above).
 
-Mimin asks for the user's approval in the chat before the first tab access in a conversation: **allow just once** or **allow for this conversation**. "Allow just once" authorizes that single tool call, so a turn that needs several tab actions asks again. The extension itself has no notion of that grant; it only enforces host permissions and allowed origins.
+Mimin asks for the user's approval in the chat before the first tab access in a conversation: **allow just once** or **allow for this conversation**. "Allow just once" authorizes that single tool call, so a turn that needs several tab actions asks again. A conversation-scoped grant lasts 12 hours in memory in the server process and can be revoked with `DELETE /api/conversations/{id}/browser-consent`; it is intentionally not persisted, so a restart asks again. Denying or not answering blocks the tab tools for that call. A user-requested URL passed to `browser_open` is allowed because the request itself is the instruction. The extension itself has no notion of the chat grant; it only enforces host permissions and allowed origins.
+
+Browser commands travel over the chat SSE stream and results return through an authenticated, one-time callback. Pending requests and browser consent are process-local, so multi-instance deployments need sticky routing for related chat, consent, and result requests or a shared request broker. Keep the chat open while a browser tool runs.
+
+CAPTCHA challenges require the user to complete them manually; the bridge never bypasses them.
+
+A navigation or interaction returns its snapshot only after the page has something to describe. Single-page apps can report the new document as loaded before rendering, so the bridge waits a few seconds for text or an interactive element and then returns whatever exists; if nothing rendered, the result says the page is still rendering rather than returning an empty snapshot. An explicit `waitMs` is respected as a minimum settle time.
 
 ## Host permissions and privacy
 
@@ -77,6 +87,8 @@ MIMIN_EXTENSION_ORIGINS=https://mimin.example.com npm run extension:build
 That ZIP is not what a hosted Mimin serves. **Settings → Browser Extension** regenerates the archive per
 download for the origin the browser is on (`GET /api/browser/extension/{chrome|firefox}`), so an instance
 reached at a LAN IP, a Tailscale name, or a domain works without a rebuild or any extra configuration.
+
+If you installed an earlier Mimin Search popup, download the package again from **Settings → Browser Extension**, replace it, and reload both the extension and Mimin. A package only bridges the origin it was downloaded from, so one installed for a different address (for example `http://localhost:5173`) reports **Not connected**. The download is rebuilt for the origin you are on; list any additional origins in `MIMIN_EXTENSION_ORIGINS` when one install must bridge several hostnames.
 
 ## Test locally
 

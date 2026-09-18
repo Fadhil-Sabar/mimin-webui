@@ -1,473 +1,141 @@
 # Mimin WebUI
 
-Mimin WebUI adalah workspace AI agent berbasis project. Aplikasi ini menggabungkan chat, project knowledge, model discovery, tool execution, dan persistent conversation dalam satu antarmuka minimal.
+Mimin WebUI adalah workspace AI agent berbasis project dengan chat, project knowledge, penemuan model, eksekusi tool, dan riwayat percakapan yang tersimpan.
 
-[Dokumentasi](#requirements) · [Kontribusi](CONTRIBUTING.md) · [Keamanan](SECURITY.md) · [Privasi](PRIVACY.md) · [Lisensi](LICENSE)
+[English](README.md) · [Mulai cepat](#mulai-cepat) · [Dokumentasi](#dokumentasi) · [Kontribusi](CONTRIBUTING.md)
 
-Frontend menggunakan **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, dan **Lucide**. Backend berjalan di SvelteKit server routes dengan **PostgreSQL**, **Drizzle ORM**, `@earendil-works/pi-agent-core`, dan `@earendil-works/pi-ai`.
+## Fitur
 
-## Status implementasi
+- **Chat:** respons streaming, riwayat percakapan, penghentian generasi, serta attachment file atau gambar.
+- **Project:** kelompokkan percakapan, kelola file, dan terapkan instruksi project pada setiap giliran agent.
+- **Knowledge:** ekstraksi teks PDF, OCR lokal, pencarian hybrid keyword/pgvector opsional, dan sitasi tersimpan dengan nomor halaman.
+- **Provider:** temukan model OpenAI, Anthropic, Google, atau endpoint kustom; simpan API key terenkripsi per pengguna.
+- **Riset:** pencarian web melalui Tavily, DuckDuckGo, atau SearXNG, serta pembacaan URL publik dengan fallback untuk halaman JavaScript saat extension browser tersambung.
+- **Browser bridge:** extension Chromium/Firefox opsional untuk pencarian Google/Scholar serta pembacaan dan interaksi tab dengan izin pengguna.
+- **Skill:** instruksi personal atau project yang dapat digunakan ulang, preset tool, dan saran berdasarkan frasa pemicu.
+- **Akun:** login email/password, reset password, pembuatan pengguna oleh administrator, serta pembatasan akses project, percakapan, dan file berdasarkan pemilik.
 
-Sudah tersedia:
+Dibangun dengan Svelte 5/SvelteKit, TypeScript, Tailwind CSS v4, Lucide, PostgreSQL, Drizzle ORM, dan Pi (`pi-agent-core` / `pi-ai`).
 
-- Autentikasi email/password dengan session cookie
-- Reset password dengan tautan sekali pakai yang berlaku satu jam: dikirim lewat email bila SMTP dikonfigurasi, atau disalin administrator dari `/admin/users`
-- Home workspace dengan chat composer
-- Chat room dengan SSE response streaming
-- Project dan conversation yang tersimpan secara persistent
-- Discovery model live untuk provider OpenAI, Anthropic, dan Google yang dikonfigurasi
-- Tool registry ter-normalisasi
-- Bridge opsional Chrome/Chromium dan Firefox agar agent membuka tab dan mencari lewat Google/Scholar
-- `web_fetch` untuk membaca satu URL publik tertentu (HTML, JSON, atau teks) dengan proteksi SSRF, dan beralih ke browser bridge bila halaman hanya terisi lewat JavaScript
-- `project_knowledge_search` untuk project conversation
-- Upload dan delete file project
-- Text extraction sederhana untuk `.txt`, `.md`, dan `.json`
-- PDF text extraction terbatas untuk chat attachment dan project knowledge
-- Chunking project knowledge untuk basic text search
-- Stop generation dengan `AbortController` dan Pi agent abort
-- CRUD project dan conversation
-- UI Projects lengkap untuk membuat, mengedit, menghapus, mencari, mengunggah knowledge, dan memulai chat project
-- Instruksi project diterapkan pada setiap agent turn dan project knowledge aktif secara otomatis
-- Status ekstraksi, jumlah halaman/chunk, dan error file project tersimpan secara persisten
-- Pengaturan API key provider per pengguna dengan penyimpanan terenkripsi, masking, dan env fallback
-- Attachment per message di chat dengan metadata persisten dan konteks riwayat percakapan
-- PostgreSQL migration dan seed script
-- Normalized API errors
-- Unit tests untuk validation, password hashing, tool registry, dan provider settings
+## Persyaratan
 
-Belum tersedia:
+- **Setup Docker:** Git dan Docker dengan Compose; image sudah menyertakan PostgreSQL 17 dengan pgvector dan Tesseract OCR.
+- **Pengembangan lokal:** instal juga Node.js 22+ dan npm 10+. Instal Tesseract beserta data bahasa Inggris/Indonesia untuk OCR; lihat [panduan knowledge](docs/knowledge.md) (English).
+- **Respons AI:** konfigurasikan provider melalui environment variable atau **Settings**. Provider bawaan memerlukan API key; endpoint lokal kustom dapat digunakan tanpa key.
 
-- Registration (pendaftaran akun mandiri)
+Server PostgreSQL 17+ yang sudah ada dapat menggantikan database Compose, tetapi pgvector harus terpasang sebelum migrasi dijalankan. Repositori memakai npm dan lockfile agar setup konsisten; kode sumber juga kompatibel dengan Bun.
 
-Reset password memakai tautan sekali pakai yang berlaku satu jam dan mengakhiri semua sesi yang ada saat dipakai. Isi `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, dan `SMTP_USER`/`SMTP_PASSWORD` agar tautan dikirim lewat email; tanpa konfigurasi itu tautan tetap dibuat, ditulis ke log server, dan dapat disalin administrator dari `/admin/users`. Port 587 memakai STARTTLS dan klien menolak mengirim kredensial bila relay tidak menawarkan TLS; `SMTP_ALLOW_INSECURE=true` hanya untuk relay lokal yang Anda kendalikan.
+## Mulai cepat
 
-## Arsitektur
-
-```text
-┌────────────────────────────────────────────┐
-│ SvelteKit UI                               │
-│ Home · Chat · Projects · Project Overview  │
-└──────────────────┬─────────────────────────┘
-                   │ REST + Server-Sent Events
-┌──────────────────▼─────────────────────────┐
-│ SvelteKit API routes                       │
-│ Projects · Conversations · Files           │
-│ Models · Tools · Messages · Stop           │
-└──────┬──────────────────────┬───────────────┘
-       │                      │
-┌──────▼───────┐      ┌───────▼────────────────┐
-│ PostgreSQL   │      │ Application AI layer    │
-│ Drizzle ORM  │      │ Agent service           │
-│              │      │ pi-agent-core           │
-│ projects     │      │ pi-ai model/provider    │
-│ conversations│      │ Tool registry           │
-│ messages     │      └─────────────────────────┘
-│ tool_calls   │
-│ sources      │      ┌─────────────────────────┐
-│ knowledge    │      │ Local file storage       │
-└──────────────┘      │ STORAGE_PATH             │
-                      └─────────────────────────┘
-```
-
-Logic domain dan runtime dipisahkan di `src/lib/server`:
-
-```text
-src/
-├── lib/
-│   ├── client/api.ts
-│   └── server/
-│       ├── ai/
-│       │   ├── agent.service.ts
-│       │   ├── model.service.ts
-│       │   └── tools/
-│       ├── db/
-│       │   ├── client.ts
-│       │   └── schema.ts
-│       ├── files/storage.ts
-│       ├── api.ts
-│       └── validation.ts
-└── routes/
-    └── api/
-```
-
-Route handler bertugas melakukan validasi dan orkestrasi service. Agent tidak dibuat secara ad hoc di setiap endpoint.
-
-## Requirements
-
-- Node.js 22+ atau Bun
-- Docker, jika menggunakan setup PostgreSQL lokal
-- PostgreSQL 17+
-- Minimal satu provider key untuk live response:
-  - `OPENAI_API_KEY`
-  - `ANTHROPIC_API_KEY`
-  - `GOOGLE_API_KEY` atau `GEMINI_API_KEY`
-- `PROVIDER_KEY_ENCRYPTION_SECRET` untuk mengenkripsi provider key milik pengguna
-
-Bun kompatibel dengan source code. Repository saat ini menggunakan npm dan lockfile agar setup reproducible.
-
-## Self-hosting dengan Docker
-
-Untuk melakukan self-host seluruh sistem (PostgreSQL + Mimin WebUI) menggunakan Docker Compose:
-
-1. Salin `.env.example` ke `.env` dan konfigurasikan API key provider serta secret:
-   ```bash
-   cp .env.example .env
-   ```
-   Ganti semua nilai `replace-with-...`. Gunakan perintah pembuat secret yang terdokumentasi di [`docs/deployment.md`](docs/deployment.md).
-2. Jalankan seluruh aplikasi:
-   ```bash
-   docker compose up -d --build
-   ```
-   Container menunggu PostgreSQL, menerapkan migrasi, dan hanya membuat admin awal ketika `AUTO_SEED=true` serta `SEED_PASSWORD` non-default sudah diatur.
-3. Buka `http://localhost:3000` (atau port yang disesuaikan pada `PORT` / `HOST_PORT`).
-   Login awal:
-   ```text
-   email:    admin@mimin.local
-   password: nilai SEED_PASSWORD
-   ```
-   Setelah bootstrap berhasil, atur `AUTO_SEED=false` dan hapus `SEED_PASSWORD` dari environment runtime.
-4. Menghentikan service:
-   ```bash
-   docker compose down
-   ```
-   Data tersimpan secara persisten di Docker volume `mimin-postgres` (database) dan `mimin-data` (file upload).
-
-## Setup lokal
+### 1. Ambil kode dan atur environment
 
 ```bash
 git clone https://github.com/Fadhil-Sabar/mimin-webui.git
 cd mimin-webui
-npm ci --legacy-peer-deps
-npm run playwright:install
 cp .env.example .env
 ```
 
-Isi `.env`:
-
-```env
-DATABASE_URL=postgres://mimin:mimin@localhost:5432/mimin
-OPENAI_API_KEY=your-provider-key
-PROVIDER_KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
-STORAGE_DRIVER=local
-STORAGE_PATH=./data/uploads
-```
-
-Provider key hanya dibaca server-side. Jangan menaruhnya di source code atau mengirimkannya ke browser.
-
-Jalankan PostgreSQL, migration, seed, dan development server:
+Buat secret yang berbeda, lalu salin hasil setiap perintah ke variabel yang sesuai di `.env`:
 
 ```bash
+openssl rand -hex 24     # POSTGRES_PASSWORD
+openssl rand -base64 32  # BETTER_AUTH_SECRET
+openssl rand -hex 32     # PROVIDER_KEY_ENCRYPTION_SECRET
+openssl rand -base64 24  # SEED_PASSWORD
+```
+
+- Ganti semua nilai `replace-with-...`. Gunakan `POSTGRES_PASSWORD` yang sama dalam `DATABASE_URL`; secret lainnya harus berbeda.
+- Isi `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, atau `GOOGLE_API_KEY` (`GEMINI_API_KEY` juga didukung), atau konfigurasikan provider setelah login.
+- Untuk alamat selain URL localhost bawaan, isi `BETTER_AUTH_URL` dan `ORIGIN` dengan origin yang digunakan, termasuk skema dan port. Gunakan HTTPS untuk deployment publik.
+- Simpan secret hanya di server dan jangan commit `.env`. Seluruh pengaturan opsional dijelaskan di [.env.example](.env.example).
+
+Pilih salah satu cara menjalankan aplikasi di bawah. Baca [panduan deployment](docs/deployment.md) (English) sebelum membuka akses publik.
+
+### 2a. Jalankan dengan Docker
+
+```bash
+docker compose up -d --build
+```
+
+Buka **http://localhost:3000** (atau port dari `HOST_PORT` / `PORT`). Saat startup, aplikasi menunggu PostgreSQL, menerapkan migrasi, dan membuat administrator awal jika `AUTO_SEED=true` serta `SEED_PASSWORD` non-default sudah diatur.
+
+### 2b. Jalankan secara lokal
+
+```bash
+npm ci --legacy-peer-deps
+npm run playwright:install
 docker compose up -d postgres
 npm run db:migrate
 npm run db:seed
 npm run dev
 ```
 
-Buka `http://localhost:5173`.
+Buka **http://localhost:5173**. `DATABASE_URL` harus mengarah ke database lokal; sesuaikan jika kredensial atau port database berubah. OCR lokal memerlukan Tesseract, atau atur `PDF_OCR_ENABLED=false` untuk menonaktifkannya.
+
+### 3. Login dan selesaikan bootstrap
+
+Login sebagai **`admin@mimin.local`** dengan **`SEED_PASSWORD`** Anda. Setelah bootstrap pertama berhasil, atur `AUTO_SEED=false`, hapus `SEED_PASSWORD` dari environment runtime, lalu restart atau buat ulang container aplikasi agar perubahan berlaku.
+
+Menjalankan seed kembali akan mereset password akun tersebut ke nilai yang diberikan. Gunakan `SEED_KEEP_PASSWORD=true` untuk mempertahankan password yang sudah diubah melalui UI.
+
+Hentikan layanan Compose dengan `docker compose down`. Data tetap tersimpan di `mimin-postgres` (database) dan, untuk stack Docker lengkap, `mimin-data` (upload). Upload lokal memakai `STORAGE_PATH`, dengan default `./data/uploads`.
+
+## Menggunakan Mimin
+
+### Akun dan provider
+
+Registrasi publik dinonaktifkan; administrator membuat pengguna melalui `/admin/users`. Tautan reset password hanya berlaku sekali selama satu jam dan mengakhiri sesi yang ada saat digunakan. Konfigurasikan SMTP untuk mengirim tautan lewat email, atau minta administrator membuat dan menyalinnya. Lihat [email reset password](docs/deployment.md#password-reset-email) (English).
+
+Simpan koneksi provider di **Settings**. API key pengguna disimpan terenkripsi dan diprioritaskan dibanding key dari environment server. Origin provider/pencarian kustom memerlukan persetujuan operator melalui `OUTBOUND_ALLOWED_ORIGINS`; lihat [referensi provider](docs/api.md#providers) (English).
+
+### Attachment dan project knowledge
+
+| Upload            | Format yang didukung                                                     | Batas                                      |
+| ----------------- | ------------------------------------------------------------------------ | ------------------------------------------ |
+| Chat              | `.txt`, `.md`, `.json`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif` | 5 file; 25 MB per file dan total per pesan |
+| Gambar chat       | Format gambar di atas; memerlukan model dengan kemampuan vision          | 8 MB per gambar; total 16 MB per giliran   |
+| Project knowledge | `.txt`, `.md`, `.json`, `.pdf`                                           | 25 MB per file; PDF maksimal 100 halaman   |
+
+PDF project mendukung OCR lokal dan sitasi halaman yang dapat diklik. Pencarian semantik diaktifkan secara opsional melalui `KNOWLEDGE_EMBEDDINGS_ENABLED=true` dan mengirim kutipan hasil ekstraksi ke provider embedding yang dikonfigurasi; pencarian keyword tetap tersedia jika embedding dinonaktifkan atau gagal. Gunakan **Reindex** pada file lama setelah mengubah pengaturan ekstraksi atau embedding. Lihat [panduan knowledge](docs/knowledge.md) (English) untuk setup, upgrade, dan batasannya.
 
 ### Extension browser opsional
 
-Buka **Settings → Browser Extension**, aktifkan bridge, lalu pasang paket sesuai browser. Muat ulang Mimin di browser yang sama dan pastikan status **Connected**.
+Buka **Settings → Browser Extension**, aktifkan bridge, lalu instal paket untuk browser Anda. Muat ulang Mimin di browser tersebut dan pastikan statusnya **Connected**. Paket menyesuaikan origin tempat Anda mengunduhnya; isi `MIMIN_EXTENSION_ORIGINS` untuk origin tambahan.
 
-Mimin membedakan beberapa kapabilitas riset dan browser:
+Berikan izin **Tab reading & interaction** melalui popup extension untuk membaca situs publik lain. Akses tab yang sudah terbuka juga memerlukan persetujuan di chat: **allow just once** atau **allow for this conversation**. Bridge nonaktif secara default dan tidak mengakses alamat privat/lokal. Lihat [panduan extension browser](browser-extension/README.md) untuk izin, instalasi, dan troubleshooting, serta [tool riset](docs/api.md#research-tools) untuk pencarian dan pembacaan URL di server (keduanya English).
 
-- **Web Search (`web_search`)**: Provider riset server-side default (Tavily dengan fallback DuckDuckGo). Permintaan riset umum (misalnya “cari berita terbaru OpenAI” atau “research agentic coding benchmark”) otomatis diarahkan ke `web_search` tanpa membuka browser.
-- **Web Fetch (`web_fetch`)**: Membaca satu URL publik tertentu di sisi server (misalnya “baca https://example.com/docs” atau salah satu hasil `web_search`) dan mengembalikan teks yang dapat dibaca beserta judul dan content type sebagai sitasi. Mendukung HTML, JSON, XML, dan teks biasa.
-- **Browser Search (`browser_search`)**: Pencarian Google atau Google Scholar melalui browser asli pengguna. Hanya aktif jika permintaan secara eksplisit menyebut Google atau Scholar (misalnya “cari di Google tentang WebMCP” atau “cari paper ini di Google Scholar”). Mengembalikan hasil pencarian terstruktur.
-- **Browser Open (`browser_open`)**: Membuka dan membaca halaman web publik HTTP/HTTPS melalui browser (misalnya “buka https://example.com” atau meninjau hasil pencarian). Membaca website umum memerlukan izin baca website publik yang diberikan pengguna di popup extension.
+## Pengembangan
 
-Gating tool deterministik per-turn memastikan model tidak menerima dua tool pencarian yang saling tumpang tindih. Ketika intent browser terdeteksi, `web_search` dan `web_fetch` disembunyikan untuk giliran tersebut dan tool browser ditampilkan.
+| Perintah                                     | Kegunaan                                            |
+| -------------------------------------------- | --------------------------------------------------- |
+| `npm run dev`                                | Menjalankan server pengembangan                     |
+| `npm run check`                              | Memeriksa tipe dan komponen Svelte                  |
+| `npm test`                                   | Menjalankan unit test                               |
+| `npm run build`                              | Membuat build produksi                              |
+| `npm run lint` / `npm run format`            | Memeriksa format/aturan lint atau menerapkan format |
+| `npm run db:generate` / `npm run db:migrate` | Membuat atau menerapkan migrasi schema              |
 
-#### Batasan `web_fetch`
+Lihat [CONTRIBUTING.md](CONTRIBUTING.md#quality-checks) (English) untuk pemeriksaan lengkap, termasuk integrasi database dan validasi extension browser.
 
-`web_fetch` membaca maksimal 2 MB per respons dan mengembalikan maksimal 12 000 karakter teks secara default (model dapat meminta hingga 50 000), mengikuti maksimal 5 redirect, dan berhenti setelah 15 detik. Tool ini tidak menjalankan JavaScript sendiri. Bila HTML yang dikembalikan terlihat seperti kerangka JavaScript (elemen root aplikasi yang kosong, dokumen penuh script tanpa teks, atau pesan `noscript` yang meminta JavaScript) dan browser bridge tersambung pada percakapan itu, halaman dibaca sekali lewat browser pengguna dan hasilnya ditandai `renderedBy: browser`. Bila bridge tidak tersedia, tool mengembalikan kerangka tersebut beserta penjelasannya, bukan menebak isi halaman.
+## Dokumentasi
 
-Karena URL ditentukan oleh model, setiap hop divalidasi dan permintaannya tidak dapat diarahkan ke jaringan server sendiri:
+Panduan referensi berikut tersedia dalam bahasa Inggris:
 
-- hanya URL `http(s)` tanpa kredensial yang diterima, dan rantai redirect divalidasi ulang satu per satu, sehingga URL publik tidak dapat memantulkan permintaan ke alamat yang diblokir
-- alamat loopback, link-local (termasuk metadata cloud `169.254.169.254`), privat (`10/8`, `172.16/12`, `192.168/16`), carrier-grade NAT (`100.64/10`), IPv6 unique-local, dan link-local ditolak, begitu juga nama `.localhost`, `.local`, dan `.internal`
-- hostname di-resolve sebelum permintaan dikirim, sehingga nama yang terlihat publik tetapi mengarah ke alamat privat tetap ditolak
-- origin non-HTTPS tetap harus disetujui di `OUTBOUND_ALLOWED_ORIGINS`, kebijakan yang sama dengan `web_search` dan provider discovery
-- respons biner seperti PDF dilaporkan lewat content type-nya alih-alih dikembalikan sebagai teks acak; lampirkan filenya ke chat
+- [Deployment](docs/deployment.md): secret, SMTP, HTTPS, backup, scaling, dan update.
+- [API dan tool](docs/api.md): autentikasi, provider, skill, attachment, streaming, dan tool riset.
+- [Arsitektur](docs/architecture.md): struktur aplikasi, database, runtime AI, dan route.
+- [Project knowledge](docs/knowledge.md): OCR, embedding, pencarian, sitasi, dan petunjuk migrasi.
+- [Extension browser](browser-extension/README.md): instalasi, izin, protokol, dan pemeriksaan browser.
 
-Fitur mati secara default dan diaktifkan per browser. Tool browser hanya tersedia untuk giliran chat yang terhubung. Secara default, extension memiliki host permissions untuk Google dan Google Scholar. Untuk membaca website publik lainnya, pengguna dapat memberikan izin opsional melalui popup extension pada bagian **Public website reading**. Jika izin belum diberikan, `browser_open` menavigasi ke halaman tetapi mengembalikan `{ readable: false, reason: "host_permission_required" }` tanpa membaca konten halaman. Tab yang sudah ada, riwayat browsing, serta alamat lokal/jaringan privat tetap terlindungi dan tidak pernah diakses. Jika muncul CAPTCHA, selesaikan sendiri; Mimin tidak mencoba membypass CAPTCHA. Biarkan chat terbuka selama tool bekerja.
+## Batasan saat ini
 
-Jika sebelumnya memasang popup Mimin Search, ganti/muat ulang extension dengan paket baru dan muat ulang Mimin. Untuk server selain lokal, isi `MIMIN_EXTENSION_ORIGINS` saat build dengan origin Mimin yang dipisahkan koma. Default: `http://localhost:5173` dan `http://127.0.0.1:5173`.
-
-Paket dibuat otomatis saat development dan production build. Paket juga dapat dibuat langsung:
-
-```bash
-npm run extension:build
-```
-
-Petunjuk instalasi lokal tersedia di [`browser-extension/README.md`](browser-extension/README.md).
-Untuk production, paket perlu ditandatangani dan didistribusikan melalui Chrome Web Store serta
-Mozilla Add-ons agar pengguna mendapat proses instalasi normal dan pembaruan otomatis.
-
-Perintah browser dikirim lewat stream chat dan hasilnya dikembalikan melalui callback sekali pakai
-yang memeriksa identitas pengguna. Permintaan tertunda disimpan di proses server; deployment
-multi-instance memerlukan sticky routing untuk chat dan hasil browser, atau broker bersama.
-
-Matikan database lokal dengan:
-
-```bash
-docker compose down
-```
-
-Data PostgreSQL disimpan di Docker volume `mimin-postgres`.
-
-## Database
-
-Schema Drizzle berada di:
-
-```text
-src/lib/server/db/schema.ts
-```
-
-Migration generated berada di:
-
-```text
-drizzle/
-├── 0000_cynical_hardball.sql
-└── meta/
-```
-
-Table utama:
-
-- `projects`: metadata project dan instructions
-- `project_files`: metadata file, storage key, status ekstraksi, dan jumlah chunk terindeks
-- `project_file_chunks`: text chunks untuk retrieval
-- `conversations`: standalone atau project conversation
-- `messages`: user, assistant, system, dan tool state
-- `tool_calls`: lifecycle tool execution
-- `sources`: sumber web atau file
-- `message_citations`: relasi citation
-
-Setelah mengubah schema:
-
-```bash
-npm run db:generate
-npm run db:migrate
-```
-
-Seed script membuat project awal `Mimin Coding Agent` dan conversation `Welcome to Mimin`.
-
-## API
-
-### Models dan tools
-
-```text
-GET /api/models
-GET /api/tools?projectId=:projectId
-GET /api/tools?includeProjectTools=true
-```
-
-`/api/models` menanyakan endpoint daftar model provider yang dikonfigurasi dan mengembalikan metadata model yang dinormalisasi, termasuk provider, context window, capabilities, source (`live` atau `catalog`), dan status konfigurasi server. Provider yang belum dikonfigurasi tetap mengembalikan metadata catalog bawaan untuk UI setup, sedangkan provider yang dikonfigurasi hanya menampilkan model yang dikembalikan API-nya. Jika ada sesi, endpoint ini juga melaporkan apakah pengguna menyimpan key sendiri untuk tiap provider (`userConfigured`). Kegagalan discovery provider dikembalikan dalam array `errors`.
-
-Tool khusus project seperti `project_knowledge_search` hanya dikembalikan jika `projectId` diberikan. Endpoint `/api/tools` memerlukan sesi, dan `projectId` harus merujuk ke project milik pengguna yang sedang masuk; id lain mengembalikan `404`. Pemanggil yang tidak terikat pada satu project, seperti editor skill, meminta tool khusus project dengan `includeProjectTools=true`.
-
-### Providers
-
-```text
-GET    /api/providers
-POST   /api/providers
-PUT    /api/providers/:provider
-DELETE /api/providers/:provider
-```
-
-Pengguna dapat menyimpan API key sendiri per provider (saat ini `openai`, `anthropic`, dan `google`). Key dienkripsi saat disimpan dengan AES-256-GCM menggunakan key turunan dari `PROVIDER_KEY_ENCRYPTION_SECRET`, dan tidak pernah dikirim kembali ke browser; API merespons dalam bentuk tersamarkan seperti `•••• 4f2a`. Jika tidak ada key tersimpan, environment variable server dipakai sebagai fallback (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, dan `GOOGLE_API_KEY` atau `GEMINI_API_KEY` untuk Google). `baseUrl` opsional dapat disimpan untuk mengarahkan request provider ke endpoint khusus.
-
-`POST /api/providers` membuat provider kustom milik pengguna. UI pengaturan menyediakan template untuk semua protokol HTTP Pi yang cocok dengan koneksi API key/base URL: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Google Generative AI, Mistral Conversations, Pi Messages, dan Azure OpenAI Responses. ID model diambil secara otomatis dari endpoint saat menyimpan koneksi, atau dapat diisi secara manual. API key bersifat opsional untuk server lokal tanpa autentikasi.
-
-```bash
-curl -X PUT http://localhost:5173/api/providers/openai \
-  -H 'content-type: application/json' \
-  -d '{"apiKey":"sk-...","baseUrl":"https://gateway.example.com/v1"}'
-
-curl -X DELETE http://localhost:5173/api/providers/openai
-```
-
-Halaman pengaturan provider tersedia di `/settings`.
-
-### Projects
-
-```text
-GET    /api/projects
-POST   /api/projects
-GET    /api/projects/:id
-PATCH  /api/projects/:id
-DELETE /api/projects/:id
-```
-
-Contoh:
-
-```bash
-curl -X POST http://localhost:5173/api/projects \
-  -H 'content-type: application/json' \
-  -d '{"name":"Product launch","description":"Launch workspace"}'
-```
-
-### Project files
-
-```text
-GET    /api/projects/:id/files
-POST   /api/projects/:id/files
-DELETE /api/projects/:id/files/:fileId
-```
-
-Upload menggunakan multipart form data:
-
-```bash
-curl -X POST http://localhost:5173/api/projects/PROJECT_ID/files \
-  -F 'file=@README.md'
-```
-
-Format awal yang didukung:
-
-```text
-.txt · .md · .json · .pdf
-```
-
-Ukuran maksimum file adalah 25 MB. Filename disanitasi dan path traversal ditolak.
-
-### Conversations
-
-```text
-GET    /api/conversations
-POST   /api/conversations
-GET    /api/conversations/:id
-PATCH  /api/conversations/:id
-DELETE /api/conversations/:id
-PATCH  /api/conversations/:id/settings
-```
-
-Standalone conversation menggunakan `projectId: null`. Project conversation menyimpan `projectId` dan otomatis mendapatkan `project_knowledge_search`.
-
-### Messages dan streaming
-
-```text
-POST /api/conversations/:id/messages
-POST /api/conversations/:id/stop
-```
-
-Request message menerima content, model reference, dan enabled tools. Endpoint message mengembalikan `text/event-stream`.
-
-#### Attachment chat
-
-Composer chat menerima maksimal 5 attachment per message. Format yang didukung adalah `.txt`, `.md`, `.json`, dan `.pdf`; batas setiap file dan total attachment dalam satu message adalah 25 MB. Teks plain text dan teks PDF yang berhasil diekstrak dimasukkan sebagai context referensi yang dibatasi dan diberi delimiter jelas untuk agent (termasuk attachment dari turn sebelumnya), tanpa mengubah teks message yang terlihat atau disimpan. Ekstraksi PDF dilakukan sekali saat upload dengan batas 100 halaman, 500.000 karakter, 10 detik, dan 16 MP per resource gambar. PDF kosong, rusak, atau terlindungi password tetap disimpan dengan status/error ekstraksi; PDF yang hanya berisi gambar belum menghasilkan teks.
-
-Request multipart menggunakan field `content`, `model` (opsional), dan field `files` berulang:
-
-```bash
-curl -X POST http://localhost:5173/api/conversations/CONVERSATION_ID/messages \
-  -F 'content=Ringkas catatan ini' \
-  -F 'files=@notes.md'
-```
-
-Application-level events:
-
-```text
-turn.start
-message.start
-message.delta
-message.end
-tool.start
-tool.update
-tool.input
-tool.end
-turn.end
-error
-done
-```
-
-Internal event type Pi tidak diteruskan ke browser.
-
-## AI runtime
-
-`src/lib/server/ai/agent.service.ts` menjadi adapter Pi untuk application domain:
-
-- Memuat conversation history dari PostgreSQL
-- Resolve model melalui `pi-ai`
-- Membuat `Agent` dari `pi-agent-core`
-- Mengaktifkan tool sesuai konteks conversation
-- Memetakan Pi event menjadi application event
-- Menyimpan assistant message dan tool calls
-- Mendukung cancellation berdasarkan conversation ID
-
-Provider yang diregistrasikan:
-
-- OpenAI
-- Anthropic
-- Google
-- Provider buatan pengguna dengan template protokol Pi yang didukung
-
-Provider key tidak pernah muncul di response model API atau browser code.
-
-## Knowledge retrieval
-
-Project Knowledge kini mendukung OCR lokal dengan Tesseract untuk halaman PDF hasil pemindaian, chunk dengan nomor halaman, embedding pgvector, dan pencarian hybrid semantic/keyword. Text search tetap tersedia saat embedding dinonaktifkan atau gagal. Sitasi menyimpan nama file, halaman, dan kutipan teks; klik sumber di bawah jawaban untuk membuka file asli yang dilindungi autentikasi.
-
-Jalankan migrasi database setelah memasang pgvector. Docker Compose membangun PostgreSQL 17 Alpine dengan pgvector tanpa mengganti volume lama. Embedding bersifat opt-in melalui `KNOWLEDGE_EMBEDDINGS_ENABLED=true`; lihat `.env.example` untuk endpoint/model/key. Gunakan tombol **Reindex** pada file lama untuk menambahkan OCR, nomor halaman, dan embedding. Percakapan dan file lama tetap kompatibel.
-
-Panduan konfigurasi, batas OCR, keamanan, migrasi, dan pemulihan tersedia di [Knowledge retrieval (English)](README.md#knowledge-retrieval).
-
-## Frontend routes
-
-```text
-/login                             Sign in
-/forgot-password                   Meminta tautan reset password
-/reset-password?token=...          Memilih password baru
-/                                  Home composer
-/chat                              Chat room dan SSE response
-/projects                          Project dashboard
-/projects/:id                     Project overview dan knowledge
-```
-
-Chat frontend menggunakan `src/lib/client/api.ts` untuk membuat conversation dan membaca SSE stream. Halaman Projects menggunakan state API live yang terautentikasi dan menampilkan status loading, kesehatan ekstraksi, empty state, serta kegagalan secara eksplisit.
-
-## Development commands
-
-```bash
-npm run dev
-npm run check
-npm test
-npm run build
-npm run lint
-npm run format
-
-npm run db:generate
-npm run db:migrate
-npm run db:seed
-```
-
-## Verifikasi
-
-Workflow CI menjalankan type checking, format dan lint, unit test, integration test PostgreSQL/pgvector disposable, production build, validasi extension, bundle budget, container build, serta dependency audit. Sebelum membuka pull request, jalankan pemeriksaan yang tercantum di [CONTRIBUTING.md](CONTRIBUTING.md).
-
-Smoke-test PostgreSQL dan API:
-
-```text
-GET /api/projects       200
-GET /api/models         200
-GET /api/tools          401 tanpa sesi
-Project CRUD            create/read/delete verified
-SSE provider guard      normalized error, no secret leak
-```
-
-## Dokumentasi bahasa Inggris
-
-Lihat [README.md](README.md).
-
-## Limitasi dan next steps
-
-1. Tambahkan registration dan password reset.
-2. Tambahkan antrean indexing durable untuk instalasi berskala besar.
-3. Hubungkan persistence sitasi ke sumber web yang ter-normalisasi.
-4. Tambahkan resep deployment untuk platform managed; panduan saat ini menargetkan Node adapter dan Docker Compose satu host.
+- Registrasi mandiri untuk publik belum tersedia.
+- Koordinasi giliran dan persetujuan browser berlaku per proses; beberapa instance memerlukan koordinasi tambahan. Lihat [batas scaling](docs/deployment.md#5-scaling-limits) (English).
+- Indexing bervolume tinggi memerlukan background worker yang persisten; panduan deployment saat ini mencakup Node adapter dan Docker Compose pada satu host.
+- Integrasi penyimpanan sitasi dengan sumber web yang dinormalisasi masih direncanakan.
 
 ## Komunitas dan lisensi
 
-- Kontribusi terbuka. Baca [CONTRIBUTING.md](CONTRIBUTING.md) dan [Code of Conduct](CODE_OF_CONDUCT.md).
-- Laporkan kerentanan secara privat melalui [SECURITY.md](SECURITY.md).
-- Baca [PRIVACY.md](PRIVACY.md) sebelum mengoperasikan deployment untuk pengguna lain.
-- Mimin WebUI menggunakan [GNU Affero General Public License v3.0 atau versi setelahnya](LICENSE). Deployment network dari versi modifikasi wajib menawarkan corresponding source kepada pengguna.
+Kontribusi dipersilakan: baca [CONTRIBUTING.md](CONTRIBUTING.md) dan [Code of Conduct](CODE_OF_CONDUCT.md). Laporkan kerentanan melalui [SECURITY.md](SECURITY.md), dan baca [PRIVACY.md](PRIVACY.md) sebelum menyediakan layanan untuk pengguna lain.
+
+Menggunakan lisensi [GNU Affero General Public License v3.0 atau lebih baru](LICENSE). Deployment versi modifikasi melalui jaringan harus menyediakan kode sumber yang sesuai kepada pengguna.

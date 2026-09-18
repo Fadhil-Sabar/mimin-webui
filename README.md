@@ -1,608 +1,139 @@
 # Mimin WebUI
 
-Mimin WebUI is a project-based AI agent workspace. It combines chat, project knowledge, model discovery, tool execution, and persistent conversations in one minimal interface.
+Mimin WebUI is a project-based AI agent workspace with chat, project knowledge, model discovery, tool execution, and persistent conversations.
 
-[Documentation](#requirements) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Privacy](PRIVACY.md) · [License](LICENSE)
+[Bahasa Indonesia](README.id.md) · [Quick start](#quick-start) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
 
-The frontend uses **SvelteKit 5**, **TypeScript**, **Tailwind CSS v4**, and **Lucide**. The backend runs on SvelteKit server routes with **PostgreSQL**, **Drizzle ORM**, `@earendil-works/pi-agent-core`, and `@earendil-works/pi-ai`.
+## Features
 
-## Implementation status
+- **Chat:** streamed responses, conversation history, stop generation, and file or image attachments.
+- **Projects:** organize conversations, manage files, and apply project instructions to every turn.
+- **Knowledge:** PDF text extraction, local OCR, optional hybrid keyword/pgvector search, and persistent page-aware citations.
+- **Providers:** discover models from OpenAI, Anthropic, Google, or custom endpoints; save encrypted per-user API keys.
+- **Research:** web search via Tavily, DuckDuckGo, or SearXNG, plus public URL reading with a fallback for JavaScript pages when the browser extension is connected.
+- **Browser bridge:** optional Chromium/Firefox extension for Google/Scholar search and permission-controlled tab reading and interaction.
+- **Skills:** reusable personal or project instructions, tool presets, and trigger suggestions.
+- **Accounts:** email/password sign-in, password reset, administrator-provisioned users, and ownership isolation for projects, conversations, and files.
 
-Available:
-
-- Authentication with email/password and session cookies
-- Password reset with single-use, one-hour links: emailed when SMTP is configured, otherwise an administrator copies the link from `/admin/users`
-- Ownership filters on all projects, conversations, and files
-- Home workspace with chat composer
-- Chat room with SSE response streaming
-- Persistent projects and conversations
-- Live model discovery for configured OpenAI, Anthropic, and Google providers
-- Normalized tool registry
-- `web_search` with Tavily support and a free DuckDuckGo fallback
-- `web_fetch` for reading one specific public URL (HTML, JSON, or text) with SSRF protection, falling back to the browser bridge when a page only JavaScript can fill in
-- Optional Chrome/Chromium and Firefox bridge for agent-driven tabs and Google/Scholar research
-- `project_knowledge_search` for project conversations
-- Project file upload and deletion
-- Basic text extraction for `.txt`, `.md`, and `.json`
-- Bounded PDF text extraction for chat attachments and project knowledge
-- Image attachments (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`) pasted or picked into chat messages, sent to vision-capable models and rendered as thumbnails
-- Page-aware project knowledge with local OCR, hybrid keyword/pgvector retrieval, and persistent clickable citations
-- Stop generation with `AbortController` and Pi agent abort
-- Project and conversation CRUD
-- Complete Projects UI for create, edit, delete, knowledge health, search, uploads, and project chats
-- Project instructions applied to every agent turn, with project knowledge enabled automatically
-- Persisted project-file extraction status, page/chunk counts, and errors
-- Per-message chat attachments with persisted metadata and conversation history context
-- Per-user provider API key settings with encrypted storage, masking, and env fallback
-- PostgreSQL migration and seed script
-- Normalized API errors
-- Unit tests for validation, password hashing, tool registry, and provider settings
-
-Not yet available:
-
-- Registration
-
-## Architecture
-
-```text
-┌────────────────────────────────────────────┐
-│ SvelteKit UI                               │
-│ Login · Home · Chat · Projects · Overview  │
-└──────────────────┬─────────────────────────┘
-                   │ REST + Server-Sent Events
-┌──────────────────▼─────────────────────────┐
-│ SvelteKit API routes                       │
-│ Auth · Projects · Conversations · Files    │
-│ Models · Tools · Messages · Stop           │
-└──────┬──────────────────────┬───────────────┘
-       │                      │
-┌──────▼───────┐      ┌───────▼────────────────┐
-│ PostgreSQL   │      │ Application AI layer    │
-│ Drizzle ORM  │      │ Agent service           │
-│              │      │ pi-agent-core           │
-│ users        │      │ pi-ai model/provider    │
-│ sessions     │      │ Tool registry           │
-│ projects     │      └─────────────────────────┘
-│ conversations│
-│ messages     │      ┌─────────────────────────┐
-│ tool_calls   │      │ Local file storage       │
-│ sources      │      │ STORAGE_PATH             │
-│ knowledge    │      └─────────────────────────┘
-└──────────────┘
-```
-
-Domain and runtime logic are separated under `src/lib/server`:
-
-```text
-src/
-├── lib/
-│   ├── client/api.ts
-│   └── server/
-│       ├── ai/
-│       │   ├── agent.service.ts
-│       │   ├── model.service.ts
-│       │   └── tools/
-│       ├── auth.ts
-│       ├── password.ts
-│       ├── db/
-│       │   ├── client.ts
-│       │   └── schema.ts
-│       ├── files/storage.ts
-│       ├── api.ts
-│       └── validation.ts
-├── hooks.server.ts
-└── routes/
-    ├── login/
-    └── api/
-```
-
-Route handlers validate input and orchestrate services. Agents are not constructed ad hoc inside every endpoint.
+Built with Svelte 5/SvelteKit, TypeScript, Tailwind CSS v4, Lucide, PostgreSQL, Drizzle ORM, and Pi (`pi-agent-core` / `pi-ai`).
 
 ## Requirements
 
-- Node.js 22+ or Bun
-- Docker, when using the local PostgreSQL compose setup
-- PostgreSQL 17+
-- At least one provider key for live responses:
-  - `OPENAI_API_KEY`
-  - `ANTHROPIC_API_KEY`
-  - `GOOGLE_API_KEY` or `GEMINI_API_KEY`
-- `PROVIDER_KEY_ENCRYPTION_SECRET` to encrypt user-saved provider keys at rest
+- **Docker setup:** Git and Docker with Compose; the images include PostgreSQL 17 with pgvector and Tesseract OCR.
+- **Local development:** also install Node.js 22+ and npm 10+. Install Tesseract with English/Indonesian language data for OCR; see the [knowledge guide](docs/knowledge.md).
+- **AI responses:** configure a provider through environment variables or **Settings**. Built-in providers require an API key; custom local endpoints may be keyless.
 
-Bun is compatible with the source code. The repository currently uses npm and a package lockfile for reproducible setup.
+An existing PostgreSQL 17+ server can replace the Compose database, but it must have pgvector installed before migrations run. The repository uses npm and its lockfile for reproducible setup; Bun is also source-compatible.
 
-## Self-hosting with Docker
+## Quick start
 
-To self-host the entire stack (PostgreSQL + Mimin WebUI) using Docker Compose:
-
-1. Copy `.env.example` to `.env` and set your provider keys and secrets:
-   ```bash
-   cp .env.example .env
-   ```
-   Replace every `replace-with-...` value. Generate independent secrets with the commands documented in [`docs/deployment.md`](docs/deployment.md). Set `BETTER_AUTH_URL` and `ORIGIN` to the exact origin you open Mimin at. The downloadable browser extension is built per download for the origin you are on, so no extra configuration is needed to install it from a LAN IP, a Tailscale name, or a domain. If you reach Mimin through several hostnames and want one installed package to bridge all of them, list them in `MIMIN_EXTENSION_ORIGINS`.
-2. Start the full application:
-   ```bash
-   docker compose up -d --build
-   ```
-   The container waits for PostgreSQL, applies schema migrations, and provisions the initial admin only when `AUTO_SEED=true` and a non-default `SEED_PASSWORD` is configured.
-3. Open `http://localhost:3000` (or `http://localhost:<PORT>` if `PORT` or `HOST_PORT` is customized).
-   Initial login:
-   ```text
-   email:    admin@mimin.local
-   password: the value of SEED_PASSWORD
-   ```
-   After the first successful bootstrap, set `AUTO_SEED=false` and remove `SEED_PASSWORD` from the runtime environment.
-4. Stop the services:
-   ```bash
-   docker compose down
-   ```
-   Persistent data is stored in the `mimin-postgres` (database) and `mimin-data` (file uploads) Docker volumes.
-
-## Local setup
+### 1. Get the code and configure the environment
 
 ```bash
 git clone https://github.com/Fadhil-Sabar/mimin-webui.git
 cd mimin-webui
-npm ci --legacy-peer-deps
-npm run playwright:install
 cp .env.example .env
 ```
 
-Set the required values in `.env`:
-
-```env
-DATABASE_URL=postgres://mimin:mimin@localhost:5432/mimin
-OPENAI_API_KEY=your-provider-key
-# Optional: improves web_search quality. Empty uses DuckDuckGo fallback.
-WEB_SEARCH_API_KEY=your-tavily-key
-PROVIDER_KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
-STORAGE_DRIVER=local
-STORAGE_PATH=./data/uploads
-```
-
-DuckDuckGo is unreachable from some networks because its DNS is blocked by Indonesian ISPs. Mimin resolves the real address over DNS over HTTPS (DoH) to work around that. Its HTML endpoint can additionally rate-limit a server IP with a captcha challenge, in which case use a Tavily key, set `SEARXNG_URL` to a self-hosted SearXNG instance, or search through the user's own browser.
-
-Provider keys are read only on the server. Do not put them in source code or send them to the browser.
-
-Start PostgreSQL, apply the schema, seed initial data, and start the app:
+Generate independent secrets, then paste each command's output into the matching variable in `.env`:
 
 ```bash
+openssl rand -hex 24     # POSTGRES_PASSWORD
+openssl rand -base64 32  # BETTER_AUTH_SECRET
+openssl rand -hex 32     # PROVIDER_KEY_ENCRYPTION_SECRET
+openssl rand -base64 24  # SEED_PASSWORD
+```
+
+- Replace every `replace-with-...` value. Use the same `POSTGRES_PASSWORD` in `DATABASE_URL`; keep the other secrets independent.
+- Set `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GOOGLE_API_KEY` (`GEMINI_API_KEY` is also supported), or configure a provider after signing in.
+- For an address other than the default localhost URL, set `BETTER_AUTH_URL` and `ORIGIN` to the exact origin you use, including scheme and port. Use HTTPS for public deployments.
+- Keep secrets server-side and `.env` out of version control. All optional settings are documented in [.env.example](.env.example).
+
+Choose one startup method below. Review the [deployment guide](docs/deployment.md) before exposing the app publicly.
+
+### 2a. Run with Docker
+
+```bash
+docker compose up -d --build
+```
+
+Open **http://localhost:3000** (or the port set by `HOST_PORT` / `PORT`). Startup waits for PostgreSQL, applies migrations, and creates the initial administrator when `AUTO_SEED=true` and a non-default `SEED_PASSWORD` is configured.
+
+### 2b. Run locally
+
+```bash
+npm ci --legacy-peer-deps
+npm run playwright:install
 docker compose up -d postgres
 npm run db:migrate
 npm run db:seed
 npm run dev
 ```
 
-Open `http://localhost:5173`.
+Open **http://localhost:5173**. `DATABASE_URL` must point to your local database; adjust it if you changed the database credentials or port. Local OCR needs Tesseract, or set `PDF_OCR_ENABLED=false` to disable it.
+
+### 3. Sign in and finish bootstrap
+
+Sign in as **`admin@mimin.local`** using your **`SEED_PASSWORD`**. After the first successful bootstrap, set `AUTO_SEED=false`, remove `SEED_PASSWORD` from the runtime environment, and restart or recreate the app to apply the changes.
+
+Re-running the seed resets that account to the supplied password. Use `SEED_KEEP_PASSWORD=true` to preserve a password already changed in the UI.
+
+Stop Compose services with `docker compose down`. Data persists in `mimin-postgres` (database) and, for the full Docker stack, `mimin-data` (uploads). Local uploads use `STORAGE_PATH`, defaulting to `./data/uploads`.
+
+## Using Mimin
+
+### Accounts and providers
+
+Public registration is disabled; administrators create users at `/admin/users`. Password reset links are single-use, expire after one hour, and sign out existing sessions when used. Configure SMTP to email links, or ask an administrator to create and copy one. See [password reset email](docs/deployment.md#password-reset-email).
+
+Save provider connections in **Settings**. User API keys are encrypted at rest and take precedence over server environment keys. Custom provider/search origins require operator approval through `OUTBOUND_ALLOWED_ORIGINS`; see the [provider reference](docs/api.md#providers).
+
+### Attachments and project knowledge
+
+| Upload            | Supported formats                                                        | Limits                                           |
+| ----------------- | ------------------------------------------------------------------------ | ------------------------------------------------ |
+| Chat              | `.txt`, `.md`, `.json`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif` | 5 files; 25 MB per file and combined per message |
+| Chat images       | Image formats above; requires a vision-capable model                     | 8 MB per image; 16 MB combined per turn          |
+| Project knowledge | `.txt`, `.md`, `.json`, `.pdf`                                           | 25 MB per file; PDFs up to 100 pages             |
+
+Project PDFs support local OCR and clickable page citations. Semantic retrieval is opt-in through `KNOWLEDGE_EMBEDDINGS_ENABLED=true` and sends extracted passages to the configured embedding provider; keyword search remains available if embeddings are disabled or fail. Use **Reindex** for existing files after changing extraction or embedding settings. See the [knowledge guide](docs/knowledge.md) for setup, upgrades, and limits.
 
 ### Optional browser extension
 
-Open **Settings → Browser Extension**, enable the bridge, and install the package for your browser. Reload Mimin in that same browser and check for **Connected**.
+Open **Settings → Browser Extension**, enable the bridge, and install the package for your browser. Reload Mimin in that browser and check for **Connected**. Packages match the origin used to download them; set `MIMIN_EXTENSION_ORIGINS` for additional origins.
 
-Mimin distinguishes these research and browser capabilities:
+Grant **Tab reading & interaction** in the extension popup to read other public websites. Access to existing tabs also requires chat consent: **allow just once** or **allow for this conversation**. The bridge is off by default and excludes private/local addresses. See the [browser extension guide](browser-extension/README.md) for permissions, installation, and troubleshooting, and [research tools](docs/api.md#research-tools) for server-side search and URL reading.
 
-- **Web Search (`web_search`)**: Default server-side research provider (Tavily with DuckDuckGo fallback). General queries (e.g. “cari berita terbaru OpenAI” or “research agentic coding benchmark”) automatically route to `web_search` without touching the browser.
-- **Web Fetch (`web_fetch`)**: Reads one specific public URL server-side (e.g. “baca https://example.com/docs” or a result from `web_search`) and returns its readable text, resolved title, and content type as a citation. HTML, JSON, XML, and plain text are supported.
-- **Browser Search (`browser_search`)**: Explicit Google or Google Scholar search through the user's real browser. Available only when the query explicitly targets Google or Scholar (e.g. “cari di Google tentang WebMCP” or “search Scholar for LLM hallucination”). Returns structured search results.
-- **Browser Open (`browser_open`)**: Opens and reads public HTTP/HTTPS web pages through the browser (e.g. “buka https://example.com” or inspecting search results). Generic page reading requires user-granted website reading permission in the extension popup.
-- **Browser Tabs (`browser_tabs`)**: Lists the open tabs the extension is allowed to describe (id, title, URL, active/pinned, readable).
-- **Browser Read Tab (`browser_read_tab`)**: Reads one of the user's tabs by `tabId`, URL match, or the active tab, returning the same bounded snapshot as `browser_open` plus indexed interactive elements.
-- **Browser Interact (`browser_interact`)**: Clicks, types, selects, presses keys, scrolls, navigates, or re-reads inside one of the user's tabs, targeting an element by its `ref` (or a CSS selector / visible label).
+## Development
 
-Tab access is consented in the chat: the first time a turn needs the user's tabs, Mimin asks whether to **allow just once** or **allow for this conversation**. "Allow just once" covers that single tool call, so a turn that needs several tab actions asks again for each one. A conversation-scoped grant is remembered for that chat (12 hours, in-memory) and can be revoked with `DELETE /api/conversations/{id}/browser-consent`. Denying or not answering blocks the tab tools for that call; `browser_open` on a user-requested URL is not gated because the request itself is the instruction.
+| Command                                      | Purpose                                         |
+| -------------------------------------------- | ----------------------------------------------- |
+| `npm run dev`                                | Start the development server                    |
+| `npm run check`                              | Check types and Svelte components               |
+| `npm test`                                   | Run unit tests                                  |
+| `npm run build`                              | Build for production                            |
+| `npm run lint` / `npm run format`            | Check formatting/lint rules or apply formatting |
+| `npm run db:generate` / `npm run db:migrate` | Generate or apply schema migrations             |
 
-An interaction result reports `changed: false` when the page accepted the action but the site did not react, so the
-agent says what happened instead of claiming success. Sites that only respond to real key presses (Google Maps' search
-box) need a direct URL instead of typing.
+See [CONTRIBUTING.md](CONTRIBUTING.md#quality-checks) for the complete checks, including database integration and browser-extension validation.
 
-A navigation or an interaction returns its snapshot only after the page has something to describe. Single-page apps
-report the new document as loaded long before they render, so the bridge waits a few seconds for text or an interactive
-element and then returns whatever exists; if nothing rendered, the result says the page is still rendering instead of
-returning an empty snapshot that reads like a blank page. An explicit `waitMs` is respected as a minimum settle time.
+## Documentation
 
-Deterministic per-turn tool gating ensures the model never receives ambiguous interchangeable search tools. When an explicit browser search intent is detected, `web_search` and `web_fetch` are hidden for that turn and browser tools are exposed.
+- [Deployment](docs/deployment.md): secrets, SMTP, HTTPS, backups, scaling, and updates.
+- [API and tools](docs/api.md): authentication, providers, skills, attachments, streaming, and research tools.
+- [Architecture](docs/architecture.md): application structure, database, AI runtime, and routes.
+- [Project knowledge](docs/knowledge.md): OCR, embeddings, retrieval, citations, and migration instructions.
+- [Browser extension](browser-extension/README.md): installation, permissions, protocol, and browser checks.
 
-#### `web_fetch` limits
+## Known limitations
 
-`web_fetch` reads at most 2 MB of a response and returns at most 12 000 characters of text by default (the model may ask for up to 50 000), follows at most 5 redirects, and gives up after 15 seconds. It never runs JavaScript itself. When the returned HTML looks like a JavaScript shell (an empty application root, a script-heavy document with almost no text, or a `noscript` notice asking for JavaScript), and the browser bridge is connected for that conversation, the page is read once through the user's own browser instead and the result is labelled `renderedBy: browser`. If the bridge is unavailable, the tool returns the shell plus an explanation instead of guessing at the page contents.
-
-Because the URL is chosen by the model, the request is validated at every hop and cannot be aimed at the server's own network:
-
-- only `http(s)` URLs without embedded credentials are accepted, and the redirect chain is re-validated one hop at a time, so a public URL cannot bounce the request into a blocked address
-- loopback, link-local (including `169.254.169.254` cloud metadata), private (`10/8`, `172.16/12`, `192.168/16`), carrier-grade NAT (`100.64/10`), IPv6 unique-local, and link-local addresses are refused, along with `.localhost`, `.local`, and `.internal` names
-- the hostname is resolved before the request, so a public-looking name that points at a private address is refused
-- non-HTTPS origins must still be approved in `OUTBOUND_ALLOWED_ORIGINS`, the same policy `web_search` and provider discovery already use
-- binary responses such as PDFs are reported by content type instead of being returned as noise; attach the file to a chat instead
-
-The bridge is off by default and enabled per browser. Only a connected chat turn receives browser tools. By default, the extension has host permissions for Google and Google Scholar. For other public HTTP(S) websites and the user's other tabs, users can grant optional host permissions directly from the extension popup under **Tab reading & interaction**. Tab metadata is only listed for tabs the extension is permitted to read; internal pages and private or local addresses are skipped. If permission has not been granted, reading returns `{ readable: false, reason: "host_permission_required" }` without reading page content. Browsing history, cookies, accounts, and saved passwords are never read. CAPTCHA challenges require the user to complete them manually; Mimin never bypasses them. Keep the chat open while a browser tool runs.
-
-If you installed an earlier Mimin Search popup, download the package again from **Settings → Browser Extension**, replace it, and reload both the extension and Mimin. A package only bridges the origin it was downloaded from, so one installed for a different address (for example `http://localhost:5173`) reports _Not connected_. The download is rebuilt for the origin you are on, with any extra origins listed in `MIMIN_EXTENSION_ORIGINS`; the default development origins are `http://localhost:5173` and `http://127.0.0.1:5173`.
-
-The packages are generated automatically for development and production builds. You can also
-generate them directly:
-
-```bash
-npm run extension:build
-```
-
-To verify the injected page-reading and interaction scripts against a real browser DOM, run
-`npm run extension:probe` and open the printed URL; every check must report PASS.
-
-For local installation details, see [`browser-extension/README.md`](browser-extension/README.md).
-Production releases should be signed and distributed through the Chrome Web Store and Mozilla
-Add-ons so users receive normal installation prompts and automatic updates.
-
-Browser commands travel over the chat SSE stream and results return through an authenticated,
-one-time callback. Pending requests live in the server process; multi-instance deployments need
-sticky routing for chat and result requests or a shared request broker.
-
-Browser access consent is also in-memory: a grant chosen with "Allow for this conversation" lasts 12 hours in
-the server process and is intentionally not persisted, so a restart asks again rather than
-silently restoring a privacy grant. For multi-instance deployments, a grant given on one instance
-is not visible to another, so keep chat, consent, and browser-result traffic on the same instance
-(the same sticky routing the pending-request broker already requires).
-
-The seed script requires an explicit, non-default `SEED_PASSWORD` and creates an initial account:
-
-```text
-email:    admin@mimin.local
-password: the value of SEED_PASSWORD
-```
-
-Set `SEED_PASSWORD` in the environment before running `npm run db:seed`. The password is never printed to logs.
-Re-running the seed resets `admin@mimin.local` to the current `SEED_PASSWORD`, so changing the value and seeding again is how you rotate it. Pass `SEED_KEEP_PASSWORD=true` to keep an existing password that was changed from the UI instead.
-
-Stop the local database with:
-
-```bash
-docker compose down
-```
-
-PostgreSQL data is stored in the `mimin-postgres` Docker volume.
-
-## Database
-
-The Drizzle schema is located at:
-
-```text
-src/lib/server/db/schema.ts
-```
-
-Generated migrations are located under:
-
-```text
-drizzle/
-├── 0000_cynical_hardball.sql
-└── meta/
-```
-
-Main tables:
-
-- `users`: Better Auth users with UUID IDs, roles, verification, and ban metadata
-- `accounts`: Better Auth credential accounts containing the migrated scrypt hashes
-- `sessions`: Better Auth database sessions with metadata and 30-day expiry
-- `verifications`: Better Auth verification records
-- `provider_settings`: encrypted per-user provider keys and base URLs
-- `projects`: project metadata and instructions, owned by a user
-- `project_files`: file metadata, storage keys, extraction health, and indexed chunk counts
-- `project_file_chunks`: text chunks for retrieval
-- `conversations`: standalone or project conversations, owned by a user
-- `messages`: user, assistant, system, and tool state
-- `tool_calls`: tool execution lifecycle
-- `sources`: web or file sources
-- `message_citations`: citation relationships
-
-After changing the schema:
-
-```bash
-npm run db:generate
-npm run db:migrate
-```
-
-The seed script creates the default `admin@mimin.local` account, claims existing rows for it, and seeds the initial `Mimin Coding Agent` project with a `Welcome to Mimin` conversation.
-
-## Authentication
-
-Authentication uses Better Auth 1.7.x with email/password, the Drizzle PostgreSQL adapter, and the Admin plugin. Existing scrypt hashes are verified in place and all legacy sessions are invalidated by migration `0005_better_auth`.
-
-```text
-POST /api/auth/sign-in/email
-POST /api/auth/sign-out
-GET  /api/auth/get-session
-POST /api/auth/request-password-reset
-POST /api/auth/reset-password
-```
-
-- Passwords are hashed with scrypt and a per-user salt; migrated hashes remain usable without resets.
-- Better Auth owns `/api/auth/*`, including CSRF/origin protections and HTTP-only session cookies.
-- `src/hooks.server.ts` redirects unauthenticated page requests to `/login` and exposes `event.locals.user` plus `event.locals.session`.
-- Public registration is disabled. Administrators provision users from `/admin/users`; the page supports only listing and initial account creation.
-- Password reset is enabled for everyone. Any visitor can request a link from `/forgot-password`; the link is single-use, expires after one hour, and signs out every existing session when it is used. With `SMTP_HOST` configured the app emails the link itself. Without it, no email is sent: the link is written to the server log and administrators can create and copy one from `/admin/users`. The response to a reset request is always the same, so it never reveals whether an address exists. `/api/admin/users/:id/reset-link` is administrator-only, and Better Auth's rate limiting (three reset requests per minute per client, active in production) covers the public endpoint.
-- Every data API route requires a valid session and filters rows by `user_id`. Cross-user access returns `404` for list, read, update, and delete operations, so ownership cannot be probed.
-- `/api/models` stays public because it exposes no user data and doubles as setup information for the sign-in screen.
-
-Deploy the migration and the Better Auth environment variables together. Every user must sign in again after cutover because legacy session cookies are deliberately not accepted.
-
-## API
-
-### Models and tools
-
-```text
-GET /api/models
-GET /api/tools?projectId=:projectId
-GET /api/tools?includeProjectTools=true
-```
-
-`/api/models` queries each configured provider's model-list endpoint and returns normalized model metadata, including provider, context window, capabilities, source (`live` or `catalog`), and server-side configuration status. Unconfigured providers retain their bundled catalog metadata for setup UI, while configured providers expose only models returned by their API. When a session is present, it also reports whether the user saved their own key for each provider (`userConfigured`). Provider discovery failures are returned in an `errors` array.
-
-Project-only tools such as `project_knowledge_search` are returned only when `projectId` is provided. `/api/tools` requires a session, and `projectId` must reference a project the signed-in user owns; any other id returns `404`. Callers that are not scoped to a single project, such as the skills editor, request the project-only entries with `includeProjectTools=true`.
-
-### Providers
-
-```text
-GET    /api/providers
-POST   /api/providers
-PUT    /api/providers/:provider
-DELETE /api/providers/:provider
-```
-
-Users can save their own API keys per provider (currently `openai`, `anthropic`, and `google`). Keys are encrypted at rest with AES-256-GCM using a key derived from `PROVIDER_KEY_ENCRYPTION_SECRET`, and never returned to the browser; the API responds with a masked form such as `•••• 4f2a`. When no user key is saved, the server environment variable is used as fallback (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GOOGLE_API_KEY` or `GEMINI_API_KEY` for Google). An optional `baseUrl` can be saved to route provider requests to a custom endpoint.
-
-`POST /api/providers` creates a user-owned custom provider. The settings UI includes templates for every Pi HTTP protocol that fits an API key/base URL connection: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Google Generative AI, Mistral Conversations, Pi Messages, and Azure OpenAI Responses. Model IDs are automatically retrieved from the endpoint when saving the connection, or can be specified manually. API keys are optional for keyless local servers.
-
-```bash
-curl -X PUT http://localhost:5173/api/providers/openai \
-  -H 'content-type: application/json' \
-  -d '{"apiKey":"sk-...","baseUrl":"https://gateway.example.com/v1"}'
-
-curl -X DELETE http://localhost:5173/api/providers/openai
-```
-
-The provider settings page lives at `/settings`.
-
-Custom provider and search endpoints must be approved by the server operator using
-`OUTBOUND_ALLOWED_ORIGINS`. Set a comma-separated list of exact origins (scheme,
-hostname, and port), for example:
-
-```env
-OUTBOUND_ALLOWED_ORIGINS=http://localhost:11434,https://gateway.example.com
-```
-
-The built-in OpenAI, Anthropic, Google, Tavily, DuckDuckGo, and default SearXNG
-origins are already permitted. Origins configured through `SEARXNG_URL` or
-`WEB_SEARCH_URL` are also permitted, including local services. Custom public
-endpoints need approval just like local endpoints; existing saved custom endpoints
-must be added before they can be used. Only approve services you trust: approval
-permits requests to paths on that origin. Search and model discovery reject
-redirects and URLs containing embedded credentials. Discovery only reuses a saved
-provider key for its configured origin.
-
-Overlapping message requests in one conversation return `409 CONVERSATION_BUSY`
-without creating another message. Turn reservations and Stop currently operate
-within one application process; a deployment with multiple server processes needs
-shared coordination before enabling concurrent instances.
-
-### Projects
-
-```text
-GET    /api/projects
-POST   /api/projects
-GET    /api/projects/:id
-PATCH  /api/projects/:id
-DELETE /api/projects/:id
-```
-
-Example:
-
-```bash
-curl -X POST http://localhost:5173/api/projects \
-  -H 'content-type: application/json' \
-  -d '{"name":"Product launch","description":"Launch workspace"}'
-```
-
-### Project files
-
-```text
-GET    /api/projects/:id/files
-POST   /api/projects/:id/files
-DELETE /api/projects/:id/files/:fileId
-```
-
-Upload files using multipart form data:
-
-```bash
-curl -X POST http://localhost:5173/api/projects/PROJECT_ID/files \
-  -F 'file=@README.md'
-```
-
-Supported initial formats:
-
-```text
-.txt · .md · .json · .pdf
-```
-
-The maximum file size is 25 MB. Filenames are sanitized and path traversal is rejected.
-
-### Skills
-
-Use **Skills** in the navigation to create reusable personal or project skills with instructions, configurable tool presets, and up to 12 trigger phrases. Personal skills work in any chat; project skills work only in that project. The Chat skill picker activates a skill for future turns and replaces the selected tools with its preset, while keeping project knowledge enabled. Tools can still be changed manually; removing a skill leaves the current tools selected.
-
-Draft suggestions match trigger phrases locally and require confirmation. Accepting a suggestion activates the skill without sending the draft. Dismissed suggestions stay hidden until the draft is cleared or submitted. Editing or deleting a skill does not change saved conversation or message snapshots; selecting it again applies its latest version. Retries use the original turn's skill instructions.
-
-- `GET /api/skills`: list owned skills; optional `projectId` includes personal skills and that project's skills.
-- `POST /api/skills`: create a skill with `name`, `description`, `instructions`, `projectId`, `enabledTools`, and `triggerPhrases`.
-- `GET/PATCH/DELETE /api/skills/[id]`: read, update, or delete an owned skill.
-- Conversation create/update accepts `skillId`: omit to preserve, pass an ID to activate, or pass `null` to remove.
-
-Apply the new `0011` migration with `npm run db:migrate` before using Skills on an existing database.
-
-### Conversations
-
-```text
-GET    /api/conversations
-POST   /api/conversations
-GET    /api/conversations/:id
-PATCH  /api/conversations/:id
-DELETE /api/conversations/:id
-PATCH  /api/conversations/:id/settings
-```
-
-Standalone conversations use `projectId: null`. Project conversations store `projectId` and automatically receive `project_knowledge_search`.
-
-### Messages and streaming
-
-```text
-POST /api/conversations/:id/messages
-POST /api/conversations/:id/stop
-```
-
-Message requests accept content, a model reference, and enabled tools. The message endpoint returns `text/event-stream`.
-
-#### Chat attachments
-
-The chat composer accepts up to 5 attachments per message. Supported formats are `.txt`, `.md`, `.json`, `.pdf`, `.png`, `.jpg`, `.jpeg`, `.webp`, and `.gif`; each file and the combined attachments are limited to 25 MB. Plain-text and extractable PDF text are included as bounded, clearly delimited reference context for the agent (including attachments from earlier turns) without changing the visible or stored message text. PDF extraction runs once at upload with limits of 100 pages, 500,000 extracted characters, 10 seconds, and 16 MP per image resource. Empty, corrupt, and password-protected PDFs remain stored with an extraction status/error; chat attachments retain the existing visual fallback. Project Knowledge additionally runs local OCR for sparse/image-only pages.
-
-Images can be picked with the attach button or pasted straight into the composer. They are sent to the model as image content rather than text, so the selected model must accept images; a model without vision fails the turn with an explicit message instead of answering blind. Image bytes are validated against their declared type, capped at 8 MB each and 16 MB per turn, and served back through `GET /api/conversations/:id/attachments/:attachmentId` so the transcript renders them as thumbnails. Images are a chat-only attachment type; project knowledge still accepts only the text and PDF formats above.
-
-Multipart requests use `content`, optional `model`, and repeated `files` fields:
-
-```bash
-curl -X POST http://localhost:5173/api/conversations/CONVERSATION_ID/messages \
-  -F 'content=Summarize these notes' \
-  -F 'files=@notes.md'
-```
-
-Application-level events:
-
-```text
-turn.start
-message.start
-message.delta
-message.end
-tool.start
-tool.update
-tool.input
-tool.end
-turn.end
-error
-done
-```
-
-Pi internal event types are not exposed to the browser.
-
-## AI runtime
-
-`src/lib/server/ai/agent.service.ts` adapts Pi to the application domain:
-
-- Loads conversation history from PostgreSQL
-- Resolves models through `pi-ai`
-- Creates an `Agent` from `pi-agent-core`
-- Enables tools based on the conversation context
-- Maps Pi events into application events
-- Persists assistant messages and tool calls
-- Supports cancellation by conversation ID
-
-Registered providers:
-
-- OpenAI
-- Anthropic
-- Google
-- User-defined providers using the supported Pi protocol templates
-
-Provider keys never appear in model API responses or browser code. Each conversation turn resolves the provider key for the owning user: a key saved in the user's provider settings wins, otherwise the server environment variable is used.
-
-## Knowledge retrieval
-
-Project uploads retain the original file, extract native PDF text page by page, and run local Tesseract OCR on sparse/image-only pages. Chunks preserve page numbers, include 150 characters of overlap for continuity, and are indexed for keyword search immediately. With embeddings enabled, batches of at most 32 chunks are sent to the configured OpenAI-compatible embeddings endpoint and stored as pgvector vectors.
-
-Search is scoped to both the owning user and active project. Keyword candidates keep the existing `ILIKE` content/filename search (with literal wildcard escaping), now ranked by term coverage. Semantic candidates use cosine distance, restricted to the same endpoint/model identity. Reciprocal-rank fusion combines up to 40 candidates from each channel and returns at most 8 passages. If embeddings are disabled, unavailable, malformed, or incompatible, keyword search continues. If neither channel finds a match, the existing project overview fallback remains. No full document is injected into every chat turn.
-
-Project Knowledge tool results produce citation snapshots on assistant messages: filename, page when known, and the extracted passage. Citations appear below the answer and open the authenticated original file, using the PDF page fragment when available. Reloading a conversation preserves them. Deleting a file retains the historical passage but removes access to the original; old conversations without citations still render normally. Old chunks without embeddings or page numbers remain searchable.
-
-### Setup and upgrading existing installations
-
-1. Back up PostgreSQL and uploaded files. The Compose database now builds `Dockerfile.postgres`, retaining PostgreSQL 17 Alpine and the existing volume while adding pgvector. Run `docker compose build postgres && docker compose up -d postgres`. Do not delete the database volume. For managed PostgreSQL, install/enable pgvector through your provider first.
-2. Run `npm run db:migrate` (or the normal Docker entrypoint). Migration `0012_cynical_swarm.sql` enables `vector`, adds nullable 1536-dimensional embeddings/model identity, and an HNSW cosine index. It preserves existing rows. Migration `0013_secret_dorian_gray.sql` also makes the legacy account `issuer` column nullable for Better Auth compatibility; existing account values and indexes remain intact. The migration role needs permission to create the extension; an administrator may pre-create it. Migration deliberately fails if pgvector is not installed; query/provider failures after migration still fall back to text.
-3. For local development install Tesseract and language data, for example `apt-get install tesseract-ocr tesseract-ocr-eng tesseract-ocr-ind`. The application Docker image includes these packages. OCR is enabled for project uploads by default; set `PDF_OCR_ENABLED=false` to disable it or `PDF_OCR_LANGUAGES=eng` to use English only.
-4. To enable semantic retrieval set `KNOWLEDGE_EMBEDDINGS_ENABLED=true`, `KNOWLEDGE_EMBEDDING_URL`, `KNOWLEDGE_EMBEDDING_MODEL`, and `KNOWLEDGE_EMBEDDING_API_KEY` (defaults and server-key fallback are in `.env.example`). The endpoint must return 1536-dimensional float vectors. Local HTTP endpoints also require their origin in `OUTBOUND_ALLOWED_ORIGINS`. Restart the application after configuration changes. Extracted passages leave the server only when embeddings are explicitly enabled; OCR remains local.
-5. Use the **Reindex** button beside each existing project file to extract pages/OCR and create embeddings. The authenticated endpoint is `POST /api/projects/:id/files/:fileId/reindex`. It atomically replaces chunks, retains previous text on extraction errors, and can be repeated after an embedding outage or endpoint/model change. Old uploads are never silently deleted or automatically sent to a new provider.
-
-### Limits and operation
-
-PDF uploads retain the 25 MB, 100-page, and 500,000-character limits. OCR defaults to 24 sparse pages, 60 seconds per document, and 15 seconds per Tesseract process; `PDF_OCR_MAX_PAGES`, `PDF_OCR_TIMEOUT_MS`, and `PDF_OCR_PAGE_TIMEOUT_MS` configure these bounds. At most two OCR documents run concurrently per process (`PDF_OCR_MAX_CONCURRENT`); additional uploads retain their file and report an OCR busy status for reindexing. Partial extraction and missing OCR/language data are reported in file health. OCR quality depends on scan resolution and language data; inspect cited passages when a scan is poor.
-
-Embedding requests time out after 15 seconds, validate dimensions/finite values/index ordering, and reject redirects and oversized responses. Lexical chunks survive failed batches. Upload/reindex responses include `indexing.status` (`disabled`, `indexed`, or `unavailable`) and the number indexed; server logs report fallback without document text or credentials. The Node adapter needs `BODY_SIZE_LIMIT=30M` to accommodate the 25 MB upload limit (included in Docker defaults). Indexing is synchronous and bounded per document; configure reverse-proxy upload timeouts to accommodate OCR and embedding batches. For very large deployments, move indexing to a durable job worker before increasing document limits. HNSW is approximate, so evaluate recall on your corpus; model/endpoint changes require reindexing because vectors from different spaces are never mixed. There is no cross-project embedding cache.
-
-Implementation references: [pgvector cosine search and HNSW](https://github.com/pgvector/pgvector), [Tesseract command-line usage](https://tesseract-ocr.github.io/tessdoc/Command-Line-Usage.html).
-
-### Automated verification
-
-`npm test` runs extraction, ranking, embedding validation, indexing fallback, reindexing, citation persistence, and authorization tests. It includes a native two-page PDF fixture. Install Tesseract (or set `PDF_OCR_COMMAND` to its executable) to also run the image-only PDF integration test. The synthetic fixtures are in `tests/fixtures/`.
-
-`npm run test:integration` builds the disposable PostgreSQL 17 + pgvector image, applies all migrations, and runs the database-backed document lease and pgvector suites. To use an existing database instead, set `TEST_DATABASE_URL` (and optionally `DATABASE_URL`) before running the command. These tests use deterministic vectors to isolate SQL similarity, fusion, ownership, model compatibility, fallback, job claiming, and stale-lease fencing; they do not call a paid embedding provider. The temporary local container is removed automatically. For release checks also run `npm run lint`, `npm run check`, and `npm run build`.
-
-## Frontend routes
-
-```text
-/login                             Sign in
-/forgot-password                   Request a password reset link
-/reset-password?token=...          Choose a new password
-/                                  Home composer
-/chat                              Chat room and SSE response
-/projects                          Project dashboard
-/projects/:id                      Project overview and knowledge
-/settings                          Provider API key settings
-```
-
-The chat frontend uses `src/lib/client/api.ts` to create conversations and read SSE streams. Projects pages use authenticated live API state and surface loading, extraction-health, empty, and failure states explicitly.
-
-## Development commands
-
-```bash
-npm run dev
-npm run check
-npm test
-npm run build
-npm run lint
-npm run format
-
-npm run db:generate
-npm run db:migrate
-npm run db:seed
-```
-
-## Verification
-
-The CI workflow runs type checking, formatting and linting, unit tests, disposable PostgreSQL/pgvector integration tests, production build, browser-extension validation, bundle budgets, container build, and dependency audit. Run the same checks described in [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
-
-PostgreSQL and API smoke tests verified:
-
-```text
-GET /api/projects       401 without session
-GET /api/models         200
-GET /api/tools          401 without session
-Login                   200 with default account
-Cross-user project      404
-Cross-user conversation 404
-Project CRUD            create/read/delete verified
-SSE provider guard      normalized error, no secret leak
-Provider settings       save/encrypt/mask/delete verified
-```
-
-## Known limitations and next steps
-
-1. Add registration and password reset flows.
-2. Add durable background indexing for high-volume installations.
-3. Connect citation persistence to normalized web sources.
-4. Add deployment recipes for managed platforms; the current production guide targets the Node adapter and single-host Docker Compose.
+- Public self-registration is not available.
+- Turn coordination and browser consent are process-local; multiple instances need additional coordination. See [scaling limits](docs/deployment.md#5-scaling-limits).
+- High-volume indexing needs a durable background worker; deployment recipes currently target the Node adapter and single-host Docker Compose.
+- Connecting citation persistence to normalized web sources remains planned.
 
 ## Community and license
 
-- Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
-- Report vulnerabilities privately using [SECURITY.md](SECURITY.md).
-- Review [PRIVACY.md](PRIVACY.md) before operating a deployment for other users.
-- Mimin WebUI is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE). Network deployments of modified versions must offer their corresponding source to users.
+Contributions are welcome: read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities through [SECURITY.md](SECURITY.md), and review [PRIVACY.md](PRIVACY.md) before hosting for others.
 
-## Indonesian documentation
-
-See [README.id.md](README.id.md) for the Indonesian version.
+Licensed under the [GNU Affero General Public License v3.0 or later](LICENSE). Network deployments of modified versions must offer their corresponding source to users.

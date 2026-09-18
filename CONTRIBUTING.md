@@ -11,29 +11,7 @@ Thanks for contributing. Small, focused pull requests are easier to review and m
 
 ## Development setup
 
-Requirements:
-
-- Node.js 22+
-- npm 10+
-- Docker, for the PostgreSQL development service and integration tests
-- Tesseract with English and Indonesian language data for OCR integration coverage
-
-```bash
-git clone https://github.com/Fadhil-Sabar/mimin-webui.git
-cd mimin-webui
-npm ci --legacy-peer-deps
-npm run playwright:install
-cp .env.example .env
-```
-
-Replace every `replace-with-...` value in `.env`, then start PostgreSQL and initialize the database:
-
-```bash
-docker compose up -d postgres
-npm run db:migrate
-npm run db:seed
-npm run dev
-```
+Follow the [README quick start](README.md#quick-start), choosing **Run locally**, for requirements, secrets, database initialization, and first login. Install Tesseract with English and Indonesian language data for OCR integration coverage; the [knowledge guide](docs/knowledge.md#automated-verification) describes the fixtures and database test setup.
 
 ## Making changes
 
@@ -45,7 +23,11 @@ npm run dev
 
 Generated Drizzle migrations under `drizzle/` must be committed with their schema change. Do not edit an already-released migration.
 
+Keep the two README feature summaries and setup instructions aligned. Detailed API, architecture, and knowledge behavior belongs in the shared guides linked from each README.
+
 ## Quality checks
+
+The [CI workflow](.github/workflows/ci.yml) runs type checking, formatting and linting, unit tests, PostgreSQL/pgvector integration tests, production and container builds, browser-extension validation, bundle budgets, and dependency audit.
 
 Run these before opening a pull request:
 
