@@ -628,21 +628,13 @@ export function createWebSearchTool(
 		parameters,
 		execute: async (_toolCallId, params, signal) => {
 			const resolvedConfig = typeof config === 'function' ? await config() : config;
-			let result: WebSearchResult;
-			try {
-				result = await searchWeb(params, signal, resolvedConfig);
-			} catch (error) {
-				if (!(error instanceof WebSearchExhaustedError)) throw error;
-				return {
-					content: [
-						{
-							type: 'text',
-							text: `Sources:\nNo sources found. Search diagnostics: ${error.diagnostics.join('; ')}\n${BROWSER_SEARCH_HINT}`
-						}
-					],
-					details: { sources: [] }
-				};
-			}
+			// Every engine failing is a tool failure, not an empty result. Reporting it
+			// as a successful "no sources" result gave the model nothing to stop on, so
+			// it re-ran the same query until the turn ran out of budget, while the
+			// transcript still showed a green "Search completed" badge. Letting the
+			// error out of here lets the turn's web-search failure policy answer the
+			// user instead of leaving an empty reply behind.
+			const result: WebSearchResult = await searchWeb(params, signal, resolvedConfig);
 			const sourceText = result.sources.length
 				? result.sources
 						.map(

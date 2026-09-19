@@ -14,6 +14,12 @@ describe('agent tool-use policy', () => {
 		expect(AGENT_SYSTEM_PROMPT).toMatch(/sufficient|enough/i);
 	});
 
+	it('tells the model to stop after a dead end instead of retrying the same tool', () => {
+		expect(AGENT_SYSTEM_PROMPT).toMatch(/empty, failed, or unavailable result is a dead end/i);
+		expect(AGENT_SYSTEM_PROMPT).toMatch(/do not call the same tool again/i);
+		expect(AGENT_SYSTEM_PROMPT).toMatch(/answer from the context you already have/i);
+	});
+
 	it('requires project knowledge lookup for project-specific questions', () => {
 		expect(AGENT_SYSTEM_PROMPT).toMatch(
 			/when project_knowledge_search is available, use it before answering questions about the active project/i

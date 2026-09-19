@@ -309,7 +309,7 @@ export function getToolResultSummary(toolCall: ToolCall): string {
 		if (sources.length > 0) {
 			return `${sources.length} source${sources.length === 1 ? '' : 's'} found`;
 		}
-		return 'Search completed';
+		return 'No results';
 	}
 	if (toolCall.toolName === 'browser_open') {
 		return 'Page opened';

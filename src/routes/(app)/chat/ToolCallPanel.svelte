@@ -6,6 +6,7 @@
 		FileText,
 		FolderKanban,
 		Globe,
+		SearchX,
 		LayoutTemplate,
 		WandSparkles,
 		Wrench
@@ -29,6 +30,18 @@
 	};
 
 	let { toolCalls, running = false, onquestionsubmit, onconsentsubmit }: Props = $props();
+
+	/**
+	 * A search that finished without a single source. It is not a failure, so it used to
+	 * keep the green "completed" badge, which made a search backend that answered nothing
+	 * look healthy while the model kept retrying it.
+	 */
+	function hasNoSearchResults(toolCall: ToolCall) {
+		return (
+			(toolCall.toolName === 'web_search' || toolCall.toolName === 'browser_search') &&
+			getToolSourceList(toolCall).length === 0
+		);
+	}
 </script>
 
 <div class="tool-calls-container" aria-label="Tool executions">
@@ -54,6 +67,7 @@
 				class="tool-call-card"
 				class:tool-running={toolCall.status === 'running'}
 				class:tool-failed={toolCall.status === 'failed'}
+				class:tool-no-results={toolCall.status === 'completed' && hasNoSearchResults(toolCall)}
 			>
 				<summary class="tool-call-summary">
 					<div class="tool-call-icon">
@@ -84,6 +98,11 @@
 							</span>
 						{:else if toolCall.status === 'failed'}
 							<span class="tool-status-badge failed">Failed</span>
+						{:else if hasNoSearchResults(toolCall)}
+							<span class="tool-status-badge no-results">
+								<SearchX size={11} />
+								{getToolResultSummary(toolCall)}
+							</span>
 						{:else}
 							<span class="tool-status-badge completed">
 								<Check size={11} />
@@ -161,6 +180,9 @@
 	}
 	.tool-call-card.tool-failed {
 		border-color: color-mix(in srgb, var(--danger-text) 35%, transparent);
+	}
+	.tool-call-card.tool-no-results {
+		border-color: color-mix(in srgb, var(--warning-text) 35%, transparent);
 	}
 	.tool-call-summary {
 		display: flex;
@@ -245,6 +267,10 @@
 	.tool-status-badge.failed {
 		color: var(--danger-text);
 		background: color-mix(in srgb, var(--danger-bg) 15%, transparent);
+	}
+	.tool-status-badge.no-results {
+		color: var(--warning-text);
+		background: color-mix(in srgb, var(--status-working-dot) 15%, transparent);
 	}
 	:global(.tool-chevron) {
 		color: var(--text-faint);

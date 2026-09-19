@@ -377,7 +377,7 @@ describe('web search', () => {
 		]);
 	});
 
-	it('reports every exhausted engine and suggests the approved browser fallback', async () => {
+	it('fails the tool instead of reporting an exhausted search as an empty result', async () => {
 		vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
 			const value = String(url);
 			if (value.includes('duckduckgo.com/html')) return new Response('', { status: 202 });
@@ -389,16 +389,24 @@ describe('web search', () => {
 		stubHttpsRequest(202, '');
 
 		const tool = createWebSearchTool();
-		const result = await tool.execute(
-			'test-call',
-			{ query: 'no results anywhere' },
-			new AbortController().signal
-		);
-		const text = result.content[0]?.type === 'text' ? result.content[0].text : '';
-		expect(text).toContain('DuckDuckGo: zero results');
-		expect(text).toContain('Wikipedia: zero results');
-		expect(text).toContain('browser_search');
-		expect(text).toContain("user's approval");
+		await expect(
+			tool.execute('test-call', { query: 'no results anywhere' }, new AbortController().signal)
+		).rejects.toMatchObject({
+			name: 'WebSearchExhaustedError',
+			diagnostics: expect.arrayContaining([
+				expect.stringContaining('DuckDuckGo: zero results'),
+				expect.stringContaining('Wikipedia: zero results')
+			])
+		});
+
+		// The turn's tool-failure policy replaces the result, so the diagnostics and the
+		// approved fallback have to survive in the thrown message.
+		const error = await tool
+			.execute('test-call', { query: 'no results anywhere' }, new AbortController().signal)
+			.then(() => null)
+			.catch((thrown: unknown) => thrown as Error);
+		expect(error?.message).toContain('browser_search');
+		expect(error?.message).toContain("user's approval");
 	});
 
 	it('does not add a failure notice to an ordinary successful primary search', async () => {

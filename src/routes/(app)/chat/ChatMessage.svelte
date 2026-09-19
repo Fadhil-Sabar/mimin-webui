@@ -37,6 +37,12 @@
 		skill?: SkillSummary | null;
 		sources?: TurnSource[];
 		isLast?: boolean;
+		/**
+		 * True when this assistant message continues the previous one within the same
+		 * turn: a tool loop persists one row per step, so the repeated sender line and
+		 * the block spacing are dropped to keep one turn reading as one reply.
+		 */
+		continuation?: boolean;
 		canRetry?: boolean;
 		running?: boolean;
 		retryDisabled?: boolean;
@@ -64,6 +70,7 @@
 		skill = null,
 		sources = [],
 		isLast = false,
+		continuation = false,
 		canRetry = false,
 		running = false,
 		retryDisabled = false,
@@ -168,15 +175,23 @@
 
 <Message.Root
 	align={message.role === 'user' ? 'end' : 'start'}
-	class={cn('chat-message', animateEnter && 'enter-motion')}
+	class={cn(
+		'chat-message',
+		continuation && 'chat-message-continuation',
+		animateEnter && 'enter-motion'
+	)}
 	role="article"
 	aria-label={`${message.role === 'user' ? 'Your' : 'Mimin'} message`}
 >
 	<Message.Content class="chat-message-content">
-		<Message.Header class="chat-message-header">
-			<span class="sender-name">{message.role === 'user' ? 'You' : 'Mimin'}</span>
-			{#if skill}<span class="skill-badge">{skill.name}</span>{/if}
-			<time datetime={message.createdAt}>{formatTime(message.createdAt)}</time>
+		<Message.Header
+			class={cn('chat-message-header', continuation && !message.isStreaming && 'header-hidden')}
+		>
+			{#if !continuation}
+				<span class="sender-name">{message.role === 'user' ? 'You' : 'Mimin'}</span>
+				{#if skill}<span class="skill-badge">{skill.name}</span>{/if}
+				<time datetime={message.createdAt}>{formatTime(message.createdAt)}</time>
+			{/if}
 			{#if message.role === 'assistant' && message.isStreaming}
 				<span class="live-tag shimmer-text" role="status">
 					{#if message.toolCalls?.some((t) => t.status === 'running')}
@@ -373,6 +388,13 @@
 	}
 	:global(.chat-message) {
 		padding: 12px 0;
+	}
+	/* A step that continues the same turn stays visually attached to the step above it. */
+	:global(.chat-message.chat-message-continuation) {
+		padding-top: 2px;
+	}
+	:global(.chat-message-header.header-hidden) {
+		display: none;
 	}
 	/* Gated on a class fixed at mount, so a bulk transcript load creates its messages
 	 * without it and stays still, while a message appended to a settled transcript

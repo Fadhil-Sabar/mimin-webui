@@ -90,4 +90,36 @@ describe('context window', () => {
 			content: [{ type: 'text', text: '{"answer":"ok"}' }]
 		});
 	});
+
+	it('leaves persisted reasoning out of the rebuilt history', () => {
+		const createdAt = new Date('2026-01-02T03:04:05.000Z');
+		const messages = toAgentMessages([
+			{
+				id: 'a1',
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'The user probably wants the appendix.' },
+					{ type: 'text', text: 'Here is the appendix.' }
+				],
+				createdAt
+			},
+			{
+				id: 'a2',
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'No answer worth writing.' },
+					{ type: 'text', text: '' }
+				],
+				createdAt
+			}
+		]);
+
+		// A reasoning-only row carries nothing the provider can use, so it drops out
+		// entirely rather than being replayed as ordinary assistant text.
+		expect(messages).toHaveLength(1);
+		expect(messages[0]).toMatchObject({
+			role: 'assistant',
+			content: [{ type: 'text', text: 'Here is the appendix.' }]
+		});
+	});
 });

@@ -868,6 +868,7 @@
 					<ChatMessage
 						message={msg}
 						skill={messageSkill(i)}
+						continuation={msg.role === 'assistant' && stream.messages[i - 1]?.role === 'assistant'}
 						sources={getTurnSources(stream.messages, i)}
 						isLast={i === stream.messages.length - 1}
 						canRetry={stream.canRetry}
