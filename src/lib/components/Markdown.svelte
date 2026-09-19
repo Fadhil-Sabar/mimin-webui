@@ -166,7 +166,6 @@
 	{/each}
 
 	{#if processed.sources.length > 0}
-		{@const hasProjectSources = processed.sources.some((source) => source.type === 'project_file')}
 		<div class="message-sources-wrapper">
 			<button
 				type="button"
@@ -183,7 +182,7 @@
 				</span>
 			</button>
 
-			{#if showSources || hasProjectSources}
+			{#if showSources}
 				<div class="sources-list" transition:slide={{ duration: 180 }}>
 					{#each processed.sources as source (source.index + source.url)}
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
