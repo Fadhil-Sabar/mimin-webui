@@ -564,7 +564,8 @@ export async function searchWeb(
 			const ddg = await attempt('DuckDuckGo', () =>
 				searchDuckDuckGo(query, maxResults, timeout.signal, customUrl)
 			);
-			if (ddg) return ddg;
+			if (ddg?.sources.length) return ddg;
+			if (ddg) failures.push('DuckDuckGo: zero results');
 			if (customUrl) return throwExhausted();
 			const wikipedia = await attempt('Wikipedia', () =>
 				searchWikipedia(query, maxResults, timeout.signal)
@@ -576,11 +577,16 @@ export async function searchWeb(
 			const primary = await attempt('SearXNG', () =>
 				searchSearxng(query, maxResults, timeout.signal, customUrl, effectiveApiKey)
 			);
-			if (primary) return primary;
+			// An engine that answers with nothing has not answered: fall through to the
+			// remaining engines instead of handing the model an empty result it will
+			// only retry.
+			if (primary?.sources.length) return primary;
+			if (primary) failures.push('SearXNG: zero results');
 			const ddg = await attempt('DuckDuckGo', () =>
 				searchDuckDuckGo(query, maxResults, timeout.signal)
 			);
-			if (ddg) return ddg;
+			if (ddg?.sources.length) return ddg;
+			if (ddg) failures.push('DuckDuckGo: zero results');
 			const wikipedia = await attempt('Wikipedia', () =>
 				searchWikipedia(query, maxResults, timeout.signal)
 			);
@@ -601,11 +607,15 @@ export async function searchWeb(
 		const primary = await attempt(provider === 'custom' ? 'Custom provider' : 'Tavily', () =>
 			searchTavilyOrCustom(query, maxResults, timeout.signal, customUrl, effectiveApiKey)
 		);
-		if (primary) return primary;
+		// Same rule as the SearXNG path: an empty primary is not an answer.
+		if (primary?.sources.length) return primary;
+		if (primary)
+			failures.push(`${provider === 'custom' ? 'Custom provider' : 'Tavily'}: zero results`);
 		const ddg = await attempt('DuckDuckGo', () =>
 			searchDuckDuckGo(query, maxResults, timeout.signal)
 		);
-		if (ddg) return ddg;
+		if (ddg?.sources.length) return ddg;
+		if (ddg) failures.push('DuckDuckGo: zero results');
 		const wikipedia = await attempt('Wikipedia', () =>
 			searchWikipedia(query, maxResults, timeout.signal)
 		);

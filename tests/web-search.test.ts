@@ -354,6 +354,37 @@ describe('web search', () => {
 		]);
 	});
 
+	it('falls through to the remaining engines when SearXNG answers with nothing', async () => {
+		process.env.SEARXNG_URL = 'http://localhost:8080/search';
+		vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+			const value = String(url);
+			if (value.includes('localhost:8080')) {
+				// A reachable instance whose engines are all rate-limited answers 200 with
+				// an empty result set. That is not an answer, so the chain continues.
+				return new Response(JSON.stringify({ results: [], unresponsive_engines: [] }), {
+					status: 200,
+					headers: { 'content-type': 'application/json' }
+				});
+			}
+			if (value.includes('duckduckgo.com/html')) return new Response('', { status: 202 });
+			if (value.includes('wikipedia.org')) {
+				return new Response(
+					JSON.stringify({
+						query: { search: [{ title: 'Encyclopedic hit', snippet: 'Fallback result' }] }
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } }
+				);
+			}
+			throw new Error(`Unexpected URL: ${value}`);
+		});
+		stubHttpsRequest(202, '');
+
+		const result = await searchWeb({ query: 'empty primary' });
+		expect(result.sources).toHaveLength(1);
+		expect(result.sources[0]?.title).toBe('Encyclopedic hit');
+		expect(result.notice ?? '').toMatch(/Wikipedia only/i);
+	});
+
 	it('automatically falls back to DuckDuckGo if primary provider encounters an error', async () => {
 		const fetchMock = vi
 			.spyOn(globalThis, 'fetch')
