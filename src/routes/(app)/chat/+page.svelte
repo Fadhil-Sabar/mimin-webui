@@ -35,7 +35,6 @@
 	import { shell } from '$lib/client/shell.svelte';
 	import { getConversationDraft, setConversationDraft } from '$lib/client/drafts';
 	import { peekNavigationHandoff, consumeNavigationHandoff } from '$lib/client/navigation-handoff';
-	import type { SkillSummary } from '$lib/skills';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
 	import ChatComposer from './ChatComposer.svelte';
@@ -46,8 +45,8 @@
 	import { createChatSettings } from './chat-settings.svelte';
 	import { createChatStream } from './chat-stream.svelte';
 	import {
+		buildRowContext,
 		contentText,
-		getTurnSources,
 		isImageFile,
 		MAX_IMAGE_ATTACHMENT_BYTES,
 		normalizeAttachmentFile
@@ -703,24 +702,13 @@
 		};
 	});
 
-	function messageSkill(index: number): SkillSummary | null {
-		const messages = stream.messages;
-		for (let i = index; i >= 0; i--) {
-			if (messages[i].role === 'user') return messages[i].skill ?? null;
-		}
-		return null;
-	}
-
-	/** Filenames attached to the user message that this assistant turn answers. */
-	function turnAttachments(index: number): string[] {
-		const messages = stream.messages;
-		for (let i = index; i >= 0; i--) {
-			if (messages[i].role === 'user') {
-				return (messages[i].attachments ?? []).map((attachment) => attachment.filename);
-			}
-		}
-		return [];
-	}
+	/**
+	 * Per-row chat context (skill, answered-turn files, sources, continuation) is
+	 * resolved once per messages version instead of by every rendered row: the stream
+	 * rewrites the array on each animation frame, so per-row backward scans and source
+	 * collection are O(rows x turn) per frame.
+	 */
+	const rowContext = $derived(buildRowContext(stream.messages));
 
 	function addAttachments(selected: File[] | FileList | null) {
 		if (!selected) return false;
@@ -867,9 +855,9 @@
 				{#each stream.messages as msg, i (msg.id)}
 					<ChatMessage
 						message={msg}
-						skill={messageSkill(i)}
-						continuation={msg.role === 'assistant' && stream.messages[i - 1]?.role === 'assistant'}
-						sources={getTurnSources(stream.messages, i)}
+						skill={rowContext.get(msg.id)?.skill ?? null}
+						continuation={rowContext.get(msg.id)?.continuation ?? false}
+						sources={rowContext.get(msg.id)?.sources ?? []}
 						isLast={i === stream.messages.length - 1}
 						canRetry={stream.canRetry}
 						running={stream.running}
@@ -880,7 +868,7 @@
 						onregenerate={stream.retry}
 						onquestionsubmit={handleQuestionSubmit}
 						onconsentsubmit={handleConsentSubmit}
-						contextAttachments={turnAttachments(i)}
+						contextAttachments={rowContext.get(msg.id)?.attachments ?? []}
 						projectName={activeConversation?.projectName ?? null}
 						showContext={displayPreferences.showMessageContext}
 						enterMotion={enterMotionArmed}

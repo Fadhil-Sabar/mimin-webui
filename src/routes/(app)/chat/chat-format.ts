@@ -9,6 +9,40 @@ import type {
 	TurnSource
 } from './chat-types';
 
+/** Per-row chat context, resolved once per messages version (see the chat page). */
+export type ChatRowContext = {
+	skill: SkillSummary | null;
+	attachments: string[];
+	sources: TurnSource[];
+	continuation: boolean;
+};
+
+/**
+ * Resolves what each transcript row needs (the skill and files of the turn it
+ * answers, that turn's sources, whether it continues a previous assistant reply) in
+ * one pass. The chat page re-derives this on every streamed frame, so resolving it
+ * per rendered row would scan backwards once per row per frame.
+ */
+export function buildRowContext(messages: ConversationMessage[]): Map<string, ChatRowContext> {
+	const rows = new Map<string, ChatRowContext>();
+	let skill: SkillSummary | null = null;
+	let attachments: string[] = [];
+	for (let index = 0; index < messages.length; index++) {
+		const current = messages[index];
+		if (current.role === 'user') {
+			skill = current.skill ?? null;
+			attachments = (current.attachments ?? []).map((attachment) => attachment.filename);
+		}
+		rows.set(current.id, {
+			skill,
+			attachments,
+			sources: getTurnSources(messages, index),
+			continuation: current.role === 'assistant' && messages[index - 1]?.role === 'assistant'
+		});
+	}
+	return rows;
+}
+
 export function modelId(modelRefValue: string) {
 	return modelRefValue.split('/').slice(1).join('/') || modelRefValue;
 }
