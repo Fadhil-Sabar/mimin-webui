@@ -15,6 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type { SkillSnapshot } from '$lib/skills';
 import type { StyleGuideline } from '$lib/canvas';
+import type { TurnTimingSnapshot } from '$lib/server/ai/turn-timing';
 
 export const users = pgTable('users', {
 	id: uuid('id').defaultRandom().primaryKey(),
@@ -265,6 +266,10 @@ export const messages = pgTable(
 		// provider token counts so a truncated reply can be diagnosed afterwards.
 		stopReason: text('stop_reason'),
 		usage: jsonb('usage').$type<MessageUsage>(),
+		// Per-turn phase timing for the turn that produced this message (see
+		// `turn-timing.ts`). Nullable on purpose: rows written before this column
+		// existed carry none, and only the turn's final assistant message is stamped.
+		timing: jsonb('timing').$type<TurnTimingSnapshot>(),
 		// Defaults to `complete` so rows written before this column existed read as
 		// finished turns rather than as replies that never settled.
 		turnState: text('turn_state').$type<TurnState>().notNull().default('complete'),
