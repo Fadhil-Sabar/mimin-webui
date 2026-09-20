@@ -1,4 +1,5 @@
 import type { ModelOption, ThinkingLevel } from '$lib/components/ModelPicker.svelte';
+import { loadModelsCached, modelsErrorMessage } from '$lib/client/models-cache';
 import type { ToolOption } from '$lib/components/ToolPicker.svelte';
 import { SvelteSet } from 'svelte/reactivity';
 import {
@@ -182,15 +183,9 @@ export function createChatSettings(deps: ChatSettingsDeps) {
 
 	async function loadModels() {
 		try {
-			const response = await fetch('/api/models');
-			if (!response.ok) throw new Error('Could not load models');
-			const data = await response.json();
-			models = Array.isArray(data.models) ? data.models : [];
-			const errors = Array.isArray(data.errors) ? data.errors : [];
-			modelLoadError = errors
-				.map((error: { message?: string }) => error.message ?? '')
-				.filter(Boolean)
-				.join(' ');
+			const data = await loadModelsCached<ModelOption>();
+			models = data.models;
+			modelLoadError = modelsErrorMessage(data);
 			if (modelLoadError) deps.notify('Some live models could not be loaded. Check Providers.');
 		} catch (error) {
 			deps.notify(error instanceof Error ? error.message : 'Could not load models');

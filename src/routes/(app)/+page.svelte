@@ -4,6 +4,7 @@
 	import { toast } from 'svelte-sonner';
 	import { Send } from '@lucide/svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
+	import { loadModelsCached, modelsErrorMessage } from '$lib/client/models-cache';
 	import {
 		conversationsState,
 		getLastUsedModel,
@@ -39,15 +40,9 @@
 
 	async function loadModels() {
 		try {
-			const response = await fetch('/api/models');
-			if (!response.ok) throw new Error('Could not load models');
-			const data = await response.json();
-			models = Array.isArray(data.models) ? data.models : [];
-			const errors = Array.isArray(data.errors) ? data.errors : [];
-			modelLoadError = errors
-				.map((error: { message?: string }) => error.message ?? '')
-				.filter(Boolean)
-				.join(' ');
+			const data = await loadModelsCached<ModelOption>();
+			models = data.models;
+			modelLoadError = modelsErrorMessage(data);
 			if (modelLoadError) toast('Some live models could not be loaded. Check Providers.');
 			selectedModel = resolveInitialModel(configuredModels) ?? '';
 		} catch (error) {
