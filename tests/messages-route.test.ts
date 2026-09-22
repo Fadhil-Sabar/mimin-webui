@@ -25,8 +25,10 @@ vi.mock('$lib/server/api', () => ({
 	})),
 	apiError: (code: string, message: string, status = 400) =>
 		new Response(JSON.stringify({ error: { code, message } }), { status }),
-	handleApiError: () =>
-		new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR' } }), { status: 500 })
+	handleApiError: (error: unknown) => {
+		console.error('ROUTE_ERROR', error);
+		return new Response(JSON.stringify({ error: { code: 'INTERNAL_ERROR' } }), { status: 500 });
+	}
 }));
 vi.mock('$lib/server/ai/model.service', () => ({
 	isModelAvailable: vi.fn(async () => state.modelAvailable),
@@ -52,15 +54,38 @@ vi.mock('$lib/server/files/storage', () => ({
 	cleanupStoredFiles: vi.fn(async () => {})
 }));
 vi.mock('$lib/server/db/client', () => {
+	const schema = {
+		messages: { id: 'id' },
+		conversations: { id: 'id', model: 'model' },
+		projects: { id: 'id' },
+		activeTurns: {
+			conversationId: 'conversation_id',
+			token: 'token',
+			canceled: 'canceled',
+			leaseUntil: 'lease_until',
+			updatedAt: 'updated_at'
+		}
+	};
 	const db = {
-		insert: vi.fn(() => ({
-			values: vi.fn((values) => ({
-				returning: vi.fn(async () => {
-					if (state.failInsert) throw new Error('insert failed');
-					state.insertCount++;
-					return [{ id: `message-${state.insertCount}`, createdAt: new Date(), ...values }];
-				})
-			}))
+		insert: vi.fn((table: unknown) => ({
+			values: vi.fn((values) => {
+				if (table === schema.activeTurns) {
+					const turnChain = {
+						returning: vi.fn(async () => [values]),
+						onConflictDoNothing: vi.fn(() => turnChain)
+					};
+					return turnChain;
+				}
+				const chain = {
+					returning: vi.fn(async () => {
+						if (state.failInsert) throw new Error('insert failed');
+						state.insertCount++;
+						return [{ id: `message-${state.insertCount}`, createdAt: new Date(), ...values }];
+					}),
+					onConflictDoNothing: vi.fn(() => chain)
+				};
+				return chain;
+			})
 		})),
 		update: vi.fn(() => ({
 			set: vi.fn(() => ({
@@ -73,11 +98,7 @@ vi.mock('$lib/server/db/client', () => {
 	};
 	return {
 		getDb: () => db,
-		schema: {
-			messages: { id: 'id' },
-			conversations: { id: 'id', model: 'model' },
-			projects: { id: 'id' }
-		}
+		schema
 	};
 });
 vi.mock('$lib/server/ai/agent.service', async (importOriginal) => ({

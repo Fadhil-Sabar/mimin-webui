@@ -7,6 +7,8 @@ import { indexKnowledgeEmbeddings } from '$lib/server/ai/knowledge-indexing';
 export const PROCESSING_STATUSES = ['queued', 'processing', 'succeeded', 'failed'] as const;
 export type ProcessingStatus = (typeof PROCESSING_STATUSES)[number];
 export const MAX_PROCESSING_ATTEMPTS = 5;
+/** `upload` jobs replace chunks freely; `reindex` jobs keep the previous index when extraction fails. */
+export type DocumentJobMode = 'upload' | 'reindex';
 export const PROCESSING_LEASE_MS = 5 * 60_000;
 export const PROCESSING_HEARTBEAT_MS = Math.max(1_000, Math.floor(PROCESSING_LEASE_MS / 3));
 
@@ -37,19 +39,36 @@ export function leaseHeartbeatDelay(leaseMs = PROCESSING_LEASE_MS) {
 export async function enqueueDocumentProcessing(
 	projectId: string,
 	fileId: string,
-	database: ReturnType<typeof getDb> = getDb()
+	database: ReturnType<typeof getDb> = getDb(),
+	mode: DocumentJobMode = 'upload'
 ) {
 	const [job] = await database
 		.insert(schema.documentProcessingJobs)
-		.values({ projectId, fileId })
+		.values({ projectId, fileId, mode })
 		.returning();
 	return job;
+}
+
+/**
+ * A reindex must never replace useful legacy text with a failed or partial
+ * extraction — the route that did this inline returned 422 and kept the old index.
+ */
+export function reindexExtractionFailed(
+	extraction: { extractionError?: string | null; extractionStatus: string },
+	chunkCount: number
+) {
+	return (
+		Boolean(extraction.extractionError) ||
+		['failed', 'partial', 'truncated'].includes(extraction.extractionStatus) ||
+		chunkCount === 0
+	);
 }
 
 export type ClaimedJob = {
 	id: string;
 	projectId: string;
 	fileId: string;
+	mode: DocumentJobMode;
 	attempts: number;
 	workerId: string;
 	leaseToken: string;
@@ -89,8 +108,8 @@ export async function claimDocumentProcessingJob(
 				lease_until = ${lease.toISOString()}::timestamptz, worker_id = ${workerId}, lease_token = ${leaseToken}, updated_at = now()
 			FROM candidate
 			WHERE job.id = candidate.id
-			RETURNING job.id, job.project_id AS "projectId", job.file_id AS "fileId", job.attempts,
-				job.worker_id AS "workerId", job.lease_token AS "leaseToken"
+			RETURNING job.id, job.project_id AS "projectId", job.file_id AS "fileId", job.mode,
+				job.attempts, job.worker_id AS "workerId", job.lease_token AS "leaseToken"
 		`);
 		return (rows[0] as ClaimedJob | undefined) ?? null;
 	});
@@ -177,6 +196,22 @@ export async function processDocumentProcessingJob(job: ClaimedJob) {
 			{ ocr: true }
 		);
 		const chunks = chunkUploadedExtraction(extraction);
+		// A reindex keeps the previous index when the new extraction is unusable;
+		// the failure is permanent, so the job ends without touching chunks.
+		if (job.mode === 'reindex' && reindexExtractionFailed(extraction, chunks.length)) {
+			const message = extraction.extractionError
+				? `${extraction.extractionError}: reindexing could not extract complete text; the previous index was retained.`
+				: 'Reindexing could not extract complete text; the previous index was retained.';
+			if (leaseLost) throw new DocumentLeaseLostError();
+			const [fileUpdated] = await getDb()
+				.update(schema.projectFiles)
+				.set({ processingStatus: 'failed', extractionError: message })
+				.where(ownedFileWhere(job))
+				.returning({ id: schema.projectFiles.id });
+			assertOwnedProcessingUpdate(fileUpdated);
+			await finishJob(job, 'failed', new Error(message));
+			return { status: 'failed' as const, error: new Error(message) };
+		}
 		if (leaseLost) throw new DocumentLeaseLostError();
 		await assertLease(job);
 		await db.transaction(async (tx) => {

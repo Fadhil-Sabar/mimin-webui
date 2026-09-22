@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
 	inserts: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
 	liveFiles: [{ id: 'file-1' }] as Array<{ id: string }>,
 	emitSources: true,
+	emitWeb: false,
 	conversation: {
 		id: 'conversation-1',
 		userId: 'user-1',
@@ -35,6 +36,13 @@ const schema = vi.hoisted(() => {
 			...table('projectFiles'),
 			id: 'projectFiles.id',
 			projectId: 'projectFiles.projectId'
+		},
+		activeTurns: {
+			conversationId: 'conversation_id',
+			token: 'token',
+			canceled: 'canceled',
+			leaseUntil: 'lease_until',
+			updatedAt: 'updated_at'
 		}
 	};
 });
@@ -148,6 +156,52 @@ vi.mock('@earendil-works/pi-agent-core', () => {
 					},
 					isError: false
 				},
+				...(state.emitWeb
+					? [
+							{
+								type: 'tool_execution_start',
+								toolCallId: 'tool-2',
+								toolName: 'web_search',
+								args: { query: 'retention rules' }
+							},
+							{
+								type: 'tool_execution_end',
+								toolCallId: 'tool-2',
+								toolName: 'web_search',
+								result: {
+									details: {
+										sources: [
+											{
+												title: 'Retention rules',
+												url: 'https://example.gov/retention',
+												snippet: 'Agencies retain records for seven years.'
+											},
+											{
+												title: 'Duplicate entry',
+												url: 'https://example.gov/retention',
+												snippet: 'duplicate of the same URL'
+											},
+											{ title: 'Entry without a URL', snippet: 'ignored' }
+										]
+									}
+								},
+								isError: false
+							},
+							{
+								type: 'tool_execution_start',
+								toolCallId: 'tool-3',
+								toolName: 'web_fetch',
+								args: { url: 'https://example.org/faq' }
+							},
+							{
+								type: 'tool_execution_end',
+								toolCallId: 'tool-3',
+								toolName: 'web_fetch',
+								result: { details: { url: 'https://example.org/faq', title: 'FAQ' } },
+								isError: false
+							}
+						]
+					: []),
 				{
 					type: 'message_update',
 					assistantMessageEvent: { type: 'text_delta', delta: 'The answer is seven years [1].' }
@@ -257,6 +311,7 @@ beforeEach(() => {
 	state.sourceId = 0;
 	state.liveFiles = [{ id: 'file-1' }];
 	state.emitSources = true;
+	state.emitWeb = false;
 });
 
 describe('project knowledge citation persistence', () => {
@@ -312,6 +367,59 @@ describe('project knowledge citation persistence', () => {
 		);
 		const persistedSources = state.inserts.filter((entry) => entry.table === schema.sources);
 		expect(persistedSources).toHaveLength(2);
+	});
+
+	it('persists deduplicated web sources from search and fetch tool results', async () => {
+		state.emitWeb = true;
+		const events: Array<Record<string, unknown>> = [];
+		await runConversationTurn(
+			'conversation-1',
+			'openai/test',
+			'What are the retention rules?',
+			(event) => events.push(event),
+			'user-1',
+			'user-message-1',
+			'turn-1',
+			false,
+			['web_search', 'web_fetch']
+		);
+
+		const webSources = state.inserts.filter(
+			(entry) => entry.table === schema.sources && entry.values.type === 'web'
+		);
+		// Duplicate URL collapsed, entry without a URL skipped, plus the fetched page.
+		expect(webSources).toHaveLength(2);
+		expect(webSources[0].values).toMatchObject({
+			type: 'web',
+			title: 'Retention rules',
+			url: 'https://example.gov/retention',
+			metadata: {
+				citationIndex: expect.any(Number),
+				passage: expect.stringContaining('seven years')
+			}
+		});
+		expect(webSources[1].values).toMatchObject({
+			type: 'web',
+			url: 'https://example.org/faq',
+			title: 'FAQ'
+		});
+		const webCitations = state.inserts.filter(
+			(entry) => entry.table === schema.messageCitations && entry.values.label === 'Retention rules'
+		);
+		expect(webCitations).toHaveLength(1);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: 'message.citations',
+				citations: expect.arrayContaining([
+					expect.objectContaining({
+						type: 'web',
+						url: 'https://example.gov/retention',
+						passage: expect.stringContaining('seven years')
+					}),
+					expect.objectContaining({ type: 'web', url: 'https://example.org/faq' })
+				])
+			})
+		);
 	});
 
 	it('does not carry citations from a previous turn into a retry turn', async () => {

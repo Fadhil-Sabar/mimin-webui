@@ -28,7 +28,11 @@ export const POST: RequestHandler = async (event) => {
 			return apiError('INVALID_INPUT', 'Invalid browser consent decision.', 400);
 		}
 
-		const resolved = resolveBrowserConsent(parsed.data.requestId, user.id, parsed.data.decision);
+		const resolved = await resolveBrowserConsent(
+			parsed.data.requestId,
+			user.id,
+			parsed.data.decision
+		);
 		if (!resolved) {
 			return apiError(
 				'BROWSER_CONSENT_NOT_FOUND',
@@ -54,7 +58,7 @@ export const DELETE: RequestHandler = async (event) => {
 		const conversation = await getOwnedConversation(conversationId, user.id);
 		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 
-		const revoked = revokeConversationBrowserConsent(user.id, conversationId);
+		const revoked = await revokeConversationBrowserConsent(user.id, conversationId);
 		return json({ ok: true, revoked });
 	} catch (error) {
 		return handleApiError(error);

@@ -32,6 +32,13 @@ const schema = vi.hoisted(() => ({
 		id: 'canvases.id',
 		conversationId: 'canvases.conversationId',
 		userId: 'canvases.userId'
+	},
+	activeTurns: {
+		conversationId: 'conversation_id',
+		token: 'token',
+		canceled: 'canceled',
+		leaseUntil: 'lease_until',
+		updatedAt: 'updated_at'
 	}
 }));
 
@@ -65,6 +72,21 @@ vi.mock('$lib/server/db/client', () => {
 	}
 
 	const db = {
+		insert: vi.fn(() => ({
+			values: vi.fn((values: Record<string, unknown>) => {
+				const chain = {
+					returning: vi.fn(async () => [values]),
+					onConflictDoNothing: vi.fn(() => chain)
+				};
+				return chain;
+			})
+		})),
+		update: vi.fn(() => ({
+			set: vi.fn(() => ({
+				where: vi.fn(async () => undefined)
+			}))
+		})),
+		delete: vi.fn(() => ({ where: vi.fn(async () => {}) })),
 		select: vi.fn(() => {
 			let table: unknown;
 			const chain: Record<string, unknown> = {};
@@ -209,13 +231,13 @@ describe('conversation message pagination', () => {
 
 	it('keeps a streaming turn streaming while it is still active', async () => {
 		state.messages = [message('a1', 1000, { turnState: 'streaming' })];
-		beginConversationTurn('conv-1', 'turn-token');
+		await beginConversationTurn('conv-1', 'turn-token');
 		try {
 			const response = await GET(event());
 			const body = await response.json();
 			expect(body.messages[0].turnState).toBe('streaming');
 		} finally {
-			releaseConversationTurn('conv-1', 'turn-token');
+			await releaseConversationTurn('conv-1', 'turn-token');
 		}
 	});
 

@@ -10,7 +10,7 @@ Mimin WebUI is a project-based AI agent workspace with chat, project knowledge, 
 - **Projects:** organize conversations, manage files, and apply project instructions to every turn.
 - **Knowledge:** PDF text extraction, local OCR, optional hybrid keyword/pgvector search, and persistent page-aware citations.
 - **Providers:** discover models from OpenAI, Anthropic, Google, or custom endpoints; save encrypted per-user API keys.
-- **Research:** web search via Tavily, DuckDuckGo, or SearXNG, plus public URL reading with a fallback for JavaScript pages when the browser extension is connected.
+- **Research:** web search via Tavily, DuckDuckGo, or SearXNG, plus public URL reading with a fallback for JavaScript pages when the browser extension is connected. Cited web sources are persisted with the message and survive reloads.
 - **Browser bridge:** optional Chromium/Firefox extension for Google/Scholar search and permission-controlled tab reading and interaction.
 - **Skills:** reusable personal or project instructions, tool presets, and trigger suggestions.
 - **Accounts:** email/password sign-in, password reset, administrator-provisioned users, and ownership isolation for projects, conversations, and files.
@@ -128,9 +128,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md#quality-checks) for the complete checks, i
 ## Known limitations
 
 - Public self-registration is not available.
-- Turn coordination and browser consent are process-local; multiple instances need additional coordination. See [scaling limits](docs/deployment.md#5-scaling-limits).
-- High-volume indexing needs a durable background worker; deployment recipes currently target the Node adapter and single-host Docker Compose.
-- Connecting citation persistence to normalized web sources remains planned.
+- Turn coordination, stop requests, browser consent grants, and question/consent prompts are coordinated through the database (`active_turns`, `browser_consent_grants`, `pending_turn_requests`), so multiple instances behind a load balancer share one live turn per conversation and answers reach the waiter whichever instance serves the POST. See [scaling notes](docs/deployment.md#5-scaling-limits).
+- Deployment recipes target the Node adapter and single-host Docker Compose.
 
 ## Community and license
 

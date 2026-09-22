@@ -1,4 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('$lib/server/db/client', async () => {
+	const { createTurnStore, activeTurnsSchema } = await import('./helpers/turn-store');
+	const store = createTurnStore();
+	(globalThis as Record<string, unknown>).__turnStore = store;
+	return { getDb: () => store.db, schema: activeTurnsSchema };
+});
+
 import {
 	AGENT_SYSTEM_PROMPT,
 	getToolFailurePolicy,
@@ -7,6 +15,18 @@ import {
 	releaseConversationTurn,
 	stopConversation
 } from '../src/lib/server/ai/agent.service';
+import {
+	forgetLocalTurnState,
+	refreshConversationTurnCanceled
+} from '../src/lib/server/ai/turn-registry';
+
+/** Ages the stored lease into the past, as if the owning instance had died. */
+async function expireLease(conversationId: string) {
+	const store = (globalThis as { __turnStore?: { rows: Map<string, { leaseUntil: Date }> } })
+		.__turnStore;
+	const row = store?.rows.get(conversationId);
+	if (row) row.leaseUntil = new Date(Date.now() - 1_000);
+}
 
 describe('agent tool-use policy', () => {
 	it('allows iterative tool use until the answer is sufficiently grounded', () => {
@@ -37,27 +57,38 @@ describe('agent tool-use policy', () => {
 		expect(getToolFailurePolicy('project_knowledge_search', true)).toBeUndefined();
 	});
 
-	it('reserves one turn per conversation and releases only its own token', () => {
-		expect(beginConversationTurn('conversation-a', 'token-a')).toBe(true);
-		expect(beginConversationTurn('conversation-a', 'token-b')).toBe(false);
-		releaseConversationTurn('conversation-a', 'token-b');
-		expect(beginConversationTurn('conversation-a', 'token-b')).toBe(false);
-		releaseConversationTurn('conversation-a', 'token-a');
-		expect(beginConversationTurn('conversation-a', 'token-b')).toBe(true);
-		releaseConversationTurn('conversation-a', 'token-b');
-		expect(stopConversation('conversation-a')).toBe(false);
+	it('reserves one turn per conversation and releases only its own token', async () => {
+		expect(await beginConversationTurn('conversation-a', 'token-a')).toBe(true);
+		expect(await beginConversationTurn('conversation-a', 'token-b')).toBe(false);
+		await releaseConversationTurn('conversation-a', 'token-b');
+		expect(await beginConversationTurn('conversation-a', 'token-b')).toBe(false);
+		await releaseConversationTurn('conversation-a', 'token-a');
+		expect(await beginConversationTurn('conversation-a', 'token-b')).toBe(true);
+		await releaseConversationTurn('conversation-a', 'token-b');
+		expect(await stopConversation('conversation-a')).toBe(false);
 	});
 
-	it('remembers an early stop and ignores cancellation from an older turn', () => {
-		expect(beginConversationTurn('setup-conversation', 'setup-token')).toBe(true);
-		expect(stopConversation('setup-conversation', 'older-token')).toBe(false);
+	it('remembers an early stop and ignores cancellation from an older turn', async () => {
+		expect(await beginConversationTurn('setup-conversation', 'setup-token')).toBe(true);
+		expect(await stopConversation('setup-conversation', 'older-token')).toBe(false);
 		expect(isConversationTurnCanceled('setup-token')).toBe(false);
-		expect(stopConversation('setup-conversation', 'setup-token')).toBe(true);
+		expect(await stopConversation('setup-conversation', 'setup-token')).toBe(true);
 		expect(isConversationTurnCanceled('setup-token')).toBe(true);
-		releaseConversationTurn('setup-conversation', 'setup-token');
+		await releaseConversationTurn('setup-conversation', 'setup-token');
 		expect(isConversationTurnCanceled('setup-token')).toBe(false);
-		expect(beginConversationTurn('setup-conversation', 'next-token')).toBe(true);
-		expect(stopConversation('setup-conversation', 'setup-token')).toBe(false);
-		releaseConversationTurn('setup-conversation', 'next-token');
+		expect(await beginConversationTurn('setup-conversation', 'next-token')).toBe(true);
+		expect(await stopConversation('setup-conversation', 'setup-token')).toBe(false);
+		await releaseConversationTurn('setup-conversation', 'next-token');
+	});
+
+	it('reclaims a reservation whose lease expired on a dead instance', async () => {
+		// Simulates another instance's crash: the row exists with an expired lease,
+		// and this process has no local knowledge of it.
+		expect(await beginConversationTurn('expired-conversation', 'dead-token')).toBe(true);
+		forgetLocalTurnState();
+		await expireLease('expired-conversation');
+		expect(await beginConversationTurn('expired-conversation', 'fresh-token')).toBe(true);
+		expect(await refreshConversationTurnCanceled('expired-conversation', 'dead-token')).toBe(true);
+		await releaseConversationTurn('expired-conversation', 'fresh-token');
 	});
 });

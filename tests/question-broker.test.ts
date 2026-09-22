@@ -41,7 +41,7 @@ describe('question broker', () => {
 			questions: sampleQuestions
 		});
 
-		const resolved = resolveQuestionAnswer('req-1', 'user-1', {
+		const resolved = await resolveQuestionAnswer('req-1', 'user-1', {
 			answers: [
 				{
 					questionIndex: 0,
@@ -70,7 +70,7 @@ describe('question broker', () => {
 		const emit = vi.fn();
 		const promise = requestQuestionAnswer(sampleContext, 'req-2', sampleQuestions, emit);
 
-		const resolved = resolveQuestionAnswer('req-2', 'user-other', {
+		const resolved = await resolveQuestionAnswer('req-2', 'user-other', {
 			answers: [],
 			skipped: false
 		});
@@ -79,19 +79,20 @@ describe('question broker', () => {
 		expect(isQuestionPending('req-2')).toBe(true);
 
 		// Resolve properly to clean up
-		resolveQuestionAnswer('req-2', 'user-1', { answers: [], skipped: true });
+		await resolveQuestionAnswer('req-2', 'user-1', { answers: [], skipped: true });
 		await promise;
 	});
 
 	it('cancels pending requests when conversation turn is canceled', async () => {
 		const emit = vi.fn();
 		const promise = requestQuestionAnswer(sampleContext, 'req-3', sampleQuestions, emit);
+		const assertion = expect(promise).rejects.toThrow('QUESTION_REQUEST_CANCELED');
 
-		const canceledCount = cancelQuestionRequests('conv-123', 'turn-abc');
+		const canceledCount = await cancelQuestionRequests('conv-123', 'turn-abc');
 		expect(canceledCount).toBe(1);
 		expect(isQuestionPending('req-3')).toBe(false);
 
-		await expect(promise).rejects.toThrow('QUESTION_REQUEST_CANCELED');
+		await assertion;
 	});
 
 	it('aborts when signal is canceled', async () => {

@@ -1,15 +1,16 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
-import {
-	chunkUploadedExtraction,
-	extractUploadedFile,
-	readStoredFile
-} from '$lib/server/files/storage';
-import { indexKnowledgeEmbeddings } from '$lib/server/ai/knowledge-indexing';
+import { enqueueDocumentProcessing } from '$lib/server/files/document-processing';
 
-/** Explicit, repeatable upgrade for old uploads; original files and citation snapshots are retained. */
+/**
+ * Queues a repeatable reindex on the durable document worker instead of running
+ * extraction, OCR, and embeddings inside the request: long scans no longer block
+ * the HTTP call, and a restart or second instance picks the job up from the
+ * database. Original files and citation snapshots are retained; when the new
+ * extraction fails, the worker keeps the previous index and marks the file.
+ */
 export const POST: RequestHandler = async (event) => {
 	try {
 		const user = await requireUser(event);
@@ -24,60 +25,35 @@ export const POST: RequestHandler = async (event) => {
 		);
 		const [file] = await db.select().from(schema.projectFiles).where(scope);
 		if (!file) return apiError('FILE_NOT_FOUND', 'File not found.', 404);
-		const bytes = await readStoredFile(file.storageKey);
-		const extraction = await extractUploadedFile(
-			new File([new Uint8Array(bytes)], file.filename, { type: file.mimeType }),
-			{ ocr: true }
-		);
-		const chunks = chunkUploadedExtraction(extraction);
-		// Never replace useful legacy text with failed or partial extraction.
-		if (
-			extraction.extractionError ||
-			['failed', 'partial', 'truncated'].includes(extraction.extractionStatus) ||
-			!chunks.length
-		) {
-			return json(
-				{
-					error: {
-						code: extraction.extractionError || 'NO_EXTRACTED_TEXT',
-						message: 'Reindexing could not extract complete text; the previous index was retained.'
-					}
-				},
-				{ status: 422 }
-			);
-		}
+		// A second click reuses the in-flight job instead of queueing duplicate work.
+		const [existing] = await db
+			.select({ id: schema.documentProcessingJobs.id })
+			.from(schema.documentProcessingJobs)
+			.where(
+				and(
+					eq(schema.documentProcessingJobs.fileId, fileId),
+					eq(schema.documentProcessingJobs.projectId, projectId),
+					inArray(schema.documentProcessingJobs.status, ['queued', 'processing'])
+				)
+			)
+			.limit(1);
 		const record = await db.transaction(async (tx) => {
-			// Serialize replacements and prevent a concurrent deletion from resurrecting chunks.
-			const locked = await tx.execute(
-				sql`select id from project_files where id = ${fileId} and project_id = ${projectId} for update`
-			);
-			if (!locked.length) return null;
-			await tx
-				.delete(schema.projectFileChunks)
-				.where(
-					and(
-						eq(schema.projectFileChunks.fileId, fileId),
-						eq(schema.projectFileChunks.projectId, projectId)
-					)
+			if (!existing)
+				await enqueueDocumentProcessing(
+					projectId,
+					fileId,
+					tx as unknown as ReturnType<typeof getDb>,
+					'reindex'
 				);
-			await tx
-				.insert(schema.projectFileChunks)
-				.values(chunks.map((chunk) => ({ ...chunk, projectId, fileId })));
 			const [updated] = await tx
 				.update(schema.projectFiles)
-				.set({
-					extractionStatus: extraction.extractionStatus,
-					extractionError: extraction.extractionError,
-					pageCount: extraction.pageCount,
-					chunkCount: chunks.length
-				})
+				.set({ processingStatus: 'queued' })
 				.where(scope)
 				.returning();
 			return updated;
 		});
 		if (!record) return apiError('FILE_NOT_FOUND', 'File not found.', 404);
-		const indexing = await indexKnowledgeEmbeddings(projectId, fileId);
-		return json({ file: record, indexing });
+		return json({ file: record, processing: { status: 'queued' } }, { status: 202 });
 	} catch (error) {
 		return handleApiError(error);
 	}

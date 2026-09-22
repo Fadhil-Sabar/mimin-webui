@@ -45,7 +45,7 @@ export const POST: RequestHandler = async (event) => {
 		);
 
 		turnToken = randomUUID();
-		if (!beginConversationTurn(conversationId, turnToken))
+		if (!(await beginConversationTurn(conversationId, turnToken)))
 			return apiError(
 				'CONVERSATION_BUSY',
 				'This conversation is already generating a response.',
@@ -60,7 +60,7 @@ export const POST: RequestHandler = async (event) => {
 
 		const lastUserIndex = allMessages.findLastIndex((m) => m.role === 'user');
 		if (lastUserIndex === -1) {
-			releaseConversationTurn(conversationId, turnToken);
+			await releaseConversationTurn(conversationId, turnToken);
 			return apiError('NO_MESSAGE_TO_RETRY', 'No user message to retry.', 400);
 		}
 
@@ -80,7 +80,7 @@ export const POST: RequestHandler = async (event) => {
 					.set({ model: modelToUse, updatedAt: new Date() })
 					.where(eq(schema.conversations.id, conversationId));
 			} else {
-				releaseConversationTurn(conversationId, turnToken);
+				await releaseConversationTurn(conversationId, turnToken);
 				return apiError('MODEL_NOT_AVAILABLE', 'No configured models are available.');
 			}
 		} else if (parsedModel && parsedModel !== conversation.model) {
@@ -153,7 +153,7 @@ export const POST: RequestHandler = async (event) => {
 			},
 			cancel() {
 				controller = undefined;
-				stopConversation(streamConversationId, streamTurnToken);
+				void stopConversation(streamConversationId, streamTurnToken);
 			}
 		});
 		const send = (eventType: string, data: unknown) => {
@@ -225,7 +225,7 @@ export const POST: RequestHandler = async (event) => {
 																: 'The agent could not complete this turn.';
 				send('error', { type: 'error', error: { code, message } });
 			} finally {
-				releaseConversationTurn(conversationId, turnToken);
+				await releaseConversationTurn(conversationId, turnToken);
 				close();
 			}
 		})();
@@ -238,7 +238,7 @@ export const POST: RequestHandler = async (event) => {
 			}
 		});
 	} catch (error) {
-		if (conversationId && turnToken) releaseConversationTurn(conversationId, turnToken);
+		if (conversationId && turnToken) await releaseConversationTurn(conversationId, turnToken);
 		return handleApiError(error);
 	}
 };

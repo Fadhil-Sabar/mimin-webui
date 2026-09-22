@@ -1,0 +1,1 @@
+ALTER TABLE "document_processing_jobs" ADD COLUMN "mode" text DEFAULT 'upload' NOT NULL;

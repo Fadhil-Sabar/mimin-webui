@@ -37,6 +37,13 @@ const schema = vi.hoisted(() => {
 			...table('projectFiles'),
 			id: 'projectFiles.id',
 			projectId: 'projectFiles.projectId'
+		},
+		activeTurns: {
+			conversationId: 'conversation_id',
+			token: 'token',
+			canceled: 'canceled',
+			leaseUntil: 'lease_until',
+			updatedAt: 'updated_at'
 		}
 	};
 });

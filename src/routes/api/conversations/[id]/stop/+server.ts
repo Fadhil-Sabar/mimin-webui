@@ -11,7 +11,7 @@ export const POST: RequestHandler = async (event) => {
 		if (!id) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		if (!(await getOwnedConversation(id, user.id)))
 			return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
-		return json({ stopped: stopConversation(id) });
+		return json({ stopped: await stopConversation(id) });
 	} catch (error) {
 		console.error(error);
 		return apiError('INTERNAL_ERROR', 'The request could not be completed.', 500);

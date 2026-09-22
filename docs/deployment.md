@@ -77,7 +77,9 @@ Test restoration regularly. Keep database and file-storage snapshots from the sa
 
 ## 5. Scaling limits
 
-Conversation turn reservations, stop requests, browser-extension pending requests, and browser consent are process-local. A multi-instance deployment requires sticky routing for related requests or a shared coordination/broker implementation. Document indexing runs synchronously and is bounded; use a durable worker before increasing OCR or upload limits for high-volume use.
+Turn reservations (`active_turns`), stop requests, browser-consent grants (`browser_consent_grants`), and question/consent prompts (`pending_turn_requests`) are coordinated in the database, so several application instances can share one live turn per conversation. A Stop or an answer POST is honored by whichever instance owns the running turn: cancels are observed at the turn's next checkpoint, and pending prompt answers settle through a 500 ms poll of the shared row.
+
+What still needs sticky routing: browser-extension bridge traffic. The extension holds one WebSocket to one instance, and in-flight tab requests (`src/lib/server/browser/bridge.ts`) can only resolve on that instance, so pin the extension's origin (or keep a single instance behind the proxy). Document indexing runs on the durable DB-leased worker that every instance shares.
 
 ## 6. Updates
 

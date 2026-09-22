@@ -353,6 +353,68 @@ export const messageCitations = pgTable(
 	(table) => ({ pk: primaryKey({ columns: [table.messageId, table.sourceId] }) })
 );
 
+/**
+ * One live turn per conversation, leased in the database so a reservation,
+ * a stop, and liveness all work when several app instances share the queue.
+ */
+export const activeTurns = pgTable('active_turns', {
+	conversationId: uuid('conversation_id')
+		.primaryKey()
+		.references(() => conversations.id, { onDelete: 'cascade' }),
+	token: text('token').notNull(),
+	canceled: boolean('canceled').notNull().default(false),
+	leaseUntil: timestamp('lease_until', { withTimezone: true }).notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+/**
+ * Browser-consent grants, persisted so a grant survives restarts and applies
+ * to every instance instead of only the process that recorded it.
+ */
+export const browserConsentGrants = pgTable(
+	'browser_consent_grants',
+	{
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		conversationId: uuid('conversation_id')
+			.notNull()
+			.references(() => conversations.id, { onDelete: 'cascade' }),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({ pk: primaryKey({ columns: [table.userId, table.conversationId] }) })
+);
+
+/**
+ * Question and browser-consent prompts waiting for a user answer. The answer
+ * may arrive on a different instance than the one running the turn, so the
+ * waiter polls this row instead of a process-local promise alone.
+ */
+export const pendingTurnRequests = pgTable(
+	'pending_turn_requests',
+	{
+		requestId: text('request_id').primaryKey(),
+		kind: text('kind').notNull(),
+		conversationId: uuid('conversation_id')
+			.notNull()
+			.references(() => conversations.id, { onDelete: 'cascade' }),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => users.id, { onDelete: 'cascade' }),
+		turnToken: text('turn_token').notNull(),
+		status: text('status').notNull().default('pending'),
+		answer: jsonb('answer'),
+		expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({
+		conversationIdx: index('pending_turn_requests_conversation_idx').on(table.conversationId),
+		expiresIdx: index('pending_turn_requests_expires_idx').on(table.expiresAt)
+	})
+);
+
 export const providerSettings = pgTable(
 	'provider_settings',
 	{
@@ -394,6 +456,8 @@ export const documentProcessingJobs = pgTable(
 			.notNull()
 			.references(() => projectFiles.id, { onDelete: 'cascade' }),
 		status: text('status').notNull().default('queued'),
+		/** `upload` replaces freely; `reindex` retains the previous index when extraction fails. */
+		mode: text('mode').notNull().default('upload'),
 		attempts: integer('attempts').notNull().default(0),
 		availableAt: timestamp('available_at', { withTimezone: true }).defaultNow().notNull(),
 		leaseUntil: timestamp('lease_until', { withTimezone: true }),

@@ -35,7 +35,7 @@ export const POST: RequestHandler = async (event) => {
 			return apiError('INVALID_INPUT', 'Invalid question answer payload.', 400);
 		}
 
-		const resolved = resolveQuestionAnswer(parsed.data.requestId, user.id, {
+		const resolved = await resolveQuestionAnswer(parsed.data.requestId, user.id, {
 			answers: parsed.data.answers,
 			skipped: parsed.data.skipped
 		});

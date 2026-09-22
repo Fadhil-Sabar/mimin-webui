@@ -110,6 +110,7 @@ describeIntegration('document processing PostgreSQL leases', () => {
 				id: claimed!.id,
 				projectId: claimed!.projectId,
 				fileId: claimed!.fileId,
+				mode: claimed!.mode,
 				attempts: claimed!.attempts,
 				workerId: crypto.randomUUID(),
 				leaseToken: 'old-token'

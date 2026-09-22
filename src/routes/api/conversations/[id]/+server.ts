@@ -161,7 +161,7 @@ export const GET: RequestHandler = async (event) => {
 			.limit(1);
 		// A row still marked `streaming` with no live turn behind it can only be a turn
 		// that died without finalizing (dropped connection, provider error, restart).
-		const turnActive = hasActiveConversationTurn(id);
+		const turnActive = await hasActiveConversationTurn(id);
 		return json({
 			conversation: {
 				...toPublicConversation(conversation),

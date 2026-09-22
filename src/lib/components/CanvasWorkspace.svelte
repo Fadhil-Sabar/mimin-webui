@@ -2,18 +2,13 @@
 	import {
 		BookOpen,
 		Code2,
-		Copy,
 		Download,
 		Eye,
 		LayoutGrid,
 		LayoutTemplate,
-		Monitor,
-		Smartphone,
-		Tablet,
 		Plus,
 		Trash2,
 		RefreshCw,
-		Check,
 		Maximize2,
 		ZoomIn,
 		ZoomOut,
@@ -32,17 +27,13 @@
 	import '@xyflow/svelte/dist/style.css';
 	import { tick } from 'svelte';
 	import type { CanvasDetail, CanvasScene, StyleGuideline, ViewportDevice } from '$lib/canvas';
-	import {
-		findFreeScenePosition,
-		planSceneLayout,
-		VIEWPORT_SPECS,
-		type ScenePlacement
-	} from '$lib/canvas';
-	import CanvasPreview from './CanvasPreview.svelte';
+	import { planSceneLayout } from '$lib/canvas';
+	import CanvasCodeEditor from './CanvasCodeEditor.svelte';
+	import CanvasPreviewDialog from './CanvasPreviewDialog.svelte';
+	import NewSceneModal from './NewSceneModal.svelte';
 	import StyleGuidelineEditor from './StyleGuidelineEditor.svelte';
 	import SceneFrameNode from './SceneFrameNode.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
-	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
 	type Props = {
 		canvas: CanvasDetail;
@@ -128,14 +119,8 @@
 
 	let showGuideline = $state(false);
 	let viewMode = $state<'preview' | 'code'>('preview');
-	let codeTab = $state<'html' | 'css' | 'js'>('html');
 	let refreshing = $state(false);
 	let showNewSceneModal = $state(false);
-	let newSceneName = $state('');
-	let newSceneViewport = $state<ViewportDevice>('desktop');
-	let creating = $state(false);
-	let copiedCode = $state(false);
-	let viewportSaving = $state(false);
 	let exporting = $state(false);
 	let exportError = $state('');
 	let exportMenu: HTMLDetailsElement;
@@ -174,19 +159,8 @@
 	}
 	let arranging = $state(false);
 
-	// Code editor state
-	let editedHtml = $state('');
-	let editedCss = $state('');
-	let editedJs = $state('');
-	let codeSaving = $state(false);
-
-	$effect(() => {
-		if (activeScene) {
-			editedHtml = activeScene.html;
-			editedCss = activeScene.css;
-			editedJs = activeScene.js ?? '';
-		}
-	});
+	// Code editor draft survives switching between preview and code views.
+	let codeDraft = $state({ tab: 'html' as 'html' | 'css' | 'js', html: '', css: '', js: '' });
 
 	$effect(() => {
 		if (canvas.activeSceneId) {
@@ -202,41 +176,6 @@
 		} finally {
 			refreshing = false;
 		}
-	}
-
-	async function switchViewport(viewport: ViewportDevice) {
-		if (!activeScene || viewportSaving || viewport === activeScene.viewport) return;
-		viewportSaving = true;
-		try {
-			await onupdatescene(activeScene.id, { viewport });
-		} finally {
-			viewportSaving = false;
-		}
-	}
-
-	async function saveCodeChanges() {
-		if (!activeScene) return;
-		codeSaving = true;
-		try {
-			await onupdatescene(activeScene.id, {
-				html: editedHtml,
-				css: editedCss,
-				js: editedJs
-			});
-		} finally {
-			codeSaving = false;
-		}
-	}
-
-	/** Current frame boxes; measured node heights keep the layout accurate for tall content. */
-	function currentPlacements(): ScenePlacement[] {
-		const measured = new Map(flow.getNodes().map((node) => [node.id, node.measured?.height]));
-		return canvas.scenes.map((scene) => ({
-			viewport: scene.viewport,
-			positionX: scene.positionX,
-			positionY: scene.positionY,
-			frameHeight: measured.get(scene.id)
-		}));
 	}
 
 	async function autoArrange() {
@@ -265,41 +204,6 @@
 		} finally {
 			arranging = false;
 		}
-	}
-
-	async function submitNewScene() {
-		if (!newSceneName.trim() || creating) return;
-		creating = true;
-		try {
-			const position = findFreeScenePosition(currentPlacements(), newSceneViewport);
-			await oncreatescene({
-				name: newSceneName.trim(),
-				viewport: newSceneViewport,
-				positionX: position.x,
-				positionY: position.y,
-				html: `<div class="container">\n  <h2>${newSceneName.trim()}</h2>\n  <p>New scene content...</p>\n</div>`,
-				css: activeScene?.css || ''
-			});
-			showNewSceneModal = false;
-			newSceneName = '';
-		} finally {
-			creating = false;
-		}
-	}
-
-	async function handleDeleteActiveScene() {
-		if (!activeScene || canvas.scenes.length <= 1) return;
-		if (confirm(`Delete scene "${activeScene.name}"?`)) {
-			await ondeletescene(activeScene.id);
-		}
-	}
-
-	function copyCurrentCode() {
-		if (!activeScene) return;
-		const code = codeTab === 'html' ? editedHtml : codeTab === 'css' ? editedCss : editedJs;
-		navigator.clipboard.writeText(code);
-		copiedCode = true;
-		setTimeout(() => (copiedCode = false), 1400);
 	}
 </script>
 
@@ -482,57 +386,11 @@
 				</div>
 			{:else if activeScene}
 				<!-- Code View / Quick Edit -->
-				<div class="code-editor-area">
-					<div class="code-header">
-						<div class="code-tabs">
-							<button
-								class="code-tab"
-								class:active={codeTab === 'html'}
-								onclick={() => (codeTab = 'html')}>HTML</button
-							>
-							<button
-								class="code-tab"
-								class:active={codeTab === 'css'}
-								onclick={() => (codeTab = 'css')}>CSS</button
-							>
-							<button
-								class="code-tab"
-								class:active={codeTab === 'js'}
-								onclick={() => (codeTab = 'js')}>JS</button
-							>
-						</div>
-						<div class="code-actions">
-							<button class="icon-btn" onclick={copyCurrentCode} title="Copy Code">
-								{#if copiedCode}<Check size={13} />{:else}<Copy size={13} />{/if}
-							</button>
-							<Button variant="default" size="sm" onclick={saveCodeChanges} disabled={codeSaving}>
-								{codeSaving ? 'Saving...' : 'Apply Code'}
-							</Button>
-						</div>
-					</div>
-
-					<div class="code-body">
-						{#if codeTab === 'html'}
-							<textarea
-								class="code-editor-input"
-								bind:value={editedHtml}
-								placeholder="Semantic HTML markup..."
-								spellcheck="false"></textarea>
-						{:else if codeTab === 'css'}
-							<textarea
-								class="code-editor-input"
-								bind:value={editedCss}
-								placeholder="CSS rules and token styles..."
-								spellcheck="false"></textarea>
-						{:else}
-							<textarea
-								class="code-editor-input"
-								bind:value={editedJs}
-								placeholder="Lightweight behavior JavaScript..."
-								spellcheck="false"></textarea>
-						{/if}
-					</div>
-				</div>
+				<CanvasCodeEditor
+					scene={activeScene}
+					bind:draft={codeDraft}
+					onsave={(html, css, js) => onupdatescene(activeScene.id, { html, css, js })}
+				/>
 			{:else}
 				<div class="empty-canvas">
 					<Button variant="default" onclick={() => (showNewSceneModal = true)}
@@ -555,140 +413,23 @@
 	</div>
 
 	{#if activeScene}
-		<Dialog.Root bind:open={previewOpen}>
-			<Dialog.Content
-				showCloseButton={false}
-				aria-label="Interactive preview of {activeScene.name}"
-				class="flex! max-h-[96vh] w-fit! max-w-[min(96vw,1300px)]! min-w-[min(320px,96vw)] flex-col gap-0 overflow-hidden rounded-xl bg-[var(--surface)] p-0 leading-[normal] shadow-[0_24px_70px_var(--shadow)] ring-0"
-			>
-				<div class="preview-dialog-bar">
-					<strong>{activeScene.name}</strong><span
-						>{VIEWPORT_SPECS[activeScene.viewport].width} × {VIEWPORT_SPECS[activeScene.viewport]
-							.height}</span
-					>
-					<div class="preview-device-switcher" role="group" aria-label="Ubah ukuran scene">
-						<button
-							type="button"
-							class:active={activeScene.viewport === 'mobile'}
-							aria-label="Mobile"
-							aria-pressed={activeScene.viewport === 'mobile'}
-							title="Mobile"
-							disabled={viewportSaving}
-							onclick={() => switchViewport('mobile')}><Smartphone size={16} /></button
-						>
-						<button
-							type="button"
-							class:active={activeScene.viewport === 'tablet'}
-							aria-label="Tablet"
-							aria-pressed={activeScene.viewport === 'tablet'}
-							title="Tablet"
-							disabled={viewportSaving}
-							onclick={() => switchViewport('tablet')}><Tablet size={16} /></button
-						>
-						<button
-							type="button"
-							class:active={activeScene.viewport === 'desktop'}
-							aria-label="Desktop"
-							aria-pressed={activeScene.viewport === 'desktop'}
-							title="Desktop"
-							disabled={viewportSaving}
-							onclick={() => switchViewport('desktop')}><Monitor size={16} /></button
-						>
-					</div>
-					<button class="icon-btn" onclick={() => (previewOpen = false)} aria-label="Close preview"
-						><X size={16} /></button
-					>
-				</div>
-				<div class="preview-scroll">
-					<div
-						class="interactive-screen"
-						style:width="{VIEWPORT_SPECS[activeScene.viewport].width}px"
-						style:height="{VIEWPORT_SPECS[activeScene.viewport].height}px"
-					>
-						{#key `${activeScene.id}:${activeScene.viewport}`}
-							<CanvasPreview
-								html={activeScene.html}
-								css={activeScene.css}
-								js={activeScene.js}
-								title={activeScene.name}
-							/>
-						{/key}
-					</div>
-				</div>
-				<div class="preview-dialog-actions">
-					<Button
-						variant="outline"
-						onclick={handleDeleteActiveScene}
-						disabled={canvas.scenes.length <= 1}><Trash2 size={13} /> Delete scene</Button
-					><Button
-						variant="outline"
-						onclick={() => {
-							previewOpen = false;
-							viewMode = 'code';
-						}}><Code2 size={13} /> Edit code</Button
-					>
-				</div>
-			</Dialog.Content>
-		</Dialog.Root>
+		<CanvasPreviewDialog
+			bind:open={previewOpen}
+			scene={activeScene}
+			sceneCount={canvas.scenes.length}
+			{onupdatescene}
+			{ondeletescene}
+			oneditcode={() => (viewMode = 'code')}
+		/>
 	{/if}
 
 	<!-- Modal for New Scene -->
-	<Dialog.Root bind:open={showNewSceneModal}>
-		<Dialog.Content
-			showCloseButton={false}
-			class="w-[min(440px,90%)] max-w-none! gap-0 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] p-0 leading-[normal] shadow-[0_20px_25px_-5px_rgba(0,0,0,0.2)] ring-0"
-		>
-			<div class="modal-header">
-				<Dialog.Title level={3} class="text-headline-sm text-[var(--text-strong)]"
-					>Create Scene Mockup</Dialog.Title
-				>
-				<button
-					class="icon-btn"
-					onclick={() => (showNewSceneModal = false)}
-					aria-label="Close dialog"><Plus style="transform: rotate(45deg)" size={14} /></button
-				>
-			</div>
-			<div class="modal-body">
-				<div class="form-group">
-					<label for="scene-name" class="label">Scene Name</label>
-					<input
-						id="scene-name"
-						type="text"
-						class="text-input"
-						bind:value={newSceneName}
-						placeholder="e.g. Mobile Signup, Desktop Dashboard..."
-					/>
-				</div>
-				<div class="form-group">
-					<span class="label">Initial Viewport</span>
-					<div class="viewport-radios">
-						<label class="radio-label">
-							<input type="radio" bind:group={newSceneViewport} value="mobile" />
-							<span>Mobile (375px)</span>
-						</label>
-						<label class="radio-label">
-							<input type="radio" bind:group={newSceneViewport} value="tablet" />
-							<span>Tablet (768px)</span>
-						</label>
-						<label class="radio-label">
-							<input type="radio" bind:group={newSceneViewport} value="desktop" />
-							<span>Desktop (1200px)</span>
-						</label>
-					</div>
-				</div>
-			</div>
-			<div class="modal-footer">
-				<Button variant="outline" onclick={() => (showNewSceneModal = false)}>Cancel</Button>
-				<Button
-					variant="default"
-					onclick={submitNewScene}
-					disabled={creating || !newSceneName.trim()}
-				>
-					{creating ? 'Creating...' : 'Create Scene'}
-				</Button>
-			</div>
-		</Dialog.Content>
-	</Dialog.Root>
+	<NewSceneModal
+		bind:open={showNewSceneModal}
+		scenes={canvas.scenes}
+		activeSceneCss={activeScene?.css || ''}
+		{oncreatescene}
+	/>
 </div>
 
 <style>
@@ -749,73 +490,6 @@
 		background: transparent;
 		color: inherit;
 		cursor: pointer;
-	}
-	.preview-dialog-bar {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3);
-		padding: 10px 14px;
-		border-bottom: 1px solid var(--border);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	.preview-dialog-bar span {
-		color: var(--text-muted);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-	}
-	.preview-dialog-bar > button {
-		margin-left: auto;
-	}
-	.preview-device-switcher {
-		display: flex;
-		gap: 2px;
-		margin-left: auto;
-		padding: 2px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface-2);
-	}
-	.preview-device-switcher button {
-		display: grid;
-		place-items: center;
-		width: 29px;
-		height: 27px;
-		padding: 0;
-		border: 0;
-		border-radius: var(--radius-sm);
-		background: transparent;
-		color: var(--text-muted);
-		cursor: pointer;
-	}
-	.preview-device-switcher button:hover,
-	.preview-device-switcher button.active {
-		background: var(--surface);
-		color: var(--text-strong);
-	}
-	.preview-device-switcher button:focus-visible {
-		outline: 2px solid var(--focus);
-		outline-offset: 2px;
-	}
-	.preview-scroll {
-		overflow: auto;
-		background: var(--bg);
-		padding: var(--space-4);
-	}
-	.interactive-screen {
-		max-width: none;
-		background: white;
-		margin: 0 auto;
-		box-shadow: 0 4px 20px var(--shadow-softer);
-	}
-	.preview-dialog-actions {
-		display: flex;
-		gap: var(--space-2);
-		justify-content: flex-end;
-		border-top: 1px solid var(--border);
-		padding: 10px 14px;
 	}
 	.canvas-workspace {
 		display: flex;
@@ -1097,86 +771,6 @@
 		flex-direction: column;
 	}
 
-	/* Code Editor Area */
-	.code-editor-area {
-		display: flex;
-		flex-direction: column;
-		height: 100%;
-		background: var(--surface);
-	}
-
-	.code-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: var(--space-2) var(--space-4);
-		border-bottom: 1px solid var(--border);
-		background: var(--surface-2);
-	}
-
-	.code-tabs {
-		display: flex;
-		gap: 3px;
-	}
-
-	.code-tab {
-		padding: var(--space-1) 10px;
-		border: none;
-		background: transparent;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		font-weight: 500;
-		color: var(--text-muted);
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-		transition:
-			color var(--duration-short3) var(--ease-standard),
-			background var(--duration-short3) var(--ease-standard);
-	}
-
-	.code-tab:hover {
-		color: var(--text-strong);
-	}
-
-	.code-tab.active {
-		background: var(--surface);
-		color: var(--text-strong);
-		font-weight: 500;
-		box-shadow: 0 1px 2px var(--shadow-softer);
-	}
-
-	.code-actions {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-	}
-
-	.code-body {
-		flex: 1;
-		padding: var(--space-3);
-		overflow: hidden;
-	}
-
-	.code-editor-input {
-		width: 100%;
-		height: 100%;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		padding: var(--space-3);
-		font-family: var(--font-mono);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		background: var(--surface-subtle);
-		color: var(--text);
-		resize: none;
-	}
-
-	.code-editor-input:focus {
-		border-color: var(--border-strong);
-	}
-
 	.guideline-drawer {
 		width: min(380px, 50%);
 		border-left: 1px solid var(--border);
@@ -1198,79 +792,6 @@
 		animation: spin 1s linear infinite;
 	}
 
-	/* Modal Styles */
-	.modal-header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		padding: 14px 18px;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.modal-body {
-		padding: 18px;
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-4);
-	}
-
-	.form-group {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
-	.label {
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		font-weight: 500;
-		color: var(--text-strong);
-	}
-
-	.text-input {
-		border: 1px solid var(--input-border);
-		border-radius: var(--radius-md);
-		padding: var(--space-2) 10px;
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		background: var(--surface);
-		color: var(--text);
-	}
-
-	.text-input:focus {
-		border-color: var(--border-strong);
-		outline: 2px solid var(--focus);
-		outline-offset: 1px;
-	}
-
-	.viewport-radios {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-2);
-	}
-
-	.radio-label {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		color: var(--text-body);
-		cursor: pointer;
-	}
-
-	.modal-footer {
-		display: flex;
-		justify-content: flex-end;
-		gap: var(--space-2);
-		padding: var(--space-3) 18px;
-		border-top: 1px solid var(--border);
-		background: var(--surface-subtle);
-	}
-
 	@container (max-width: 700px) {
 		.canvas-topbar {
 			flex-wrap: wrap;
@@ -1285,14 +806,6 @@
 			right: 0;
 			z-index: 2;
 			width: min(380px, 100%);
-		}
-	}
-	@media (max-width: 560px) {
-		.preview-dialog-bar {
-			flex-wrap: wrap;
-		}
-		.preview-device-switcher {
-			margin-left: 0;
 		}
 	}
 </style>

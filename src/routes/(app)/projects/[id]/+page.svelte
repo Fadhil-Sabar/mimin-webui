@@ -75,11 +75,8 @@
 			const result = await response.json();
 			if (!response.ok) throw new Error(result.error?.message || 'Reindexing failed.');
 			await load(projectId, { reset: true });
-			toast(
-				result.indexing?.status === 'unavailable'
-					? 'Text indexed; semantic indexing unavailable. Retry reindexing later.'
-					: 'Knowledge index updated.'
-			);
+			// The durable worker runs the reindex; the list polls while it is queued.
+			toast('Reindex queued; the file refreshes when the index is rebuilt.');
 		} catch (error) {
 			toast(error instanceof Error ? error.message : 'Reindexing failed.');
 		} finally {

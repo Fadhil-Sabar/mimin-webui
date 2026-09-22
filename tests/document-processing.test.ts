@@ -6,6 +6,7 @@ import {
 	DocumentLeaseLostError,
 	isProcessingJobClaimable,
 	assertOwnedProcessingUpdate,
+	reindexExtractionFailed,
 	MAX_PROCESSING_ATTEMPTS
 } from '../src/lib/server/files/document-processing';
 
@@ -47,5 +48,37 @@ describe('durable document processing', () => {
 	it('rejects a fenced update that affected no owned row', () => {
 		expect(() => assertOwnedProcessingUpdate(undefined)).toThrow(DocumentLeaseLostError);
 		expect(assertOwnedProcessingUpdate({ id: 'job-1' })).toEqual({ id: 'job-1' });
+	});
+
+	describe('reindex retention guard', () => {
+		it('keeps the previous index when extraction reported an error', () => {
+			expect(
+				reindexExtractionFailed(
+					{ extractionError: 'PDF_OCR_UNAVAILABLE', extractionStatus: 'extracted' },
+					5
+				)
+			).toBe(true);
+		});
+		it.each(['partial', 'truncated', 'failed'])(
+			'keeps the previous index for %s extraction',
+			(status) => {
+				expect(
+					reindexExtractionFailed({ extractionError: null, extractionStatus: status }, 5)
+				).toBe(true);
+			}
+		);
+		it('keeps the previous index when no chunks were produced', () => {
+			expect(
+				reindexExtractionFailed({ extractionError: null, extractionStatus: 'extracted' }, 0)
+			).toBe(true);
+		});
+		it('replaces the index when the new extraction is usable', () => {
+			expect(
+				reindexExtractionFailed({ extractionError: null, extractionStatus: 'extracted' }, 5)
+			).toBe(false);
+			expect(
+				reindexExtractionFailed({ extractionError: null, extractionStatus: 'partial' }, 5)
+			).toBe(true);
+		});
 	});
 });

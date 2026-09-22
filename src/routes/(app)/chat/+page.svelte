@@ -9,18 +9,8 @@
 		deleteConversation,
 		updateConversation,
 		fetchConversationPage,
-		fetchCanvas,
-		createCanvasApi,
-		updateCanvasApi,
-		addCanvasSceneApi,
-		updateCanvasSceneApi,
-		deleteCanvasSceneApi,
-		createCanvasConnectionApi,
-		deleteCanvasConnectionApi,
 		type BrowserConsentDecision
 	} from '$lib/client/api';
-	import type { CanvasDetail, CanvasScene, StyleGuideline, ViewportDevice } from '$lib/canvas';
-	import CanvasWorkspace from '$lib/components/CanvasWorkspace.svelte';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 	import {
@@ -43,6 +33,7 @@
 	import ChatTurnNotice from './ChatTurnNotice.svelte';
 	import ChatMessage from './ChatMessage.svelte';
 	import { createChatSettings } from './chat-settings.svelte';
+	import { createChatCanvas } from './chat-canvas.svelte';
 	import { createChatStream } from './chat-stream.svelte';
 	import {
 		buildRowContext,
@@ -100,163 +91,23 @@
 		void tick().then(() => (enterMotionArmed = true));
 	}
 
-	// Canvas workspace state
-	let activeCanvas = $state<CanvasDetail | null>(null);
-	let canvasLoading = $state(false);
-	let canvasOpen = $state(false);
-	let mobileTab = $state<'chat' | 'canvas'>('chat');
-	let splitRatio = $state(50); // percentage for chat in split view
-	let isDraggingSplit = $state(false);
-	let splitEl: HTMLDivElement | undefined;
+	// Canvas workspace state, split view, and scene CRUD live in their own module.
+	const canvas = createChatCanvas({
+		getActiveId: () => activeId,
+		getActiveConversation: () => activeConversation,
+		notify
+	});
 
-	function handleSplitPointerDown(event: PointerEvent) {
-		if (!splitEl || !(event.currentTarget instanceof HTMLElement)) return;
-		isDraggingSplit = true;
-		event.currentTarget.setPointerCapture(event.pointerId);
-	}
-
-	function handleSplitPointerMove(event: PointerEvent) {
-		if (!isDraggingSplit || !splitEl) return;
-		const bounds = splitEl.getBoundingClientRect();
-		const availableWidth = bounds.width - 6;
-		if (availableWidth <= 0) return;
-		const localX = event.clientX - bounds.left - 3;
-		splitRatio = Math.round(Math.max(20, Math.min(80, (localX / availableWidth) * 100)));
-	}
-
-	function handleSplitPointerUp(event: PointerEvent) {
-		isDraggingSplit = false;
-		if (
-			event.currentTarget instanceof HTMLElement &&
-			event.currentTarget.hasPointerCapture(event.pointerId)
-		) {
-			event.currentTarget.releasePointerCapture(event.pointerId);
-		}
-	}
-
-	// Tabs.Root speaks `string`; narrow it back to the union the panes are keyed on.
-	function selectMobileTab(value: string) {
-		if (value === 'chat' || value === 'canvas') mobileTab = value;
-	}
-
-	async function loadCanvasForConversation(canvasId?: string | null) {
-		const targetId = canvasId ?? activeConversation?.canvasId;
-		if (!targetId) {
-			activeCanvas = null;
-			return;
-		}
-		canvasLoading = true;
-		try {
-			activeCanvas = await fetchCanvas(targetId);
-		} catch (error) {
-			console.error('Failed to load canvas:', error);
-			activeCanvas = null;
-		} finally {
-			canvasLoading = false;
-		}
-	}
-
-	async function handleToggleCanvas() {
-		if (activeCanvas) {
-			canvasOpen = !canvasOpen;
-			if (canvasOpen && mobileTab === 'chat') mobileTab = 'canvas';
-			return;
-		}
-		// If no canvas exists for this conversation yet, create one
-		if (!activeId) return;
-		canvasLoading = true;
-		try {
-			const created = await createCanvasApi({
-				title: `${activeConversation?.title ?? 'Chat'} Mockup`,
-				conversationId: activeId,
-				projectId: activeConversation?.projectId ?? null
-			});
-			activeCanvas = created;
-			canvasOpen = true;
-			mobileTab = 'canvas';
-			if (activeConversation) {
-				activeConversation.canvasId = created.id;
-			}
-			notify('Canvas workspace created!');
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not create canvas');
-		} finally {
-			canvasLoading = false;
-		}
-	}
-
-	async function handleUpdateScene(sceneId: string, updates: Partial<CanvasScene>) {
-		if (!activeCanvas) return;
-		try {
-			activeCanvas = await updateCanvasSceneApi(activeCanvas.id, sceneId, updates);
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not update scene');
-		}
-	}
-
-	async function handleCreateScene(scene: {
-		name: string;
-		viewport: ViewportDevice;
-		positionX?: number;
-		positionY?: number;
-		html?: string;
-		css?: string;
-	}) {
-		if (!activeCanvas) return;
-		try {
-			const res = await addCanvasSceneApi(activeCanvas.id, scene);
-			activeCanvas = res.canvas;
-			notify(`Scene "${scene.name}" created!`);
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not create scene');
-		}
-	}
-
-	async function handleDeleteScene(sceneId: string) {
-		if (!activeCanvas) return;
-		try {
-			activeCanvas = await deleteCanvasSceneApi(activeCanvas.id, sceneId);
-			notify('Scene deleted');
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not delete scene');
-		}
-	}
-
-	async function handleCreateConnection(sourceSceneId: string, targetSceneId: string) {
-		if (!activeCanvas) return;
-		try {
-			activeCanvas = (
-				await createCanvasConnectionApi(activeCanvas.id, { sourceSceneId, targetSceneId })
-			).canvas;
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not create connection');
-		}
-	}
-
-	async function handleDeleteConnection(connectionId: string) {
-		if (!activeCanvas) return;
-		try {
-			activeCanvas = await deleteCanvasConnectionApi(activeCanvas.id, connectionId);
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not delete connection');
-		}
-	}
-
-	async function handleUpdateGuideline(guideline: StyleGuideline) {
-		if (!activeCanvas) return;
-		try {
-			activeCanvas = await updateCanvasApi(activeCanvas.id, { styleGuideline: guideline });
-			notify('Style guideline updated');
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not update style guideline');
-		}
-	}
-
-	function handleCanvasSseEvent(event: { type: string; [key: string]: unknown }) {
-		if (!activeCanvas || !event.canvasId || event.canvasId !== activeCanvas.id) return;
-		// Refresh canvas from server on any agent update
-		void loadCanvasForConversation(activeCanvas.id);
-	}
+	// The workspace (and the flow/canvas editor it pulls in) loads only when the
+	// pane is actually opened, keeping it out of the chat page's initial bundle.
+	type WorkspaceComponent = typeof import('$lib/components/CanvasWorkspace.svelte').default;
+	let Workspace = $state<WorkspaceComponent | null>(null);
+	$effect(() => {
+		if (!canvas.canvasOpen || Workspace) return;
+		void import('$lib/components/CanvasWorkspace.svelte').then((module) => {
+			Workspace = module.default;
+		});
+	});
 
 	/**
 	 * The transcript and SSE state machine of the active conversation. One
@@ -286,7 +137,7 @@
 		loadConversations,
 		loadConversation,
 		loadSkills: () => settings.loadSkills(),
-		onCanvasEvent: handleCanvasSseEvent
+		onCanvasEvent: canvas.handleCanvasSseEvent
 	});
 
 	/** Model, thinking level, skill and tool preferences of the active conversation. */
@@ -507,7 +358,7 @@
 			}
 			if (activeConversation?.projectId) void settings.loadTools(activeConversation.projectId);
 			else void settings.loadTools(null);
-			void loadCanvasForConversation(activeConversation?.canvasId);
+			void canvas.loadCanvasForConversation(activeConversation?.canvasId);
 		} catch (error) {
 			if (loadToken !== conversationLoadToken || activeId !== id) return;
 			notify(error instanceof Error ? error.message : 'Could not load conversation');
@@ -782,15 +633,15 @@
 <div class="chat-main">
 	<ChatHeader
 		conversation={activeConversation}
-		{canvasOpen}
-		hasCanvas={!!activeCanvas}
-		{canvasLoading}
-		ontogglecanvas={handleToggleCanvas}
+		canvasOpen={canvas.canvasOpen}
+		hasCanvas={!!canvas.activeCanvas}
+		canvasLoading={canvas.canvasLoading}
+		ontogglecanvas={canvas.handleToggleCanvas}
 	/>
 
 	<!-- Mobile Tab Switcher when Canvas is open on narrow screens -->
-	{#if canvasOpen && activeCanvas}
-		<Tabs.Root value={mobileTab} onValueChange={selectMobileTab} class="mobile-tabs">
+	{#if canvas.canvasOpen && canvas.activeCanvas}
+		<Tabs.Root value={canvas.mobileTab} onValueChange={canvas.selectMobileTab} class="mobile-tabs">
 			<Tabs.List class="h-auto! w-full gap-1.5 rounded-none bg-transparent p-0">
 				<Tabs.Trigger
 					value="chat"
@@ -810,16 +661,18 @@
 
 	<div
 		class="workspace-split"
-		class:canvas-visible={canvasOpen && !!activeCanvas}
-		style:grid-template-columns={canvasOpen && !!activeCanvas
-			? `minmax(0, ${splitRatio}fr) 6px minmax(0, ${100 - splitRatio}fr)`
+		class:canvas-visible={canvas.canvasOpen && !!canvas.activeCanvas}
+		style:grid-template-columns={canvas.canvasOpen && !!canvas.activeCanvas
+			? `minmax(0, ${canvas.splitRatio}fr) 6px minmax(0, ${100 - canvas.splitRatio}fr)`
 			: 'minmax(0, 1fr)'}
-		bind:this={splitEl}
+		bind:this={canvas.splitEl}
 	>
 		<!-- Left/Top: Chat Column -->
 		<div
 			class="split-pane chat-pane"
-			class:mobile-hidden={canvasOpen && !!activeCanvas && mobileTab === 'canvas'}
+			class:mobile-hidden={canvas.canvasOpen &&
+				!!canvas.activeCanvas &&
+				canvas.mobileTab === 'canvas'}
 			bind:this={scrollEl}
 			onscroll={handleScroll}
 		>
@@ -925,18 +778,18 @@
 		</div>
 
 		<!-- Splitter Divider -->
-		{#if canvasOpen && !!activeCanvas}
+		{#if canvas.canvasOpen && !!canvas.activeCanvas}
 			<button
 				type="button"
 				class="split-divider"
 				aria-label="Resize split panes"
-				onpointerdown={handleSplitPointerDown}
-				onpointermove={handleSplitPointerMove}
-				onpointerup={handleSplitPointerUp}
-				onpointercancel={handleSplitPointerUp}
+				onpointerdown={canvas.handleSplitPointerDown}
+				onpointermove={canvas.handleSplitPointerMove}
+				onpointerup={canvas.handleSplitPointerUp}
+				onpointercancel={canvas.handleSplitPointerUp}
 				onkeydown={(event) => {
-					if (event.key === 'ArrowLeft') splitRatio = Math.max(20, splitRatio - 5);
-					if (event.key === 'ArrowRight') splitRatio = Math.min(80, splitRatio + 5);
+					if (event.key === 'ArrowLeft') canvas.splitRatio = Math.max(20, canvas.splitRatio - 5);
+					if (event.key === 'ArrowRight') canvas.splitRatio = Math.min(80, canvas.splitRatio + 5);
 				}}
 			>
 				<span class="split-handle"></span>
@@ -945,20 +798,23 @@
 			<!-- Right/Bottom: Canvas Workspace Column -->
 			<div
 				class="split-pane canvas-pane"
-				class:mobile-hidden={canvasOpen && !!activeCanvas && mobileTab === 'chat'}
+				class:mobile-hidden={canvas.canvasOpen &&
+					!!canvas.activeCanvas &&
+					canvas.mobileTab === 'chat'}
 			>
 				<SvelteFlowProvider
-					><CanvasWorkspace
-						canvas={activeCanvas}
-						onupdatescene={handleUpdateScene}
-						oncreatescene={handleCreateScene}
-						ondeletescene={handleDeleteScene}
-						oncreateconnection={handleCreateConnection}
-						ondeleteconnection={handleDeleteConnection}
-						onupdateguideline={handleUpdateGuideline}
-						onrefresh={() => loadCanvasForConversation(activeCanvas?.id)}
-					/></SvelteFlowProvider
-				>
+					>{#if Workspace}
+						<Workspace
+							canvas={canvas.activeCanvas}
+							onupdatescene={canvas.handleUpdateScene}
+							oncreatescene={canvas.handleCreateScene}
+							ondeletescene={canvas.handleDeleteScene}
+							oncreateconnection={canvas.handleCreateConnection}
+							ondeleteconnection={canvas.handleDeleteConnection}
+							onupdateguideline={canvas.handleUpdateGuideline}
+							onrefresh={() => canvas.loadCanvasForConversation(canvas.activeCanvas?.id)}
+						/>{/if}
+				</SvelteFlowProvider>
 			</div>
 		{/if}
 	</div>

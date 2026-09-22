@@ -81,7 +81,7 @@ export const POST: RequestHandler = async (event) => {
 			conversation.enabledTools
 		);
 		turnToken = randomUUID();
-		if (!beginConversationTurn(conversationId, turnToken))
+		if (!(await beginConversationTurn(conversationId, turnToken)))
 			return apiError(
 				'CONVERSATION_BUSY',
 				'This conversation is already generating a response.',
@@ -100,7 +100,7 @@ export const POST: RequestHandler = async (event) => {
 					.set({ model: modelToUse, updatedAt: new Date() })
 					.where(eq(schema.conversations.id, conversationId));
 			} else {
-				releaseConversationTurn(conversationId, turnToken);
+				await releaseConversationTurn(conversationId, turnToken);
 				return apiError('MODEL_NOT_AVAILABLE', 'No configured models are available.');
 			}
 		}
@@ -169,7 +169,7 @@ export const POST: RequestHandler = async (event) => {
 			},
 			cancel() {
 				controller = undefined;
-				stopConversation(streamConversationId, streamTurnToken);
+				void stopConversation(streamConversationId, streamTurnToken);
 			}
 		});
 		const send = (event: string, data: unknown) => {
@@ -246,7 +246,7 @@ export const POST: RequestHandler = async (event) => {
 				send('error', { type: 'error', error: { code, message } });
 			} finally {
 				clearInterval(heartbeatTimer);
-				releaseConversationTurn(conversationId, turnToken);
+				await releaseConversationTurn(conversationId, turnToken);
 				close();
 			}
 		})();
@@ -259,7 +259,7 @@ export const POST: RequestHandler = async (event) => {
 			}
 		});
 	} catch (error) {
-		if (conversationId && turnToken) releaseConversationTurn(conversationId, turnToken);
+		if (conversationId && turnToken) await releaseConversationTurn(conversationId, turnToken);
 		if (uploadedKeys.length) await cleanupStoredFiles(uploadedKeys);
 		if (messageIdForCleanup)
 			await getDb()

@@ -75,9 +75,14 @@ The primary tables are:
 - `projects`, `project_files`, and `project_file_chunks`: project metadata,
   uploaded-file state, and retrieval chunks;
 - `conversations`, `messages`, and `tool_calls`: conversation, message, and
-  tool execution state; and
+  tool execution state;
 - `sources` and `message_citations`: web/file sources and citation
-  relationships.
+  relationships;
+- `document_processing_jobs`: durable, DB-leased queue for extraction, OCR, and
+  embedding work (uploads and reindexes); and
+- `active_turns`, `browser_consent_grants`, and `pending_turn_requests`:
+  cross-instance coordination for live turns, tab-access grants, and question /
+  consent prompts awaiting an answer.
 
 After changing the schema, generate and apply a migration:
 

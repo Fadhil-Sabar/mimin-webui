@@ -44,9 +44,26 @@ vi.mock('$lib/server/db/client', () => {
 	const schema = {
 		messages: { id: 'id', conversationId: 'conversationId', createdAt: 'createdAt' },
 		messageAttachments: { id: 'id', messageId: 'messageId' },
-		conversations: { id: 'id', model: 'model', updatedAt: 'updatedAt' }
+		conversations: { id: 'id', model: 'model', updatedAt: 'updatedAt' },
+		activeTurns: {
+			conversationId: 'conversation_id',
+			token: 'token',
+			canceled: 'canceled',
+			leaseUntil: 'lease_until',
+			updatedAt: 'updated_at'
+		}
 	};
 	const db = {
+		insert: vi.fn((table: unknown) => ({
+			values: vi.fn((values: Record<string, unknown>) => {
+				void table;
+				const chain = {
+					returning: vi.fn(async () => [values]),
+					onConflictDoNothing: vi.fn(() => chain)
+				};
+				return chain;
+			})
+		})),
 		select: vi.fn(() => ({
 			from: vi.fn((table: unknown) => {
 				const rows = table === schema.messageAttachments ? [] : state.conversationMessages;
@@ -68,9 +85,9 @@ vi.mock('$lib/server/db/client', () => {
 				})
 			}))
 		})),
-		delete: vi.fn(() => ({
+		delete: vi.fn((table: unknown) => ({
 			where: vi.fn(async () => {
-				state.deleteCount++;
+				if (table !== schema.activeTurns) state.deleteCount++;
 			})
 		}))
 	};
