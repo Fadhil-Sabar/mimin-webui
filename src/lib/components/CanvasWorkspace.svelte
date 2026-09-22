@@ -178,6 +178,7 @@
 	let codeDrafts = $state<Record<string, CodeDraft>>({});
 	let serverDrafts = $state<Record<string, CodeDraft>>({});
 	let saveStates = $state<Record<string, SaveState>>({});
+	let failedDrafts = $state<Record<string, CodeDraft | null>>({});
 	let conflicts = $state<Record<string, CodeDraft | null>>({});
 	let codeDraftSceneId = $state('');
 	let codeDraft = $state<CodeDraft>({ tab: 'html', html: '', css: '', js: '' });
@@ -247,7 +248,11 @@
 			css: codeDraft.css,
 			js: codeDraft.js
 		};
-		if (saveStates[sceneId] === 'saving' || saveStates[sceneId] === 'error') return;
+		if (saveStates[sceneId] === 'saving') return;
+		if (saveStates[sceneId] === 'error' && failedDrafts[sceneId]) {
+			if (contentEqual(current, failedDrafts[sceneId]!)) return;
+			delete failedDrafts[sceneId];
+		}
 		if (contentEqual(current, serverDrafts[sceneId])) {
 			saveStates[sceneId] = 'saved';
 			clearCanvasSceneDraft(canvas.id, sceneId);
@@ -268,6 +273,7 @@
 		if (sceneId === codeDraftSceneId) codeDraft = latest;
 		serverDrafts[sceneId] = latest;
 		saveStates[sceneId] = 'saved';
+		delete failedDrafts[sceneId];
 		clearCanvasSceneDraft(canvas.id, sceneId);
 		delete conflicts[sceneId];
 	}
@@ -283,9 +289,13 @@
 		try {
 			await onupdatescene(sceneId, { html, css, js }, { throwOnError: true });
 			saveStates[sceneId] = 'saved';
+			delete failedDrafts[sceneId];
 			clearCanvasSceneDraft(canvas.id, sceneId);
 		} catch (error) {
 			saveStates[sceneId] = 'error';
+			failedDrafts[sceneId] = draft
+				? { tab: draft.tab, html: draft.html, css: draft.css, js: draft.js }
+				: null;
 			throw error;
 		}
 	}
