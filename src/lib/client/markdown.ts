@@ -193,6 +193,11 @@ function renderSegmentHtml(token: Token, marked: Marked, cacheKey: string): stri
 	return html;
 }
 
+/** Drops a parser's segment cache after its configuration changes at runtime. */
+export function invalidateSegmentCache(marked: Marked): void {
+	segmentCaches.delete(marked);
+}
+
 export function parseMarkdownSegments(
 	markdown: string,
 	marked: Marked,
