@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { ArrowUp, Paperclip, Sparkles, Square, X } from '@lucide/svelte';
+	import { ArrowUp, Paperclip, SlidersHorizontal, Sparkles, Square, X } from '@lucide/svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import ModelPicker, {
 		type ModelOption,
@@ -85,6 +85,7 @@
 	}: Props = $props();
 
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
+	let mobileOptionsOpen = $state(false);
 
 	/**
 	 * Object URLs backing the thumbnails of images waiting to be sent. They are keyed
@@ -115,13 +116,20 @@
 	}
 
 	function blocked() {
-		return running || conversationLoading || skillSaving || toolsSaving || modelSaving;
+		return (
+			running || conversationLoading || skillSaving || toolsSaving || modelSaving || thinkingSaving
+		);
+	}
+
+	function sendMessage() {
+		mobileOptionsOpen = false;
+		if (!blocked()) void onsend();
 	}
 
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
-			if (!blocked()) void onsend();
+			sendMessage();
 		}
 	}
 
@@ -156,10 +164,14 @@
 						class="skill-badge-remove"
 						aria-label="Remove active skill"
 						title="Remove active skill"
-						disabled={conversationLoading || skillSaving || toolsSaving || modelSaving}
+						disabled={conversationLoading ||
+							skillSaving ||
+							toolsSaving ||
+							modelSaving ||
+							thinkingSaving}
 						onclick={() => onremoveskill()}
 					>
-						<X size={12} />
+						<X size={12} aria-hidden="true" />
 					</button>
 				</span>
 				<span class="skill-status-hint">Applies to future replies</span>
@@ -177,7 +189,11 @@
 					<button
 						type="button"
 						class="skill-suggestion-apply"
-						disabled={conversationLoading || skillSaving || toolsSaving || modelSaving}
+						disabled={conversationLoading ||
+							skillSaving ||
+							toolsSaving ||
+							modelSaving ||
+							thinkingSaving}
 						onclick={() => onapplysuggestion()}
 					>
 						Use skill
@@ -189,17 +205,18 @@
 						title="Dismiss suggestion"
 						onclick={() => ondisksuggestion()}
 					>
-						<X size={13} />
+						<X size={13} aria-hidden="true" />
 					</button>
 				</div>
 			</div>
 		{/if}
 		{#if attachments.length}
-			<div class="attachment-list" aria-label="Files to attach">
+			<div class="attachment-list" role="list" aria-label="Files to attach">
 				{#each attachments as file, index (file.name + file.size + index)}
 					<div
 						class="attachment-chip pending-attachment"
 						class:image-attachment={isImageFile(file)}
+						role="listitem"
 					>
 						{#if isImageFile(file) && previewUrl(file)}
 							<img class="attachment-thumb" src={previewUrl(file)} alt={file.name} />
@@ -212,7 +229,7 @@
 							class="remove-attachment"
 							aria-label={`Remove ${file.name}`}
 							title={`Remove ${file.name}`}
-							onclick={() => onremoveattachment(index)}><X size={13} /></button
+							onclick={() => onremoveattachment(index)}><X size={13} aria-hidden="true" /></button
 						>
 					</div>
 				{/each}
@@ -228,96 +245,91 @@
 			onpaste={handlePaste}></textarea>
 		<div class="composer-row">
 			<div class="composer-tools">
-				<input
-					bind:this={fileInput}
-					type="file"
-					multiple
-					accept={CHAT_ATTACHMENT_ACCEPT}
-					hidden
-					onchange={(event) => {
-						if (onattach(event.currentTarget.files)) event.currentTarget.value = '';
-					}}
-				/>
 				<Button
 					variant="secondary"
-					class="gap-1.5 bg-[var(--surface-subtle)] px-[9px] py-[7px] text-[var(--text-muted)] hover:border-[var(--text-faint)] hover:text-[var(--text-strong)] max-[760px]:px-[8px] max-[760px]:py-[5px] max-[560px]:px-[7px] max-[560px]:py-[4px]"
-					title="Attach files or images"
-					disabled={running || conversationLoading || skillSaving || toolsSaving || modelSaving}
-					onclick={() => fileInput?.click()}><Paperclip size={15} /> File</Button
+					class="mobile-options-toggle"
+					type="button"
+					aria-expanded={mobileOptionsOpen}
+					aria-controls="composer-options"
+					disabled={blocked()}
+					onclick={() => (mobileOptionsOpen = !mobileOptionsOpen)}
 				>
-				<ModelPicker
-					{models}
-					value={conversation?.model ?? ''}
-					loading={modelsLoading}
-					disabled={running ||
-						!hasActiveId ||
-						conversationLoading ||
-						modelSaving ||
-						skillSaving ||
-						toolsSaving ||
-						configuredModels.length === 0}
-					placeholder={configuredModels.length
-						? 'Pick a model'
-						: modelLoadError
-							? 'Models unavailable'
-							: 'Configure a provider'}
-					onselect={onselectmodel}
-				/>
-				<select
-					class="control thinking-level-control"
-					value={thinkingLevel}
-					disabled={running ||
-						conversationLoading ||
-						thinkingSaving ||
-						skillSaving ||
-						toolsSaving ||
-						modelSaving ||
-						!hasActiveId ||
-						!conversation?.model}
-					aria-label="Thinking level"
-					title="Thinking level"
-					onchange={(event) => onselectthinkinglevel(event.currentTarget.value)}
-				>
-					{#each thinkingLevels as level (level)}
-						<option value={level}>
-							{level === 'off' ? 'Thinking off' : `${level[0].toUpperCase()}${level.slice(1)}`}
-						</option>
-					{/each}
-				</select>
-				<SkillPicker
-					{skills}
-					activeSkillId={conversation?.activeSkill?.id}
-					loading={skillsLoading}
-					disabled={running ||
-						!hasActiveId ||
-						conversationLoading ||
-						skillSaving ||
-						toolsSaving ||
-						modelSaving}
-					ontoggle={ontoggleskill}
-				/>
-				<ToolPicker
-					{tools}
-					enabledTools={conversation?.enabledTools ?? []}
-					loading={toolsLoading}
-					disabled={running ||
-						!hasActiveId ||
-						conversationLoading ||
-						skillSaving ||
-						toolsSaving ||
-						modelSaving}
-					ontoggle={ontoggletool}
-				/>
+					<SlidersHorizontal size={15} aria-hidden="true" />
+					<span>Options</span>
+				</Button>
+				<div id="composer-options" class="composer-options" class:open={mobileOptionsOpen}>
+					<input
+						bind:this={fileInput}
+						type="file"
+						multiple
+						accept={CHAT_ATTACHMENT_ACCEPT}
+						hidden
+						onchange={(event) => {
+							if (onattach(event.currentTarget.files)) event.currentTarget.value = '';
+						}}
+					/>
+					<Button
+						variant="secondary"
+						class="gap-1.5 bg-[var(--surface-subtle)] px-[9px] py-[7px] text-[var(--text-muted)] hover:border-[var(--text-faint)] hover:text-[var(--text-strong)] max-[760px]:px-[8px] max-[760px]:py-[5px] max-[560px]:px-[7px] max-[560px]:py-[4px]"
+						title="Attach files or images"
+						disabled={blocked()}
+						onclick={() => fileInput?.click()}
+						><Paperclip size={15} aria-hidden="true" /> File</Button
+					>
+					<ModelPicker
+						{models}
+						value={conversation?.model ?? ''}
+						loading={modelsLoading}
+						disabled={blocked() || !hasActiveId || configuredModels.length === 0}
+						placeholder={configuredModels.length
+							? 'Pick a model'
+							: modelLoadError
+								? 'Models unavailable'
+								: 'Configure a provider'}
+						onselect={onselectmodel}
+					/>
+					<select
+						class="control thinking-level-control"
+						value={thinkingLevel}
+						disabled={blocked() || !hasActiveId || !conversation?.model}
+						aria-label="Thinking level"
+						title="Thinking level"
+						onchange={(event) => onselectthinkinglevel(event.currentTarget.value)}
+					>
+						{#each thinkingLevels as level (level)}
+							<option value={level}>
+								{level === 'off' ? 'Thinking off' : `${level[0].toUpperCase()}${level.slice(1)}`}
+							</option>
+						{/each}
+					</select>
+					<SkillPicker
+						{skills}
+						activeSkillId={conversation?.activeSkill?.id}
+						loading={skillsLoading}
+						disabled={blocked() || !hasActiveId}
+						ontoggle={ontoggleskill}
+					/>
+					<ToolPicker
+						{tools}
+						enabledTools={conversation?.enabledTools ?? []}
+						loading={toolsLoading}
+						disabled={blocked() || !hasActiveId}
+						ontoggle={ontoggletool}
+					/>
+				</div>
 			</div>
 			<Button
 				variant={running ? 'destructive' : 'default'}
 				size="icon"
 				class="ml-auto size-[38px] self-end rounded-lg max-[760px]:size-[34px]"
-				disabled={!running && (conversationLoading || skillSaving || toolsSaving || modelSaving)}
+				disabled={!running && blocked()}
 				aria-label={running ? 'Stop generation' : 'Send message'}
 				title={running ? 'Stop generation' : 'Send message'}
-				onclick={() => (running ? onstop() : onsend())}
-				>{#if running}<Square size={13} />{:else}<ArrowUp size={16} />{/if}</Button
+				onclick={() => (running ? onstop() : sendMessage())}
+				>{#if running}<Square size={13} aria-hidden="true" />{:else}<ArrowUp
+						size={16}
+						aria-hidden="true"
+					/>{/if}</Button
 			>
 		</div>
 	</div>
@@ -565,6 +577,12 @@
 		flex: 1 1 auto;
 		min-width: 0;
 	}
+	:global(.mobile-options-toggle) {
+		display: none;
+	}
+	.composer-options {
+		display: contents;
+	}
 	.control {
 		display: inline-flex;
 		align-items: center;
@@ -604,6 +622,23 @@
 		}
 		.composer-tools {
 			gap: 5px;
+		}
+		:global(.mobile-options-toggle) {
+			display: inline-flex;
+			min-height: 34px;
+			padding: 5px var(--space-2);
+		}
+		.composer-options {
+			display: none;
+			width: 100%;
+			flex-basis: 100%;
+			order: 2;
+			align-items: center;
+			flex-wrap: wrap;
+			gap: 5px;
+		}
+		.composer-options.open {
+			display: flex;
 		}
 		.control {
 			min-height: 34px;

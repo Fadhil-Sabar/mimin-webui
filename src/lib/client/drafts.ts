@@ -1,4 +1,5 @@
 export const CONVERSATION_DRAFTS_STORAGE_KEY = 'mimin_conversation_drafts';
+export const HOME_DRAFT_STORAGE_KEY = 'mimin_home_draft';
 
 type DraftMap = Record<string, string>;
 
@@ -39,4 +40,27 @@ export function setConversationDraft(conversationId: string | null | undefined, 
 
 export function clearConversationDraft(conversationId: string | null | undefined) {
 	setConversationDraft(conversationId, '');
+}
+
+export function getHomeDraft(): string {
+	if (typeof window === 'undefined') return '';
+	try {
+		return localStorage.getItem(HOME_DRAFT_STORAGE_KEY) ?? '';
+	} catch {
+		return '';
+	}
+}
+
+export function setHomeDraft(draft: string) {
+	if (typeof window === 'undefined') return;
+	try {
+		if (draft) localStorage.setItem(HOME_DRAFT_STORAGE_KEY, draft);
+		else localStorage.removeItem(HOME_DRAFT_STORAGE_KEY);
+	} catch {
+		/* Storage is best effort. */
+	}
+}
+
+export function clearHomeDraft() {
+	setHomeDraft('');
 }
