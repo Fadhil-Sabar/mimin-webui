@@ -81,6 +81,8 @@ export type ContextBudget = {
 	/** Secondary bound, so a window full of one-word messages cannot grow without limit. */
 	maxMessages?: number;
 	toolMessageIds?: Set<string>;
+	/** Replayed tool results and arguments attached to each assistant message. */
+	extraTokensByMessage?: Map<string, number>;
 };
 
 /**
@@ -98,7 +100,10 @@ export function selectContextWithinBudget<T extends ContextRow>(rows: T[], budge
 	while (start > 0) {
 		const included = rows.length - start;
 		if (included >= maxMessages) break;
-		const next = used + estimateTokens(rows[start - 1].content);
+		const next =
+			used +
+			estimateTokens(rows[start - 1].content) +
+			(budget.extraTokensByMessage?.get(rows[start - 1].id) ?? 0);
 		// The newest message is always kept, even if it alone exceeds the budget.
 		if (included > 0 && next > budget.budgetTokens) break;
 		used = next;

@@ -50,6 +50,16 @@ describe('budgeted context selection', () => {
 		);
 	});
 
+	it('counts replayed tool results against the history budget', () => {
+		const rows = [row('old', 'assistant', 100), row('new', 'user', 100)];
+		expect(
+			selectContextWithinBudget(rows, {
+				budgetTokens: 500,
+				extraTokensByMessage: new Map([['old', 400]])
+			}).map((item) => item.id)
+		).toEqual(['new']);
+	});
+
 	it('keeps the request that caused a tool message even when the budget is spent', () => {
 		const rows = [
 			row('u1', 'user', 1_000),

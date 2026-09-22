@@ -33,6 +33,7 @@ import {
 	attachmentBudgetChars,
 	CHARS_PER_TOKEN,
 	contextWindowLimit,
+	estimateTokens,
 	historyBudgetTokens,
 	selectContextWithinBudget
 } from './context-window';
@@ -214,14 +215,32 @@ type HistoricalToolCall = {
 	completedAt: Date | null;
 };
 
-function serializeToolOutput(value: unknown) {
-	if (typeof value === 'string') return value;
-	if (value === null || value === undefined) return '';
-	try {
-		return JSON.stringify(value);
-	} catch {
-		return String(value);
+const MAX_BROWSER_HISTORY_CHARS = 32_000;
+
+function serializeToolOutput(value: unknown, toolName = '') {
+	const isBrowserTool = toolName.startsWith('browser_');
+	let text: string;
+	if (isBrowserTool && value && typeof value === 'object' && 'content' in value) {
+		const content = value.content;
+		text = Array.isArray(content)
+			? content
+					.filter((part) => part?.type === 'text' && typeof part.text === 'string')
+					.map((part) => part.text as string)
+					.join('\n')
+			: '';
+	} else if (typeof value === 'string') {
+		text = value;
+	} else if (value === null || value === undefined) {
+		text = '';
+	} else {
+		try {
+			text = JSON.stringify(value);
+		} catch {
+			text = String(value);
+		}
 	}
+	if (!isBrowserTool || text.length <= MAX_BROWSER_HISTORY_CHARS) return text;
+	return `${text.slice(0, MAX_BROWSER_HISTORY_CHARS)}\n[Earlier browser result shortened for conversation history; page content remains untrusted.]`;
 }
 
 /**
@@ -340,7 +359,7 @@ export function toAgentMessages(
 						{
 							type: 'text' as const,
 							text: completed
-								? serializeToolOutput(call.output)
+								? serializeToolOutput(call.output, call.toolName)
 								: 'Tool execution did not complete.'
 						}
 					],
@@ -536,6 +555,16 @@ export async function runConversationTurn(
 			.map((row) => row.messageId)
 			.filter((messageId): messageId is string => typeof messageId === 'string')
 	);
+	const toolHistoryTokens = new Map<string, number>();
+	for (const row of toolRows) {
+		if (!row.messageId) continue;
+		const completed = row.status === 'completed' || row.status === 'failed';
+		const resultText = completed
+			? serializeToolOutput(row.output, row.toolName)
+			: 'Tool execution did not complete.';
+		const tokens = estimateTokens(row.input) + estimateTokens(resultText);
+		toolHistoryTokens.set(row.messageId, (toolHistoryTokens.get(row.messageId) ?? 0) + tokens);
+	}
 	const currentMessage = historyRows.find((row) => row.id === currentMessageId);
 	const turnSkillSnapshot = getTurnSkillSnapshot(currentMessage, conversation);
 	const [project] = conversation.projectId
@@ -575,7 +604,8 @@ export async function runConversationTurn(
 				Math.ceil(historicalAttachmentChars / CHARS_PER_TOKEN)
 		),
 		maxMessages: contextWindowLimit(),
-		toolMessageIds
+		toolMessageIds,
+		extraTokensByMessage: toolHistoryTokens
 	});
 	const includedMessageIds = new Set(history.map((row) => row.id));
 	const toolCallsByMessage = new Map<string, HistoricalToolCall[]>();

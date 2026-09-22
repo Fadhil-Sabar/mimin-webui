@@ -23,6 +23,8 @@ prefers a direct URL (`https://www.google.com/maps/search/<query>`) over typing 
 
 Every snapshot returns `elements`, a bounded list of visible interactive elements (`ref`, `tag`, `name`, `type`, `disabled`, `selector`). The bridge keeps the resolved elements in the tab's isolated world so a follow-up action can use `ref` even if the page re-renders; the CSS `selector` is a fallback. Reads and interactions are wrapped in `<untrusted-browser-page>` markers when they reach the model, and clicking/typing is never treated as trusted instruction.
 
+To keep model input bounded, Mimin initially shows the model at most 12,000 characters of page text, 20 links, 60 interactive elements, 10 structured search results, or 20 tabs. Long element names and search snippets are shortened too. Omission notices include `textOffset`, `linkOffset`, `elementOffset`, `resultOffset`, or tab `offset` values that the model can pass to the browser tools to read later sections. The full bridge result remains available to the app for source display; these limits apply to the text sent to the model and to later conversation history.
+
 Interactions do not need the target tab to be visible or focused: reads and interactions are injected,
 so a background tab has working layout, computed styles, text, and focus, and a tab Mimin opened behind the
 current one is still usable. What a page will not accept is synthesized _trusted_ input, which no extension

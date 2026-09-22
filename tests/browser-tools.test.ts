@@ -121,6 +121,127 @@ describe('browser tools', () => {
 		]);
 	});
 
+	it('bounds large page snapshots and lets a later read recover omitted text and links', async () => {
+		const page = {
+			url: 'https://example.com/large',
+			readable: true,
+			title: 'Large page',
+			text: `${'A'.repeat(12_000)}${'B'.repeat(8_000)}`,
+			links: Array.from({ length: 100 }, (_, index) => ({
+				title: `Link ${index + 1}`,
+				url: `https://example.com/${index + 1}`
+			})),
+			elements: Array.from({ length: 200 }, (_, index) => ({
+				ref: index,
+				tag: 'button',
+				name: `Button ${index + 1}`
+			}))
+		};
+		const tool = createBrowserOpenTool(context, (event) => {
+			queueMicrotask(() =>
+				settleBrowserRequest(context.userId, event.requestId, event.token, true, page)
+			);
+		});
+
+		const first = await tool.execute(
+			'call-large-1',
+			{ url: page.url },
+			new AbortController().signal
+		);
+		const firstContent = first.content[0];
+		if (firstContent.type !== 'text') throw new Error('Expected text content');
+		expect(firstContent.text.length).toBeLessThan(24_000);
+		expect(firstContent.text).toContain('textOffset: 12000');
+		expect(firstContent.text).toContain('linkOffset: 20');
+		expect(firstContent.text).toContain('elementOffset: 60');
+		expect(firstContent.text).toContain('[ref 0] button "Button 1"');
+		expect(firstContent.text).toContain('80 more links omitted');
+		expect(firstContent.text).not.toContain('B'.repeat(100));
+		expect((first.details as typeof page).text).toHaveLength(20_000);
+
+		const later = await tool.execute(
+			'call-large-2',
+			{ url: page.url, textOffset: 12_000, linkOffset: 20, elementOffset: 60 },
+			new AbortController().signal
+		);
+		const laterContent = later.content[0];
+		if (laterContent.type !== 'text') throw new Error('Expected text content');
+		expect(laterContent.text).toContain('B'.repeat(100));
+		expect(laterContent.text).toContain('[21] Link 21');
+		expect(laterContent.text).toContain('[ref 60] button "Button 61"');
+		expect(laterContent.text).not.toContain('[ref 0] button "Button 1"');
+		expect(laterContent.text).not.toContain('A'.repeat(100));
+	});
+
+	it('bounds structured search results while preserving full source details', async () => {
+		const results = Array.from({ length: 100 }, (_, index) => ({
+			title: `Result ${index + 1}`,
+			url: `https://example.com/result/${index + 1}`,
+			snippet: 'S'.repeat(4_000)
+		}));
+		const tool = createBrowserSearchTool(context, (event) => {
+			queueMicrotask(() =>
+				settleBrowserRequest(context.userId, event.requestId, event.token, true, {
+					url: 'https://www.google.com/search?q=large',
+					readable: true,
+					results
+				})
+			);
+		});
+
+		const result = await tool.execute(
+			'call-large-search',
+			{ engine: 'google', query: 'large' },
+			new AbortController().signal
+		);
+		const first = result.content[0];
+		if (first.type !== 'text') throw new Error('Expected text content');
+		expect(first.text.length).toBeLessThan(14_000);
+		expect(first.text).toContain('Result 1');
+		expect(first.text).toContain('90 more search results omitted');
+		expect(first.text).toContain('resultOffset: 10');
+		expect(first.text).not.toContain('Result 11');
+		expect(first.text).not.toContain('S'.repeat(501));
+		expect((result.details as { sources: unknown[] }).sources).toHaveLength(100);
+
+		const later = await tool.execute(
+			'call-large-search-later',
+			{ engine: 'google', query: 'large', resultOffset: 10 },
+			new AbortController().signal
+		);
+		const laterContent = later.content[0];
+		if (laterContent.type !== 'text') throw new Error('Expected text content');
+		expect(laterContent.text).toContain('[11] Result 11');
+		expect(laterContent.text).not.toContain('[1] Result 1');
+	});
+
+	it('keeps pagination moving when search URLs approach the bridge limit', async () => {
+		const results = Array.from({ length: 3 }, (_, index) => ({
+			title: `Long result ${index + 1}`,
+			url: `https://example.com/${'x'.repeat(3_980)}`,
+			snippet: 'S'.repeat(4_000)
+		}));
+		const tool = createBrowserSearchTool(context, (event) => {
+			queueMicrotask(() =>
+				settleBrowserRequest(context.userId, event.requestId, event.token, true, {
+					url: 'https://www.google.com/search?q=long',
+					readable: true,
+					results
+				})
+			);
+		});
+		const result = await tool.execute(
+			'call-long-url',
+			{ engine: 'google', query: 'long' },
+			new AbortController().signal
+		);
+		const first = result.content[0];
+		if (first.type !== 'text') throw new Error('Expected text content');
+		expect(first.text).toContain('[1] Long result 1');
+		expect(first.text).toContain('resultOffset: 2');
+		expect(first.text).not.toContain('[3] Long result 3');
+	});
+
 	it('maps timeout errors to an instructional bridge-unavailable message', async () => {
 		const tool = createBrowserOpenTool(context, (event) => {
 			queueMicrotask(() => {
@@ -164,10 +285,10 @@ describe('browser tools', () => {
 		const searchTool = createBrowserSearchTool(context, () => {});
 
 		expect(openTool.description).toBe(
-			"Open and read a public HTTP/HTTPS webpage through the user's browser. Requires browser-extension host permission for the destination website."
+			"Open and read a public HTTP/HTTPS webpage through the user's browser. Requires browser-extension host permission for the destination website. Use textOffset, linkOffset, or elementOffset to read a later section of a shortened result."
 		);
 		expect(searchTool.description).toBe(
-			"Search Google or Google Scholar through the user's browser. Use only when the user's request explicitly targets Google or Google Scholar, or clearly continues such a browser task."
+			"Search Google or Google Scholar through the user's browser. Use only when the user's request explicitly targets Google or Google Scholar, or clearly continues such a browser task. Use resultOffset or elementOffset to read later results from a shortened response."
 		);
 	});
 
@@ -405,6 +526,41 @@ describe('browser tab tools with consent', () => {
 		// The listing is also exposed as sources for the chat UI.
 		const sources = (result.details as { sources: Array<{ url?: string }> }).sources;
 		expect(sources.map((source) => source.url)).toEqual(['https://example.com/docs']);
+	});
+
+	it('bounds long tab listings and retrieves later tabs by offset', async () => {
+		const tabs = Array.from({ length: 50 }, (_, index) => ({
+			tabId: index + 1,
+			title: `Tab ${index + 1}`,
+			url: `https://example.com/${index + 1}/${'x'.repeat(100)}`,
+			active: index === 0,
+			readable: true
+		}));
+		grantConversationBrowserConsent(tabContext.userId, tabContext.conversationId);
+		const tool = createBrowserTabsTool(tabContext, (event) => {
+			if (event.type !== 'browser.request') return;
+			queueMicrotask(() =>
+				settleBrowserRequest(tabContext.userId, event.requestId, event.token, true, { tabs })
+			);
+		});
+
+		const first = await tool.execute('call-tabs-large', {}, new AbortController().signal);
+		const firstContent = first.content[0];
+		if (firstContent.type !== 'text') throw new Error('Expected text content');
+		expect(firstContent.text.length).toBeLessThan(7_000);
+		expect(firstContent.text).toContain('tabId 1');
+		expect(firstContent.text).toContain('browser_tabs offset: 20');
+		expect(firstContent.text).not.toContain('tabId 21');
+
+		const later = await tool.execute(
+			'call-tabs-later',
+			{ offset: 20 },
+			new AbortController().signal
+		);
+		const laterContent = later.content[0];
+		if (laterContent.type !== 'text') throw new Error('Expected text content');
+		expect(laterContent.text).toContain('tabId 21');
+		expect(laterContent.text).not.toContain('tabId 1\n');
 	});
 
 	it('never dispatches a bridge request when the user denies access', async () => {

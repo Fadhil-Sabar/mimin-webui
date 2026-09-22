@@ -91,6 +91,67 @@ describe('context window', () => {
 		});
 	});
 
+	it('replays browser tool text without duplicating full snapshot details', () => {
+		const createdAt = new Date('2026-01-02T03:04:05.000Z');
+		const messages = toAgentMessages(
+			[{ id: 'a1', role: 'assistant', content: '', createdAt }],
+			new Map([
+				[
+					'a1',
+					[
+						{
+							messageId: 'a1',
+							toolCallId: 'call-browser',
+							toolName: 'browser_open',
+							input: { url: 'https://example.com' },
+							output: {
+								content: [{ type: 'text', text: 'Bounded page summary' }],
+								details: { text: 'FULL_PAGE_CONTENT'.repeat(20_000) }
+							},
+							status: 'completed',
+							startedAt: createdAt,
+							completedAt: createdAt
+						}
+					]
+				]
+			])
+		);
+
+		expect(messages[1]).toMatchObject({
+			role: 'toolResult',
+			content: [{ type: 'text', text: 'Bounded page summary' }]
+		});
+	});
+
+	it('shortens browser output saved before model-facing limits existed', () => {
+		const createdAt = new Date('2026-01-02T03:04:05.000Z');
+		const messages = toAgentMessages(
+			[{ id: 'a1', role: 'assistant', content: '', createdAt }],
+			new Map([
+				[
+					'a1',
+					[
+						{
+							messageId: 'a1',
+							toolCallId: 'old-browser-call',
+							toolName: 'browser_open',
+							input: { url: 'https://example.com' },
+							output: { content: [{ type: 'text', text: 'x'.repeat(100_000) }] },
+							status: 'completed',
+							startedAt: createdAt,
+							completedAt: createdAt
+						}
+					]
+				]
+			])
+		);
+		const replay = messages[1];
+		if (replay.role !== 'toolResult' || replay.content[0].type !== 'text')
+			throw new Error('Expected browser tool text');
+		expect(replay.content[0].text.length).toBeLessThan(33_000);
+		expect(replay.content[0].text).toContain('Earlier browser result shortened');
+	});
+
 	it('leaves persisted reasoning out of the rebuilt history', () => {
 		const createdAt = new Date('2026-01-02T03:04:05.000Z');
 		const messages = toAgentMessages([
