@@ -25,7 +25,9 @@
 	let { user = null }: Props = $props();
 
 	let initial = $derived(user?.name?.[0]?.toUpperCase() ?? 'U');
-	let sections = $derived(visibleNavSections(user?.role === 'admin'));
+	let sections = $derived(
+		visibleNavSections(user?.role === 'admin').filter((section) => section.label !== 'Settings')
+	);
 	let activeKey = $derived(
 		settingsModal.open ? settingsModal.activeTab : activeNavKey(page.url.pathname)
 	);

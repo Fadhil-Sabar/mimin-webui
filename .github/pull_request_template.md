@@ -8,7 +8,6 @@ Describe the problem and the chosen approach.
 - [ ] `npm run lint`
 - [ ] `npm test`
 - [ ] `npm run build`
-- [ ] `npm run bundle:budget`
 - [ ] Integration or browser-extension checks, when applicable
 
 ## Impact

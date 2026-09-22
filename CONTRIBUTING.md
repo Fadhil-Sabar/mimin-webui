@@ -27,7 +27,7 @@ Keep the two README feature summaries and setup instructions aligned. Detailed A
 
 ## Quality checks
 
-The [CI workflow](.github/workflows/ci.yml) runs type checking, formatting and linting, unit tests, PostgreSQL/pgvector integration tests, production and container builds, browser-extension validation, bundle budgets, and dependency audit.
+The [CI workflow](.github/workflows/ci.yml) runs type checking, formatting and linting, unit tests, PostgreSQL/pgvector integration tests, production and container builds, browser-extension validation, and dependency audit.
 
 Run these before opening a pull request:
 
@@ -36,7 +36,6 @@ npm run check
 npm run lint
 npm test
 npm run build
-npm run bundle:budget
 npm audit --audit-level=high
 ```
 

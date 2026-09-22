@@ -20,27 +20,58 @@ export type ChatRowContext = {
 /**
  * Resolves what each transcript row needs (the skill and files of the turn it
  * answers, that turn's sources, whether it continues a previous assistant reply) in
- * one pass. The chat page re-derives this on every streamed frame, so resolving it
- * per rendered row would scan backwards once per row per frame.
+ * one pass. The chat page re-derives this on every streamed frame, so the resolver
+ * memoises each row against the message references its answer actually depends on
+ * (the user message plus the messages of its turn): while a reply streams, only the
+ * trailing row changes and every earlier row gets its previous context object back,
+ * same array identities, so those rows skip re-rendering entirely.
  */
-export function buildRowContext(messages: ConversationMessage[]): Map<string, ChatRowContext> {
-	const rows = new Map<string, ChatRowContext>();
-	let skill: SkillSummary | null = null;
-	let attachments: string[] = [];
-	for (let index = 0; index < messages.length; index++) {
-		const current = messages[index];
-		if (current.role === 'user') {
-			skill = current.skill ?? null;
-			attachments = (current.attachments ?? []).map((attachment) => attachment.filename);
-		}
-		rows.set(current.id, {
-			skill,
-			attachments,
-			sources: getTurnSources(messages, index),
-			continuation: current.role === 'assistant' && messages[index - 1]?.role === 'assistant'
-		});
+export function createRowContextResolver(): (
+	messages: ConversationMessage[]
+) => Map<string, ChatRowContext> {
+	let previous = new Map<string, { turnRefs: ConversationMessage[]; context: ChatRowContext }>();
+
+	function sameRefs(a: ConversationMessage[], b: ConversationMessage[]): boolean {
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+		return true;
 	}
-	return rows;
+
+	return (messages) => {
+		const rows = new Map<string, ChatRowContext>();
+		const next = new Map<string, { turnRefs: ConversationMessage[]; context: ChatRowContext }>();
+		let currentUser: ConversationMessage | null = null;
+		const turnRefs: ConversationMessage[] = [];
+
+		for (let index = 0; index < messages.length; index++) {
+			const current = messages[index];
+			if (current.role === 'user') {
+				currentUser = current;
+				turnRefs.length = 0;
+			}
+			turnRefs.push(current);
+
+			const prior = previous.get(current.id);
+			let context: ChatRowContext;
+			if (prior && sameRefs(prior.turnRefs, turnRefs)) {
+				context = prior.context;
+			} else {
+				context = {
+					skill: currentUser?.skill ?? null,
+					attachments: currentUser
+						? (currentUser.attachments ?? []).map((attachment) => attachment.filename)
+						: [],
+					sources: getTurnSources(messages, index),
+					continuation: current.role === 'assistant' && messages[index - 1]?.role === 'assistant'
+				};
+			}
+			rows.set(current.id, context);
+			next.set(current.id, { turnRefs: turnRefs.slice(), context });
+		}
+
+		previous = next;
+		return rows;
+	};
 }
 
 export function modelId(modelRefValue: string) {

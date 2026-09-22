@@ -41,6 +41,28 @@
 	let showSources = $state(false);
 
 	/**
+	 * Content signature of `externalSources`, used as the segment-cache key and by
+	 * `processed` to detect a no-op re-render. The citation/link renderers read
+	 * `activeSourcesMap` at parse time, so cached HTML may only be reused when the
+	 * sources it was built from are the same.
+	 */
+	const sourcesKey = $derived(
+		externalSources
+			.map(
+				(s) =>
+					`${s.url}|${s.title ?? ''}|${s.snippet ?? ''}|${s.page ?? ''}|${s.type ?? ''}|${s.filename ?? ''}|${'domain' in s ? s.domain : ''}|${'faviconUrl' in s ? s.faviconUrl : ''}`
+			)
+			.join('\n')
+	);
+
+	/** Plain (non-reactive) memo of the last `processed` run; see the derived below. */
+	let lastProcessed: {
+		content: string;
+		sourcesKey: string;
+		result: { segments: MarkdownSegment[]; sources: SourceItem[] };
+	} | null = null;
+
+	/**
 	 * Read by the citation/link renderers at parse time. It is reassigned inside the
 	 * derived below immediately before parsing, and parsing is synchronous, so the
 	 * renderers always see the sources of the content currently being parsed — which
@@ -145,6 +167,18 @@
 		if (!content || typeof content !== 'string') {
 			return { segments: [] as MarkdownSegment[], sources: [] as SourceItem[] };
 		}
+		/**
+		 * Prop identity can churn every streamed frame without the data changing, so
+		 * equality is judged on content: same text + same sources = same result, no
+		 * re-parse. This is what keeps idle messages still while a reply streams.
+		 */
+		if (
+			lastProcessed &&
+			lastProcessed.content === content &&
+			lastProcessed.sourcesKey === sourcesKey
+		) {
+			return lastProcessed.result;
+		}
 
 		const { cleanedMarkdown, sources } = parseCitationsAndSources(content, externalSources);
 		const sourcesMap: Record<number, SourceItem> = {};
@@ -153,11 +187,14 @@
 		}
 		activeSourcesMap = sourcesMap;
 
+		let result: { segments: MarkdownSegment[]; sources: SourceItem[] };
 		try {
-			const segments = parseMarkdownSegments(cleanedMarkdown, marked);
-			return { segments, sources };
+			result = {
+				segments: parseMarkdownSegments(cleanedMarkdown, marked, { cacheKey: sourcesKey }),
+				sources
+			};
 		} catch {
-			return {
+			result = {
 				segments: [
 					{
 						type: 'html' as const,
@@ -168,6 +205,8 @@
 				sources
 			};
 		}
+		lastProcessed = { content, sourcesKey, result };
+		return result;
 	});
 
 	async function handleClick(event: MouseEvent) {
@@ -202,16 +241,24 @@
 </script>
 
 <div class="markdown-container {className}">
-	{#each processed.segments as segment (segment.id)}
-		{#if segment.type === 'html'}
-			<div class="markdown-body" role="presentation" onclick={handleClick}>
+	<!-- One wrapper for every segment: `.markdown-body > *:first/last-child` spacing
+	     must see the whole message as one flow, and it carries the streaming caret
+	     (see the ::after rule) so the caret never enters the markdown source. -->
+	<div
+		class="markdown-body"
+		class:streaming-caret={streaming}
+		role="presentation"
+		onclick={handleClick}
+	>
+		{#each processed.segments as segment (segment.id)}
+			{#if segment.type === 'html'}
 				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
 				{@html segment.html}
-			</div>
-		{:else if segment.type === 'mermaid'}
-			<MermaidDiagram code={segment.code} {streaming} />
-		{/if}
-	{/each}
+			{:else if segment.type === 'mermaid'}
+				<MermaidDiagram code={segment.code} {streaming} />
+			{/if}
+		{/each}
+	</div>
 
 	{#if processed.sources.length > 0}
 		<div class="message-sources-wrapper">
@@ -271,6 +318,18 @@
 	.markdown-container {
 		width: 100%;
 		position: relative;
+	}
+
+	/* The streaming caret rides the trailing block's own ::after, so it lands inline
+	 * at the end of the text (p/li/heading) or after the block (code, mermaid)
+	 * without ever being appended to the markdown source — a caret inside the source
+	 * flips fence pairing and tokenization while blocks are still open. `caret-fade`
+	 * (layout.css) breathes it smoothly instead of a hard on/off blink. */
+	:global(.markdown-body.streaming-caret > *:last-child::after) {
+		content: '▍';
+		color: var(--accent-bg);
+		margin-left: 1px;
+		animation: caret-fade 1.1s ease-in-out infinite;
 	}
 
 	:global(.markdown-body) {

@@ -35,13 +35,21 @@
 	import { createChatStream } from './chat-stream.svelte';
 	import { createChatNavigation } from './chat-navigation.svelte';
 	import {
-		buildRowContext,
 		contentText,
+		createRowContextResolver,
 		isImageFile,
 		MAX_IMAGE_ATTACHMENT_BYTES,
 		normalizeAttachmentFile
 	} from './chat-format';
-	import type { Conversation, QuestionPayload } from './chat-types';
+	import type { Conversation, QuestionPayload, TurnSource } from './chat-types';
+
+	/**
+	 * Stable identities for rows with nothing to show: the `?? []` fallbacks below
+	 * would otherwise hand every message a fresh array on every streamed frame and
+	 * wake renders that have nothing to update.
+	 */
+	const EMPTY_SOURCES: TurnSource[] = [];
+	const EMPTY_ATTACHMENTS: string[] = [];
 
 	let { data } = $props();
 
@@ -468,9 +476,11 @@
 	 * Per-row chat context (skill, answered-turn files, sources, continuation) is
 	 * resolved once per messages version instead of by every rendered row: the stream
 	 * rewrites the array on each animation frame, so per-row backward scans and source
-	 * collection are O(rows x turn) per frame.
+	 * collection are O(rows x turn) per frame. The resolver memoises rows whose turn
+	 * references are unchanged, so idle rows keep their previous prop identities.
 	 */
-	const rowContext = $derived(buildRowContext(stream.messages));
+	const resolveRowContext = createRowContextResolver();
+	const rowContext = $derived(resolveRowContext(stream.messages));
 
 	function addAttachments(selected: File[] | FileList | null) {
 		if (!selected) return false;
@@ -655,7 +665,7 @@
 						message={msg}
 						skill={rowContext.get(msg.id)?.skill ?? null}
 						continuation={rowContext.get(msg.id)?.continuation ?? false}
-						sources={rowContext.get(msg.id)?.sources ?? []}
+						sources={rowContext.get(msg.id)?.sources ?? EMPTY_SOURCES}
 						isLast={i === stream.messages.length - 1}
 						canRetry={stream.canRetry}
 						running={stream.running}
@@ -668,7 +678,7 @@
 						onbranch={branchFrom}
 						onquestionsubmit={handleQuestionSubmit}
 						onconsentsubmit={handleConsentSubmit}
-						contextAttachments={rowContext.get(msg.id)?.attachments ?? []}
+						contextAttachments={rowContext.get(msg.id)?.attachments ?? EMPTY_ATTACHMENTS}
 						projectName={activeConversation?.projectName ?? null}
 						showContext={displayPreferences.showMessageContext}
 						enterMotion={enterMotionArmed}

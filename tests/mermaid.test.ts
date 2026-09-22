@@ -65,15 +65,18 @@ describe('mermaid caching', () => {
 describe('markdown segment parsing for mermaid diagrams', () => {
 	const marked = new Marked({ gfm: true, breaks: true });
 
-	it('returns a single html segment for markdown without mermaid blocks', () => {
+	it('returns one html segment per block when the markdown has no mermaid blocks', () => {
 		const md = '# Hello World\n\nThis is a standard message with **bold** text and `code`.';
 		const segments = parseMarkdownSegments(md, marked);
 
-		expect(segments).toHaveLength(1);
-		expect(segments[0].type).toBe('html');
-		if (segments[0].type === 'html') {
-			expect(segments[0].html).toContain('<h1>Hello World</h1>');
-			expect(segments[0].html).toContain('<strong>bold</strong>');
+		expect(segments).toHaveLength(2);
+		expect(segments.every((segment) => segment.type === 'html')).toBe(true);
+		const [heading, paragraph] = segments;
+		if (heading.type === 'html') {
+			expect(heading.html).toContain('<h1>Hello World</h1>');
+		}
+		if (paragraph.type === 'html') {
+			expect(paragraph.html).toContain('<strong>bold</strong>');
 		}
 	});
 

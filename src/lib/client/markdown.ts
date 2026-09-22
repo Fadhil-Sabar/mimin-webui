@@ -153,42 +153,74 @@ export function unwrapMarkdownDocument(text: string): string {
 	return lines.join('\n');
 }
 
-export function parseMarkdownSegments(markdown: string, marked: Marked): MarkdownSegment[] {
+export interface ParseSegmentsOptions {
+	/**
+	 * Distinguishes cached HTML that depends on render-time state outside the token
+	 * text — citation pills built from the caller's sources — from plain renders.
+	 */
+	cacheKey?: string;
+}
+
+/**
+ * Rendered HTML keyed by token raw, cached per `Marked` instance: each Markdown
+ * component builds its own instance with its own renderers, so the same token can
+ * render to different HTML under different configurations and caches must not be
+ * shared between them. Streaming only appends to the trailing block, so every
+ * finished block hits this and skips marked/Prism/KaTeX — per-frame cost stops
+ * growing with reply length. Bounded FIFO, and weakly held so an unmounted
+ * component's cache goes with it.
+ */
+const SEGMENT_CACHE_LIMIT = 400;
+const segmentCaches = new WeakMap<Marked, Map<string, string>>();
+
+function renderSegmentHtml(token: Token, marked: Marked, cacheKey: string): string {
+	let cache = segmentCaches.get(marked);
+	if (!cache) {
+		cache = new Map<string, string>();
+		segmentCaches.set(marked, cache);
+	}
+	// Length-prefix the cache key so key/raw boundaries can never collide.
+	const key = `${cacheKey.length}:${cacheKey}${token.raw}`;
+	const cached = cache.get(key);
+	if (cached !== undefined) return cached;
+
+	const html = marked.parser([token]);
+	if (cache.size >= SEGMENT_CACHE_LIMIT) {
+		const oldest = cache.keys().next().value;
+		if (oldest !== undefined) cache.delete(oldest);
+	}
+	cache.set(key, html);
+	return html;
+}
+
+export function parseMarkdownSegments(
+	markdown: string,
+	marked: Marked,
+	options: ParseSegmentsOptions = {}
+): MarkdownSegment[] {
 	if (!markdown || typeof markdown !== 'string') {
 		return [];
 	}
 
+	const cacheKey = options.cacheKey ?? '';
 	const cleaned = unwrapMarkdownDocument(markdown);
 	const tokens = marked.lexer(cleaned);
 	const segments: MarkdownSegment[] = [];
-	let currentTokens: Token[] = [];
 	let mermaidCounter = 0;
 
+	// Each top-level block renders as its own segment. Block boundaries are stable
+	// while text streams into the trailing block, so the cache above absorbs every
+	// finished block and only the trailing one re-renders per frame.
 	for (const token of tokens) {
 		if (token.type === 'code' && isMermaidLanguage(token.lang)) {
-			if (currentTokens.length > 0) {
-				const html = marked.parser(currentTokens);
-				if (html.trim()) {
-					segments.push({
-						type: 'html' as const,
-						html,
-						id: `html-${segments.length}`
-					});
-				}
-				currentTokens = [];
-			}
 			segments.push({
 				type: 'mermaid' as const,
 				code: token.text,
 				id: `mermaid-${mermaidCounter++}`
 			});
-		} else {
-			currentTokens.push(token);
+			continue;
 		}
-	}
-
-	if (currentTokens.length > 0) {
-		const html = marked.parser(currentTokens);
+		const html = renderSegmentHtml(token, marked, cacheKey);
 		if (html.trim() || segments.length === 0) {
 			segments.push({
 				type: 'html' as const,

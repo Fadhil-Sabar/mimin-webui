@@ -101,6 +101,13 @@
 	 */
 	const animateEnter = untrack(() => enterMotion);
 
+	/**
+	 * The message body and thinking text, joined once per content change instead of
+	 * once per use — the streaming frame renders re-read these many times over.
+	 */
+	const bodyText = $derived(contentText(message.content));
+	const thoughtText = $derived(thinkingText(message.content));
+
 	/** Short status suffix for an attachment chip; images carry no extraction state. */
 	function attachmentStatusLabel(status?: string | null) {
 		if (status === 'failed') return 'text unavailable';
@@ -125,7 +132,7 @@
 		message.role === 'assistant' &&
 			message.turnState !== 'interrupted' &&
 			!message.isStreaming &&
-			!contentText(message.content).trim() &&
+			!bodyText.trim() &&
 			(message.toolCalls?.length ?? 0) === 0
 	);
 
@@ -148,9 +155,7 @@
 
 	const hasFooterActions = $derived(
 		(message.role === 'user' && (Boolean(onedit) || Boolean(onbranch) || (isLast && canRetry))) ||
-			(message.role === 'assistant' &&
-				!message.isStreaming &&
-				Boolean(contentText(message.content)))
+			(message.role === 'assistant' && !message.isStreaming && Boolean(bodyText))
 	);
 	let editing = $state(false);
 	let editValue = $state('');
@@ -174,20 +179,17 @@
 	}
 
 	$effect(() => {
-		const streaming = message.isStreaming && !contentText(message.content);
-		if (!streaming || !thinkingText(message.content) || !thinkingPinned) return;
+		const streaming = message.isStreaming && !bodyText;
+		if (!streaming || !thoughtText || !thinkingPinned) return;
 		if (thinkingEl) thinkingEl.scrollTop = thinkingEl.scrollHeight;
 	});
-
-	/** Appended to streamed content so the live reply shows where text will land. */
-	const STREAM_CARET = '▍';
 
 	let copyStatus = $state<'idle' | 'copied' | 'failed'>('idle');
 
 	async function copyResponse() {
 		try {
 			if (!navigator.clipboard) throw new Error('Clipboard unavailable');
-			await navigator.clipboard.writeText(contentText(message.content));
+			await navigator.clipboard.writeText(bodyText);
 			copyStatus = 'copied';
 		} catch {
 			copyStatus = 'failed';
@@ -221,9 +223,9 @@
 							message.toolCalls.find((t) => t.status === 'running')!.toolName,
 							message.toolCalls.find((t) => t.status === 'running')!.input
 						).action.toLowerCase()}
-					{:else if thinkingText(message.content) && !contentText(message.content)}
+					{:else if thoughtText && !bodyText}
 						thinking...
-					{:else if contentText(message.content)}
+					{:else if bodyText}
 						responding...
 					{:else}
 						working...
@@ -267,32 +269,27 @@
 						{/each}
 					</div>
 				{/if}
-				{#if message.role === 'assistant' && thinkingText(message.content)}
-					<details
-						class="thinking-block"
-						open={message.isStreaming && !contentText(message.content)}
-					>
+				{#if message.role === 'assistant' && thoughtText}
+					<details class="thinking-block" open={message.isStreaming && !bodyText}>
 						<summary class="thinking-summary state-layer">
 							<Sparkles size={13} />
-							<span class:shimmer-text={message.isStreaming && !contentText(message.content)}>
-								Thinking process
-							</span>
+							<span class:shimmer-text={message.isStreaming && !bodyText}> Thinking process </span>
 							<ChevronDown size={13} class="chevron" />
 						</summary>
 						<div class="thinking-content" bind:this={thinkingEl} onscroll={handleThinkingScroll}>
-							{thinkingText(message.content)}
+							{thoughtText}
 						</div>
 					</details>
 				{/if}
-				{#if contentText(message.content)}
+				{#if bodyText}
 					{#if message.role === 'assistant' && message.isStreaming}
-						<Markdown content={contentText(message.content) + STREAM_CARET} {sources} streaming />
+						<Markdown content={bodyText} {sources} streaming />
 					{:else if message.role === 'assistant'}
-						<Markdown content={contentText(message.content)} {sources} />
+						<Markdown content={bodyText} {sources} />
 					{:else}
-						<p>{contentText(message.content)}</p>
+						<p>{bodyText}</p>
 					{/if}
-				{:else if message.role === 'assistant' && message.isStreaming && !thinkingText(message.content) && (!message.toolCalls || message.toolCalls.length === 0)}
+				{:else if message.role === 'assistant' && message.isStreaming && !thoughtText && (!message.toolCalls || message.toolCalls.length === 0)}
 					<p class="response-text thinking"><span class="shimmer-text">Thinking...</span></p>
 				{:else if incompleteReply}
 					<p class="response-text incomplete-reply">
@@ -313,7 +310,7 @@
 					<div class="interrupted-notice" role="status">
 						<AlertTriangle size={13} aria-hidden="true" />
 						<span>
-							{contentText(message.content).trim()
+							{bodyText.trim()
 								? 'This reply was interrupted before it finished.'
 								: 'This turn was interrupted before writing an answer.'}
 						</span>
@@ -359,7 +356,7 @@
 									aria-label="Edit prompt"
 									data-tooltip="Edit prompt"
 									onclick={() => {
-										editValue = contentText(message.content);
+										editValue = bodyText;
 										editing = true;
 									}}><Pencil size={14} aria-hidden="true" /></button
 								>{/if}

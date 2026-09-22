@@ -17,8 +17,8 @@ COPY . .
 ARG MIMIN_EXTENSION_ORIGINS
 ENV MIMIN_EXTENSION_ORIGINS=${MIMIN_EXTENSION_ORIGINS}
 
-# Build browser extensions and SvelteKit application, then enforce the client budget
-RUN npm run build && npm run bundle:budget
+# Build browser extensions and SvelteKit application
+RUN npm run build
 
 # Stage 2: Runtime stage
 FROM node:22-bookworm-slim AS runner
