@@ -109,18 +109,21 @@
 		{#if draft.tab === 'html'}
 			<textarea
 				class="code-editor-input"
+				aria-label="HTML code"
 				bind:value={draft.html}
 				placeholder="Semantic HTML markup..."
 				spellcheck="false"></textarea>
 		{:else if draft.tab === 'css'}
 			<textarea
 				class="code-editor-input"
+				aria-label="CSS code"
 				bind:value={draft.css}
 				placeholder="CSS rules and token styles..."
 				spellcheck="false"></textarea>
 		{:else}
 			<textarea
 				class="code-editor-input"
+				aria-label="JavaScript code"
 				bind:value={draft.js}
 				placeholder="Lightweight behavior JavaScript..."
 				spellcheck="false"></textarea>
