@@ -1,13 +1,17 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { and, count, desc, eq, ilike } from 'drizzle-orm';
+import { and, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
 import { projectInput } from '$lib/server/validation';
 import { cleanupStoredFiles } from '$lib/server/files/storage';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
 import { toPublicConversation } from '$lib/server/skill-runtime';
-import { escapeLikePattern, parseProjectFileQuery } from '$lib/server/projects/search';
+import {
+	escapeLikePattern,
+	parseProjectFileQuery,
+	parseProjectSearchQuery
+} from '$lib/server/projects/search';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
@@ -52,6 +56,11 @@ export const GET: RequestHandler = async (event) => {
 		if (conversationsPagination instanceof Response) return conversationsPagination;
 		const fileQuery = parseProjectFileQuery(event.url.searchParams.get('fileQuery'));
 		if (fileQuery instanceof Response) return fileQuery;
+		const conversationQuery = parseProjectSearchQuery(
+			event.url.searchParams.get('conversationQuery'),
+			'conversationQuery'
+		);
+		if (conversationQuery instanceof Response) return conversationQuery;
 		const db = getDb();
 		const [project] = await db.select().from(schema.projects).where(eq(schema.projects.id, id));
 		if (!project || project.userId !== user.id)
@@ -62,6 +71,19 @@ export const GET: RequestHandler = async (event) => {
 					ilike(schema.projectFiles.filename, `%${escapeLikePattern(fileQuery)}%`)
 				)
 			: eq(schema.projectFiles.projectId, id);
+		const conversationProjectWhere = and(
+			eq(schema.conversations.projectId, id),
+			eq(schema.conversations.userId, user.id)
+		);
+		const conversationWhere = conversationQuery
+			? and(
+					conversationProjectWhere,
+					or(
+						ilike(schema.conversations.title, `%${escapeLikePattern(conversationQuery)}%`),
+						ilike(schema.conversations.model, `%${escapeLikePattern(conversationQuery)}%`)
+					)
+				)
+			: conversationProjectWhere;
 		const [files, fileTotals, conversations, conversationTotals] = await Promise.all([
 			db
 				.select()
@@ -74,18 +96,11 @@ export const GET: RequestHandler = async (event) => {
 			db
 				.select()
 				.from(schema.conversations)
-				.where(
-					and(eq(schema.conversations.projectId, id), eq(schema.conversations.userId, user.id))
-				)
+				.where(conversationWhere)
 				.orderBy(desc(schema.conversations.updatedAt), desc(schema.conversations.id))
 				.limit(conversationsPagination.pageSize)
 				.offset(conversationsPagination.offset),
-			db
-				.select({ count: count() })
-				.from(schema.conversations)
-				.where(
-					and(eq(schema.conversations.projectId, id), eq(schema.conversations.userId, user.id))
-				)
+			db.select({ count: count() }).from(schema.conversations).where(conversationWhere)
 		]);
 		const fileTotal = Number(fileTotals[0]?.count ?? 0);
 		const conversationTotal = Number(conversationTotals[0]?.count ?? 0);

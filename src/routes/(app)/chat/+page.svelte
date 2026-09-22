@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SvelteFlowProvider } from '@xyflow/svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
+	import { ArrowDown } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import {
 		answerBrowserConsent,
@@ -24,6 +25,7 @@
 	import { displayPreferences } from '$lib/client/display-preferences.svelte';
 	import { shell } from '$lib/client/shell.svelte';
 	import { getConversationDraft, setConversationDraft } from '$lib/client/drafts';
+	import { MODELS_CHANGED_EVENT } from '$lib/client/models-cache';
 	import { peekNavigationHandoff, consumeNavigationHandoff } from '$lib/client/navigation-handoff';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
@@ -175,11 +177,14 @@
 		};
 		window.addEventListener('storage', handleSync);
 		window.addEventListener('focus', handleSync);
+		const refreshModels = () => void settings.loadModels({ force: true });
+		window.addEventListener(MODELS_CHANGED_EVENT, refreshModels);
 		void settings.loadSkills();
 		window.addEventListener('focus', settings.loadSkills);
 		return () => {
 			window.removeEventListener('storage', handleSync);
 			window.removeEventListener('focus', handleSync);
+			window.removeEventListener(MODELS_CHANGED_EVENT, refreshModels);
 			window.removeEventListener('focus', settings.loadSkills);
 		};
 	});
@@ -243,6 +248,14 @@
 		if (!scrollEl) return;
 		scrollEl.scrollTop = scrollEl.scrollHeight;
 	}
+
+	function jumpToLatest() {
+		userAtBottom = true;
+		if (!scrollEl) return;
+		scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+	}
+
+	let scrollActionLabel = $derived(stream.running ? 'New response' : 'Jump to latest');
 
 	$effect(() => {
 		// Subscribe to reactive changes
@@ -319,6 +332,8 @@
 			stream.reset();
 			pendingAttachments = [];
 			settings.resetTools();
+			userAtBottom = true;
+			if (scrollEl) scrollEl.scrollTop = 0;
 		}
 		activeId = id;
 		message = getConversationDraft(id);
@@ -345,6 +360,8 @@
 			if (switching) {
 				stream.setMessages(transcript);
 				earlierPagesLoaded = 0;
+				await tick();
+				scrollToBottom();
 			} else {
 				// Merging keeps earlier pages the reader already loaded; replacing the
 				// transcript here is what used to lose them after every turn.
@@ -676,6 +693,17 @@
 			bind:this={scrollEl}
 			onscroll={handleScroll}
 		>
+			{#if !userAtBottom && stream.messages.length > 0}
+				<button
+					type="button"
+					class="scroll-to-latest"
+					onclick={jumpToLatest}
+					aria-label={scrollActionLabel}
+				>
+					<ArrowDown size={14} aria-hidden="true" />
+					<span>{scrollActionLabel}</span>
+				</button>
+			{/if}
 			<div class="chat-wrap">
 				{#if busy}
 					<div class="loading-thread" role="status" aria-label="Loading conversation">
@@ -859,6 +887,39 @@
 
 	.chat-pane {
 		min-width: 0;
+		position: relative;
+	}
+
+	.scroll-to-latest {
+		position: absolute;
+		z-index: 20;
+		right: max(18px, calc((100% - 832px) / 2));
+		bottom: 112px;
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		border: 1px solid var(--border-strong);
+		border-radius: 999px;
+		padding: 7px 11px;
+		background: var(--surface);
+		color: var(--text-strong);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		letter-spacing: var(--text-body-sm--letter-spacing);
+		box-shadow: 0 6px 18px var(--shadow-soft);
+		transition:
+			background var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard),
+			transform var(--duration-short3) var(--ease-standard);
+	}
+	.scroll-to-latest:hover {
+		border-color: var(--focus);
+		background: var(--surface-hover);
+		transform: translateY(-1px);
+	}
+	.scroll-to-latest:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
 	}
 
 	.canvas-pane {
@@ -997,6 +1058,10 @@
 	}
 
 	@media (max-width: 560px) {
+		.scroll-to-latest {
+			right: 12px;
+			bottom: 104px;
+		}
 		.chat-wrap {
 			padding-inline: var(--space-3);
 		}

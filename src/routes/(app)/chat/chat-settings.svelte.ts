@@ -181,9 +181,10 @@ export function createChatSettings(deps: ChatSettingsDeps) {
 			: (availableThinkingLevels[0] ?? 'off');
 	});
 
-	async function loadModels() {
+	async function loadModels(options: { force?: boolean } = {}) {
+		modelsLoading = true;
 		try {
-			const data = await loadModelsCached<ModelOption>();
+			const data = await loadModelsCached<ModelOption>(options);
 			models = data.models;
 			modelLoadError = modelsErrorMessage(data);
 			if (modelLoadError) deps.notify('Some live models could not be loaded. Check Providers.');

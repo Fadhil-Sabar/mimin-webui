@@ -2,9 +2,13 @@
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
-	import { Send } from '@lucide/svelte';
+	import { Loader2, Send } from '@lucide/svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
-	import { loadModelsCached, modelsErrorMessage } from '$lib/client/models-cache';
+	import {
+		loadModelsCached,
+		MODELS_CHANGED_EVENT,
+		modelsErrorMessage
+	} from '$lib/client/models-cache';
 	import {
 		conversationsState,
 		getLastUsedModel,
@@ -17,6 +21,7 @@
 		createNavigationHandoff,
 		peekNavigationHandoff
 	} from '$lib/client/navigation-handoff';
+	import { clearHomeDraft, getHomeDraft, setHomeDraft } from '$lib/client/drafts';
 	import { settingsModal } from '$lib/client/settings-modal.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import Topbar from '$lib/components/Topbar.svelte';
@@ -26,6 +31,14 @@
 	let modelsLoading = $state(true);
 	let modelLoadError = $state('');
 	let selectedModel = $state('');
+	let homeDraftLoaded = $state(false);
+
+	$effect(() => {
+		const value = prompt;
+		if (!homeDraftLoaded) return;
+		setHomeDraft(value);
+	});
+	let submitting = $state(false);
 	function usePrompt(value: string) {
 		prompt = value;
 	}
@@ -38,9 +51,10 @@
 		models.filter((model) => model.configured || model.userConfigured)
 	);
 
-	async function loadModels() {
+	async function loadModels(options: { force?: boolean } = {}) {
+		modelsLoading = true;
 		try {
-			const data = await loadModelsCached<ModelOption>();
+			const data = await loadModelsCached<ModelOption>(options);
 			models = data.models;
 			modelLoadError = modelsErrorMessage(data);
 			if (modelLoadError) toast('Some live models could not be loaded. Check Providers.');
@@ -53,6 +67,7 @@
 	}
 
 	async function submitPrompt() {
+		if (submitting) return;
 		const content = prompt.trim();
 		if (!content) {
 			toast('Write a prompt first');
@@ -66,6 +81,7 @@
 			);
 			return;
 		}
+		submitting = true;
 		setLastUsedModel(selectedModel);
 		try {
 			const response = await fetch('/api/conversations', {
@@ -79,10 +95,13 @@
 			if (conversation.model) {
 				setLastUsedModel(conversation.model);
 			}
+			clearHomeDraft();
 			createNavigationHandoff({ prompt: content, returnTo: `/chat?id=${conversation.id}` });
 			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}`;
 		} catch (error) {
 			toast(error instanceof Error ? error.message : 'Could not start a conversation');
+		} finally {
+			submitting = false;
 		}
 	}
 
@@ -98,7 +117,10 @@
 		if (handoff?.returnTo === '/') {
 			prompt = handoff.prompt;
 			consumeNavigationHandoff();
+		} else {
+			prompt = getHomeDraft();
 		}
+		homeDraftLoaded = true;
 		await loadModels();
 		try {
 			const response = await fetch('/api/conversations');
@@ -116,6 +138,13 @@
 		} catch {
 			/* ignore */
 		}
+	});
+
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		const refreshModels = () => void loadModels({ force: true });
+		window.addEventListener(MODELS_CHANGED_EVENT, refreshModels);
+		return () => window.removeEventListener(MODELS_CHANGED_EVENT, refreshModels);
 	});
 
 	function openProviderSetup(event: MouseEvent) {
@@ -143,13 +172,15 @@
 			bind:value={prompt}
 			aria-label="Prompt"
 			placeholder="Ask anything..."
+			disabled={submitting}
+			aria-busy={submitting}
 			onkeydown={onKeydown}></textarea>
 		<div class="composer-row">
 			<ModelPicker
 				models={configuredModels}
 				value={selectedModel}
 				loading={modelsLoading}
-				disabled={configuredModels.length === 0}
+				disabled={submitting || configuredModels.length === 0}
 				placeholder={modelLoadError ? 'Models unavailable' : 'Configure a provider'}
 				onselect={(model) => {
 					selectedModel = model;
@@ -160,9 +191,14 @@
 				variant="default"
 				size="icon-lg"
 				class="ml-auto rounded-lg"
-				aria-label="Send prompt"
-				title="Send prompt"
-				onclick={submitPrompt}><Send size={16} aria-hidden="true" /></Button
+				disabled={submitting}
+				aria-label={submitting ? 'Starting chat' : 'Send prompt'}
+				title={submitting ? 'Starting chat' : 'Send prompt'}
+				onclick={submitPrompt}
+				>{#if submitting}<Loader2 size={16} class="animate-spin" aria-hidden="true" />{:else}<Send
+						size={16}
+						aria-hidden="true"
+					/>{/if}</Button
 			>
 		</div>
 	</div>

@@ -17,10 +17,23 @@ type ModelsCacheEntry = { payload: ModelsPayload<unknown>; etag: string | null; 
 let cacheEntry: ModelsCacheEntry | null = null;
 let inflight: Promise<ModelsPayload<unknown>> | null = null;
 
+/** Emitted when a provider connection changes while a model picker is mounted. */
+export const MODELS_CHANGED_EVENT = 'mimin:models-changed';
+
 /** Drop the memoised list, e.g. after the user saves or removes a provider key. */
 export function invalidateModelsCache() {
 	cacheEntry = null;
 	inflight = null;
+}
+
+/**
+ * Invalidate the shared list and tell already-mounted model pickers to refresh.
+ * Settings is rendered alongside the current page, so a navigation is not
+ * guaranteed to remount the home or chat picker after a provider is saved.
+ */
+export function notifyModelsChanged() {
+	invalidateModelsCache();
+	if (typeof window !== 'undefined') window.dispatchEvent(new Event(MODELS_CHANGED_EVENT));
 }
 
 export async function loadModelsCached<TModel>(

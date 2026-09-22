@@ -18,6 +18,7 @@
 		type ProviderState
 	} from '../provider-types';
 	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { notifyModelsChanged } from '$lib/client/models-cache';
 
 	const PROVIDERS: Array<{ id: string; name: string; description: string; envVar: string }> = [
 		{
@@ -293,6 +294,7 @@
 			if (!response.ok)
 				throw new Error((await response.json()).error?.message ?? 'Could not save provider');
 			notify('Provider saved');
+			notifyModelsChanged();
 			editing = null;
 			creatingCustom = false;
 			await loadProviders();
@@ -313,6 +315,7 @@
 			const response = await fetch(`/api/providers/${provider}`, { method: 'DELETE' });
 			if (!response.ok) throw new Error('Could not remove provider');
 			notify('Provider key removed');
+			notifyModelsChanged();
 			await loadProviders();
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not remove provider');

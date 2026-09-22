@@ -29,7 +29,7 @@
 		<div>
 			<h2>Conversations</h2>
 			<p>Continue work from previous project sessions.</p>
-			{#if query.trim()}<small class="search-scope">Search filters loaded conversations only.</small
+			{#if query.trim()}<small class="search-scope">Searching all project conversations…</small
 				>{/if}
 		</div>
 		<Button variant="default" onclick={onstartchat}><Plus size={15} /> New chat</Button>

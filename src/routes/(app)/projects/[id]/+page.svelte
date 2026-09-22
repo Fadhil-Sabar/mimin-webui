@@ -84,13 +84,9 @@
 		}
 	}
 	let projectId = $derived((page.params.id as string) ?? '');
-	let filteredConversations = $derived(
-		conversations.filter((conversation) =>
-			`${conversation.title} ${conversation.model}`
-				.toLowerCase()
-				.includes(projectQuery.trim().toLowerCase())
-		)
-	);
+	// Both collections are filtered by the project endpoint, so pagination totals
+	// and the visible rows describe the same result set even beyond the first page.
+	let filteredConversations = $derived(conversations);
 	let extractionSummary = $derived.by(() => {
 		const failed = files.filter(extractionNeedsAttention).length;
 		// The document worker writes `processing_status`; `extraction_status` is only
@@ -124,7 +120,7 @@
 			filesPageSize: String(filePagination.pageSize),
 			conversationsPage: String(conversationsPage),
 			conversationsPageSize: String(conversationPagination.pageSize),
-			...(fileQuery ? { fileQuery } : {})
+			...(fileQuery ? { fileQuery, conversationQuery: fileQuery } : {})
 		});
 		const response = await fetch(`/api/projects/${id}?${query}`);
 		if (!response.ok) throw new Error('Could not load project');

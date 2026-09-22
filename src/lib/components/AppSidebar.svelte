@@ -9,6 +9,7 @@
 	import { shell } from '$lib/client/shell.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { activeNavKey, visibleNavSections } from '$lib/nav';
+	import { settingsModal } from '$lib/client/settings-modal.svelte';
 
 	type Props = {
 		user?: { name?: string | null; role?: string | null } | null;
@@ -17,10 +18,10 @@
 	let { user = null }: Props = $props();
 
 	let initial = $derived(user?.name?.[0]?.toUpperCase() ?? 'U');
-	let sections = $derived(
-		visibleNavSections(user?.role === 'admin').filter((section) => section.label !== 'Settings')
+	let sections = $derived(visibleNavSections(user?.role === 'admin'));
+	let activeKey = $derived(
+		settingsModal.open ? settingsModal.activeTab : activeNavKey(page.url.pathname)
 	);
-	let activeKey = $derived(activeNavKey(page.url.pathname));
 
 	async function logout() {
 		await authClient.signOut();
