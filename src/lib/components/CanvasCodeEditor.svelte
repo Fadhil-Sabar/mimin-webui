@@ -1,28 +1,18 @@
 <script lang="ts">
 	import { Check, Copy } from '@lucide/svelte';
-	import type { CanvasScene } from '$lib/canvas';
 	import { Button } from '$lib/components/ui/button/index.js';
 
 	type Draft = { tab: 'html' | 'css' | 'js'; html: string; css: string; js: string };
 
 	type Props = {
-		scene: CanvasScene;
 		draft: Draft;
 		onsave: (html: string, css: string, js: string) => Promise<void>;
 	};
 
-	let { scene, draft = $bindable(), onsave }: Props = $props();
+	let { draft = $bindable(), onsave }: Props = $props();
 
 	let codeSaving = $state(false);
 	let copiedCode = $state(false);
-
-	$effect(() => {
-		if (scene) {
-			draft.html = scene.html;
-			draft.css = scene.css;
-			draft.js = scene.js ?? '';
-		}
-	});
 
 	async function saveCodeChanges() {
 		codeSaving = true;

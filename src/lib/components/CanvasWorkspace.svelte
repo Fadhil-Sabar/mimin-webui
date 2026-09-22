@@ -159,13 +159,31 @@
 	}
 	let arranging = $state(false);
 
-	// Code editor draft survives switching between preview and code views.
-	let codeDraft = $state({ tab: 'html' as 'html' | 'css' | 'js', html: '', css: '', js: '' });
+	type CodeDraft = { tab: 'html' | 'css' | 'js'; html: string; css: string; js: string };
+
+	// Keep one draft per scene. Canvas refreshes replace the scene objects with
+	// server copies, so a single draft object would otherwise be reset while the
+	// user is still editing code.
+	let codeDrafts = $state<Record<string, CodeDraft>>({});
+	let codeDraftSceneId = $state('');
+	let codeDraft = $state<CodeDraft>({ tab: 'html', html: '', css: '', js: '' });
+
+	function draftFromScene(scene: CanvasScene): CodeDraft {
+		return { tab: 'html', html: scene.html, css: scene.css, js: scene.js ?? '' };
+	}
 
 	$effect(() => {
 		if (canvas.activeSceneId) {
 			selectedSceneId = canvas.activeSceneId;
 		}
+	});
+
+	$effect(() => {
+		const scene = activeScene;
+		if (!scene || scene.id === codeDraftSceneId) return;
+		codeDraftSceneId = scene.id;
+		codeDraft = codeDrafts[scene.id] ?? draftFromScene(scene);
+		codeDrafts[scene.id] = codeDraft;
 	});
 
 	async function handleRefresh() {
@@ -387,7 +405,6 @@
 			{:else if activeScene}
 				<!-- Code View / Quick Edit -->
 				<CanvasCodeEditor
-					scene={activeScene}
 					bind:draft={codeDraft}
 					onsave={(html, css, js) => onupdatescene(activeScene.id, { html, css, js })}
 				/>

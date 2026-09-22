@@ -413,6 +413,10 @@ export function createChatStream(deps: ChatStreamDeps) {
 			if (deps.getActiveId() !== streamConversationId || abortController !== streamAbortController)
 				return;
 			if ((error as Error).name !== 'AbortError') {
+				// Keep the prompt available after a transport or server failure. The
+				// composer persists it for the active conversation, so the user can
+				// correct the problem or retry without retyping the message.
+				deps.setDraft(content);
 				deps.setAttachments(filesToSend);
 				const errMsg = error instanceof Error ? error.message : 'Agent error';
 				liveError = errMsg;
