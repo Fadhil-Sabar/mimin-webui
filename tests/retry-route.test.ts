@@ -176,6 +176,7 @@ describe('conversation retry route', () => {
 	});
 
 	it('supersedes the prior answer only after a replacement succeeds', async () => {
+		state.turn = { resolve: () => {} };
 		state.conversationMessages = [
 			{
 				id: 'msg-user-1',
@@ -192,6 +193,9 @@ describe('conversation retry route', () => {
 		];
 		const res = await POST(event());
 		expect(res.status).toBe(200);
+		await vi.waitFor(() => expect(state.runPrompts).toHaveLength(1));
+		expect(state.messageUpdates).toEqual([]);
+		state.turn?.resolve();
 		await res.text();
 		expect(state.messageUpdates).toEqual([{ turnState: 'superseded' }]);
 		expect(state.runExcludedIds).toEqual([['msg-asst-failed']]);
