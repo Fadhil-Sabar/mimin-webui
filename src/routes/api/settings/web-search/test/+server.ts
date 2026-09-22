@@ -3,6 +3,7 @@ import type { RequestHandler } from '@sveltejs/kit';
 import { apiError, requireUser } from '$lib/server/api';
 import { getWebSearchSettings } from '$lib/server/ai/web-search-settings.service';
 import { searchWeb } from '$lib/server/ai/tools/web-search.tool';
+import { assertConfiguredEndpoint } from '$lib/server/outbound';
 import { z } from 'zod';
 
 const testSearchInput = z.object({
@@ -23,10 +24,16 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		const currentSettings = await getWebSearchSettings(user.id);
+		const requestedSearchUrl = parsed.data.searchUrl?.trim() || null;
+		if (requestedSearchUrl) assertConfiguredEndpoint(requestedSearchUrl);
+		const searchUrlChanged =
+			parsed.data.searchUrl !== undefined && requestedSearchUrl !== currentSettings.searchUrl;
 		const effectiveApiKey =
 			parsed.data.apiKey !== undefined
 				? parsed.data.apiKey?.trim() || null
-				: currentSettings.apiKey;
+				: searchUrlChanged
+					? null
+					: currentSettings.apiKey;
 
 		const effectiveSearchUrl =
 			parsed.data.searchUrl !== undefined
@@ -41,7 +48,16 @@ export const POST: RequestHandler = async (event) => {
 			{
 				apiKey: effectiveApiKey,
 				searchUrl: effectiveSearchUrl,
-				provider: effectiveProvider
+				provider: effectiveProvider,
+				apiKeySource:
+					parsed.data.apiKey !== undefined
+						? 'user'
+						: searchUrlChanged
+							? 'none'
+							: currentSettings.apiKeySource,
+				searchUrlSource:
+					parsed.data.searchUrl !== undefined ? 'user' : currentSettings.searchUrlSource,
+				configuredEndpoint: true
 			}
 		);
 

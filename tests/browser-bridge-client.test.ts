@@ -235,7 +235,8 @@ describe('browser bridge client', () => {
 			expect.objectContaining({
 				headers: expect.objectContaining({
 					'x-mimin-browser-bridge': '1',
-					accept: 'text/event-stream'
+					accept: 'application/json',
+					'x-client-request-id': expect.any(String)
 				})
 			})
 		);
@@ -261,7 +262,11 @@ describe('browser bridge client', () => {
 		expect(windowMock.postMessage).not.toHaveBeenCalled();
 		expect(vi.mocked(fetch).mock.calls[0][1]).toEqual(
 			expect.objectContaining({
-				headers: { 'content-type': 'application/json', accept: 'text/event-stream' }
+				headers: {
+					'content-type': 'application/json',
+					accept: 'application/json',
+					'x-client-request-id': expect.any(String)
+				}
 			})
 		);
 	});

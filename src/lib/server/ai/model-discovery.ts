@@ -1,5 +1,5 @@
 import type { CustomProviderProtocol } from './provider-settings.service';
-import { assertAllowedOutboundUrl } from '../outbound';
+import { assertAllowedOutboundUrl, assertConfiguredEndpoint } from '../outbound';
 
 export type DiscoverableProvider = 'openai' | 'anthropic' | 'google';
 
@@ -11,6 +11,11 @@ export type DiscoveredModel = {
 	reasoning?: boolean;
 	vision?: boolean;
 	isFree?: boolean;
+};
+
+export type ModelDiscoveryOptions = {
+	/** The URL was explicitly configured and may be a private/local endpoint. */
+	configuredEndpoint?: boolean;
 };
 
 type JsonObject = Record<string, unknown>;
@@ -98,16 +103,16 @@ export function parseProviderModelList(
 	return models;
 }
 
-function requestHeaders(provider: DiscoverableProvider, apiKey: string) {
+function requestHeaders(provider: DiscoverableProvider, apiKey: string | null) {
 	const headers: Record<string, string> = {
 		Accept: 'application/json'
 	};
-	if (provider === 'openai') headers.Authorization = `Bearer ${apiKey}`;
-	if (provider === 'anthropic') {
+	if (provider === 'openai' && apiKey) headers.Authorization = `Bearer ${apiKey}`;
+	if (provider === 'anthropic' && apiKey) {
 		headers['x-api-key'] = apiKey;
 		headers['anthropic-version'] = '2023-06-01';
 	}
-	if (provider === 'google') headers['x-goog-api-key'] = apiKey;
+	if (provider === 'google' && apiKey) headers['x-goog-api-key'] = apiKey;
 	return headers;
 }
 
@@ -119,9 +124,10 @@ function addQuery(url: string, params: Record<string, string>) {
 /** Fetch the models visible to the supplied provider credential. */
 export async function fetchProviderModels(
 	provider: DiscoverableProvider,
-	apiKey: string,
+	apiKey: string | null,
 	baseUrl?: string | null,
-	fetcher: typeof globalThis.fetch = globalThis.fetch
+	fetcher: typeof globalThis.fetch = globalThis.fetch,
+	options: ModelDiscoveryOptions = {}
 ): Promise<DiscoveredModel[]> {
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 5000);
@@ -133,7 +139,8 @@ export async function fetchProviderModels(
 				if (provider === 'google') url = addQuery(url, { pageSize: '1000' });
 				if (provider === 'anthropic') url = addQuery(url, { limit: '1000' });
 			}
-			assertAllowedOutboundUrl(url);
+			if (options.configuredEndpoint) assertConfiguredEndpoint(url);
+			else assertAllowedOutboundUrl(url);
 			const response = await fetcher(url, {
 				method: 'GET',
 				headers: requestHeaders(provider, apiKey),
@@ -314,7 +321,8 @@ export async function fetchCustomProviderModels(
 	protocol: CustomProviderProtocol,
 	baseUrl: string,
 	apiKey?: string | null,
-	fetcher: typeof globalThis.fetch = globalThis.fetch
+	fetcher: typeof globalThis.fetch = globalThis.fetch,
+	options: ModelDiscoveryOptions = {}
 ): Promise<DiscoveredModel[]> {
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 8000);
@@ -325,7 +333,8 @@ export async function fetchCustomProviderModels(
 		} else if (protocol === 'anthropic-messages') {
 			url = addQuery(url, { limit: '1000' });
 		}
-		assertAllowedOutboundUrl(url);
+		if (options.configuredEndpoint) assertConfiguredEndpoint(url);
+		else assertAllowedOutboundUrl(url);
 		const response = await fetcher(url, {
 			method: 'GET',
 			headers: customRequestHeaders(protocol, apiKey),

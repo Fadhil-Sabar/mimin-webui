@@ -5,7 +5,7 @@
 	import { sidebar } from '$lib/client/sidebar.svelte';
 
 	type Props = {
-		user?: { name?: string | null; role?: string | null } | null;
+		user?: { id?: string | null; name?: string | null; role?: string | null } | null;
 		children: Snippet;
 	};
 

@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from '@sveltejs/kit';
-import { and, desc, eq, ilike, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedProject, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
@@ -40,6 +40,7 @@ export const GET: RequestHandler = async (event) => {
 				title: schema.conversations.title,
 				model: schema.conversations.model,
 				enabledTools: schema.conversations.enabledTools,
+				historyRevision: schema.conversations.historyRevision,
 				activeSkillId: schema.conversations.activeSkillId,
 				activeSkillSnapshot: schema.conversations.activeSkillSnapshot,
 				createdAt: schema.conversations.createdAt,
@@ -96,6 +97,7 @@ export const GET: RequestHandler = async (event) => {
 				and(
 					eq(schema.conversations.userId, user.id),
 					projectId ? eq(schema.conversations.projectId, projectId) : undefined,
+					ne(schema.messages.turnState, 'superseded'),
 					sql`${schema.messages.content}::text ILIKE ${`%${escapedQ}%`}`
 				)
 			)

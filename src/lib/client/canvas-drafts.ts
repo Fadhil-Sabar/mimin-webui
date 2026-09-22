@@ -8,77 +8,163 @@ export type CanvasSceneDraft = {
 };
 
 type DraftMap = Record<string, CanvasSceneDraft>;
+type ScopedDrafts = { version: 1; users: Record<string, DraftMap> };
+let legacyMemory: DraftMap = {};
+let lastStorage: unknown;
+
+function storage(): Storage | null {
+	if (typeof window === 'undefined') return null;
+	const current = localStorage;
+	if (current !== lastStorage) {
+		lastStorage = current;
+		legacyMemory = {};
+	}
+	return current;
+}
+
+function discardUnscoped() {
+	const store = storage();
+	if (!store) return;
+	try {
+		const parsed = JSON.parse(store.getItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY) ?? 'null') as {
+			version?: unknown;
+		} | null;
+		if (!parsed || parsed.version !== 1) store.removeItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY);
+	} catch {
+		store.removeItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY);
+	}
+}
 
 function draftKey(canvasId: string, sceneId: string) {
 	return `${canvasId}:${sceneId}`;
 }
 
-function readDrafts(): DraftMap {
-	if (typeof window === 'undefined') return {};
+function isDraft(value: unknown): value is CanvasSceneDraft {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+	const candidate = value as Partial<CanvasSceneDraft>;
+	return (
+		(candidate.tab === 'html' || candidate.tab === 'css' || candidate.tab === 'js') &&
+		typeof candidate.html === 'string' &&
+		typeof candidate.css === 'string' &&
+		typeof candidate.js === 'string'
+	);
+}
+
+function readScopedDrafts(userId: string): DraftMap {
+	discardUnscoped();
+	const store = storage();
+	if (!store) return {};
 	try {
-		const raw = localStorage.getItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY);
-		if (!raw) return {};
-		const parsed: unknown = JSON.parse(raw);
-		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+		const parsed: unknown = JSON.parse(store.getItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY) ?? 'null');
+		if (
+			!parsed ||
+			typeof parsed !== 'object' ||
+			(parsed as Partial<ScopedDrafts>).version !== 1 ||
+			!(parsed as Partial<ScopedDrafts>).users ||
+			typeof (parsed as Partial<ScopedDrafts>).users !== 'object'
+		)
+			return {};
+		const values = (parsed as ScopedDrafts).users[userId];
+		if (!values || typeof values !== 'object' || Array.isArray(values)) return {};
 		const drafts: DraftMap = {};
-		for (const [key, value] of Object.entries(parsed)) {
-			if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-			const candidate = value as Partial<CanvasSceneDraft>;
-			if (
-				(candidate.tab === 'html' || candidate.tab === 'css' || candidate.tab === 'js') &&
-				typeof candidate.html === 'string' &&
-				typeof candidate.css === 'string' &&
-				typeof candidate.js === 'string'
-			) {
-				drafts[key] = {
-					tab: candidate.tab,
-					html: candidate.html,
-					css: candidate.css,
-					js: candidate.js
-				};
-			}
-		}
+		for (const [key, value] of Object.entries(values)) if (isDraft(value)) drafts[key] = value;
 		return drafts;
 	} catch {
 		return {};
 	}
 }
 
-function writeDrafts(drafts: DraftMap) {
-	if (typeof window === 'undefined') return;
+function writeScopedDrafts(userId: string, drafts: DraftMap) {
+	const store = storage();
+	if (!store) return;
 	try {
-		if (Object.keys(drafts).length === 0) localStorage.removeItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY);
-		else localStorage.setItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY, JSON.stringify(drafts));
+		const all: ScopedDrafts = { version: 1, users: {} };
+		try {
+			const parsed = JSON.parse(
+				store.getItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY) ?? 'null'
+			) as Partial<ScopedDrafts>;
+			if (parsed.version === 1 && parsed.users && typeof parsed.users === 'object')
+				all.users = parsed.users as ScopedDrafts['users'];
+		} catch {
+			// Old unscoped values are intentionally discarded.
+		}
+		if (Object.keys(drafts).length) all.users[userId] = drafts;
+		else delete all.users[userId];
+		if (Object.keys(all.users).length)
+			store.setItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY, JSON.stringify(all));
+		else store.removeItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY);
 	} catch {
 		/* Storage is best effort. */
 	}
 }
 
 export function getCanvasSceneDraft(
+	userId: string | null | undefined,
 	canvasId: string | null | undefined,
-	sceneId: string | null | undefined
+	sceneId?: string | null | undefined
 ): CanvasSceneDraft | null {
+	storage();
+	if (sceneId === undefined) {
+		sceneId = canvasId;
+		canvasId = userId;
+		userId = null;
+	}
 	if (!canvasId || !sceneId) return null;
-	return readDrafts()[draftKey(canvasId, sceneId)] ?? null;
+	const drafts = userId ? readScopedDrafts(userId) : legacyMemory;
+	return drafts[draftKey(canvasId, sceneId)] ?? null;
 }
 
 export function setCanvasSceneDraft(
+	userId: string | null | undefined,
 	canvasId: string | null | undefined,
-	sceneId: string | null | undefined,
-	draft: CanvasSceneDraft
+	sceneId: string | null | CanvasSceneDraft | undefined,
+	draft?: CanvasSceneDraft
 ) {
-	if (!canvasId || !sceneId) return;
-	const drafts = readDrafts();
+	storage();
+	discardUnscoped();
+	if (draft === undefined) {
+		draft = sceneId as CanvasSceneDraft;
+		sceneId = canvasId;
+		canvasId = userId;
+		userId = null;
+	}
+	if (!canvasId || typeof sceneId !== 'string' || !draft || !isDraft(draft)) return;
+	if (!userId) {
+		legacyMemory[draftKey(canvasId, sceneId)] = draft;
+		return;
+	}
+	const drafts = readScopedDrafts(userId);
 	drafts[draftKey(canvasId, sceneId)] = draft;
-	writeDrafts(drafts);
+	writeScopedDrafts(userId, drafts);
 }
 
 export function clearCanvasSceneDraft(
+	userId: string | null | undefined,
 	canvasId: string | null | undefined,
-	sceneId: string | null | undefined
+	sceneId?: string | null | undefined
 ) {
+	storage();
+	discardUnscoped();
+	if (sceneId === undefined) {
+		sceneId = canvasId;
+		canvasId = userId;
+		userId = null;
+	}
 	if (!canvasId || !sceneId) return;
-	const drafts = readDrafts();
+	if (!userId) {
+		delete legacyMemory[draftKey(canvasId, sceneId)];
+		return;
+	}
+	const drafts = readScopedDrafts(userId);
 	delete drafts[draftKey(canvasId, sceneId)];
-	writeDrafts(drafts);
+	writeScopedDrafts(userId, drafts);
+}
+
+export function clearAllCanvasDrafts() {
+	legacyMemory = {};
+	try {
+		storage()?.removeItem(CANVAS_SCENE_DRAFTS_STORAGE_KEY);
+	} catch {
+		/* Storage is best effort. */
+	}
 }

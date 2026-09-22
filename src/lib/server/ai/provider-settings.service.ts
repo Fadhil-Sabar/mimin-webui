@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { and, eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { getDb, schema } from '$lib/server/db/client';
-import { assertAllowedOutboundUrl } from '../outbound';
+import { assertConfiguredEndpoint } from '../outbound';
 
 const scrypt = promisify(scryptCb) as (
 	password: string,
@@ -29,6 +29,11 @@ export interface ProviderCredential {
 	customConfig: CustomProviderConfig | null;
 	/** True when the effective key comes from a user setting, false when it falls back to the server env. */
 	fromUser: boolean;
+	/** Provenance of the effective key, used to keep server keys on trusted endpoints. */
+	apiKeyFromUser?: boolean;
+	apiKeyFromEnv?: boolean;
+	/** A saved base URL is user controlled, even when the provider is built in. */
+	baseUrlFromUser?: boolean;
 }
 
 const PROVIDERS = ['openai', 'anthropic', 'google'] as const;
@@ -142,12 +147,17 @@ export async function getProviderCredential(
 		);
 	const apiKey = row ? await decryptSecret(row.apiKey) : null;
 	const envKey = isProviderId(provider) ? providerKeyFromEnv(provider) : undefined;
+	const apiKeyFromUser = Boolean(row && apiKey);
+	const apiKeyFromEnv = !apiKeyFromUser && Boolean(envKey);
 	return {
 		provider,
 		apiKey: apiKey ?? envKey ?? null,
 		baseUrl: row?.baseUrl ?? null,
 		customConfig: (row?.customConfig as CustomProviderConfig | null | undefined) ?? null,
-		fromUser: Boolean(row && apiKey)
+		fromUser: apiKeyFromUser,
+		apiKeyFromUser,
+		apiKeyFromEnv,
+		baseUrlFromUser: Boolean(row?.baseUrl)
 	};
 }
 
@@ -162,12 +172,17 @@ export async function listProviderCredentials(userId: string): Promise<ProviderC
 			const row = byProvider.get(provider);
 			const apiKey = row ? await decryptSecret(row.apiKey) : null;
 			const envKey = providerKeyFromEnv(provider);
+			const apiKeyFromUser = Boolean(row && apiKey);
+			const apiKeyFromEnv = !apiKeyFromUser && Boolean(envKey);
 			return {
 				provider,
 				apiKey: apiKey ?? envKey ?? null,
 				baseUrl: row?.baseUrl ?? null,
 				customConfig: null,
-				fromUser: Boolean(row && apiKey)
+				fromUser: apiKeyFromUser,
+				apiKeyFromUser,
+				apiKeyFromEnv,
+				baseUrlFromUser: Boolean(row?.baseUrl)
 			};
 		}),
 		...rows
@@ -181,7 +196,10 @@ export async function listProviderCredentials(userId: string): Promise<ProviderC
 					apiKey,
 					baseUrl: row.baseUrl,
 					customConfig: row.customConfig as CustomProviderConfig,
-					fromUser: Boolean(apiKey)
+					fromUser: Boolean(apiKey),
+					apiKeyFromUser: Boolean(apiKey),
+					apiKeyFromEnv: false,
+					baseUrlFromUser: Boolean(row.baseUrl)
 				};
 			})
 	]);
@@ -192,7 +210,7 @@ export async function saveProviderCredential(
 	provider: string,
 	input: { apiKey?: string | null; baseUrl?: string | null; customConfig?: CustomProviderConfig }
 ): Promise<void> {
-	if (input.baseUrl) assertAllowedOutboundUrl(input.baseUrl);
+	if (input.baseUrl) assertConfiguredEndpoint(input.baseUrl);
 	// Undefined preserves the stored value; null explicitly clears it. This way
 	// a base-URL-only edit does not wipe a saved key.
 	const db = getDb();
@@ -245,6 +263,17 @@ export async function deleteProviderCredential(userId: string, provider: string)
 				eq(schema.providerSettings.provider, provider)
 			)
 		);
+}
+
+/**
+ * Return the key that may be sent to the credential's endpoint. Environment
+ * keys belong to the server and may only be used with a built in provider
+ * endpoint. A user saved base URL therefore requires a user supplied key.
+ */
+export function providerApiKeyForEndpoint(credential: ProviderCredential): string | null {
+	if (!credential.apiKey) return null;
+	if (credential.apiKeyFromEnv && credential.baseUrlFromUser) return null;
+	return credential.apiKey;
 }
 
 /**

@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { getDb, schema } from '$lib/server/db/client';
 import { decryptSecret, encryptSecret, maskKey } from './provider-settings.service';
-import { assertAllowedOutboundUrl } from '../outbound';
+import { assertConfiguredEndpoint } from '../outbound';
 
 export type SearchProviderType = 'tavily' | 'searxng' | 'duckduckgo' | 'custom';
 
@@ -17,6 +17,9 @@ export interface WebSearchSettings {
 	searchUrlFromUser: boolean;
 	apiKeyEnvConfigured: boolean;
 	searchUrlEnvConfigured: boolean;
+	apiKeySource: 'user' | 'server' | 'none';
+	searchUrlSource: 'user' | 'server' | 'builtin';
+	configuredEndpoint: boolean;
 }
 
 export interface WebSearchSettingsDTO {
@@ -30,6 +33,9 @@ export interface WebSearchSettingsDTO {
 	searchUrlFromUser: boolean;
 	apiKeyEnvConfigured: boolean;
 	searchUrlEnvConfigured: boolean;
+	apiKeySource: 'user' | 'server' | 'none';
+	searchUrlSource: 'user' | 'server' | 'builtin';
+	configuredEndpoint: boolean;
 }
 
 function getEnv(name: string): string | undefined {
@@ -75,6 +81,16 @@ export async function getWebSearchSettings(userId: string): Promise<WebSearchSet
 	const searchUrlFromUser = Boolean(row?.baseUrl);
 	const apiKeyEnvConfigured = Boolean(envKey);
 	const searchUrlEnvConfigured = Boolean(envSearchUrl);
+	const apiKeySource: WebSearchSettings['apiKeySource'] = apiKeyFromUser
+		? 'user'
+		: envKey
+			? 'server'
+			: 'none';
+	const searchUrlSource: WebSearchSettings['searchUrlSource'] = searchUrlFromUser
+		? 'user'
+		: searchUrlEnvConfigured
+			? 'server'
+			: 'builtin';
 	// Choosing a provider is user configuration too: without this, a saved
 	// SearXNG or custom selection still reported "DuckDuckGo fallback" while the
 	// header advertised "Engine: searxng", which told the user nothing true about
@@ -95,7 +111,10 @@ export async function getWebSearchSettings(userId: string): Promise<WebSearchSet
 		apiKeyFromUser,
 		searchUrlFromUser,
 		apiKeyEnvConfigured,
-		searchUrlEnvConfigured
+		searchUrlEnvConfigured,
+		apiKeySource,
+		searchUrlSource,
+		configuredEndpoint: Boolean(effectiveSearchUrl)
 	};
 }
 
@@ -107,7 +126,7 @@ export async function saveWebSearchSettings(
 		provider?: SearchProviderType | null;
 	}
 ): Promise<void> {
-	if (input.searchUrl) assertAllowedOutboundUrl(input.searchUrl);
+	if (input.searchUrl) assertConfiguredEndpoint(input.searchUrl);
 	const db = getDb();
 	const existing = await db
 		.select({

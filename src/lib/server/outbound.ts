@@ -26,6 +26,30 @@ export class OutboundUrlError extends Error {
 }
 
 /**
+ * Validate an endpoint explicitly configured by an administrator or user.
+ *
+ * Configured AI and search services may intentionally run on localhost, a LAN
+ * address, or another private network reachable by the Mimin server. The
+ * model-facing web tools use assertAllowedOutboundUrl below instead, because
+ * those URLs are selected by model output and must not reach private hosts.
+ */
+export function assertConfiguredEndpoint(value: string) {
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		throw new OutboundUrlError();
+	}
+	if (!/^https?:$/.test(url.protocol) || !url.hostname || url.username || url.password) {
+		throw new OutboundUrlError();
+	}
+}
+
+// Descriptive aliases for callers that need to make the trust boundary clear.
+export const assertValidConfiguredEndpoint = assertConfiguredEndpoint;
+export const assertAllowedConfiguredEndpoint = assertConfiguredEndpoint;
+
+/**
  * Loopback, link-local (cloud metadata), and private-range addresses. A public HTTPS URL is
  * otherwise allowed automatically, so this is what keeps a model-chosen fetch away from the
  * server's own network and the host's metadata service.

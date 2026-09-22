@@ -8,7 +8,7 @@ import {
 	saveWebSearchSettings
 } from '$lib/server/ai/web-search-settings.service';
 import { webSearchSettingsInput } from '$lib/server/validation';
-import { assertAllowedOutboundUrl } from '$lib/server/outbound';
+import { assertConfiguredEndpoint } from '$lib/server/outbound';
 
 export const GET: RequestHandler = async (event) => {
 	try {
@@ -26,7 +26,10 @@ export const GET: RequestHandler = async (event) => {
 				apiKeyFromUser: settings.apiKeyFromUser,
 				searchUrlFromUser: settings.searchUrlFromUser,
 				apiKeyEnvConfigured: settings.apiKeyEnvConfigured,
-				searchUrlEnvConfigured: settings.searchUrlEnvConfigured
+				searchUrlEnvConfigured: settings.searchUrlEnvConfigured,
+				apiKeySource: settings.apiKeySource,
+				searchUrlSource: settings.searchUrlSource,
+				configuredEndpoint: settings.configuredEndpoint
 			}
 		});
 	} catch (error) {
@@ -44,7 +47,7 @@ export const PUT: RequestHandler = async (event) => {
 			return apiError('INVALID_INPUT', issue);
 		}
 
-		if (parsed.data.searchUrl) assertAllowedOutboundUrl(parsed.data.searchUrl);
+		if (parsed.data.searchUrl) assertConfiguredEndpoint(parsed.data.searchUrl);
 		await saveWebSearchSettings(user.id, {
 			apiKey: parsed.data.apiKey,
 			searchUrl: parsed.data.searchUrl,
@@ -63,7 +66,10 @@ export const PUT: RequestHandler = async (event) => {
 				apiKeyFromUser: updated.apiKeyFromUser,
 				searchUrlFromUser: updated.searchUrlFromUser,
 				apiKeyEnvConfigured: updated.apiKeyEnvConfigured,
-				searchUrlEnvConfigured: updated.searchUrlEnvConfigured
+				searchUrlEnvConfigured: updated.searchUrlEnvConfigured,
+				apiKeySource: updated.apiKeySource,
+				searchUrlSource: updated.searchUrlSource,
+				configuredEndpoint: updated.configuredEndpoint
 			}
 		});
 	} catch (error) {
@@ -88,7 +94,10 @@ export const DELETE: RequestHandler = async (event) => {
 				apiKeyFromUser: fallback.apiKeyFromUser,
 				searchUrlFromUser: fallback.searchUrlFromUser,
 				apiKeyEnvConfigured: fallback.apiKeyEnvConfigured,
-				searchUrlEnvConfigured: fallback.searchUrlEnvConfigured
+				searchUrlEnvConfigured: fallback.searchUrlEnvConfigured,
+				apiKeySource: fallback.apiKeySource,
+				searchUrlSource: fallback.searchUrlSource,
+				configuredEndpoint: fallback.configuredEndpoint
 			}
 		});
 	} catch (error) {

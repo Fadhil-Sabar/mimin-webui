@@ -7,6 +7,7 @@ export type Conversation = {
 	title: string;
 	model: string;
 	enabledTools: string[];
+	historyRevision?: number;
 	createdAt: string;
 	updatedAt: string;
 	projectId: string | null;

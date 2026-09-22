@@ -5,6 +5,7 @@ export type ConversationSummary = {
 	id: string;
 	title: string;
 	model?: string;
+	historyRevision?: number;
 	projectId: string | null;
 	projectName?: string | null;
 	createdAt?: string;

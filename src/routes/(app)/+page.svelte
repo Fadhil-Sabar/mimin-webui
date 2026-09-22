@@ -16,15 +16,13 @@
 		setLastUsedModel,
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
-	import {
-		consumeNavigationHandoff,
-		createNavigationHandoff,
-		peekNavigationHandoff
-	} from '$lib/client/navigation-handoff';
+	import { consumeNavigationHandoff, peekNavigationHandoff } from '$lib/client/navigation-handoff';
+	import { startMessageTurn } from '$lib/client/api';
 	import { clearHomeDraft, getHomeDraft, setHomeDraft } from '$lib/client/drafts';
 	import { settingsModal } from '$lib/client/settings-modal.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import Topbar from '$lib/components/Topbar.svelte';
+	let { data } = $props();
 	let prompt = $state('');
 	let conversations = $state<ConversationSummary[]>([]);
 	let models = $state<ModelOption[]>([]);
@@ -32,11 +30,19 @@
 	let modelLoadError = $state('');
 	let selectedModel = $state('');
 	let homeDraftLoaded = $state(false);
+	let projects = $state<Array<{ id: string; name: string }>>([]);
+	let skills = $state<Array<{ id: string; name: string; projectId: string | null }>>([]);
+	let selectedProjectId = $state('');
+	let selectedSkillId = $state('');
+	let attachments = $state<File[]>([]);
+	let eligibleSkills = $derived(
+		skills.filter((skill) => !skill.projectId || skill.projectId === selectedProjectId)
+	);
 
 	$effect(() => {
 		const value = prompt;
 		if (!homeDraftLoaded) return;
-		setHomeDraft(value);
+		setHomeDraft(value, data.user?.id);
 	});
 	let submitting = $state(false);
 	function usePrompt(value: string) {
@@ -69,8 +75,8 @@
 	async function submitPrompt() {
 		if (submitting) return;
 		const content = prompt.trim();
-		if (!content) {
-			toast('Write a prompt first');
+		if (!content && attachments.length === 0) {
+			toast('Write a prompt or attach a file first');
 			return;
 		}
 		if (!selectedModel) {
@@ -87,7 +93,11 @@
 			const response = await fetch('/api/conversations', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ model: selectedModel })
+				body: JSON.stringify({
+					model: selectedModel,
+					...(selectedProjectId ? { projectId: selectedProjectId } : {}),
+					...(selectedSkillId ? { skillId: selectedSkillId } : {})
+				})
 			});
 			if (!response.ok)
 				throw new Error((await response.json()).error?.message ?? 'Could not start a conversation');
@@ -95,8 +105,8 @@
 			if (conversation.model) {
 				setLastUsedModel(conversation.model);
 			}
-			clearHomeDraft();
-			createNavigationHandoff({ prompt: content, returnTo: `/chat?id=${conversation.id}` });
+			await startMessageTurn(conversation.id, content, selectedModel, attachments);
+			clearHomeDraft(data.user?.id);
 			window.location.href = `/chat?id=${encodeURIComponent(conversation.id)}`;
 		} catch (error) {
 			toast(error instanceof Error ? error.message : 'Could not start a conversation');
@@ -118,10 +128,19 @@
 			prompt = handoff.prompt;
 			consumeNavigationHandoff();
 		} else {
-			prompt = getHomeDraft();
+			prompt = getHomeDraft(data.user?.id);
 		}
 		homeDraftLoaded = true;
 		await loadModels();
+		void Promise.all([
+			fetch('/api/projects').then((response) => (response.ok ? response.json() : null)),
+			fetch('/api/skills').then((response) => (response.ok ? response.json() : null))
+		])
+			.then(([projectData, skillData]) => {
+				projects = projectData?.projects ?? [];
+				skills = skillData?.skills ?? [];
+			})
+			.catch(() => {});
 		try {
 			const response = await fetch('/api/conversations');
 			if (response.ok) {
@@ -157,36 +176,78 @@
 <Topbar />
 <div class="home-wrap">
 	<span class="workbench-label">Your workbench</span>
-	<h1>Start with the work<br />in front of you.</h1>
-	<p class="intro">
-		Mimin keeps your conversation, model, and project context together while you think through the
-		next step.
-	</p>
+	<h1>Start a chat with<br />Mimin.</h1>
+	<p class="intro">Ask a question or describe what you want to work on.</p>
 	{#if !modelsLoading && !selectedModel}
 		<a class="setup-callout" href={resolve('/settings')} onclick={openProviderSetup}
-			>Connect a model before starting a chat <span>→</span></a
+			>Connect a model to start chatting <span>→</span></a
 		>
 	{/if}
 	<div class="home-composer">
 		<textarea
 			bind:value={prompt}
 			aria-label="Prompt"
-			placeholder="Ask anything..."
+			placeholder="What would you like to work on?"
 			disabled={submitting}
 			aria-busy={submitting}
 			onkeydown={onKeydown}></textarea>
+		{#if attachments.length}
+			<div class="attachment-list" aria-label="Selected attachments">
+				{#each attachments as file, index (file.name + index)}
+					<span
+						>{file.name}
+						<button
+							type="button"
+							aria-label={`Remove ${file.name}`}
+							onclick={() => (attachments = attachments.filter((_, i) => i !== index))}>×</button
+						></span
+					>
+				{/each}
+			</div>
+		{/if}
 		<div class="composer-row">
 			<ModelPicker
 				models={configuredModels}
 				value={selectedModel}
 				loading={modelsLoading}
 				disabled={submitting || configuredModels.length === 0}
-				placeholder={modelLoadError ? 'Models unavailable' : 'Configure a provider'}
+				placeholder={modelLoadError ? 'Models unavailable' : 'Choose a model'}
 				onselect={(model) => {
 					selectedModel = model;
 					setLastUsedModel(model);
 				}}
 			/>
+			<label class="composer-select"
+				>Project
+				<select
+					aria-label="Project"
+					bind:value={selectedProjectId}
+					disabled={submitting}
+					onchange={() => (selectedSkillId = '')}
+				>
+					<option value="">No project</option>
+					{#each projects as project (project.id)}<option value={project.id}>{project.name}</option
+						>{/each}
+				</select>
+			</label>
+			<label class="composer-select"
+				>Skill
+				<select aria-label="Skill" bind:value={selectedSkillId} disabled={submitting}>
+					<option value="">No skill</option>
+					{#each eligibleSkills as skill (skill.id)}<option value={skill.id}>{skill.name}</option
+						>{/each}
+				</select>
+			</label>
+			<label class="attach-input"
+				>Attach files
+				<input
+					type="file"
+					multiple
+					disabled={submitting}
+					onchange={(event) =>
+						(attachments = Array.from(event.currentTarget.files ?? []).slice(0, 5))}
+				/>
+			</label>
 			<Button
 				variant="default"
 				size="icon-lg"
@@ -290,6 +351,41 @@
 		gap: 7px;
 		border-top: 1px solid var(--border);
 		padding-top: var(--space-3);
+	}
+	.composer-select,
+	.attach-input {
+		display: grid;
+		gap: 2px;
+		color: var(--text-muted);
+		font-size: var(--text-body-sm);
+	}
+	.composer-select select {
+		max-width: 130px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		background: var(--surface);
+		color: var(--text-body);
+		padding: 5px;
+	}
+	.attach-input input {
+		max-width: 145px;
+		font-size: 11px;
+	}
+	.attachment-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-bottom: var(--space-3);
+	}
+	.attachment-list span {
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		padding: 3px 6px;
+		font-size: var(--text-body-sm);
+	}
+	.attachment-list button {
+		margin-left: 4px;
+		color: var(--text-muted);
 	}
 	.example-row {
 		display: flex;

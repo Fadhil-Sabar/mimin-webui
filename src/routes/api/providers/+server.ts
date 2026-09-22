@@ -21,7 +21,10 @@ export const GET: RequestHandler = async (event) => {
 				apiKey: maskKey(credential.apiKey),
 				baseUrl: credential.baseUrl,
 				customConfig: credential.customConfig,
-				fromUser: credential.fromUser
+				fromUser: credential.fromUser,
+				apiKeyFromUser: credential.apiKeyFromUser,
+				apiKeyFromEnv: credential.apiKeyFromEnv,
+				baseUrlFromUser: credential.baseUrlFromUser
 			}))
 		});
 	} catch (error) {
@@ -47,7 +50,9 @@ export const POST: RequestHandler = async (event) => {
 				const discovered = await fetchCustomProviderModels(
 					customConfig.protocol,
 					parsed.data.baseUrl,
-					parsed.data.apiKey
+					parsed.data.apiKey,
+					globalThis.fetch,
+					{ configuredEndpoint: true }
 				);
 				models = discovered.map((model) => ({
 					id: model.id,

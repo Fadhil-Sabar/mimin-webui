@@ -145,7 +145,15 @@ export function startTurnLeaseHeartbeat(conversationId: string, token: string) {
 		},
 		Math.max(1_000, Math.floor(TURN_LEASE_MS / 3))
 	);
-	return () => clearInterval(timer);
+	// A Stop request may land on another app instance while this process is
+	// blocked in a provider stream. Observe the shared cancel flag promptly.
+	const cancelTimer = setInterval(() => {
+		void refreshConversationTurnCanceled(conversationId, token);
+	}, 1_000);
+	return () => {
+		clearInterval(timer);
+		clearInterval(cancelTimer);
+	};
 }
 
 async function markTurnCanceled(conversationId: string, token?: string) {

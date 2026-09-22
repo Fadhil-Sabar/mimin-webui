@@ -353,12 +353,18 @@ export function credentialCacheKey(
 async function loadProviderModels(
 	userId: string | undefined,
 	provider: DiscoverableProvider,
-	credential: { apiKey: string | null; baseUrl: string | null }
+	credential: ProviderCredential
 ): Promise<{ models: RuntimeModel[]; source: ModelSource; error?: string }> {
 	const catalog = [...getRegistry().getModels(provider)] as RuntimeModel[];
-	if (!credential.apiKey) return { models: catalog, source: 'catalog' };
+	const envKeyOnUserEndpoint =
+		Boolean(credential.baseUrl) &&
+		credential.baseUrlFromUser !== false &&
+		credential.fromUser !== true &&
+		credential.apiKeyFromUser !== true;
+	const apiKey = envKeyOnUserEndpoint ? null : credential.apiKey;
+	if (!apiKey) return { models: catalog, source: 'catalog' };
 
-	const cacheKey = credentialCacheKey(userId, provider, credential.apiKey, credential.baseUrl);
+	const cacheKey = credentialCacheKey(userId, provider, apiKey, credential.baseUrl);
 	const cached = liveModelCache.get(cacheKey);
 	if (cached)
 		return cached.models.length
@@ -370,7 +376,13 @@ async function loadProviderModels(
 				};
 
 	try {
-		const discovered = await fetchProviderModels(provider, credential.apiKey, credential.baseUrl);
+		const discovered = await fetchProviderModels(
+			provider,
+			apiKey,
+			credential.baseUrl,
+			globalThis.fetch,
+			{ configuredEndpoint: Boolean(credential.baseUrl) }
+		);
 		const models = discovered
 			.map((model) => runtimeModel(provider, model))
 			.filter((model): model is RuntimeModel => Boolean(model));
@@ -409,7 +421,11 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 				: {
 						apiKey: providerKeyFromEnv(provider) ?? null,
 						baseUrl: null,
-						fromUser: false
+						customConfig: null,
+						provider,
+						fromUser: false,
+						apiKeyFromEnv: Boolean(providerKeyFromEnv(provider)),
+						baseUrlFromUser: false
 					};
 			const loaded = await loadProviderModels(userId, provider, credential);
 			return { provider, credential, loaded };
@@ -470,7 +486,9 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 				const discovered = await fetchCustomProviderModels(
 					config.protocol,
 					credential.baseUrl,
-					credential.apiKey
+					credential.apiKey,
+					globalThis.fetch,
+					{ configuredEndpoint: true }
 				);
 				if (discovered.length > 0) {
 					const baseUrl = credential.baseUrl.replace(/\/+$/, '');

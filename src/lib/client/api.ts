@@ -83,8 +83,12 @@ export async function createConversation(
 	return (await response.json()).conversation;
 }
 
-export async function stopConversation(id: string) {
-	await fetch(`/api/conversations/${id}/stop`, { method: 'POST' });
+export async function stopConversation(id: string, turnId?: string) {
+	await fetch(`/api/conversations/${id}/stop`, {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ turnId })
+	});
 }
 
 export async function updateConversation(
@@ -182,7 +186,8 @@ export async function streamMessage(
 	onEvent: (event: SseEvent) => void,
 	signal?: AbortSignal,
 	model?: string,
-	files: File[] = []
+	files: File[] = [],
+	onTurnId?: (turnId: string) => void
 ) {
 	const bridge = await getBrowserBridgeStatus(signal);
 	const body = files.length
@@ -198,53 +203,200 @@ export async function streamMessage(
 		method: 'POST',
 		headers: {
 			...(!files.length ? { 'content-type': 'application/json' } : {}),
-			accept: 'text/event-stream',
+			accept: 'application/json',
+			'x-client-request-id': clientRequestId(),
 			...(bridge.connected ? { 'x-mimin-browser-bridge': '1' } : {})
 		},
 		body,
 		signal
 	});
-	if (!response.ok || !response.body)
+	if (!response.ok)
 		throw new Error(
 			(await response.json().catch(() => null))?.error?.message ?? 'Could not send message'
 		);
-	await consumeSseStream(response.body, onEvent, signal);
+	if (response.headers.get('content-type')?.includes('text/event-stream') && response.body) {
+		await consumeSseStream(response.body, onEvent, signal);
+		return;
+	}
+	const { turnId } = (await response.json()) as { turnId: string };
+	onTurnId?.(turnId);
+	await subscribeTurnEvents(id, turnId, onEvent, signal);
+}
+
+/** Starts a turn before navigating to chat; the chat page attaches to its log. */
+export async function startMessageTurn(
+	id: string,
+	content: string,
+	model: string,
+	files: File[] = []
+) {
+	const bridge = await getBrowserBridgeStatus();
+	const body = files.length
+		? (() => {
+				const form = new FormData();
+				form.set('content', content);
+				form.set('model', model);
+				for (const file of files) form.append('files', file, file.name);
+				return form;
+			})()
+		: JSON.stringify({ content, model });
+	const response = await fetch(`/api/conversations/${id}/messages`, {
+		method: 'POST',
+		headers: {
+			...(!files.length ? { 'content-type': 'application/json' } : {}),
+			accept: 'application/json',
+			'x-client-request-id': clientRequestId(),
+			...(bridge.connected ? { 'x-mimin-browser-bridge': '1' } : {})
+		},
+		body
+	});
+	if (!response.ok)
+		throw new Error(
+			(await response.json().catch(() => null))?.error?.message ?? 'Could not send message'
+		);
+	return (await response.json()) as { turnId: string; cursor: number };
 }
 
 export async function streamRetry(
 	id: string,
 	onEvent: (event: SseEvent) => void,
 	signal?: AbortSignal,
-	model?: string
+	model?: string,
+	onTurnId?: (turnId: string) => void
 ) {
 	const bridge = await getBrowserBridgeStatus(signal);
 	const response = await fetch(`/api/conversations/${id}/retry`, {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
-			accept: 'text/event-stream',
+			accept: 'application/json',
+			'x-client-request-id': clientRequestId(),
 			...(bridge.connected ? { 'x-mimin-browser-bridge': '1' } : {})
 		},
 		body: JSON.stringify({ ...(model ? { model } : {}) }),
 		signal
 	});
-	if (!response.ok || !response.body)
+	if (!response.ok)
 		throw new Error(
 			(await response.json().catch(() => null))?.error?.message ?? 'Could not retry message'
 		);
-	await consumeSseStream(response.body, onEvent, signal);
+	if (response.headers.get('content-type')?.includes('text/event-stream') && response.body) {
+		await consumeSseStream(response.body, onEvent, signal);
+		return;
+	}
+	const { turnId } = (await response.json()) as { turnId: string };
+	onTurnId?.(turnId);
+	await subscribeTurnEvents(id, turnId, onEvent, signal);
+}
+
+export async function streamEdit(
+	id: string,
+	messageId: string,
+	content: string,
+	historyRevision: number,
+	onEvent: (event: SseEvent) => void,
+	signal?: AbortSignal,
+	model?: string,
+	onTurnId?: (turnId: string) => void
+) {
+	const bridge = await getBrowserBridgeStatus(signal);
+	const response = await fetch(`/api/conversations/${id}/edit`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			accept: 'application/json',
+			'x-client-request-id': clientRequestId(),
+			...(bridge.connected ? { 'x-mimin-browser-bridge': '1' } : {})
+		},
+		body: JSON.stringify({ messageId, content, historyRevision, ...(model ? { model } : {}) }),
+		signal
+	});
+	if (!response.ok)
+		throw new Error(
+			(await response.json().catch(() => null))?.error?.message ?? 'Could not edit message'
+		);
+	const { turnId } = (await response.json()) as { turnId: string };
+	onTurnId?.(turnId);
+	await subscribeTurnEvents(id, turnId, onEvent, signal);
+}
+
+function clientRequestId() {
+	if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+	const bytes = crypto.getRandomValues(new Uint8Array(16));
+	bytes[6] = (bytes[6] & 0x0f) | 0x40;
+	bytes[8] = (bytes[8] & 0x3f) | 0x80;
+	const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+export async function getActiveTurn(id: string, signal?: AbortSignal) {
+	const response = await fetch(`/api/conversations/${id}/turns`, { signal });
+	if (!response.ok) return null;
+	const data = (await response.json()) as { turn?: { turnId: string; cursor: number } | null };
+	return data.turn ?? null;
+}
+
+export async function subscribeTurnEvents(
+	id: string,
+	turnId: string,
+	onEvent: (event: SseEvent) => void,
+	signal?: AbortSignal,
+	after = 0
+) {
+	let cursor = after;
+	for (;;) {
+		if (signal?.aborted) return;
+		try {
+			const response = await fetch(
+				`/api/conversations/${id}/turns/${turnId}/events?after=${cursor}`,
+				{
+					headers: { accept: 'text/event-stream' },
+					signal
+				}
+			);
+			if (!response.ok || !response.body) throw new Error('Could not reconnect to generation');
+			const result = await consumeSseStream(response.body, onEvent, signal, cursor);
+			cursor = result.cursor;
+			if (result.complete) return;
+		} catch (error) {
+			if (signal?.aborted) return;
+			await new Promise((resolve) => setTimeout(resolve, 700));
+			if (error instanceof Error && error.message === 'Could not reconnect to generation')
+				throw error;
+		}
+	}
 }
 
 async function consumeSseStream(
 	stream: ReadableStream<Uint8Array>,
 	onEvent: (event: SseEvent) => void,
-	signal?: AbortSignal
+	signal?: AbortSignal,
+	initialCursor = 0
 ) {
 	const reader = stream.getReader();
 	const decoder = new TextDecoder();
 	let buffer = '';
-	async function dispatch(raw: string) {
+	let cursor = initialCursor;
+	let complete = false;
+	async function dispatch(block: string) {
+		const raw = block
+			.split('\n')
+			.find((line) => line.startsWith('data: '))
+			?.slice(6);
+		if (!raw) return;
+		const id = Number(
+			block
+				.split('\n')
+				.find((line) => line.startsWith('id: '))
+				?.slice(4)
+		);
+		if (Number.isSafeInteger(id) && id > 0) {
+			if (id <= cursor) return;
+			cursor = id;
+		}
 		const event = JSON.parse(raw) as SseEvent;
+		if (event.type === 'done' || event.type === 'error' || event.type === 'replay.unavailable')
+			complete = true;
 		if (event.type === 'browser.request') await handleBrowserRequest(event, signal);
 		else onEvent(event);
 	}
@@ -257,19 +409,18 @@ async function consumeSseStream(
 			while (boundary !== -1) {
 				const block = buffer.slice(0, boundary);
 				buffer = buffer.slice(boundary + 2);
-				const data = block.split('\n').find((line) => line.startsWith('data: '));
-				if (data) await dispatch(data.slice(6));
+				await dispatch(block);
 				boundary = buffer.indexOf('\n\n');
 			}
 		}
 		if (buffer.trim()) {
-			const data = buffer.split('\n').find((line) => line.startsWith('data: '));
-			if (data) await dispatch(data.slice(6));
+			await dispatch(buffer);
 		}
 	} finally {
 		await reader.cancel().catch(() => {});
 		reader.releaseLock();
 	}
+	return { cursor, complete };
 }
 
 export async function answerQuestion(

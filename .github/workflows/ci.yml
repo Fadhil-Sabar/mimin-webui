@@ -56,3 +56,53 @@ jobs:
         run: docker build -t mimin-webui:ci .
       - name: Dependency audit
         run: npm audit --audit-level=high
+
+  playwright:
+    name: Playwright app suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: mimin
+          POSTGRES_PASSWORD: mimin
+          POSTGRES_DB: mimin_playwright
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mimin -d mimin_playwright"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PLAYWRIGHT_DATABASE_URL: postgres://mimin:mimin@127.0.0.1:5432/mimin_playwright
+      TEST_DATABASE_URL: postgres://mimin:mimin@127.0.0.1:5432/mimin_playwright
+      DATABASE_URL: postgres://mimin:mimin@127.0.0.1:5432/mimin_playwright
+      PLAYWRIGHT_RESET_DB: 'true'
+      PLAYWRIGHT_SEED_PASSWORD: playwright-e2e-password
+      BETTER_AUTH_SECRET: playwright-test-secret-do-not-use-in-production
+      PROVIDER_KEY_ENCRYPTION_SECRET: playwright-test-provider-encryption-secret-do-not-use-in-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run isolated app suite
+        run: npx playwright test --config=playwright.config.ts
+      - name: Upload Playwright traces and report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            test-results/playwright
+            playwright-report
+          if-no-files-found: ignore

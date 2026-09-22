@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { Marked, type Tokens } from 'marked';
+	import markedKatex from 'marked-katex-extension';
+	import 'katex/dist/katex.min.css';
 	import { slide } from 'svelte/transition';
 	import { ChevronDown, ExternalLink, Globe } from '@lucide/svelte';
 	import { escapeHtml, highlightCode } from '$lib/client/highlighter';
@@ -10,10 +12,13 @@
 	} from '$lib/client/citations';
 	import MermaidDiagram from '$lib/components/MermaidDiagram.svelte';
 	import { parseMarkdownSegments, type MarkdownSegment } from '$lib/client/markdown';
+	import { copyMathBlock } from '$lib/client/math-clipboard';
 
 	interface Props {
 		content: string;
 		class?: string;
+		/** Live stream state: renderers defer expensive work (e.g. mermaid) until it ends. */
+		streaming?: boolean;
 		sources?: Array<
 			| {
 					title?: string;
@@ -27,8 +32,114 @@
 		>;
 	}
 
-	let { content = '', class: className = '', sources: externalSources = [] }: Props = $props();
+	let {
+		content = '',
+		class: className = '',
+		streaming = false,
+		sources: externalSources = []
+	}: Props = $props();
 	let showSources = $state(false);
+
+	/**
+	 * Read by the citation/link renderers at parse time. It is reassigned inside the
+	 * derived below immediately before parsing, and parsing is synchronous, so the
+	 * renderers always see the sources of the content currently being parsed — which
+	 * lets the Marked instance be built once instead of on every streamed frame.
+	 */
+	let activeSourcesMap: Record<number, SourceItem> = {};
+
+	const COPY_BUTTON_HTML = `<button class="copy-code-btn" type="button" aria-label="Copy code"><svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span class="copy-label">Copy</span></button>`;
+	const RICH_COPY_BUTTON_HTML = `<button class="copy-code-btn copy-rich-btn" type="button" aria-label="Copy rich"><svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span class="copy-label">Copy rich</span></button>`;
+
+	const katexExtension = markedKatex({ throwOnError: false });
+	const katexExtensions = katexExtension.extensions!.map((ext) => {
+		if ((ext.name !== 'blockKatex' && ext.name !== 'inlineKatex') || !('renderer' in ext))
+			return ext;
+		const renderMath = ext.renderer as ((token: Tokens.Generic) => string) | undefined;
+		if (!renderMath) return ext;
+		const isBlockToken = ext.name === 'blockKatex';
+		return {
+			...ext,
+			renderer(token: Tokens.Generic) {
+				const html = renderMath(token);
+				const displayMode = isBlockToken || token.displayMode === true;
+				if (!displayMode) return html;
+				const latex = String(token.text ?? '');
+				return `<div class="code-block math-block" data-lang="latex"><div class="code-header"><span class="code-lang">LaTeX</span><div class="math-actions">${RICH_COPY_BUTTON_HTML}${COPY_BUTTON_HTML}</div></div><div class="math-body">${html}</div><pre hidden><code>${escapeHtml(latex)}</code></pre></div>\n`;
+			}
+		};
+	});
+	const marked = new Marked({
+		gfm: true,
+		breaks: true,
+		extensions: [
+			...katexExtensions,
+			{
+				name: 'citation',
+				level: 'inline',
+				start(src: string) {
+					return src.match(/\[\^?\d+(?:[\s,;]+\^?\d+)*\](?!\()/)?.index;
+				},
+				tokenizer(src: string) {
+					const rule = /^\[\^?(\d+(?:[\s,;]+\^?\d+)*)\](?!\()/;
+					const match = rule.exec(src);
+					if (match) {
+						const raw = match[0];
+						const indices = Array.from(
+							new Set(
+								match[1]
+									.split(/[\s,;]+/)
+									.map((s) => parseInt(s.replace(/^\^/, ''), 10))
+									.filter((n) => !isNaN(n))
+							)
+						);
+						return {
+							type: 'citation',
+							raw,
+							indices
+						};
+					}
+				},
+				renderer(token: Tokens.Generic) {
+					const indices: number[] = Array.isArray(token.indices)
+						? token.indices
+						: [Number(token.index || 1)];
+
+					return indices
+						.map((index) => {
+							const source = activeSourcesMap[index];
+							const url = source ? source.url : '#';
+							const domain = source ? source.domain : '';
+							const title = source ? source.title : `Source [${index}]`;
+							const favicon = source ? source.faviconUrl : '';
+
+							return renderCitationPillHtml(index, url, domain, title, favicon);
+						})
+						.join('');
+				}
+			}
+		],
+		renderer: {
+			code({ text, lang }) {
+				const { html: highlightedHtml, language } = highlightCode(text, lang);
+				return `<div class="code-block" data-lang="${escapeHtml(language)}"><div class="code-header"><span class="code-lang">${escapeHtml(language)}</span>${COPY_BUTTON_HTML}</div><pre><code class="language-${escapeHtml(language)}">${highlightedHtml}</code></pre></div>`;
+			},
+			link({ href, title, text }) {
+				const safeHref = href.startsWith('javascript:') ? '#' : href;
+				const numMatch = text.match(/^\[?\^?(\d+)\]?$/);
+				if (numMatch) {
+					const index = parseInt(numMatch[1], 10);
+					const source = activeSourcesMap[index];
+					const domain = source?.domain || '';
+					const srcTitle = title || source?.title || '';
+					const favicon = source?.faviconUrl || '';
+					return renderCitationPillHtml(index, safeHref, domain, srcTitle, favicon);
+				}
+				const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
+				return `<a href="${encodeURI(safeHref)}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`;
+			}
+		}
+	});
 
 	let processed = $derived.by(() => {
 		if (!content || typeof content !== 'string') {
@@ -40,77 +151,7 @@
 		for (const src of sources) {
 			sourcesMap[src.index] = src;
 		}
-
-		const marked = new Marked({
-			gfm: true,
-			breaks: true,
-			extensions: [
-				{
-					name: 'citation',
-					level: 'inline',
-					start(src: string) {
-						return src.match(/\[\^?\d+(?:[\s,;]+\^?\d+)*\](?!\()/)?.index;
-					},
-					tokenizer(src: string) {
-						const rule = /^\[\^?(\d+(?:[\s,;]+\^?\d+)*)\](?!\()/;
-						const match = rule.exec(src);
-						if (match) {
-							const raw = match[0];
-							const indices = Array.from(
-								new Set(
-									match[1]
-										.split(/[\s,;]+/)
-										.map((s) => parseInt(s.replace(/^\^/, ''), 10))
-										.filter((n) => !isNaN(n))
-								)
-							);
-							return {
-								type: 'citation',
-								raw,
-								indices
-							};
-						}
-					},
-					renderer(token: Tokens.Generic) {
-						const indices: number[] = Array.isArray(token.indices)
-							? token.indices
-							: [Number(token.index || 1)];
-
-						return indices
-							.map((index) => {
-								const source = sourcesMap[index];
-								const url = source ? source.url : '#';
-								const domain = source ? source.domain : '';
-								const title = source ? source.title : `Source [${index}]`;
-								const favicon = source ? source.faviconUrl : '';
-
-								return renderCitationPillHtml(index, url, domain, title, favicon);
-							})
-							.join('');
-					}
-				}
-			],
-			renderer: {
-				code({ text, lang }) {
-					const { html: highlightedHtml, language } = highlightCode(text, lang);
-					return `<div class="code-block" data-lang="${escapeHtml(language)}"><div class="code-header"><span class="code-lang">${escapeHtml(language)}</span><button class="copy-code-btn" type="button" aria-label="Copy code"><svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span class="copy-label">Copy</span></button></div><pre><code class="language-${escapeHtml(language)}">${highlightedHtml}</code></pre></div>`;
-				},
-				link({ href, title, text }) {
-					const safeHref = href.startsWith('javascript:') ? '#' : href;
-					const numMatch = text.match(/^\[?\^?(\d+)\]?$/);
-					if (numMatch) {
-						const index = parseInt(numMatch[1], 10);
-						const source = sourcesMap[index];
-						const domain = source?.domain || '';
-						const srcTitle = title || source?.title || '';
-						const favicon = source?.faviconUrl || '';
-						return renderCitationPillHtml(index, safeHref, domain, srcTitle, favicon);
-					}
-					const titleAttr = title ? ` title="${escapeHtml(title)}"` : '';
-					return `<a href="${encodeURI(safeHref)}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`;
-				}
-			}
-		});
+		activeSourcesMap = sourcesMap;
 
 		try {
 			const segments = parseMarkdownSegments(cleanedMarkdown, marked);
@@ -135,17 +176,24 @@
 		) as HTMLButtonElement | null;
 		if (!target) return;
 		const codeBlock = target.closest('.code-block');
-		const codeEl = codeBlock?.querySelector('pre code');
-		if (!codeEl) return;
-		const text = codeEl.textContent || '';
+		if (!codeBlock) return;
+		const isRich = target.classList.contains('copy-rich-btn');
+		const codeEl = codeBlock.querySelector('pre code');
+		const mathBody = codeBlock.querySelector('.math-body');
+		if (isRich ? !mathBody : !codeEl) return;
+		const label = target.querySelector('.copy-label');
+		const originalLabel = label?.textContent ?? 'Copy';
 		try {
-			await navigator.clipboard.writeText(text);
+			if (isRich) {
+				await copyMathBlock(mathBody as HTMLElement);
+			} else {
+				await navigator.clipboard.writeText(codeEl?.textContent || '');
+			}
 			target.classList.add('copied');
-			const label = target.querySelector('.copy-label');
 			if (label) label.textContent = 'Copied!';
 			setTimeout(() => {
 				target.classList.remove('copied');
-				if (label) label.textContent = 'Copy';
+				if (label) label.textContent = originalLabel;
 			}, 2000);
 		} catch {
 			/* fallback */
@@ -161,7 +209,7 @@
 				{@html segment.html}
 			</div>
 		{:else if segment.type === 'mermaid'}
-			<MermaidDiagram code={segment.code} />
+			<MermaidDiagram code={segment.code} {streaming} />
 		{/if}
 	{/each}
 
@@ -241,6 +289,13 @@
 	}
 	:global(.markdown-body p) {
 		margin: 0 0 var(--space-3);
+	}
+	/* Keep prose easy to scan while allowing code, tables, and diagrams to use the full width. */
+	:global(.markdown-body p),
+	:global(.markdown-body ul),
+	:global(.markdown-body ol),
+	:global(.markdown-body blockquote) {
+		max-width: 68ch;
 	}
 	:global(.markdown-body h1),
 	:global(.markdown-body h2),
@@ -381,6 +436,20 @@
 		background: var(--status-ok-dot);
 		color: #ffffff;
 		border-color: var(--status-ok-dot);
+	}
+	:global(.markdown-body .math-actions) {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	:global(.markdown-body .math-block .math-body) {
+		padding: var(--space-3) 14px;
+		overflow-x: auto;
+		scrollbar-width: thin;
+		text-align: center;
+	}
+	:global(.markdown-body .math-block .katex-display) {
+		margin: 0.35em 0;
 	}
 	:global(.markdown-body pre) {
 		margin: 0;
@@ -703,9 +772,9 @@
 		gap: 1px;
 	}
 	.source-item-title {
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 		color: var(--text-strong);
 		overflow: hidden;
@@ -723,9 +792,9 @@
 	}
 	.source-item-snippet {
 		margin-top: var(--space-1);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-body);
 		display: -webkit-box;
 		-webkit-box-orient: vertical;
@@ -744,7 +813,7 @@
 	:global(.markdown-body .token.prolog),
 	:global(.markdown-body .token.doctype),
 	:global(.markdown-body .token.cdata) {
-		color: #787872;
+		color: #686862;
 		font-style: italic;
 	}
 	:global(.markdown-body .token.punctuation),
@@ -798,7 +867,7 @@
 	:global(:root[data-theme='dark'] .markdown-body .token.prolog),
 	:global(:root[data-theme='dark'] .markdown-body .token.doctype),
 	:global(:root[data-theme='dark'] .markdown-body .token.cdata) {
-		color: #72727a;
+		color: #95959d;
 		font-style: italic;
 	}
 	:global(:root[data-theme='dark'] .markdown-body .token.punctuation),

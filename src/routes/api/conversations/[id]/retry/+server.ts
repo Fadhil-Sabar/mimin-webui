@@ -1,6 +1,7 @@
 import type { RequestHandler } from '@sveltejs/kit';
+import { json } from '@sveltejs/kit';
 import { randomUUID } from 'node:crypto';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
 import { isModelAvailable, listAvailableModels } from '$lib/server/ai/model.service';
@@ -8,12 +9,19 @@ import { retryMessageInput } from '$lib/server/validation';
 import {
 	beginConversationTurn,
 	releaseConversationTurn,
-	runConversationTurn,
-	stopConversation
+	runConversationTurn
 } from '$lib/server/ai/agent.service';
 import { BROWSER_BRIDGE_HEADER } from '$lib/server/browser/bridge';
 import { getTurnSkillSnapshot, skillSnapshotToSummary } from '$lib/server/skill-runtime';
 import { getProjectConversationTools } from '$lib/server/ai/project-context';
+import {
+	appendTurnEvent,
+	createTurn,
+	findTurnByRequest,
+	finishTurn,
+	recordBrowserAction
+} from '$lib/server/ai/turn-events';
+import { watchPersistedBrowserResult } from '$lib/server/browser/bridge';
 
 function sse(event: string, data: unknown) {
 	return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -22,6 +30,7 @@ function sse(event: string, data: unknown) {
 export const POST: RequestHandler = async (event) => {
 	let conversationId: string | undefined;
 	let turnToken: string | undefined;
+	let durableTurn = false;
 	try {
 		const user = await requireUser(event);
 		if (!user) return apiError('UNAUTHORIZED', 'Authentication required.', 401);
@@ -39,18 +48,42 @@ export const POST: RequestHandler = async (event) => {
 		const db = getDb();
 		const conversation = await getOwnedConversation(conversationId, user.id);
 		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
+		const requestId = event.request.headers.get('x-client-request-id');
+		if (requestId && !/^[0-9a-f-]{36}$/i.test(requestId))
+			return apiError('INVALID_REQUEST_ID', 'Invalid client request ID.');
+		const wantsJson = event.request.headers.get('accept')?.includes('application/json') === true;
+		if (requestId) {
+			const existing = await findTurnByRequest(conversationId, requestId);
+			if (existing) return json({ turnId: existing.id, cursor: 0, duplicate: true });
+		}
 		const turnEnabledTools = getProjectConversationTools(
 			conversation.projectId,
 			conversation.enabledTools
 		);
 
 		turnToken = randomUUID();
-		if (!(await beginConversationTurn(conversationId, turnToken)))
+		if (!(await beginConversationTurn(conversationId, turnToken))) {
+			if (requestId) {
+				for (let attempt = 0; attempt < 8; attempt++) {
+					const existing = await findTurnByRequest(conversationId, requestId);
+					if (existing) return json({ turnId: existing.id, cursor: 0, duplicate: true });
+					await new Promise((resolve) => setTimeout(resolve, 25));
+				}
+			}
 			return apiError(
 				'CONVERSATION_BUSY',
 				'This conversation is already generating a response.',
 				409
 			);
+		}
+		if (requestId) {
+			const created = await createTurn(conversationId, turnToken, requestId);
+			if (created?.id !== turnToken) {
+				await releaseConversationTurn(conversationId, turnToken);
+				return json({ turnId: created.id, cursor: 0, duplicate: true });
+			}
+			durableTurn = true;
+		}
 
 		const allMessages = await db
 			.select()
@@ -60,11 +93,23 @@ export const POST: RequestHandler = async (event) => {
 
 		const lastUserIndex = allMessages.findLastIndex((m) => m.role === 'user');
 		if (lastUserIndex === -1) {
+			if (durableTurn) {
+				await appendTurnEvent(turnToken, 'error', {
+					type: 'error',
+					error: { code: 'NO_MESSAGE_TO_RETRY', message: 'No user message to retry.' }
+				});
+				await finishTurn(turnToken, 'interrupted');
+			}
 			await releaseConversationTurn(conversationId, turnToken);
 			return apiError('NO_MESSAGE_TO_RETRY', 'No user message to retry.', 400);
 		}
 
 		const userMessage = allMessages[lastUserIndex];
+		if (durableTurn)
+			await db
+				.update(schema.conversationTurns)
+				.set({ userMessageId: userMessage.id })
+				.where(eq(schema.conversationTurns.id, turnToken));
 
 		// The model is resolved before anything touches the existing messages: a
 		// regenerate that cannot run must leave the conversation exactly as it was.
@@ -80,6 +125,13 @@ export const POST: RequestHandler = async (event) => {
 					.set({ model: modelToUse, updatedAt: new Date() })
 					.where(eq(schema.conversations.id, conversationId));
 			} else {
+				if (durableTurn) {
+					await appendTurnEvent(turnToken, 'error', {
+						type: 'error',
+						error: { code: 'MODEL_NOT_AVAILABLE', message: 'No configured models are available.' }
+					});
+					await finishTurn(turnToken, 'interrupted');
+				}
 				await releaseConversationTurn(conversationId, turnToken);
 				return apiError('MODEL_NOT_AVAILABLE', 'No configured models are available.');
 			}
@@ -131,7 +183,6 @@ export const POST: RequestHandler = async (event) => {
 					: '';
 
 		const browserBridgeEnabled = event.request.headers.get(BROWSER_BRIDGE_HEADER) === '1';
-		const streamConversationId = conversationId;
 		const streamTurnToken = turnToken;
 
 		const encoder = new TextEncoder();
@@ -142,13 +193,34 @@ export const POST: RequestHandler = async (event) => {
 			},
 			cancel() {
 				controller = undefined;
-				void stopConversation(streamConversationId, streamTurnToken);
 			}
 		});
+		if (wantsJson) controller = undefined;
+		let eventWrites = Promise.resolve();
 		const send = (eventType: string, data: unknown) => {
+			const payload =
+				durableTurn && eventType === 'browser.request' && data && typeof data === 'object'
+					? { ...data, turnId: streamTurnToken }
+					: data;
+			if (durableTurn)
+				eventWrites = eventWrites
+					.then(async () => {
+						if (eventType === 'browser.request' && payload && typeof payload === 'object') {
+							const action = payload as { requestId: string; token: string };
+							await recordBrowserAction({
+								requestId: action.requestId,
+								token: action.token,
+								turnId: streamTurnToken,
+								userId: user.id
+							});
+							watchPersistedBrowserResult(action.requestId);
+						}
+						await appendTurnEvent(streamTurnToken, eventType, payload);
+					})
+					.then(() => {});
 			if (!controller) return;
 			try {
-				controller.enqueue(encoder.encode(sse(eventType, data)));
+				controller.enqueue(encoder.encode(sse(eventType, payload)));
 			} catch {
 				/* stream closed */
 			}
@@ -198,7 +270,17 @@ export const POST: RequestHandler = async (event) => {
 						);
 					send('retry.replaced', { type: 'retry.replaced', messageIds: trailingIds });
 				}
+				if (replacementId && schema.conversations.historyRevision)
+					await db
+						.update(schema.conversations)
+						.set({
+							historyRevision: sql`${schema.conversations.historyRevision} + 1`,
+							updatedAt: new Date()
+						})
+						.where(eq(schema.conversations.id, conversationId));
 				send('done', { type: 'done' });
+				await eventWrites;
+				if (durableTurn) await finishTurn(streamTurnToken, 'complete');
 			} catch (error) {
 				const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';
 				const message =
@@ -226,20 +308,25 @@ export const POST: RequestHandler = async (event) => {
 																? error.message
 																: 'The agent could not complete this turn.';
 				send('error', { type: 'error', error: { code, message } });
+				await eventWrites.catch(() => {});
+				if (durableTurn) await finishTurn(streamTurnToken, 'interrupted');
 			} finally {
 				await releaseConversationTurn(conversationId, turnToken);
 				close();
 			}
 		})();
 
+		if (wantsJson) return json({ turnId: turnToken, cursor: 0 }, { status: 202 });
 		return new Response(stream, {
 			headers: {
+				'X-Mimin-Turn-Id': turnToken,
 				'Content-Type': 'text/event-stream',
 				'Cache-Control': 'no-cache, no-transform',
 				Connection: 'keep-alive'
 			}
 		});
 	} catch (error) {
+		if (durableTurn && turnToken) await finishTurn(turnToken, 'interrupted').catch(() => {});
 		if (conversationId && turnToken) await releaseConversationTurn(conversationId, turnToken);
 		return handleApiError(error);
 	}

@@ -163,9 +163,9 @@
 		border: 1px solid var(--border);
 		background: var(--surface-subtle);
 		border-radius: var(--radius-md);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		overflow: hidden;
 		transition:
 			border-color var(--duration-short3) var(--ease-standard),
@@ -193,9 +193,9 @@
 		user-select: none;
 		list-style: none;
 		color: var(--text-body);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
 	.tool-call-summary::-webkit-details-marker {
 		display: none;
@@ -251,9 +251,9 @@
 		gap: var(--space-1);
 		padding: 2px 6px;
 		border-radius: var(--radius-sm);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		font-weight: 500;
 	}
 	.tool-status-badge.running {
@@ -308,9 +308,9 @@
 		border: 1px solid var(--border);
 		color: var(--text-dim);
 		font-family: var(--font-mono);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		white-space: pre-wrap;
 		word-break: break-word;
 		max-height: 160px;
@@ -329,9 +329,9 @@
 		border-radius: var(--radius-sm);
 		background: var(--surface-3);
 		border: 1px solid var(--border);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 		color: var(--text-body);
 	}
 	.tool-source-chip a {

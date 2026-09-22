@@ -14,7 +14,7 @@
 {#if error}
 	<div class="inline-error" role="alert">
 		<div class="inline-error-content">
-			<strong>Agent error</strong>
+			<strong>Mimin couldn’t finish this reply</strong>
 			<span class="inline-error-text">{error}</span>
 		</div>
 		{#if canRetry}

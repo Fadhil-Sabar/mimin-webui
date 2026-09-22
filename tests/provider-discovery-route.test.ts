@@ -48,11 +48,12 @@ describe('provider discovery credentials', () => {
 		expect(headers.has('authorization')).toBe(false);
 	});
 
-	it('returns a useful client error without fetching an unapproved destination', async () => {
+	it('allows a configured local destination without forwarding a saved key', async () => {
 		const fetcher = vi.spyOn(globalThis, 'fetch');
+		fetcher.mockResolvedValue(new Response('{"data":[]}'));
 		const result = await request('http://127.0.0.1/v1');
-		expect(result.status).toBe(400);
-		expect((await result.json()).error.message).toContain('OUTBOUND_ALLOWED_ORIGINS');
-		expect(fetcher).not.toHaveBeenCalled();
+		expect(result.status).toBe(200);
+		const headers = new Headers(fetcher.mock.calls[0]?.[1]?.headers);
+		expect(headers.has('authorization')).toBe(false);
 	});
 });

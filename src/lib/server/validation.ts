@@ -66,12 +66,35 @@ export const attachmentMessageInput = z.object({
 export const retryMessageInput = z.object({
 	model: z.string().trim().max(200).optional()
 });
+
+/** A transcript mutation must name the revision the client rendered. */
+export const conversationHistoryRevision = z.coerce.number().int().positive();
+
+export const editMessageInput = z.object({
+	messageId: z.string().trim().min(1).max(200),
+	content: z.string().trim().min(1).max(100000),
+	historyRevision: conversationHistoryRevision,
+	model: z.string().trim().max(200).optional()
+});
+
+export const branchConversationInput = z.object({
+	messageId: z.string().trim().min(1).max(200).nullable().optional(),
+	throughMessageId: z.string().trim().min(1).max(200).nullable().optional(),
+	historyRevision: conversationHistoryRevision,
+	title: z.string().trim().min(1).max(200).optional()
+});
 export const providerSettingsInput = z.object({
 	apiKey: z.string().trim().min(1).max(400).nullable().optional(),
 	baseUrl: z
 		.url()
 		.max(500)
-		.refine((value) => value.startsWith('https://') || value.startsWith('http://'))
+		.refine((value) => {
+			try {
+				return /^https?:$/.test(new URL(value).protocol);
+			} catch {
+				return false;
+			}
+		})
 		.nullable()
 		.optional(),
 	customConfig: z
@@ -110,9 +133,19 @@ export const webSearchSettingsInput = z.object({
 		.string()
 		.trim()
 		.max(500)
-		.refine((value) => !value || value.startsWith('https://') || value.startsWith('http://'), {
-			message: 'Search URL must begin with http:// or https://'
-		})
+		.refine(
+			(value) => {
+				if (!value) return true;
+				try {
+					return /^https?:$/.test(new URL(value).protocol);
+				} catch {
+					return false;
+				}
+			},
+			{
+				message: 'Search URL must begin with http:// or https://'
+			}
+		)
 		.nullable()
 		.optional(),
 	provider: z.enum(['tavily', 'searxng', 'duckduckgo', 'custom']).optional()

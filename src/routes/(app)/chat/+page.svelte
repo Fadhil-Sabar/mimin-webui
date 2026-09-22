@@ -6,10 +6,8 @@
 	import {
 		answerBrowserConsent,
 		answerQuestion,
-		createConversation,
 		deleteConversation,
 		updateConversation,
-		fetchConversationPage,
 		type BrowserConsentDecision
 	} from '$lib/client/api';
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
@@ -17,14 +15,12 @@
 	import {
 		conversationSearch,
 		conversationsState,
-		getLastUsedModel,
-		setLastUsedModel,
 		type ConversationSummary
 	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
 	import { displayPreferences } from '$lib/client/display-preferences.svelte';
 	import { shell } from '$lib/client/shell.svelte';
-	import { getConversationDraft, setConversationDraft } from '$lib/client/drafts';
+	import { setConversationDraft } from '$lib/client/drafts';
 	import { MODELS_CHANGED_EVENT } from '$lib/client/models-cache';
 	import { peekNavigationHandoff, consumeNavigationHandoff } from '$lib/client/navigation-handoff';
 	import { Button } from '$lib/components/ui/button/index.js';
@@ -37,6 +33,7 @@
 	import { createChatSettings } from './chat-settings.svelte';
 	import { createChatCanvas } from './chat-canvas.svelte';
 	import { createChatStream } from './chat-stream.svelte';
+	import { createChatNavigation } from './chat-navigation.svelte';
 	import {
 		buildRowContext,
 		contentText,
@@ -44,7 +41,9 @@
 		MAX_IMAGE_ATTACHMENT_BYTES,
 		normalizeAttachmentFile
 	} from './chat-format';
-	import type { Conversation, ConversationMessage, QuestionPayload } from './chat-types';
+	import type { Conversation, QuestionPayload } from './chat-types';
+
+	let { data } = $props();
 
 	let busy = $state(true);
 	let message = $state('');
@@ -73,12 +72,6 @@
 	let conversationNavigationToken = 0;
 	let conversationLoading = $state(false);
 	let browserBridgeEnabled = $state(false);
-	/** Cursor for the page of messages immediately above the loaded transcript. */
-	let olderCursor = $state<string | null>(null);
-	let hasEarlierMessages = $state(false);
-	let loadingEarlier = $state(false);
-	/** How many older pages the reader paged in, so a reload does not reset the cursor. */
-	let earlierPagesLoaded = 0;
 	/**
 	 * Whether a message mounted right now should rise in. Bulk transcript changes —
 	 * opening a conversation, paging in older history — put messages on screen that
@@ -111,6 +104,8 @@
 		});
 	});
 
+	let navigation = $state(null as unknown as ReturnType<typeof createChatNavigation>);
+
 	/**
 	 * The transcript and SSE state machine of the active conversation. One
 	 * instance per page load, created here so its state belongs to this page.
@@ -136,8 +131,9 @@
 		setUserAtBottom: (value) => {
 			userAtBottom = value;
 		},
-		loadConversations,
-		loadConversation,
+		loadConversations: () => navigation.loadConversations(),
+		loadConversation: (id, replaceUrl, preserveLiveState) =>
+			navigation.loadConversation(id, replaceUrl, preserveLiveState),
 		loadSkills: () => settings.loadSkills(),
 		onCanvasEvent: canvas.handleCanvasSseEvent
 	});
@@ -165,6 +161,55 @@
 		getConversationNavigationToken: () => conversationNavigationToken,
 		getDraft: () => message,
 		getBrowserBridgeEnabled: () => browserBridgeEnabled
+	});
+
+	navigation = createChatNavigation({
+		getUserId: () => data.user?.id,
+		notify,
+		suppressEnterMotion,
+		getConversations: () => conversations,
+		setConversations: (value) => {
+			conversations = value;
+		},
+		getActiveId: () => activeId,
+		setActiveId: (value) => {
+			activeId = value;
+		},
+		getActiveConversation: () => activeConversation,
+		setActiveConversation: (value) => {
+			activeConversation = value;
+		},
+		getDraft: () => message,
+		setDraft: (value) => {
+			message = value;
+		},
+		getPendingAttachments: () => pendingAttachments,
+		setPendingAttachments: (value) => {
+			pendingAttachments = value;
+		},
+		isEmptyConversation: () =>
+			stream.messages.length === 0 && !stream.running && !!activeConversation,
+		getConversationLoading: () => conversationLoading,
+		setConversationLoading: (value) => {
+			conversationLoading = value;
+		},
+		getConversationLoadToken: () => conversationLoadToken,
+		bumpConversationLoadToken: () => {
+			conversationLoadToken += 1;
+		},
+		bumpConversationNavigationToken: () => {
+			conversationNavigationToken += 1;
+		},
+		getScrollEl: () => scrollEl,
+		setUserAtBottom: (value) => {
+			userAtBottom = value;
+		},
+		setNewResponseWhileReading: (value) => {
+			newResponseWhileReading = value;
+		},
+		getStream: () => stream,
+		getSettings: () => settings,
+		getCanvas: () => canvas
 	});
 
 	onDestroy(() => stream.dispose());
@@ -213,7 +258,7 @@
 	$effect(() => {
 		shell.registerNewChat({
 			newChat: () => {
-				if (!stream.running) void startNewConversation();
+				if (!stream.running) void navigation.startNewConversation();
 			},
 			newChatDisabled,
 			newChatEmpty: isNewConversationEmpty
@@ -283,172 +328,8 @@
 	}
 
 	$effect(() => {
-		if (activeId) setConversationDraft(activeId, message);
+		if (activeId) setConversationDraft(data.user?.id, activeId, message);
 	});
-
-	async function loadConversations() {
-		try {
-			const response = await fetch('/api/conversations');
-			if (!response.ok) throw new Error('Could not load conversations');
-			const data = await response.json();
-			conversations = data.conversations ?? [];
-			conversationsState.setItems(conversations);
-			if (!getLastUsedModel() && conversations[0]?.model) {
-				setLastUsedModel(conversations[0].model);
-			}
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load conversations');
-		}
-	}
-
-	function updateChatUrl(id: string, replace = false) {
-		if (typeof window === 'undefined') return;
-		const url = new URL(window.location.href);
-		if (
-			url.searchParams.get('id') === id &&
-			!url.searchParams.has('prompt') &&
-			!url.searchParams.has('new')
-		) {
-			return;
-		}
-		url.searchParams.set('id', id);
-		url.searchParams.delete('prompt');
-		url.searchParams.delete('new');
-		if (replace) {
-			window.history.replaceState({}, '', url.pathname + '?' + url.searchParams.toString());
-		} else {
-			window.history.pushState({}, '', url.pathname + '?' + url.searchParams.toString());
-		}
-	}
-
-	function handlePopState() {
-		const params = new URL(window.location.href).searchParams;
-		const id = params.get('id');
-		const isNew = params.get('new') === '1';
-		if (id && id !== activeId) {
-			void loadConversation(id, true);
-		} else if (isNew) {
-			void startNewConversation(true);
-		} else if (!id && conversations.length > 0 && conversations[0].id !== activeId) {
-			void loadConversation(conversations[0].id, true);
-		}
-	}
-
-	async function loadConversation(id: string, replaceUrl = false, preserveLiveState = false) {
-		const loadToken = ++conversationLoadToken;
-		conversationLoading = true;
-		const switching = id !== activeId;
-		if (switching) {
-			setConversationDraft(activeId, message);
-			conversationNavigationToken += 1;
-			stream.reset();
-			pendingAttachments = [];
-			settings.resetTools();
-			userAtBottom = true;
-			newResponseWhileReading = false;
-			if (scrollEl) scrollEl.scrollTop = 0;
-		}
-		activeId = id;
-		message = getConversationDraft(id);
-		activeConversation = conversations.find((c) => c.id === id) ?? null;
-		if (!preserveLiveState) {
-			stream.resetLiveState();
-		}
-		updateChatUrl(id, replaceUrl);
-		try {
-			// The endpoint returns the newest page: a long conversation has to open on its
-			// latest turn, not on the first 50 messages ever sent.
-			const page = await fetchConversationPage<ConversationMessage>(id);
-			if (loadToken !== conversationLoadToken || activeId !== id) return;
-			activeConversation = (page.conversation as Conversation | null) ?? activeConversation;
-			if (activeConversation?.model) {
-				setLastUsedModel(activeConversation.model);
-			}
-			const transcript = page.messages.filter(
-				(message) => message.role === 'user' || message.role === 'assistant'
-			);
-			// A loaded page is history, not something the reader just sent, so it is
-			// swapped in without the enter animation.
-			suppressEnterMotion();
-			if (switching) {
-				stream.setMessages(transcript);
-				earlierPagesLoaded = 0;
-				await tick();
-				scrollToBottom();
-			} else {
-				// Merging keeps earlier pages the reader already loaded; replacing the
-				// transcript here is what used to lose them after every turn.
-				stream.mergeMessages(transcript);
-			}
-			// Once the reader has paged back, the newest page no longer describes the
-			// oldest loaded message, so its cursor must not overwrite the current one.
-			if (switching || earlierPagesLoaded === 0) {
-				olderCursor = page.olderCursor;
-				hasEarlierMessages = page.hasMore;
-			}
-			if (activeConversation?.projectId) void settings.loadTools(activeConversation.projectId);
-			else void settings.loadTools(null);
-			void canvas.loadCanvasForConversation(activeConversation?.canvasId);
-		} catch (error) {
-			if (loadToken !== conversationLoadToken || activeId !== id) return;
-			notify(error instanceof Error ? error.message : 'Could not load conversation');
-			throw error;
-		} finally {
-			if (loadToken === conversationLoadToken) conversationLoading = false;
-		}
-	}
-
-	/**
-	 * Page backwards through history. The transcript grows above the viewport, so the
-	 * scroll offset is restored afterwards to keep the reader on the same message.
-	 */
-	async function loadEarlierMessages() {
-		const id = activeId;
-		const cursor = olderCursor;
-		if (!id || !cursor || loadingEarlier) return;
-		const loadToken = conversationLoadToken;
-		const before = scrollEl ? { height: scrollEl.scrollHeight, top: scrollEl.scrollTop } : null;
-		loadingEarlier = true;
-		try {
-			const page = await fetchConversationPage<ConversationMessage>(id, { before: cursor });
-			if (id !== activeId || loadToken !== conversationLoadToken) return;
-			// Older history is paged in above the reader, so it must arrive still.
-			suppressEnterMotion();
-			stream.mergeMessages(
-				page.messages.filter((message) => message.role === 'user' || message.role === 'assistant')
-			);
-			olderCursor = page.olderCursor;
-			hasEarlierMessages = page.hasMore;
-			earlierPagesLoaded += 1;
-			await tick();
-			if (scrollEl && before) {
-				scrollEl.scrollTop = scrollEl.scrollHeight - before.height + before.top;
-			}
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load earlier messages');
-		} finally {
-			loadingEarlier = false;
-		}
-	}
-
-	async function startNewConversation(force = false) {
-		if (!force && isNewConversationEmpty) return;
-		pendingAttachments = [];
-		try {
-			const model = settings.defaultModel();
-			const conversation = await createConversation({
-				model: model ?? undefined,
-				enabledTools: ['web_search', 'web_fetch', 'ask_question', 'create_skill']
-			});
-			if (conversation.model) {
-				setLastUsedModel(conversation.model);
-			}
-			await loadConversations();
-			await loadConversation(conversation.id, false);
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Backend unavailable');
-		}
-	}
 
 	function startRename(conversation: ConversationSummary) {
 		editingId = conversation.id;
@@ -495,9 +376,9 @@
 
 			if (wasActive) {
 				if (conversations.length > 0) {
-					await loadConversation(conversations[0].id, false);
+					await navigation.loadConversation(conversations[0].id, false);
 				} else {
-					await startNewConversation(true);
+					await navigation.startNewConversation(true);
 				}
 			}
 		} catch (error) {
@@ -521,7 +402,7 @@
 
 	onMount(() => {
 		conversationSearch.registerSelectHandler((id) => {
-			void loadConversation(id);
+			void navigation.loadConversation(id);
 		});
 		shell.registerChats({
 			get conversations() {
@@ -533,7 +414,7 @@
 			get editingId() {
 				return editingId;
 			},
-			onSelectChat: (id) => void loadConversation(id),
+			onSelectChat: (id) => void navigation.loadConversation(id),
 			onStartRename: startRename,
 			onPromptDelete: promptDelete,
 			onSaveRename: saveRename,
@@ -543,7 +424,7 @@
 		void (async () => {
 			await Promise.all([
 				settings.loadModels(),
-				loadConversations(),
+				navigation.loadConversations(),
 				settings.loadThinkingPreferences()
 			]);
 			const params = new URL(window.location.href).searchParams;
@@ -555,20 +436,20 @@
 
 			if (requested) {
 				try {
-					await loadConversation(requested, true);
+					await navigation.loadConversation(requested, true);
 				} catch {
 					if (conversations.length > 0) {
-						await loadConversation(conversations[0].id, true);
+						await navigation.loadConversation(conversations[0].id, true);
 					} else {
-						await startNewConversation(true);
+						await navigation.startNewConversation(true);
 					}
 				}
 			} else if (isNew) {
-				await startNewConversation(true);
+				await navigation.startNewConversation(true);
 			} else if (conversations.length > 0) {
-				await loadConversation(conversations[0].id, true);
+				await navigation.loadConversation(conversations[0].id, true);
 			} else {
-				await startNewConversation(true);
+				await navigation.startNewConversation(true);
 			}
 			busy = false;
 			if (handoffPrompt) {
@@ -656,10 +537,33 @@
 		const skill = settings.suggestion;
 		if (skill) void settings.selectSkill(skill.id);
 	}
+
+	async function branchFrom(messageId: string) {
+		if (!activeId || stream.running) return;
+		try {
+			const response = await fetch(`/api/conversations/${activeId}/branch`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					throughMessageId: messageId,
+					historyRevision: activeConversation?.historyRevision ?? 1
+				})
+			});
+			if (!response.ok)
+				throw new Error(
+					(await response.json().catch(() => null))?.error?.message ?? 'Could not create branch'
+				);
+			const data = await response.json();
+			await navigation.loadConversations();
+			await navigation.loadConversation(data.conversation.id);
+		} catch (error) {
+			notify(error instanceof Error ? error.message : 'Could not create branch');
+		}
+	}
 </script>
 
 <svelte:head><title>Mimin WebUI | Chat</title></svelte:head>
-<svelte:window onpopstate={handlePopState} onkeydown={handleWindowKeydown} />
+<svelte:window onpopstate={navigation.handlePopState} onkeydown={handleWindowKeydown} />
 <div class="chat-main">
 	<ChatHeader
 		conversation={activeConversation}
@@ -734,15 +638,15 @@
 				{:else if stream.messages.length === 0}
 					<div class="empty-state">Ask something to start a conversation.</div>
 				{/if}
-				{#if hasEarlierMessages}
+				{#if navigation.hasEarlierMessages}
 					<div class="history-loader">
 						<Button
 							variant="ghost"
 							size="sm"
-							onclick={loadEarlierMessages}
-							disabled={loadingEarlier}
+							onclick={navigation.loadEarlierMessages}
+							disabled={navigation.loadingEarlier}
 						>
-							{loadingEarlier ? 'Loading earlier messages…' : 'Load earlier messages'}
+							{navigation.loadingEarlier ? 'Loading earlier messages…' : 'Load earlier messages'}
 						</Button>
 					</div>
 				{/if}
@@ -760,6 +664,8 @@
 						{canRegenerate}
 						regenerateDisabled={retryDisabled}
 						onregenerate={stream.retry}
+						onedit={stream.edit}
+						onbranch={branchFrom}
 						onquestionsubmit={handleQuestionSubmit}
 						onconsentsubmit={handleConsentSubmit}
 						contextAttachments={rowContext.get(msg.id)?.attachments ?? []}
@@ -847,6 +753,7 @@
 					>{#if Workspace}
 						<Workspace
 							canvas={canvas.activeCanvas}
+							userId={data.user?.id}
 							onupdatescene={canvas.handleUpdateScene}
 							oncreatescene={canvas.handleCreateScene}
 							ondeletescene={canvas.handleDeleteScene}

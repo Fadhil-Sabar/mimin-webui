@@ -45,6 +45,7 @@ export async function getOwnedConversation(conversationId: string, userId: strin
 			title: schema.conversations.title,
 			model: schema.conversations.model,
 			enabledTools: schema.conversations.enabledTools,
+			historyRevision: schema.conversations.historyRevision,
 			createdAt: schema.conversations.createdAt,
 			updatedAt: schema.conversations.updatedAt,
 			projectName: schema.projects.name

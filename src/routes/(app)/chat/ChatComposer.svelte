@@ -85,7 +85,21 @@
 	}: Props = $props();
 
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
+	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
 	let mobileOptionsOpen = $state(false);
+
+	const TEXTAREA_MAX_HEIGHT = 320;
+
+	/** Grow the textarea with its content, scrolling only past the height cap. */
+	$effect(() => {
+		const el = textareaEl;
+		if (!el) return;
+		void message;
+		el.style.height = 'auto';
+		const capped = el.scrollHeight > TEXTAREA_MAX_HEIGHT;
+		el.style.height = `${capped ? TEXTAREA_MAX_HEIGHT : el.scrollHeight}px`;
+		el.style.overflowY = capped ? 'auto' : 'hidden';
+	});
 
 	/**
 	 * Object URLs backing the thumbnails of images waiting to be sent. They are keyed
@@ -236,6 +250,7 @@
 			</div>
 		{/if}
 		<textarea
+			bind:this={textareaEl}
 			bind:value={message}
 			aria-label="Message Mimin"
 			placeholder={running
@@ -555,6 +570,9 @@
 		line-height: var(--text-body-lg--line-height);
 		letter-spacing: var(--text-body-lg--letter-spacing);
 		background: transparent;
+	}
+	.chat-composer textarea:focus-visible {
+		outline: none;
 	}
 	.chat-composer textarea:disabled {
 		opacity: 0.6;

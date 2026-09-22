@@ -1,6 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { createHash } from 'node:crypto';
-import { assertAllowedOutboundUrl } from '../outbound';
+import { assertConfiguredEndpoint } from '../outbound';
 
 export const EMBEDDING_DIMENSIONS = 1536;
 export const EMBEDDING_BATCH_SIZE = 32;
@@ -9,7 +9,7 @@ export const EMBEDDING_BATCH_SIZE = 32;
 export function embeddingConfig() {
 	if (env.KNOWLEDGE_EMBEDDINGS_ENABLED !== 'true') return null;
 	const endpoint = env.KNOWLEDGE_EMBEDDING_URL || 'https://api.openai.com/v1/embeddings';
-	assertAllowedOutboundUrl(endpoint);
+	assertConfiguredEndpoint(endpoint);
 	const model = env.KNOWLEDGE_EMBEDDING_MODEL || 'text-embedding-3-small';
 	const key = env.KNOWLEDGE_EMBEDDING_API_KEY || env.OPENAI_API_KEY;
 	if (!key) throw new Error('KNOWLEDGE_EMBEDDING_KEY_MISSING');

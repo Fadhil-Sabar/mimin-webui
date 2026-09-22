@@ -23,9 +23,11 @@
 	interface Props {
 		code: string;
 		class?: string;
+		/** True while the message is still streaming: rendering waits for the final code. */
+		streaming?: boolean;
 	}
 
-	let { code = '', class: className = '' }: Props = $props();
+	let { code = '', class: className = '', streaming = false }: Props = $props();
 
 	let activeTab = $state<'diagram' | 'code'>('diagram');
 	let svgHtml = $state('');
@@ -52,6 +54,7 @@
 	$effect(() => {
 		const currentCode = code;
 		const isDark = themeState.isDark;
+		const isStreaming = streaming;
 
 		if (!browser) {
 			isLoading = false;
@@ -71,6 +74,15 @@
 		if (cached) {
 			svgHtml = cached;
 			isLoading = false;
+			error = null;
+			return;
+		}
+
+		// Mid-stream the code is a partial, almost certainly invalid draft; rendering
+		// it would flash syntax errors and burn main-thread time on a diagram that is
+		// about to change. Wait for the final code instead.
+		if (isStreaming) {
+			isLoading = true;
 			error = null;
 			return;
 		}

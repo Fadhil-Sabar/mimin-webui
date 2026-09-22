@@ -215,6 +215,74 @@ describe('unwrapMarkdownDocument and parseMarkdownSegments', () => {
 		expect(unwrapMarkdownDocument(doc)).toBe('# PRD Document\nSome details');
 	});
 
+	it('unwraps four-backtick document wrappers holding three-backtick mermaid fences', async () => {
+		const { unwrapMarkdownDocument, parseMarkdownSegments } = await import('$lib/client/markdown');
+		const input = [
+			'Here are a few worked examples.',
+			'````markdown',
+			'```mermaid',
+			'flowchart TD',
+			'    A([Start]) --> B{Is input valid?}',
+			'```',
+			'````',
+			'## 2. Sequence diagram',
+			'````markdown',
+			'```mermaid',
+			'sequenceDiagram',
+			'    A->>B: ping',
+			'```',
+			'````',
+			'Cardinality notes follow.'
+		].join('\n');
+
+		const unwrapped = unwrapMarkdownDocument(input);
+		expect(unwrapped).not.toContain('````');
+		expect(unwrapped).toContain(
+			'```mermaid\nflowchart TD\n    A([Start]) --> B{Is input valid?}\n```'
+		);
+		expect(unwrapped).toContain('```mermaid\nsequenceDiagram\n    A->>B: ping\n```');
+		expect(unwrapped).toContain('Cardinality notes follow.');
+
+		const parser = createMarkdownParser();
+		const segments = parseMarkdownSegments(input, parser);
+		expect(segments.filter((s) => s.type === 'mermaid')).toHaveLength(2);
+		expect(segments.some((s) => s.type === 'html' && s.html.includes('language-markdown'))).toBe(
+			false
+		);
+	});
+
+	it('unwraps a three-backtick wrapper holding a single mermaid diagram', async () => {
+		const { unwrapMarkdownDocument } = await import('$lib/client/markdown');
+		const input = [
+			'```markdown',
+			'```mermaid',
+			'flowchart TB',
+			'  Client --> Server',
+			'```',
+			'```'
+		].join('\n');
+
+		expect(unwrapMarkdownDocument(input)).toBe(
+			'```mermaid\nflowchart TB\n  Client --> Server\n```'
+		);
+	});
+
+	it('leaves a markdown snippet untouched when later code fences follow it', async () => {
+		const { unwrapMarkdownDocument } = await import('$lib/client/markdown');
+		const input = [
+			'```markdown',
+			'*just italic*',
+			'```',
+			'',
+			'## Real section',
+			'```js',
+			'const x = 1;',
+			'```'
+		].join('\n');
+
+		expect(unwrapMarkdownDocument(input)).toBe(input);
+	});
+
 	it('unwraps outer markdown fences enclosing inner code blocks and mermaid diagrams', async () => {
 		const { unwrapMarkdownDocument, parseMarkdownSegments } = await import('$lib/client/markdown');
 		const input = [

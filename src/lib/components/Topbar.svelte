@@ -19,9 +19,11 @@
 		breadcrumbs?: Crumb[];
 		separator?: 'slash' | 'chevron-right' | 'chevron-down';
 		actions?: Snippet;
+		/** Rendered after the theme toggle, on the far right. */
+		trailingActions?: Snippet;
 	};
 
-	let { breadcrumbs = [], separator = 'slash', actions }: Props = $props();
+	let { breadcrumbs = [], separator = 'slash', actions, trailingActions }: Props = $props();
 </script>
 
 <header class="topbar">
@@ -62,6 +64,7 @@
 	<div class="top-actions">
 		{@render actions?.()}
 		<ThemeToggle />
+		{@render trailingActions?.()}
 	</div>
 </header>
 

@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	clearConversationDraft,
+	clearHomeDraft,
 	getConversationDraft,
-	setConversationDraft
+	getHomeDraft,
+	setConversationDraft,
+	setHomeDraft
 } from '../src/lib/client/drafts';
 import {
 	consumeNavigationHandoff,
@@ -45,6 +48,25 @@ describe('per-conversation drafts', () => {
 	it('ignores malformed stored draft values', () => {
 		store.setItem('mimin_conversation_drafts', JSON.stringify({ 'conversation-a': 42 }));
 		expect(getConversationDraft('conversation-a')).toBe('');
+	});
+
+	it('scopes home and conversation drafts by user id', () => {
+		setConversationDraft('user-a', 'conversation-a', 'A');
+		setConversationDraft('user-b', 'conversation-a', 'B');
+		setHomeDraft('home A', 'user-a');
+		setHomeDraft('home B', 'user-b');
+
+		expect(getConversationDraft('user-a', 'conversation-a')).toBe('A');
+		expect(getConversationDraft('user-b', 'conversation-a')).toBe('B');
+		expect(getHomeDraft('user-a')).toBe('home A');
+		expect(getHomeDraft('user-b')).toBe('home B');
+
+		clearConversationDraft('user-a', 'conversation-a');
+		clearHomeDraft('user-a');
+		expect(getConversationDraft('user-a', 'conversation-a')).toBe('');
+		expect(getHomeDraft('user-a')).toBe('');
+		expect(getConversationDraft('user-b', 'conversation-a')).toBe('B');
+		expect(getHomeDraft('user-b')).toBe('home B');
 	});
 });
 

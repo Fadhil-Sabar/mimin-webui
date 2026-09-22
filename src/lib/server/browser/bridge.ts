@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import { getDb, schema } from '$lib/server/db/client';
 
 export const BROWSER_BRIDGE_TIMEOUT_MS = 45_000;
 export const BROWSER_BRIDGE_HEADER = 'x-mimin-browser-bridge';
@@ -418,6 +420,35 @@ export function cancelBrowserRequests(conversationId: string, turnToken: string)
 
 export function pendingBrowserRequestCount() {
 	return pendingRequests.size;
+}
+
+/** A result may be posted to another app instance; poll the shared row while
+ * this process owns the model call. The local promise still enforces timeout. */
+export function watchPersistedBrowserResult(requestId: string) {
+	const timer = setInterval(() => {
+		const pending = pendingRequests.get(requestId);
+		if (!pending) {
+			clearInterval(timer);
+			return;
+		}
+		void getDb()
+			.select()
+			.from(schema.pendingBrowserActions)
+			.where(eq(schema.pendingBrowserActions.requestId, requestId))
+			.then(([row]) => {
+				if (!row || !['completed', 'failed'].includes(row.status)) return;
+				clearInterval(timer);
+				settleBrowserRequest(
+					pending.userId,
+					requestId,
+					pending.token,
+					row.status === 'completed',
+					row.result as BrowserBridgeResult | undefined,
+					row.error ?? undefined
+				);
+			})
+			.catch(() => {});
+	}, 350);
 }
 
 export function isBrowserBridgeAbortError(error: unknown) {

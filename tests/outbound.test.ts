@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+	assertConfiguredEndpoint,
 	assertAllowedOutboundUrl,
 	isPrivateAddress,
 	isPrivateHostname
@@ -59,6 +60,22 @@ describe('private address classification', () => {
 });
 
 describe('outbound endpoint policy', () => {
+	it('permits any configured HTTP or HTTPS endpoint, including local addresses', () => {
+		for (const url of [
+			'http://127.0.0.1:8080/v1',
+			'http://[::1]:11434/search',
+			'https://private.service.internal/api'
+		]) {
+			expect(() => assertConfiguredEndpoint(url)).not.toThrow();
+		}
+		expect(() => assertConfiguredEndpoint('ftp://localhost/file')).toThrow(
+			'OUTBOUND_URL_NOT_ALLOWED'
+		);
+		expect(() => assertConfiguredEndpoint('https://user:secret@example.com')).toThrow(
+			'OUTBOUND_URL_NOT_ALLOWED'
+		);
+	});
+
 	it.each([
 		'http://127.0.0.1:8080/search',
 		'http://[::1]/',

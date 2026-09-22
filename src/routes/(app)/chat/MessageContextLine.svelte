@@ -18,10 +18,10 @@
 		margin: 0 0 0 auto;
 		min-width: 0;
 		color: var(--text-dim);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		font-weight: var(--text-body-sm--font-weight);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		font-weight: var(--text-body-md--font-weight);
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 		overflow: hidden;

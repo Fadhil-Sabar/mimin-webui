@@ -4,7 +4,9 @@
 		Check,
 		Clipboard,
 		ChevronDown,
+		GitBranch,
 		Paperclip,
+		Pencil,
 		RotateCcw,
 		Sparkles
 	} from '@lucide/svelte';
@@ -50,6 +52,8 @@
 		canRegenerate?: boolean;
 		regenerateDisabled?: boolean;
 		onregenerate?: () => void;
+		onedit?: (messageId: string, content: string) => Promise<void> | void;
+		onbranch?: (messageId: string) => Promise<void> | void;
 		onquestionsubmit?: QuestionSubmitHandler;
 		onconsentsubmit?: ConsentSubmitHandler;
 		/** Filenames attached to the user message this turn answers. */
@@ -78,6 +82,8 @@
 		canRegenerate = false,
 		regenerateDisabled = false,
 		onregenerate,
+		onedit,
+		onbranch,
 		onquestionsubmit,
 		onconsentsubmit,
 		contextAttachments = [],
@@ -141,11 +147,24 @@
 	);
 
 	const hasFooterActions = $derived(
-		(message.role === 'user' && isLast && canRetry) ||
+		(message.role === 'user' && (Boolean(onedit) || Boolean(onbranch) || (isLast && canRetry))) ||
 			(message.role === 'assistant' &&
 				!message.isStreaming &&
 				Boolean(contentText(message.content)))
 	);
+	let editing = $state(false);
+	let editValue = $state('');
+	let savingEdit = $state(false);
+	async function saveEdit() {
+		if (!onedit || !editValue.trim() || savingEdit) return;
+		savingEdit = true;
+		try {
+			await onedit(message.id, editValue.trim());
+			editing = false;
+		} finally {
+			savingEdit = false;
+		}
+	}
 
 	function handleThinkingScroll() {
 		if (!thinkingEl) return;
@@ -159,6 +178,9 @@
 		if (!streaming || !thinkingText(message.content) || !thinkingPinned) return;
 		if (thinkingEl) thinkingEl.scrollTop = thinkingEl.scrollHeight;
 	});
+
+	/** Appended to streamed content so the live reply shows where text will land. */
+	const STREAM_CARET = '▍';
 
 	let copyStatus = $state<'idle' | 'copied' | 'failed'>('idle');
 
@@ -264,7 +286,7 @@
 				{/if}
 				{#if contentText(message.content)}
 					{#if message.role === 'assistant' && message.isStreaming}
-						<p class="response-text streaming-plain-text">{contentText(message.content)}</p>
+						<Markdown content={contentText(message.content) + STREAM_CARET} {sources} streaming />
 					{:else if message.role === 'assistant'}
 						<Markdown content={contentText(message.content)} {sources} />
 					{:else}
@@ -309,6 +331,19 @@
 				{/if}
 			</Bubble.Content>
 		</Bubble.Root>
+		{#if editing}
+			<div class="prompt-editor">
+				<textarea aria-label="Edit prompt" bind:value={editValue} disabled={savingEdit}></textarea>
+				<div>
+					<button type="button" onclick={() => (editing = false)} disabled={savingEdit}
+						>Cancel</button
+					>
+					<button type="button" onclick={saveEdit} disabled={savingEdit || !editValue.trim()}
+						>Save &amp; regenerate</button
+					>
+				</div>
+			</div>
+		{/if}
 		{#if hasFooterActions || context}
 			<Message.Footer
 				class="chat-message-footer"
@@ -316,6 +351,28 @@
 			>
 				{#if hasFooterActions}
 					<div class="footer-actions">
+						{#if message.role === 'user'}
+							{#if onedit}<button
+									type="button"
+									class="message-action-btn state-layer"
+									disabled={running}
+									aria-label="Edit prompt"
+									data-tooltip="Edit prompt"
+									onclick={() => {
+										editValue = contentText(message.content);
+										editing = true;
+									}}><Pencil size={14} aria-hidden="true" /></button
+								>{/if}
+							{#if onbranch}<button
+									type="button"
+									class="message-action-btn state-layer"
+									disabled={running}
+									aria-label="Create branch"
+									data-tooltip="Create branch"
+									onclick={() => onbranch?.(message.id)}
+									><GitBranch size={14} aria-hidden="true" /></button
+								>{/if}
+						{/if}
 						{#if message.role === 'user' && isLast && canRetry}
 							<button
 								type="button"
@@ -371,6 +428,33 @@
 </Message.Root>
 
 <style>
+	.prompt-editor {
+		width: min(100%, 540px);
+		display: grid;
+		gap: 8px;
+		padding: 8px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		background: var(--surface);
+	}
+	.prompt-editor textarea {
+		min-height: 80px;
+		width: 100%;
+		resize: vertical;
+		border: 0;
+		background: transparent;
+		color: var(--text-body);
+	}
+	.prompt-editor div {
+		display: flex;
+		justify-content: flex-end;
+		gap: 8px;
+	}
+	.prompt-editor button {
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		padding: 5px 9px;
+	}
 	.skill-badge {
 		display: inline-flex;
 		align-items: center;
@@ -508,21 +592,9 @@
 	}
 	.response-text {
 		margin: 0;
+		max-width: 68ch;
 		line-height: var(--text-body-lg--line-height);
 		white-space: pre-wrap;
-	}
-	/* A breathing caret is the live signal while tokens stream in. Animating the caret
-	 * rather than the incoming text is deliberate: a per-token animation would restart
-	 * on every SSE delta and jank badly. */
-	.streaming-plain-text::after {
-		content: '';
-		display: inline-block;
-		width: 2px;
-		height: 1em;
-		margin-left: 2px;
-		vertical-align: text-bottom;
-		background: var(--text-muted);
-		animation: caret-fade 1.2s var(--ease-standard) infinite;
 	}
 	.incomplete-reply {
 		color: var(--status-working-text);

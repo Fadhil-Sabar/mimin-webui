@@ -10,9 +10,16 @@
 	import { sidebar } from '$lib/client/sidebar.svelte';
 	import { activeNavKey, visibleNavSections } from '$lib/nav';
 	import { settingsModal } from '$lib/client/settings-modal.svelte';
+	import { clearSensitiveDraftState } from '$lib/client/drafts';
+	import { clearAllCanvasDrafts } from '$lib/client/canvas-drafts';
+	import { invalidateModelsCache } from '$lib/client/models-cache';
+	import {
+		LAST_USED_MODEL_STORAGE_KEY,
+		conversationsState
+	} from '$lib/client/conversations.svelte';
 
 	type Props = {
-		user?: { name?: string | null; role?: string | null } | null;
+		user?: { id?: string | null; name?: string | null; role?: string | null } | null;
 	};
 
 	let { user = null }: Props = $props();
@@ -24,6 +31,16 @@
 	);
 
 	async function logout() {
+		clearSensitiveDraftState();
+		clearAllCanvasDrafts();
+		invalidateModelsCache();
+		conversationsState.items = [];
+		conversationsState.loaded = false;
+		try {
+			localStorage.removeItem(LAST_USED_MODEL_STORAGE_KEY);
+		} catch {
+			/* Storage is best effort. */
+		}
 		await authClient.signOut();
 		window.location.href = '/login';
 	}

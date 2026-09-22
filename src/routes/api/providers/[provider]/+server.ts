@@ -18,13 +18,19 @@ function publicProvider(provider: {
 	baseUrl: string | null;
 	customConfig: unknown;
 	fromUser: boolean;
+	apiKeyFromUser?: boolean;
+	apiKeyFromEnv?: boolean;
+	baseUrlFromUser?: boolean;
 }) {
 	return {
 		provider: provider.provider,
 		apiKey: maskKey(provider.apiKey),
 		baseUrl: provider.baseUrl,
 		customConfig: provider.customConfig,
-		fromUser: provider.fromUser
+		fromUser: provider.fromUser,
+		apiKeyFromUser: provider.apiKeyFromUser,
+		apiKeyFromEnv: provider.apiKeyFromEnv,
+		baseUrlFromUser: provider.baseUrlFromUser
 	};
 }
 
@@ -74,7 +80,9 @@ export const PUT: RequestHandler = async (event) => {
 					const discovered = await fetchCustomProviderModels(
 						input.customConfig.protocol,
 						baseUrl,
-						apiKey
+						apiKey,
+						globalThis.fetch,
+						{ configuredEndpoint: true }
 					);
 					models = discovered.map((model) => ({
 						id: model.id,

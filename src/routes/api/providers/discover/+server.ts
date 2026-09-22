@@ -51,14 +51,22 @@ export const POST: RequestHandler = async (event) => {
 			const credentialUrl =
 				credential.baseUrl ??
 				(isProviderId(parsed.data.provider) ? modelListUrl(parsed.data.provider) : null);
-			if (credentialUrl && outboundOrigin(credentialUrl) === outboundOrigin(parsed.data.baseUrl))
-				apiKey = credential.apiKey;
+			if (credentialUrl && outboundOrigin(credentialUrl) === outboundOrigin(parsed.data.baseUrl)) {
+				const envKeyOnUserEndpoint =
+					Boolean(credential.baseUrl) &&
+					credential.baseUrlFromUser !== false &&
+					credential.fromUser !== true &&
+					credential.apiKeyFromUser !== true;
+				if (!envKeyOnUserEndpoint) apiKey = credential.apiKey;
+			}
 		}
 
 		const models = await fetchCustomProviderModels(
 			parsed.data.protocol as CustomProviderProtocol,
 			parsed.data.baseUrl,
-			apiKey
+			apiKey,
+			globalThis.fetch,
+			{ configuredEndpoint: true }
 		);
 
 		return json({ models });

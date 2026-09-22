@@ -55,4 +55,14 @@ describe('persistent canvas scene drafts', () => {
 		expect(getCanvasSceneDraft('canvas-a', 'scene-a')).toBeNull();
 		expect(getCanvasSceneDraft('canvas-a', 'scene-b')).toEqual(draft);
 	});
+
+	it('scopes scene drafts by user id', () => {
+		const draftA = { tab: 'html' as const, html: 'A', css: '', js: '' };
+		const draftB = { tab: 'html' as const, html: 'B', css: '', js: '' };
+		setCanvasSceneDraft('user-a', 'canvas-a', 'scene-a', draftA);
+		setCanvasSceneDraft('user-b', 'canvas-a', 'scene-a', draftB);
+
+		expect(getCanvasSceneDraft('user-a', 'canvas-a', 'scene-a')).toEqual(draftA);
+		expect(getCanvasSceneDraft('user-b', 'canvas-a', 'scene-a')).toEqual(draftB);
+	});
 });

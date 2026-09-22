@@ -2,7 +2,11 @@ import { Type } from 'typebox';
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import https from 'node:https';
 import type { LookupFunction } from 'node:net';
-import { assertAllowedOutboundUrl, OutboundUrlError } from '../../outbound';
+import {
+	assertAllowedOutboundUrl,
+	assertConfiguredEndpoint,
+	OutboundUrlError
+} from '../../outbound';
 
 const parameters = Type.Object({
 	query: Type.String({ minLength: 2, maxLength: 500 }),
@@ -42,10 +46,15 @@ export type WebSearchConfig = {
 	apiKey?: string | null;
 	searchUrl?: string | null;
 	provider?: 'tavily' | 'searxng' | 'duckduckgo' | 'custom' | string | null;
+	apiKeySource?: 'user' | 'server' | 'none';
+	searchUrlSource?: 'user' | 'server' | 'builtin';
+	/** Set by an authenticated route or persisted settings after endpoint validation. */
+	configuredEndpoint?: boolean;
 };
 
-async function safeFetch(url: string, init: RequestInit) {
-	assertAllowedOutboundUrl(url);
+async function safeFetch(url: string, init: RequestInit, configuredEndpoint = false) {
+	if (configuredEndpoint) assertConfiguredEndpoint(url);
+	else assertAllowedOutboundUrl(url);
 	return fetch(url, { ...init, redirect: 'error' });
 }
 
@@ -273,7 +282,8 @@ async function searchDuckDuckGo(
 	query: string,
 	maxResults: number,
 	signal?: AbortSignal,
-	customUrl?: string
+	customUrl?: string,
+	configuredEndpoint = false
 ): Promise<WebSearchResult> {
 	const targetUrl = customUrl
 		? customUrl.includes('{query}')
@@ -287,10 +297,14 @@ async function searchDuckDuckGo(
 		let standardFailure: string | undefined;
 		// 1. Try standard safeFetch first
 		try {
-			const response = await safeFetch(targetUrl, {
-				headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': BROWSER_USER_AGENT },
-				signal
-			});
+			const response = await safeFetch(
+				targetUrl,
+				{
+					headers: { accept: 'text/html,application/xhtml+xml', 'user-agent': BROWSER_USER_AGENT },
+					signal
+				},
+				configuredEndpoint
+			);
 			const parsed = await parseDuckDuckGoResponse(response, maxResults);
 			html = parsed.html;
 		} catch (error) {
@@ -317,10 +331,14 @@ async function searchDuckDuckGo(
 			}
 		}
 	} else {
-		const response = await safeFetch(targetUrl, {
-			headers: { accept: 'text/html', 'user-agent': BROWSER_USER_AGENT },
-			signal
-		});
+		const response = await safeFetch(
+			targetUrl,
+			{
+				headers: { accept: 'text/html', 'user-agent': BROWSER_USER_AGENT },
+				signal
+			},
+			configuredEndpoint
+		);
 		const parsed = await parseDuckDuckGoResponse(response, maxResults);
 		html = parsed.html;
 	}
@@ -379,7 +397,8 @@ async function searchSearxng(
 	maxResults: number,
 	signal?: AbortSignal,
 	customUrl?: string,
-	apiKey?: string
+	apiKey?: string,
+	configuredEndpoint = false
 ): Promise<WebSearchResult> {
 	let targetUrl: string;
 	if (customUrl) {
@@ -405,7 +424,7 @@ async function searchSearxng(
 	};
 	if (apiKey) headers.authorization = `Bearer ${apiKey}`;
 
-	const response = await safeFetch(targetUrl, { headers, signal });
+	const response = await safeFetch(targetUrl, { headers, signal }, configuredEndpoint);
 	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
 	const contentType = response.headers.get('content-type') ?? '';
 	if (!contentType.includes('application/json')) {
@@ -433,7 +452,8 @@ async function searchTavilyOrCustom(
 	maxResults: number,
 	signal?: AbortSignal,
 	customUrl?: string,
-	apiKey?: string
+	apiKey?: string,
+	configuredEndpoint = false
 ): Promise<WebSearchResult> {
 	const endpointUrl = customUrl || 'https://api.tavily.com/search';
 
@@ -444,7 +464,7 @@ async function searchTavilyOrCustom(
 			'user-agent': BROWSER_USER_AGENT
 		};
 		if (apiKey) headers.authorization = `Bearer ${apiKey}`;
-		const response = await safeFetch(getUrl, { headers, signal });
+		const response = await safeFetch(getUrl, { headers, signal }, configuredEndpoint);
 		if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
 		const contentType = response.headers.get('content-type') ?? '';
 		if (contentType.includes('application/json')) {
@@ -475,18 +495,22 @@ async function searchTavilyOrCustom(
 	};
 	if (apiKey) headers.authorization = `Bearer ${apiKey}`;
 
-	const response = await safeFetch(endpointUrl, {
-		method: 'POST',
-		headers,
-		body: JSON.stringify({
-			query,
-			topic: 'general',
-			search_depth: 'advanced',
-			max_results: maxResults,
-			include_answer: true
-		}),
-		signal
-	});
+	const response = await safeFetch(
+		endpointUrl,
+		{
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				query,
+				topic: 'general',
+				search_depth: 'advanced',
+				max_results: maxResults,
+				include_answer: true
+			}),
+			signal
+		},
+		configuredEndpoint
+	);
 
 	if (!response.ok) throw new SearchEngineFailure(`HTTP status ${response.status}`);
 	const payload = await responseJson<TavilyResponse>(response);
@@ -515,12 +539,19 @@ export async function searchWeb(
 ): Promise<WebSearchResult> {
 	const envSearx = process.env.SEARXNG_URL?.trim();
 	const envCustom = process.env.WEB_SEARCH_URL?.trim();
-	const effectiveApiKey =
-		config?.apiKey !== undefined ? config.apiKey?.trim() || undefined : searchApiKey();
 	const customUrl =
 		config?.searchUrl !== undefined
 			? config.searchUrl?.trim() || undefined
 			: envSearx || envCustom || undefined;
+	const configuredEndpoint =
+		config?.configuredEndpoint ?? (config?.searchUrl === undefined && Boolean(customUrl));
+	const apiKeySource = config?.apiKeySource ?? (config?.apiKey !== undefined ? 'user' : 'server');
+	const effectiveApiKey =
+		apiKeySource === 'server' && config?.searchUrlSource === 'user'
+			? undefined
+			: config?.apiKey !== undefined
+				? config.apiKey?.trim() || undefined
+				: searchApiKey();
 	const provider =
 		config?.provider ??
 		(envSearx && (!config?.searchUrl || customUrl === envSearx)
@@ -534,7 +565,10 @@ export async function searchWeb(
 					: 'duckduckgo');
 
 	const query = input.query.trim();
-	if (customUrl) assertAllowedOutboundUrl(customUrl);
+	if (customUrl) {
+		if (configuredEndpoint) assertConfiguredEndpoint(customUrl);
+		else assertAllowedOutboundUrl(customUrl);
+	}
 	if (query.length < 2 || query.length > 500) throw new Error('WEB_SEARCH_INVALID_QUERY');
 	const maxResults = Math.min(Math.max(input.maxResults ?? 5, 1), 10);
 	const timeout = new AbortController();
@@ -562,7 +596,7 @@ export async function searchWeb(
 
 		if (provider === 'duckduckgo') {
 			const ddg = await attempt('DuckDuckGo', () =>
-				searchDuckDuckGo(query, maxResults, timeout.signal, customUrl)
+				searchDuckDuckGo(query, maxResults, timeout.signal, customUrl, configuredEndpoint)
 			);
 			if (ddg?.sources.length) return ddg;
 			if (ddg) failures.push('DuckDuckGo: zero results');
@@ -575,7 +609,14 @@ export async function searchWeb(
 
 		if (provider === 'searxng') {
 			const primary = await attempt('SearXNG', () =>
-				searchSearxng(query, maxResults, timeout.signal, customUrl, effectiveApiKey)
+				searchSearxng(
+					query,
+					maxResults,
+					timeout.signal,
+					customUrl,
+					effectiveApiKey,
+					configuredEndpoint
+				)
 			);
 			// An engine that answers with nothing has not answered: fall through to the
 			// remaining engines instead of handing the model an empty result it will
@@ -605,7 +646,14 @@ export async function searchWeb(
 		}
 
 		const primary = await attempt(provider === 'custom' ? 'Custom provider' : 'Tavily', () =>
-			searchTavilyOrCustom(query, maxResults, timeout.signal, customUrl, effectiveApiKey)
+			searchTavilyOrCustom(
+				query,
+				maxResults,
+				timeout.signal,
+				customUrl,
+				effectiveApiKey,
+				configuredEndpoint
+			)
 		);
 		// Same rule as the SearXNG path: an empty primary is not an answer.
 		if (primary?.sources.length) return primary;

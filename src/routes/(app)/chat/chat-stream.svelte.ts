@@ -1,6 +1,9 @@
 import {
 	extractSseErrorMessage,
+	getActiveTurn,
 	stopConversation,
+	subscribeTurnEvents,
+	streamEdit,
 	streamMessage,
 	streamRetry,
 	type SseEvent
@@ -70,6 +73,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 	let consentBuffer: ConsentBuffer = {};
 	let lastFailedSubmission = $state<PendingSubmission | null>(null);
 	let abortController: AbortController | undefined;
+	let currentTurnId: string | undefined;
 
 	const canRetry = $derived.by(() => {
 		if (running) return false;
@@ -151,23 +155,25 @@ export function createChatStream(deps: ChatStreamDeps) {
 	function handleStreamEvent(event: SseEvent) {
 		if (event.type === 'message.start') {
 			if (event.role === 'user') {
-				const index = messages.findLastIndex((item) => item.role === 'user');
+				const id = String(event.messageId);
+				const existing = messages.findIndex((item) => item.id === id);
+				const optimistic = messages.findLastIndex(
+					(item) => item.role === 'user' && isLocalMessageId(item.id)
+				);
+				const index = existing >= 0 ? existing : optimistic;
+				const next = {
+					id,
+					role: 'user' as const,
+					content: event.content ?? '',
+					createdAt: nowIso(),
+					skill: (event.skill as SkillSummary | null) ?? null,
+					...(Array.isArray(event.attachments)
+						? { attachments: event.attachments as MessageAttachment[] }
+						: {})
+				};
 				if (index >= 0)
-					messages = messages.map((item, i) =>
-						i === index
-							? {
-									...item,
-									id: String(event.messageId),
-									skill: (event.skill as SkillSummary | null) ?? null,
-									// The authoritative rows carry the URLs the bubbles render from,
-									// so thumbnails appear as soon as the turn starts rather than
-									// after the post-turn reload.
-									...(Array.isArray(event.attachments)
-										? { attachments: event.attachments as MessageAttachment[] }
-										: {})
-								}
-							: item
-					);
+					messages = messages.map((item, i) => (i === index ? { ...item, ...next } : item));
+				else messages = [...messages, next];
 			} else if (event.role === 'assistant') {
 				const msgId = String(event.messageId);
 				const existing = messages.find((m) => m.id === msgId);
@@ -290,7 +296,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 			if (isCreateSkill && status === 'completed') {
 				void deps.loadSkills();
 			}
-		} else if (event.type === 'retry.replaced') {
+		} else if (event.type === 'retry.replaced' || event.type === 'edit.replaced') {
 			const replaced = Array.isArray(event.messageIds) ? event.messageIds.map(String) : [];
 			messages = messages.filter((message) => !replaced.includes(message.id));
 		} else if (event.type === 'message.end') {
@@ -414,7 +420,10 @@ export function createChatStream(deps: ChatStreamDeps) {
 				},
 				abortController.signal,
 				activeConversation?.model,
-				filesToSend
+				filesToSend,
+				(turnId) => {
+					currentTurnId = turnId;
+				}
 			);
 		} catch (error) {
 			if (deps.getActiveId() !== streamConversationId || abortController !== streamAbortController)
@@ -448,6 +457,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 					await deps.loadConversation(streamConversationId, false, true).catch(() => {});
 				if (abortController === streamAbortController) {
 					abortController = undefined;
+					currentTurnId = undefined;
 					running = false;
 				}
 			}
@@ -490,7 +500,10 @@ export function createChatStream(deps: ChatStreamDeps) {
 					handleStreamEvent(event);
 				},
 				abortController.signal,
-				deps.getActiveConversation()?.model
+				deps.getActiveConversation()?.model,
+				(turnId) => {
+					currentTurnId = turnId;
+				}
 			);
 		} catch (error) {
 			if (deps.getActiveId() !== streamConversationId || abortController !== streamAbortController)
@@ -520,6 +533,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 					await deps.loadConversation(streamConversationId, false, true).catch(() => {});
 				if (abortController === streamAbortController) {
 					abortController = undefined;
+					currentTurnId = undefined;
 					running = false;
 				}
 			}
@@ -531,7 +545,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 		const stoppingController = abortController;
 		streamingDeltas.flush();
 		stoppingController?.abort();
-		if (stoppingId) await stopConversation(stoppingId).catch(() => {});
+		if (stoppingId) await stopConversation(stoppingId, currentTurnId).catch(() => {});
 		if (
 			deps.getActiveId() === stoppingId &&
 			(!abortController || abortController === stoppingController)
@@ -541,11 +555,60 @@ export function createChatStream(deps: ChatStreamDeps) {
 		}
 	}
 
+	async function edit(messageId: string, content: string) {
+		const activeId = deps.getActiveId();
+		const revision = deps.getActiveConversation()?.historyRevision;
+		if (running || deps.isBlocked() || !activeId || !revision) return;
+		const index = messages.findIndex(
+			(message) => message.id === messageId && message.role === 'user'
+		);
+		if (index < 0) return;
+		const previous = messages;
+		messages = messages.slice(0, index);
+		abortController = new AbortController();
+		const controller = abortController;
+		running = true;
+		liveError = '';
+		try {
+			await streamEdit(
+				activeId,
+				messageId,
+				content,
+				revision,
+				(event) => {
+					if (deps.getActiveId() === activeId && abortController === controller)
+						handleStreamEvent(event);
+				},
+				controller.signal,
+				deps.getActiveConversation()?.model,
+				(turnId) => {
+					currentTurnId = turnId;
+				}
+			);
+		} catch (error) {
+			if (!controller.signal.aborted) {
+				messages = previous;
+				liveError = error instanceof Error ? error.message : 'Could not edit prompt';
+				deps.notify(liveError);
+			}
+		} finally {
+			if (abortController === controller) {
+				streamingDeltas.flush();
+				abortController = undefined;
+				currentTurnId = undefined;
+				running = false;
+				await deps.loadConversations();
+				await deps.loadConversation(activeId, false, true).catch(() => {});
+			}
+		}
+	}
+
 	/** Drop the transcript and any in-flight stream, e.g. when switching conversation. */
 	function reset() {
 		streamingDeltas.clear();
 		abortController?.abort();
 		abortController = undefined;
+		currentTurnId = undefined;
 		running = false;
 		messages = [];
 		turnNotice = '';
@@ -565,6 +628,39 @@ export function createChatStream(deps: ChatStreamDeps) {
 
 	function dispose() {
 		streamingDeltas.clear();
+		abortController?.abort();
+	}
+
+	async function reconnect(id: string) {
+		if (running || deps.getActiveId() !== id) return;
+		const active = await getActiveTurn(id).catch(() => null);
+		if (!active || running || deps.getActiveId() !== id) return;
+		const controller = new AbortController();
+		abortController = controller;
+		currentTurnId = active.turnId;
+		running = true;
+		try {
+			await subscribeTurnEvents(
+				id,
+				active.turnId,
+				(event) => {
+					if (deps.getActiveId() === id && abortController === controller) handleStreamEvent(event);
+				},
+				controller.signal,
+				active.cursor
+			);
+		} catch (error) {
+			if (!controller.signal.aborted)
+				liveError = error instanceof Error ? error.message : 'Connection lost';
+		} finally {
+			if (abortController === controller) {
+				streamingDeltas.flush();
+				abortController = undefined;
+				currentTurnId = undefined;
+				running = false;
+				await deps.loadConversation(id, false, true).catch(() => {});
+			}
+		}
 	}
 
 	function setMessages(next: ConversationMessage[]) {
@@ -594,6 +690,8 @@ export function createChatStream(deps: ChatStreamDeps) {
 		},
 		send,
 		retry,
+		edit,
+		reconnect,
 		stop,
 		reset,
 		resetLiveState,

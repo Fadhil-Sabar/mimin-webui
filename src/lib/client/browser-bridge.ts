@@ -185,6 +185,20 @@ export async function handleBrowserRequest(event: Record<string, unknown>, signa
 		Array.isArray(event.args)
 	)
 		throw new Error('Invalid browser request.');
+	if (typeof event.turnId === 'string') {
+		const claim = await fetch('/api/browser/claim', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				requestId: event.requestId,
+				token: event.token,
+				turnId: event.turnId
+			}),
+			signal
+		});
+		if (!claim.ok) throw new Error('Could not claim the browser action.');
+		if (!(await claim.json()).claimed) return;
+	}
 	let outcome: { ok: boolean; result?: unknown; error?: string };
 	try {
 		const result = await requestBrowserBridge(

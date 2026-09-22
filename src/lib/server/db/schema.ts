@@ -11,6 +11,7 @@ import {
 	boolean,
 	primaryKey,
 	uniqueIndex,
+	bigserial,
 	vector
 } from 'drizzle-orm/pg-core';
 import type { SkillSnapshot } from '$lib/skills';
@@ -173,6 +174,10 @@ export const conversations = pgTable(
 			.$type<string[]>()
 			.notNull()
 			.default(sql`'["web_search","web_fetch"]'::jsonb`),
+		// Monotonically increases whenever the visible message history changes.
+		// Edit and branch requests include this value so stale clients cannot
+		// overwrite a newer transcript.
+		historyRevision: integer('history_revision').notNull().default(1),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 	},
@@ -365,6 +370,62 @@ export const activeTurns = pgTable('active_turns', {
 	canceled: boolean('canceled').notNull().default(false),
 	leaseUntil: timestamp('lease_until', { withTimezone: true }).notNull(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+/** Durable identity and replay log for a model turn. */
+export const conversationTurns = pgTable(
+	'conversation_turns',
+	{
+		id: uuid('id').defaultRandom().primaryKey(),
+		conversationId: uuid('conversation_id')
+			.notNull()
+			.references(() => conversations.id, { onDelete: 'cascade' }),
+		requestId: text('request_id').notNull(),
+		userMessageId: uuid('user_message_id').references(() => messages.id, { onDelete: 'set null' }),
+		status: text('status').notNull().default('running'),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		completedAt: timestamp('completed_at', { withTimezone: true })
+	},
+	(table) => ({
+		requestIdx: uniqueIndex('conversation_turns_request_idx').on(
+			table.conversationId,
+			table.requestId
+		),
+		conversationIdx: index('conversation_turns_conversation_idx').on(
+			table.conversationId,
+			table.createdAt
+		)
+	})
+);
+
+export const turnEvents = pgTable(
+	'turn_events',
+	{
+		id: bigserial('id', { mode: 'number' }).primaryKey(),
+		turnId: uuid('turn_id')
+			.notNull()
+			.references(() => conversationTurns.id, { onDelete: 'cascade' }),
+		type: text('type').notNull(),
+		data: jsonb('data').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(table) => ({ turnIdx: index('turn_events_turn_idx').on(table.turnId, table.id) })
+);
+
+export const pendingBrowserActions = pgTable('pending_browser_actions', {
+	requestId: uuid('request_id').primaryKey(),
+	turnId: uuid('turn_id')
+		.notNull()
+		.references(() => conversationTurns.id, { onDelete: 'cascade' }),
+	userId: uuid('user_id')
+		.notNull()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	token: uuid('token').notNull(),
+	status: text('status').notNull().default('pending'),
+	result: jsonb('result'),
+	error: text('error'),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull()
 });
 
 /**

@@ -25,7 +25,7 @@ import {
 	historyBudgetTokens,
 	selectContextWithinBudget
 } from './context-window';
-import { assertAllowedOutboundUrl } from '../outbound';
+import { assertConfiguredEndpoint } from '../outbound';
 import { getCanvasWithDetails } from '../canvas.service';
 import { serializeToolOutput, type HistoricalToolCall } from './agent-messages';
 import { groupAttachmentsByMessage, withUntrustedAttachmentHeader } from './agent-policy';
@@ -77,7 +77,7 @@ export async function loadTurnContext({
 	const effectiveUserId = userId ?? conversation.userId ?? '';
 	if (effectiveUserId) {
 		credential = await getProviderCredential(effectiveUserId, provider);
-		if (credential.baseUrl) assertAllowedOutboundUrl(credential.baseUrl);
+		if (credential.baseUrl) assertConfiguredEndpoint(credential.baseUrl);
 		if (!credential.apiKey && !credential.customConfig) {
 			const available = await listAvailableModels(effectiveUserId);
 			if (available.length > 0) {
@@ -96,7 +96,20 @@ export async function loadTurnContext({
 			}
 		}
 	}
-	if (credential?.baseUrl) assertAllowedOutboundUrl(credential.baseUrl);
+	if (credential?.baseUrl) assertConfiguredEndpoint(credential.baseUrl);
+	if (credential) {
+		// Keep a server environment key on the built in endpoint. A user supplied
+		// base URL must carry its own key, or run explicitly keyless.
+		const envKeyOnUserEndpoint =
+			Boolean(credential.baseUrl) &&
+			credential.baseUrlFromUser !== false &&
+			credential.fromUser !== true &&
+			credential.apiKeyFromUser !== true;
+		credential = {
+			...credential,
+			apiKey: envKeyOnUserEndpoint ? null : credential.apiKey
+		};
+	}
 	const model = resolveModel(provider, modelId, credential);
 	if (!model) throw new Error('MODEL_NOT_AVAILABLE');
 	// A user-saved base URL points the provider adapters at a custom endpoint.

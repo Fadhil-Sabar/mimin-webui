@@ -58,16 +58,11 @@ describe('knowledge embeddings configuration', () => {
 		expect(fetcher).not.toHaveBeenCalled();
 	});
 
-	it('blocks an unsafe endpoint before sending credentials', async () => {
+	it('allows a server configured local endpoint', async () => {
 		embeddingEnv.KNOWLEDGE_EMBEDDINGS_ENABLED = 'true';
 		embeddingEnv.KNOWLEDGE_EMBEDDING_URL = 'http://127.0.0.1:8080/v1/embeddings';
 		embeddingEnv.KNOWLEDGE_EMBEDDING_API_KEY = apiKey;
-		const fetcher = vi.spyOn(globalThis, 'fetch');
-
-		await expect(embedKnowledge(['private project text'])).rejects.toThrow(
-			'OUTBOUND_URL_NOT_ALLOWED'
-		);
-		expect(fetcher).not.toHaveBeenCalled();
+		expect(embeddingConfig()?.endpoint).toBe('http://127.0.0.1:8080/v1/embeddings');
 	});
 });
 
