@@ -291,8 +291,8 @@ export function createChatStream(deps: ChatStreamDeps) {
 				void deps.loadSkills();
 			}
 		} else if (event.type === 'retry.replaced') {
-			const replaced = new Set(Array.isArray(event.messageIds) ? event.messageIds.map(String) : []);
-			messages = messages.filter((message) => !replaced.has(message.id));
+			const replaced = Array.isArray(event.messageIds) ? event.messageIds.map(String) : [];
+			messages = messages.filter((message) => !replaced.includes(message.id));
 		} else if (event.type === 'message.end') {
 			streamingDeltas.flush();
 			lastFailedSubmission = null;
