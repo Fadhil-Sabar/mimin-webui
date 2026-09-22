@@ -242,6 +242,7 @@
 	function handleScroll() {
 		if (!scrollEl) return;
 		userAtBottom = isNearBottom(scrollEl);
+		if (userAtBottom) newResponseWhileReading = false;
 	}
 
 	function scrollToBottom() {
@@ -251,15 +252,26 @@
 
 	function jumpToLatest() {
 		userAtBottom = true;
+		newResponseWhileReading = false;
 		if (!scrollEl) return;
 		scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
 	}
 
-	let scrollActionLabel = $derived(stream.running ? 'New response' : 'Jump to latest');
+	let newResponseWhileReading = $state(false);
+	let lastObservedAssistantText = '';
+	let scrollActionLabel = $derived(newResponseWhileReading ? 'New response' : 'Jump to latest');
 
 	$effect(() => {
 		// Subscribe to reactive changes
-		void stream.messages;
+		const latestAssistant = stream.messages.findLast((message) => message.role === 'assistant');
+		const assistantText = latestAssistant
+			? `${latestAssistant.id}:${contentText(latestAssistant.content)}`
+			: '';
+		if (assistantText !== lastObservedAssistantText) {
+			if (!userAtBottom && latestAssistant?.isStreaming && contentText(latestAssistant.content))
+				newResponseWhileReading = true;
+			lastObservedAssistantText = assistantText;
+		}
 
 		if (userAtBottom) {
 			tick().then(scrollToBottom);
@@ -333,6 +345,7 @@
 			pendingAttachments = [];
 			settings.resetTools();
 			userAtBottom = true;
+			newResponseWhileReading = false;
 			if (scrollEl) scrollEl.scrollTop = 0;
 		}
 		activeId = id;

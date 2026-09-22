@@ -84,6 +84,27 @@ describe('models cache', () => {
 		expect(headers['If-None-Match']).toBeUndefined();
 	});
 
+	it('does not cache an older request after provider settings change', async () => {
+		let resolveOld!: (response: Response) => void;
+		let resolveNew!: (response: Response) => void;
+		const fetchMock = vi
+			.fn()
+			.mockImplementationOnce(() => new Promise<Response>((resolve) => (resolveOld = resolve)))
+			.mockImplementationOnce(() => new Promise<Response>((resolve) => (resolveNew = resolve)));
+		vi.stubGlobal('fetch', fetchMock);
+
+		const oldRequest = loadModelsCached();
+		invalidateModelsCache();
+		const newRequest = loadModelsCached();
+		resolveNew(okResponse({ models: [{ id: 'new' }], errors: [] }, '"new"'));
+		await newRequest;
+		resolveOld(okResponse({ models: [{ id: 'old' }], errors: [] }, '"old"'));
+		await oldRequest;
+
+		expect((await loadModelsCached()).models).toEqual([{ id: 'new' }]);
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+	});
+
 	it('survives a response without models or errors', async () => {
 		vi.stubGlobal(
 			'fetch',

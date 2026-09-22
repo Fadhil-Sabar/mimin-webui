@@ -16,12 +16,14 @@ type ModelsCacheEntry = { payload: ModelsPayload<unknown>; etag: string | null; 
 
 let cacheEntry: ModelsCacheEntry | null = null;
 let inflight: Promise<ModelsPayload<unknown>> | null = null;
+let cacheGeneration = 0;
 
 /** Emitted when a provider connection changes while a model picker is mounted. */
 export const MODELS_CHANGED_EVENT = 'mimin:models-changed';
 
 /** Drop the memoised list, e.g. after the user saves or removes a provider key. */
 export function invalidateModelsCache() {
+	cacheGeneration += 1;
 	cacheEntry = null;
 	inflight = null;
 }
@@ -43,12 +45,13 @@ export async function loadModelsCached<TModel>(
 	if (fresh && !options.force) return cacheEntry!.payload as ModelsPayload<TModel>;
 	if (inflight) return inflight as Promise<ModelsPayload<TModel>>;
 
+	const generation = cacheGeneration;
 	const request = (async () => {
 		try {
 			const headers: Record<string, string> = {};
 			if (cacheEntry?.etag) headers['If-None-Match'] = cacheEntry.etag;
 			const response = await fetch('/api/models', { headers });
-			if (response.status === 304 && cacheEntry) {
+			if (response.status === 304 && cacheEntry && generation === cacheGeneration) {
 				const payload = cacheEntry.payload as ModelsPayload<TModel>;
 				cacheEntry = { ...cacheEntry, at: Date.now() };
 				return payload;
@@ -59,10 +62,11 @@ export async function loadModelsCached<TModel>(
 				models: Array.isArray(data?.models) ? data.models : [],
 				errors: Array.isArray(data?.errors) ? data.errors : []
 			};
-			cacheEntry = { payload, etag: response.headers.get('etag'), at: Date.now() };
+			if (generation === cacheGeneration)
+				cacheEntry = { payload, etag: response.headers.get('etag'), at: Date.now() };
 			return payload;
 		} finally {
-			inflight = null;
+			if (generation === cacheGeneration) inflight = null;
 		}
 	})();
 

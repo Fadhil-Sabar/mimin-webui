@@ -393,6 +393,12 @@ export function createChatStream(deps: ChatStreamDeps) {
 		abortController = new AbortController();
 		const streamConversationId = activeId;
 		const streamAbortController = abortController;
+		function restoreFailedSubmission() {
+			lastFailedSubmission = { conversationId: streamConversationId, content, files: filesToSend };
+			// A newer draft takes priority over the failed prompt.
+			if (!deps.getDraft()) deps.setDraft(content);
+			if (deps.getAttachments().length === 0) deps.setAttachments(filesToSend);
+		}
 		try {
 			await streamMessage(
 				activeId,
@@ -404,6 +410,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 					)
 						return;
 					handleStreamEvent(event);
+					if (event.type === 'error') restoreFailedSubmission();
 				},
 				abortController.signal,
 				activeConversation?.model,
@@ -416,8 +423,7 @@ export function createChatStream(deps: ChatStreamDeps) {
 				// Keep the prompt available after a transport or server failure. The
 				// composer persists it for the active conversation, so the user can
 				// correct the problem or retry without retyping the message.
-				deps.setDraft(content);
-				deps.setAttachments(filesToSend);
+				restoreFailedSubmission();
 				const errMsg = error instanceof Error ? error.message : 'Agent error';
 				liveError = errMsg;
 				deps.notify(errMsg);
