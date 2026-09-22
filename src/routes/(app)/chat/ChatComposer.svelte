@@ -245,6 +245,35 @@
 			onpaste={handlePaste}></textarea>
 		<div class="composer-row">
 			<div class="composer-tools">
+				<input
+					bind:this={fileInput}
+					type="file"
+					multiple
+					accept={CHAT_ATTACHMENT_ACCEPT}
+					hidden
+					onchange={(event) => {
+						if (onattach(event.currentTarget.files)) event.currentTarget.value = '';
+					}}
+				/>
+				<Button
+					variant="secondary"
+					class="file-attach-control gap-1.5 bg-[var(--surface-subtle)] px-[9px] py-[7px] text-[var(--text-muted)] hover:border-[var(--text-faint)] hover:text-[var(--text-strong)] max-[760px]:px-[8px] max-[760px]:py-[5px] max-[560px]:px-[7px] max-[560px]:py-[4px]"
+					title="Attach files or images"
+					disabled={blocked()}
+					onclick={() => fileInput?.click()}><Paperclip size={15} aria-hidden="true" /> File</Button
+				>
+				<ModelPicker
+					{models}
+					value={conversation?.model ?? ''}
+					loading={modelsLoading}
+					disabled={blocked() || !hasActiveId || configuredModels.length === 0}
+					placeholder={configuredModels.length
+						? 'Pick a model'
+						: modelLoadError
+							? 'Models unavailable'
+							: 'Configure a provider'}
+					onselect={onselectmodel}
+				/>
 				<Button
 					variant="secondary"
 					class="mobile-options-toggle"
@@ -258,36 +287,6 @@
 					<span>Options</span>
 				</Button>
 				<div id="composer-options" class="composer-options" class:open={mobileOptionsOpen}>
-					<input
-						bind:this={fileInput}
-						type="file"
-						multiple
-						accept={CHAT_ATTACHMENT_ACCEPT}
-						hidden
-						onchange={(event) => {
-							if (onattach(event.currentTarget.files)) event.currentTarget.value = '';
-						}}
-					/>
-					<Button
-						variant="secondary"
-						class="gap-1.5 bg-[var(--surface-subtle)] px-[9px] py-[7px] text-[var(--text-muted)] hover:border-[var(--text-faint)] hover:text-[var(--text-strong)] max-[760px]:px-[8px] max-[760px]:py-[5px] max-[560px]:px-[7px] max-[560px]:py-[4px]"
-						title="Attach files or images"
-						disabled={blocked()}
-						onclick={() => fileInput?.click()}
-						><Paperclip size={15} aria-hidden="true" /> File</Button
-					>
-					<ModelPicker
-						{models}
-						value={conversation?.model ?? ''}
-						loading={modelsLoading}
-						disabled={blocked() || !hasActiveId || configuredModels.length === 0}
-						placeholder={configuredModels.length
-							? 'Pick a model'
-							: modelLoadError
-								? 'Models unavailable'
-								: 'Configure a provider'}
-						onselect={onselectmodel}
-					/>
 					<select
 						class="control thinking-level-control"
 						value={thinkingLevel}
@@ -321,7 +320,7 @@
 			<Button
 				variant={running ? 'destructive' : 'default'}
 				size="icon"
-				class="ml-auto size-[38px] self-end rounded-lg max-[760px]:size-[34px]"
+				class="send-control ml-auto size-[38px] self-end rounded-lg max-[760px]:size-[44px]"
 				disabled={!running && blocked()}
 				aria-label={running ? 'Stop generation' : 'Send message'}
 				title={running ? 'Stop generation' : 'Send message'}
@@ -625,8 +624,21 @@
 		}
 		:global(.mobile-options-toggle) {
 			display: inline-flex;
-			min-height: 34px;
-			padding: 5px var(--space-2);
+			min-height: 44px;
+			padding: 8px var(--space-2);
+		}
+		:global(.file-attach-control),
+		:global(.send-control) {
+			min-height: 44px;
+		}
+		:global(.send-control) {
+			width: 44px;
+			height: 44px;
+		}
+		:global(.composer-tools .model-trigger) {
+			min-height: 44px;
+			max-width: min(210px, 50vw);
+			padding: 8px 10px;
 		}
 		.composer-options {
 			display: none;
@@ -641,8 +653,12 @@
 			display: flex;
 		}
 		.control {
-			min-height: 34px;
+			min-height: 44px;
 			padding: 5px var(--space-2);
+		}
+		:global(.composer-options .skill-trigger),
+		:global(.composer-options .tool-trigger) {
+			min-height: 44px;
 		}
 		.thinking-level-control {
 			max-width: 110px;
@@ -650,8 +666,8 @@
 	}
 	@media (max-width: 560px) {
 		.control {
-			min-height: 32px;
-			padding: var(--space-1) 7px;
+			min-height: 44px;
+			padding: 8px 7px;
 		}
 		.thinking-level-control {
 			max-width: 95px;
