@@ -90,20 +90,9 @@ export const POST: RequestHandler = async (event) => {
 				.where(eq(schema.conversations.id, conversationId));
 		}
 
-		// Retiring the previous answer is a state change, not a delete. The rows are kept
-		// so regenerating can never erase history, and they are filtered out of both the
-		// transcript and the agent's context while `superseded`.
+		// Keep the previous answer visible until a replacement finishes. The turn
+		// excludes these rows from model context without changing their saved state.
 		const trailingIds = allMessages.slice(lastUserIndex + 1).map((m) => m.id);
-		if (trailingIds.length > 0)
-			await db
-				.update(schema.messages)
-				.set({ turnState: 'superseded' })
-				.where(
-					and(
-						eq(schema.messages.conversationId, conversationId),
-						inArray(schema.messages.id, trailingIds)
-					)
-				);
 
 		const attachmentRecords = await db
 			.select({
@@ -185,7 +174,7 @@ export const POST: RequestHandler = async (event) => {
 					skill: skillSnapshotToSummary(getTurnSkillSnapshot(userMessage, conversation)),
 					attachments: attachmentPayload
 				});
-				await runConversationTurn(
+				const replacementId = await runConversationTurn(
 					conversationId,
 					modelToUse,
 					prompt,
@@ -194,8 +183,21 @@ export const POST: RequestHandler = async (event) => {
 					userMessage.id,
 					streamTurnToken,
 					browserBridgeEnabled,
-					turnEnabledTools
+					turnEnabledTools,
+					trailingIds
 				);
+				if (replacementId && trailingIds.length > 0) {
+					await db
+						.update(schema.messages)
+						.set({ turnState: 'superseded' })
+						.where(
+							and(
+								eq(schema.messages.conversationId, conversationId),
+								inArray(schema.messages.id, trailingIds)
+							)
+						);
+					send('retry.replaced', { type: 'retry.replaced', messageIds: trailingIds });
+				}
 				send('done', { type: 'done' });
 			} catch (error) {
 				const code = error instanceof Error ? error.message : 'INTERNAL_ERROR';

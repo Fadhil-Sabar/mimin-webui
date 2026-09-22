@@ -13,6 +13,9 @@ const state = vi.hoisted(() => ({
 	runModels: [] as string[],
 	runPrompts: [] as string[],
 	runMessageIds: [] as string[],
+	runExcludedIds: [] as string[][],
+	replacementId: 'replacement-1' as string | null,
+	runError: false,
 	conversationMessages: [] as Array<{ id: string; role: string; content: unknown; createdAt: Date }>
 }));
 
@@ -103,16 +106,23 @@ vi.mock('$lib/server/ai/agent.service', async (importOriginal) => ({
 			prompt: string,
 			_emit: unknown,
 			_userId: unknown,
-			currentMessageId: string
+			currentMessageId: string,
+			_turnToken: string,
+			_browserBridgeEnabled: boolean,
+			_turnEnabledTools: string[],
+			excludeMessageIds: string[]
 		) => {
 			state.runModels.push(model);
 			state.runPrompts.push(prompt);
 			state.runMessageIds.push(currentMessageId);
+			state.runExcludedIds.push(excludeMessageIds);
 			if (state.turn) {
 				await new Promise<void>((resolve) => {
 					state.turn = { resolve };
 				});
 			}
+			if (state.runError) throw new Error('Provider failed');
+			return state.replacementId;
 		}
 	)
 }));
@@ -142,6 +152,9 @@ beforeEach(() => {
 	state.runModels.length = 0;
 	state.runPrompts.length = 0;
 	state.runMessageIds.length = 0;
+	state.runExcludedIds.length = 0;
+	state.replacementId = 'replacement-1';
+	state.runError = false;
 	state.conversationMessages = [
 		{
 			id: 'msg-user-1',
@@ -162,7 +175,7 @@ describe('conversation retry route', () => {
 		expect(state.runModels).toEqual(['openai/gpt-4o-mini']);
 	});
 
-	it('supersedes trailing assistant messages instead of deleting them', async () => {
+	it('supersedes the prior answer only after a replacement succeeds', async () => {
 		state.conversationMessages = [
 			{
 				id: 'msg-user-1',
@@ -180,11 +193,38 @@ describe('conversation retry route', () => {
 		const res = await POST(event());
 		expect(res.status).toBe(200);
 		await res.text();
-		// Regenerating retires the previous answer by state so nothing is ever lost.
 		expect(state.messageUpdates).toEqual([{ turnState: 'superseded' }]);
+		expect(state.runExcludedIds).toEqual([['msg-asst-failed']]);
 		expect(state.deleteCount).toBe(0);
 		expect(state.runPrompts).toEqual(['Why did it fail?']);
 		expect(state.runMessageIds).toEqual(['msg-user-1']);
+	});
+
+	it('keeps the previous answer after a failed replacement', async () => {
+		state.conversationMessages.push({
+			id: 'msg-asst-previous',
+			role: 'assistant',
+			content: 'Existing answer',
+			createdAt: new Date(2000)
+		});
+		state.runError = true;
+		const res = await POST(event());
+		await res.text();
+		expect(state.messageUpdates).toEqual([]);
+		expect(state.runExcludedIds).toEqual([['msg-asst-previous']]);
+	});
+
+	it('keeps the previous answer when regeneration is canceled or has no answer', async () => {
+		state.conversationMessages.push({
+			id: 'msg-asst-previous',
+			role: 'assistant',
+			content: 'Existing answer',
+			createdAt: new Date(2000)
+		});
+		state.replacementId = null;
+		const res = await POST(event());
+		await res.text();
+		expect(state.messageUpdates).toEqual([]);
 	});
 
 	it('leaves history untouched when no model is available', async () => {

@@ -48,7 +48,8 @@ export async function loadTurnContext({
 	currentMessageId,
 	turnToken,
 	browserBridgeEnabled,
-	turnEnabledTools
+	turnEnabledTools,
+	excludeMessageIds = []
 }: {
 	conversationId: string;
 	modelRef: string | undefined;
@@ -58,6 +59,7 @@ export async function loadTurnContext({
 	turnToken: string;
 	browserBridgeEnabled: boolean;
 	turnEnabledTools?: string[];
+	excludeMessageIds?: string[];
 }) {
 	const db = getDb();
 	const [conversation] = await db
@@ -134,7 +136,10 @@ export async function loadTurnContext({
 			)
 		)
 		.orderBy(asc(schema.messages.createdAt), asc(schema.messages.id));
-	const historicalRows = historyRows.filter((row) => row.id !== currentMessageId);
+	const excluded = new Set(excludeMessageIds);
+	const historicalRows = historyRows.filter(
+		(row) => row.id !== currentMessageId && !excluded.has(row.id)
+	);
 	const toolRows: HistoricalToolCall[] = historicalRows.length
 		? await db
 				.select({
@@ -188,6 +193,7 @@ export async function loadTurnContext({
 	// picked twice). The newest copy wins, so the character budget is spent once per file.
 	const seenAttachmentKeys = new Set<string>();
 	const uniqueAttachmentRows = attachmentRows.filter((attachment) => {
+		if (excluded.has(attachment.messageId)) return false;
 		if (seenAttachmentKeys.has(attachment.storageKey)) return false;
 		seenAttachmentKeys.add(attachment.storageKey);
 		return true;

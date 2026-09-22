@@ -62,7 +62,8 @@ export async function runConversationTurn(
 	currentMessageId: string,
 	turnToken = '',
 	browserBridgeEnabled = false,
-	turnEnabledTools?: string[]
+	turnEnabledTools?: string[],
+	excludeMessageIds: string[] = []
 ) {
 	const db = getDb();
 	const timing = createTurnTiming();
@@ -74,7 +75,8 @@ export async function runConversationTurn(
 		currentMessageId,
 		turnToken,
 		browserBridgeEnabled,
-		turnEnabledTools
+		turnEnabledTools,
+		excludeMessageIds
 	});
 	const { systemPrompt, turnPrompt } = buildTurnPrompts(ctx);
 	const tools = buildTurnTools(ctx, { emit, browserBridgeEnabled, turnEnabledTools });
@@ -582,7 +584,7 @@ export async function runConversationTurn(
 				.where(eq(schema.projects.id, conversation.projectId));
 		timing.endPersist();
 		await recordTurnTiming();
-		return lastAssistantMessageId;
+		return turnOutcome.last ? null : lastTextAssistantMessageId;
 	} catch (error) {
 		// Subscriber promises are handled in order, but the loop can still stop
 		// between events. Drain queued persistence work before cleanup so a late

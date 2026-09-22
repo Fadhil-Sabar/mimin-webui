@@ -290,6 +290,9 @@ export function createChatStream(deps: ChatStreamDeps) {
 			if (isCreateSkill && status === 'completed') {
 				void deps.loadSkills();
 			}
+		} else if (event.type === 'retry.replaced') {
+			const replaced = new Set(Array.isArray(event.messageIds) ? event.messageIds.map(String) : []);
+			messages = messages.filter((message) => !replaced.has(message.id));
 		} else if (event.type === 'message.end') {
 			streamingDeltas.flush();
 			lastFailedSubmission = null;
@@ -456,9 +459,6 @@ export function createChatStream(deps: ChatStreamDeps) {
 			deps.notify('No message to retry');
 			return;
 		}
-
-		// Strip any trailing assistant messages locally
-		messages = messages.slice(0, lastUserIdx + 1);
 
 		deps.bumpConversationLoadToken();
 		running = true;
