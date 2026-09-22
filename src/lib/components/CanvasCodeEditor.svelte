@@ -3,13 +3,25 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 
 	type Draft = { tab: 'html' | 'css' | 'js'; html: string; css: string; js: string };
+	type SaveState = 'saved' | 'unsaved' | 'saving' | 'error';
 
 	type Props = {
 		draft: Draft;
 		onsave: (html: string, css: string, js: string) => Promise<void>;
+		saveState?: SaveState;
+		conflict?: boolean;
+		onkeepdraft?: () => void;
+		onloadlatest?: () => void;
 	};
 
-	let { draft = $bindable(), onsave }: Props = $props();
+	let {
+		draft = $bindable(),
+		onsave,
+		saveState = 'saved',
+		conflict = false,
+		onkeepdraft,
+		onloadlatest
+	}: Props = $props();
 
 	let codeSaving = $state(false);
 	let copiedCode = $state(false);
@@ -18,6 +30,8 @@
 		codeSaving = true;
 		try {
 			await onsave(draft.html, draft.css, draft.js);
+		} catch {
+			// The parent records the failed state and keeps the draft for retry.
 		} finally {
 			codeSaving = false;
 		}
@@ -49,14 +63,47 @@
 			>
 		</div>
 		<div class="code-actions">
+			<span
+				class="save-state"
+				class:state-unsaved={saveState === 'unsaved'}
+				class:state-saving={saveState === 'saving'}
+				class:state-error={saveState === 'error'}
+				role="status"
+			>
+				{saveState === 'saving'
+					? 'Saving…'
+					: saveState === 'error'
+						? 'Save failed'
+						: saveState === 'unsaved'
+							? 'Unsaved'
+							: 'Saved'}
+			</span>
 			<button class="icon-btn" onclick={copyCurrentCode} title="Copy Code">
 				{#if copiedCode}<Check size={13} />{:else}<Copy size={13} />{/if}
 			</button>
-			<Button variant="default" size="sm" onclick={saveCodeChanges} disabled={codeSaving}>
-				{codeSaving ? 'Saving...' : 'Apply Code'}
+			<Button
+				variant="default"
+				size="sm"
+				onclick={saveCodeChanges}
+				disabled={codeSaving || saveState === 'saving'}
+			>
+				{codeSaving || saveState === 'saving'
+					? 'Saving…'
+					: saveState === 'error'
+						? 'Retry save'
+						: 'Apply Code'}
 			</Button>
 		</div>
 	</div>
+	{#if conflict}
+		<div class="draft-conflict" role="alert">
+			<span>This scene changed on the server while you were editing.</span>
+			<div class="conflict-actions">
+				<button type="button" onclick={onkeepdraft}>Keep edits</button>
+				<button type="button" onclick={onloadlatest}>Load latest</button>
+			</div>
+		</div>
+	{/if}
 
 	<div class="code-body">
 		{#if draft.tab === 'html'}
@@ -128,6 +175,51 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+	}
+	.save-state {
+		color: var(--text-faint);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		letter-spacing: var(--text-label-sm--letter-spacing);
+		white-space: nowrap;
+	}
+	.save-state.state-unsaved {
+		color: var(--text-body);
+	}
+	.save-state.state-saving {
+		color: var(--text-muted);
+	}
+	.save-state.state-error {
+		color: var(--danger-text);
+	}
+	.draft-conflict {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		padding: 8px var(--space-4);
+		border-bottom: 1px solid var(--border);
+		background: var(--surface-subtle);
+		color: var(--text-body);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+	}
+	.conflict-actions {
+		display: flex;
+		gap: var(--space-2);
+		flex-shrink: 0;
+	}
+	.conflict-actions button {
+		padding: 4px 8px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--text-strong);
+		font-size: var(--text-body-sm);
+		cursor: pointer;
+	}
+	.conflict-actions button:hover {
+		background: var(--surface-hover);
 	}
 	.code-body {
 		flex: 1;

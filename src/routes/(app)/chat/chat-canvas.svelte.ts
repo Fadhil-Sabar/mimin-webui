@@ -111,12 +111,17 @@ export function createChatCanvas({
 		}
 	}
 
-	async function handleUpdateScene(sceneId: string, updates: Partial<CanvasScene>) {
+	async function handleUpdateScene(
+		sceneId: string,
+		updates: Partial<CanvasScene>,
+		options: { throwOnError?: boolean } = {}
+	) {
 		if (!activeCanvas) return;
 		try {
 			activeCanvas = await updateCanvasSceneApi(activeCanvas.id, sceneId, updates);
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not update scene');
+			if (options.throwOnError) throw error;
 		}
 	}
 

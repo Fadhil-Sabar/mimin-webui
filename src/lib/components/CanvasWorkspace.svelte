@@ -28,6 +28,12 @@
 	import { tick } from 'svelte';
 	import type { CanvasDetail, CanvasScene, StyleGuideline, ViewportDevice } from '$lib/canvas';
 	import { planSceneLayout } from '$lib/canvas';
+	import {
+		clearCanvasSceneDraft,
+		getCanvasSceneDraft,
+		setCanvasSceneDraft,
+		type CanvasSceneDraft
+	} from '$lib/client/canvas-drafts';
 	import CanvasCodeEditor from './CanvasCodeEditor.svelte';
 	import CanvasPreviewDialog from './CanvasPreviewDialog.svelte';
 	import NewSceneModal from './NewSceneModal.svelte';
@@ -37,7 +43,11 @@
 
 	type Props = {
 		canvas: CanvasDetail;
-		onupdatescene: (sceneId: string, updates: Partial<CanvasScene>) => Promise<void>;
+		onupdatescene: (
+			sceneId: string,
+			updates: Partial<CanvasScene>,
+			options?: { throwOnError?: boolean }
+		) => Promise<void>;
 		oncreatescene: (scene: {
 			name: string;
 			viewport: ViewportDevice;
@@ -160,16 +170,28 @@
 	let arranging = $state(false);
 
 	type CodeDraft = { tab: 'html' | 'css' | 'js'; html: string; css: string; js: string };
+	type SaveState = 'saved' | 'unsaved' | 'saving' | 'error';
 
 	// Keep one draft per scene. Canvas refreshes replace the scene objects with
 	// server copies, so a single draft object would otherwise be reset while the
 	// user is still editing code.
 	let codeDrafts = $state<Record<string, CodeDraft>>({});
+	let serverDrafts = $state<Record<string, CodeDraft>>({});
+	let saveStates = $state<Record<string, SaveState>>({});
+	let conflicts = $state<Record<string, CodeDraft | null>>({});
 	let codeDraftSceneId = $state('');
 	let codeDraft = $state<CodeDraft>({ tab: 'html', html: '', css: '', js: '' });
 
 	function draftFromScene(scene: CanvasScene): CodeDraft {
 		return { tab: 'html', html: scene.html, css: scene.css, js: scene.js ?? '' };
+	}
+
+	function contentEqual(a: CodeDraft, b: CodeDraft) {
+		return a.html === b.html && a.css === b.css && a.js === b.js;
+	}
+
+	function draftForStorage(draft: CodeDraft): CanvasSceneDraft {
+		return { tab: draft.tab, html: draft.html, css: draft.css, js: draft.js };
 	}
 
 	$effect(() => {
@@ -180,11 +202,93 @@
 
 	$effect(() => {
 		const scene = activeScene;
-		if (!scene || scene.id === codeDraftSceneId) return;
-		codeDraftSceneId = scene.id;
-		codeDraft = codeDrafts[scene.id] ?? draftFromScene(scene);
-		codeDrafts[scene.id] = codeDraft;
+		if (!scene) return;
+		const sceneId = scene.id;
+		const latest = draftFromScene(scene);
+		const previousServer = serverDrafts[sceneId];
+		let current = codeDrafts[sceneId];
+
+		if (!current) {
+			const restored = getCanvasSceneDraft(canvas.id, sceneId);
+			current = restored ?? latest;
+			codeDrafts[sceneId] = current;
+			saveStates[sceneId] = restored && !contentEqual(restored, latest) ? 'unsaved' : 'saved';
+		} else if (
+			previousServer &&
+			!contentEqual(previousServer, latest) &&
+			!contentEqual(current, previousServer) &&
+			saveStates[sceneId] !== 'saving'
+		) {
+			conflicts[sceneId] = latest;
+		} else if (
+			previousServer &&
+			!contentEqual(previousServer, latest) &&
+			contentEqual(current, previousServer)
+		) {
+			current = latest;
+			codeDrafts[sceneId] = current;
+			saveStates[sceneId] = 'saved';
+			clearCanvasSceneDraft(canvas.id, sceneId);
+		}
+
+		serverDrafts[sceneId] = latest;
+		if (sceneId !== codeDraftSceneId) {
+			codeDraftSceneId = sceneId;
+			codeDraft = current;
+		}
 	});
+
+	$effect(() => {
+		const sceneId = codeDraftSceneId;
+		if (!sceneId || !serverDrafts[sceneId]) return;
+		const current: CodeDraft = {
+			tab: codeDraft.tab,
+			html: codeDraft.html,
+			css: codeDraft.css,
+			js: codeDraft.js
+		};
+		if (saveStates[sceneId] === 'saving' || saveStates[sceneId] === 'error') return;
+		if (contentEqual(current, serverDrafts[sceneId])) {
+			saveStates[sceneId] = 'saved';
+			clearCanvasSceneDraft(canvas.id, sceneId);
+		} else {
+			saveStates[sceneId] = 'unsaved';
+			setCanvasSceneDraft(canvas.id, sceneId, draftForStorage(current));
+		}
+	});
+
+	function keepDraft(sceneId: string) {
+		delete conflicts[sceneId];
+	}
+
+	function loadLatest(sceneId: string) {
+		const latest = conflicts[sceneId];
+		if (!latest) return;
+		codeDrafts[sceneId] = latest;
+		if (sceneId === codeDraftSceneId) codeDraft = latest;
+		serverDrafts[sceneId] = latest;
+		saveStates[sceneId] = 'saved';
+		clearCanvasSceneDraft(canvas.id, sceneId);
+		delete conflicts[sceneId];
+	}
+
+	async function saveCodeDraft(sceneId: string, html: string, css: string, js: string) {
+		const draft = codeDrafts[sceneId];
+		if (draft) {
+			draft.html = html;
+			draft.css = css;
+			draft.js = js;
+		}
+		saveStates[sceneId] = 'saving';
+		try {
+			await onupdatescene(sceneId, { html, css, js }, { throwOnError: true });
+			saveStates[sceneId] = 'saved';
+			clearCanvasSceneDraft(canvas.id, sceneId);
+		} catch (error) {
+			saveStates[sceneId] = 'error';
+			throw error;
+		}
+	}
 
 	async function handleRefresh() {
 		if (!onrefresh || refreshing) return;
@@ -406,7 +510,11 @@
 				<!-- Code View / Quick Edit -->
 				<CanvasCodeEditor
 					bind:draft={codeDraft}
-					onsave={(html, css, js) => onupdatescene(activeScene.id, { html, css, js })}
+					saveState={saveStates[activeScene.id] ?? 'saved'}
+					conflict={Boolean(conflicts[activeScene.id])}
+					onkeepdraft={() => keepDraft(activeScene.id)}
+					onloadlatest={() => loadLatest(activeScene.id)}
+					onsave={(html, css, js) => saveCodeDraft(activeScene.id, html, css, js)}
 				/>
 			{:else}
 				<div class="empty-canvas">
