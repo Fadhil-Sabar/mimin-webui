@@ -1,6 +1,5 @@
 <script lang="ts">
-	import { Marked, type Tokens } from 'marked';
-	import markedKatex from 'marked-katex-extension';
+	import { Marked, type MarkedExtension, type Tokens } from 'marked';
 	import 'katex/dist/katex.min.css';
 	import { slide } from 'svelte/transition';
 	import { ChevronDown, ExternalLink, Globe } from '@lucide/svelte';
@@ -12,7 +11,6 @@
 	} from '$lib/client/citations';
 	import MermaidDiagram from '$lib/components/MermaidDiagram.svelte';
 	import { parseMarkdownSegments, type MarkdownSegment } from '$lib/client/markdown';
-	import { copyMathBlock } from '$lib/client/math-clipboard';
 
 	interface Props {
 		content: string;
@@ -51,29 +49,37 @@
 	const COPY_BUTTON_HTML = `<button class="copy-code-btn" type="button" aria-label="Copy code"><svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span class="copy-label">Copy</span></button>`;
 	const RICH_COPY_BUTTON_HTML = `<button class="copy-code-btn copy-rich-btn" type="button" aria-label="Copy rich"><svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span class="copy-label">Copy rich</span></button>`;
 
-	const katexExtension = markedKatex({ throwOnError: false });
-	const katexExtensions = katexExtension.extensions!.map((ext) => {
-		if ((ext.name !== 'blockKatex' && ext.name !== 'inlineKatex') || !('renderer' in ext))
-			return ext;
-		const renderMath = ext.renderer as ((token: Tokens.Generic) => string) | undefined;
-		if (!renderMath) return ext;
-		const isBlockToken = ext.name === 'blockKatex';
-		return {
-			...ext,
-			renderer(token: Tokens.Generic) {
-				const html = renderMath(token);
-				const displayMode = isBlockToken || token.displayMode === true;
-				if (!displayMode) return html;
-				const latex = String(token.text ?? '');
-				return `<div class="code-block math-block" data-lang="latex"><div class="code-header"><span class="code-lang">LaTeX</span><div class="math-actions">${RICH_COPY_BUTTON_HTML}${COPY_BUTTON_HTML}</div></div><div class="math-body">${html}</div><pre hidden><code>${escapeHtml(latex)}</code></pre></div>\n`;
-			}
-		};
-	});
+	/**
+	 * KaTeX is ~270 KiB of JavaScript. Building the extensions is deferred to a dynamic
+	 * import (see `enableMathSupport`) so conversations without math never pay for it.
+	 */
+	async function buildMathExtension(): Promise<MarkedExtension> {
+		const { default: markedKatex } = await import('marked-katex-extension');
+		const katexExtension = markedKatex({ throwOnError: false });
+		const katexExtensions = katexExtension.extensions!.map((ext) => {
+			if ((ext.name !== 'blockKatex' && ext.name !== 'inlineKatex') || !('renderer' in ext))
+				return ext;
+			const renderMath = ext.renderer as ((token: Tokens.Generic) => string) | undefined;
+			if (!renderMath) return ext;
+			const isBlockToken = ext.name === 'blockKatex';
+			return {
+				...ext,
+				renderer(token: Tokens.Generic) {
+					const html = renderMath(token);
+					const displayMode = isBlockToken || token.displayMode === true;
+					if (!displayMode) return html;
+					const latex = String(token.text ?? '');
+					return `<div class="code-block math-block" data-lang="latex"><div class="code-header"><span class="code-lang">LaTeX</span><div class="math-actions">${RICH_COPY_BUTTON_HTML}${COPY_BUTTON_HTML}</div></div><div class="math-body">${html}</div><pre hidden><code>${escapeHtml(latex)}</code></pre></div>\n`;
+				}
+			};
+		});
+		return { extensions: katexExtensions };
+	}
+
 	const marked = new Marked({
 		gfm: true,
 		breaks: true,
 		extensions: [
-			...katexExtensions,
 			{
 				name: 'citation',
 				level: 'inline',
@@ -141,7 +147,29 @@
 		}
 	});
 
+	/**
+	 * Loaded on demand: the first rendered content that looks like it contains math
+	 * triggers the dynamic import, then the derived below re-parses with math enabled.
+	 */
+	const MATH_HINT = /\$[^\s$\n][^$\n]*?\$|\$\$/;
+	let mathExtensionRequested = false;
+	let mathReady = $state(false);
+
+	async function enableMathSupport() {
+		if (mathExtensionRequested) return;
+		mathExtensionRequested = true;
+		marked.use(await buildMathExtension());
+		mathReady = true;
+	}
+
+	$effect(() => {
+		if (mathReady || typeof content !== 'string' || !content) return;
+		if (MATH_HINT.test(content)) void enableMathSupport();
+	});
+
 	let processed = $derived.by(() => {
+		// Read so the parse re-runs once the lazy KaTeX extension has landed.
+		void mathReady;
 		if (!content || typeof content !== 'string') {
 			return { segments: [] as MarkdownSegment[], sources: [] as SourceItem[] };
 		}
@@ -185,6 +213,7 @@
 		const originalLabel = label?.textContent ?? 'Copy';
 		try {
 			if (isRich) {
+				const { copyMathBlock } = await import('$lib/client/math-clipboard');
 				await copyMathBlock(mathBody as HTMLElement);
 			} else {
 				await navigator.clipboard.writeText(codeEl?.textContent || '');

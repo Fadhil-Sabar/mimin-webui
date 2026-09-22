@@ -3,7 +3,9 @@ import { gzipSync } from 'node:zlib';
 import path from 'node:path';
 
 export const BUDGETS = Object.freeze({
-	js: 4.5 * 1024 * 1024,
+	// Raised from 4.5 MiB with the LaTeX math feature (KaTeX + marked-katex-extension):
+	// KaTeX itself stays in a lazy chunk, the rest is feature growth in the same release.
+	js: 4.8 * 1024 * 1024,
 	css: 512 * 1024,
 	total: 7 * 1024 * 1024,
 	// Mermaid 11.17.2's @mermaid-js/parser is one indivisible 662096-byte

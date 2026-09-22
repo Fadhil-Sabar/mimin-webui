@@ -24,7 +24,7 @@ describe('bundle budget', () => {
 	it('reports assets that exceed documented thresholds', () => {
 		const failures = checkBundleBudget({ js: BUDGETS.js + 1, css: 0, total: BUDGETS.total + 1 });
 		expect(failures).toEqual([
-			`js ${((BUDGETS.js + 1) / 1024 / 1024).toFixed(2)} MiB exceeds 4.50 MiB`,
+			`js ${((BUDGETS.js + 1) / 1024 / 1024).toFixed(2)} MiB exceeds 4.80 MiB`,
 			`total ${((BUDGETS.total + 1) / 1024 / 1024).toFixed(2)} MiB exceeds 7.00 MiB`
 		]);
 	});
