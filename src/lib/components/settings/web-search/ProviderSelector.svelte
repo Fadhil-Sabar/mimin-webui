@@ -8,172 +8,175 @@
 	};
 
 	let { provider = $bindable(), searchUrl }: Props = $props();
+
+	const PROVIDER_OPTIONS: Array<{
+		id: SearchProviderType;
+		name: string;
+		desc: string;
+		tag?: string;
+	}> = [
+		{
+			id: 'tavily',
+			name: 'Tavily Search',
+			desc: 'AI-optimized search depth, source extracts, and direct answers.',
+			tag: 'Search API'
+		},
+		{
+			id: 'searxng',
+			name: 'SearXNG',
+			desc: 'Privacy-respecting metasearch engine via JSON endpoint.',
+			tag: 'Self-hosted'
+		},
+		{
+			id: 'duckduckgo',
+			name: 'DuckDuckGo',
+			desc: 'Public web search scraping without needing any API key.',
+			tag: 'No API key required'
+		},
+		{
+			id: 'custom',
+			name: 'Custom URL / API',
+			desc: 'Your own endpoint for web search.'
+		}
+	];
 </script>
 
-<div class="form-section">
-	<h2 class="section-title">Search Engine Provider</h2>
-	<p class="section-desc">Select the search backend used by the web search agent tool.</p>
-
+<div class="provider-selector-container">
 	{#if (provider === 'searxng' || provider === 'custom') && !searchUrl.trim()}
-		<p class="provider-warning">
+		<div class="provider-warning" role="alert">
 			<Info size={14} />
 			<span>
-				{provider === 'searxng' ? 'SearXNG' : 'A custom provider'} needs a search URL. Without one, searches
-				use the shared public instance searx.be, which does not serve the JSON API and will fail; every
-				search then falls back to DuckDuckGo or Wikipedia. Set the URL below.
+				{provider === 'searxng' ? 'SearXNG' : 'A custom provider'} requires a search endpoint URL below.
 			</span>
-		</p>
+		</div>
 	{/if}
 
-	<div class="provider-grid">
-		<!-- Tavily -->
-		<label class="provider-option" class:selected={provider === 'tavily'}>
-			<input type="radio" name="provider" value="tavily" bind:group={provider} />
-			<div class="option-body">
-				<div class="option-header">
-					<strong>Tavily Search</strong>
-					<span class="badge-mini">Recommended</span>
+	<div class="provider-list-card" role="radiogroup" aria-label="Search providers">
+		{#each PROVIDER_OPTIONS as opt (opt.id)}
+			<label class="provider-row" class:selected={provider === opt.id}>
+				<input
+					type="radio"
+					name="search-provider"
+					value={opt.id}
+					checked={provider === opt.id}
+					onchange={() => (provider = opt.id)}
+					class="sr-only"
+				/>
+				<span class="custom-radio" class:checked={provider === opt.id} aria-hidden="true">
+					{#if provider === opt.id}
+						<span class="radio-dot"></span>
+					{/if}
+				</span>
+				<div class="provider-text">
+					<div class="provider-title-row">
+						<span class="provider-name">{opt.name}</span>
+						{#if opt.tag}
+							<span class="provider-tag">{opt.tag}</span>
+						{/if}
+					</div>
+					<p class="provider-desc">{opt.desc}</p>
 				</div>
-				<p>AI-optimized search depth, source extracts, and direct answers.</p>
-			</div>
-		</label>
-
-		<!-- SearXNG -->
-		<label class="provider-option" class:selected={provider === 'searxng'}>
-			<input type="radio" name="provider" value="searxng" bind:group={provider} />
-			<div class="option-body">
-				<div class="option-header">
-					<strong>SearXNG</strong>
-					<span class="badge-mini">Self-hosted</span>
-				</div>
-				<p>Privacy-respecting metasearch engine via JSON endpoint.</p>
-			</div>
-		</label>
-
-		<!-- DuckDuckGo -->
-		<label class="provider-option" class:selected={provider === 'duckduckgo'}>
-			<input type="radio" name="provider" value="duckduckgo" bind:group={provider} />
-			<div class="option-body">
-				<div class="option-header">
-					<strong>DuckDuckGo</strong>
-					<span class="badge-mini">Free</span>
-				</div>
-				<p>Public web search scraping without needing any API key.</p>
-			</div>
-		</label>
-
-		<!-- Custom -->
-		<label class="provider-option" class:selected={provider === 'custom'}>
-			<input type="radio" name="provider" value="custom" bind:group={provider} />
-			<div class="option-body">
-				<div class="option-header">
-					<strong>Custom URL / API</strong>
-				</div>
-				<p>Custom search proxy, REST JSON endpoint, or template URL.</p>
-			</div>
-		</label>
+			</label>
+		{/each}
 	</div>
 </div>
 
 <style>
-	.form-section {
+	.provider-selector-container {
 		display: flex;
 		flex-direction: column;
-	}
-	.section-title {
-		font-family: var(--font-body);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
-		color: var(--text-strong);
-		margin: 0 0 4px;
-	}
-	.section-desc {
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		margin: 0 0 14px;
-	}
-
-	.provider-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 		gap: 12px;
 	}
-	.provider-option {
+	.provider-warning {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		background: #2b2216;
+		border: 1px solid #48361e;
+		border-radius: 8px;
+		color: #eab308;
+		font-size: 12px;
+	}
+	.provider-list-card {
+		display: flex;
+		flex-direction: column;
+		background: #1d1d20;
+		border: 1px solid #2c2c30;
+		border-radius: 14px;
+		overflow: hidden;
+	}
+	.provider-row {
 		display: flex;
 		align-items: flex-start;
-		gap: 12px;
+		gap: 14px;
 		padding: 14px 16px;
-		background: var(--surface-subtle);
-		border: 1px solid var(--border);
-		border-radius: 8px;
+		border-bottom: 1px solid #252528;
 		cursor: pointer;
-		transition: var(--duration-short3) var(--ease-standard);
+		transition: background-color var(--duration-short2) var(--ease-standard);
+		user-select: none;
 	}
-	.provider-option:hover {
-		border-color: var(--border-strong);
-		background: var(--surface-hover);
+	.provider-row:last-child {
+		border-bottom: none;
 	}
-	.provider-option.selected {
-		border-color: var(--text-strong);
-		background: var(--surface-2);
+	.provider-row:hover {
+		background: #222226;
 	}
-	.provider-option input[type='radio'] {
-		margin-top: 3px;
-		cursor: pointer;
+	.provider-row.selected {
+		background: #212125;
 	}
-	.option-body {
+	.custom-radio {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		border: 1.5px solid #4a4a50;
+		background: transparent;
+		flex-shrink: 0;
+		margin-top: 2px;
+		transition:
+			border-color var(--duration-short2) var(--ease-standard),
+			background-color var(--duration-short2) var(--ease-standard);
+	}
+	.custom-radio.checked {
+		border-color: #ececee;
+	}
+	.radio-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #ececee;
+	}
+	.provider-text {
 		flex: 1;
+		min-width: 0;
 	}
-	.option-header {
+	.provider-title-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 4px;
+		gap: 10px;
 	}
-	.option-header strong {
-		font-family: var(--font-body);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+	.provider-name {
+		font-size: 14px;
 		font-weight: 500;
-		color: var(--text-strong);
+		color: #ececee;
 	}
-	.option-body p {
-		margin: 0;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-muted);
+	.provider-tag {
+		font-size: 11px;
+		color: #a1a1aa;
+		background: #26262a;
+		border: 1px solid #333338;
+		border-radius: 6px;
+		padding: 2px 8px;
+		white-space: nowrap;
 	}
-	.badge-mini {
-		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		padding: 1px 6px;
-		border-radius: 4px;
-		background: var(--surface-3);
-		border: 1px solid var(--border);
-		color: var(--text-dim);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		font-weight: 500;
-	}
-
-	.provider-warning {
-		display: flex;
-		align-items: flex-start;
-		gap: 8px;
-		margin: 12px 0 0;
-		padding: 10px 14px;
-		background: color-mix(in srgb, var(--warning-bg) 16%, transparent);
-		border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-		border-radius: var(--radius-lg);
-		color: var(--warning-text);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+	.provider-desc {
+		margin: 3px 0 0;
+		font-size: 12px;
+		color: #71717a;
+		line-height: 1.4;
 	}
 </style>

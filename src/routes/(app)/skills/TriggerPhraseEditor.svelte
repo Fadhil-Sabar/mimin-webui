@@ -55,10 +55,12 @@
 </section>
 
 <style>
+	/* The section is now the body of its own editor tab, so the separator that
+	 * divided one long form no longer applies. */
 	.trigger-section {
-		margin-top: 22px;
-		padding-top: 18px;
-		border-top: 1px solid var(--border);
+		margin-top: 0;
+		padding-top: 0;
+		border-top: 0;
 	}
 	.section-label-row {
 		display: flex;

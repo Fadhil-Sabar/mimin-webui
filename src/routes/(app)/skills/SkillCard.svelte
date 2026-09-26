@@ -1,6 +1,12 @@
 <script lang="ts">
-	import { FileText, FolderKanban, Plus, Sparkles, Trash2, WandSparkles } from '@lucide/svelte';
+	import { Copy, Ellipsis, Pencil, Trash2, WandSparkles } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import {
+		DropdownMenu,
+		DropdownMenuContent,
+		DropdownMenuItem,
+		DropdownMenuTrigger
+	} from '$lib/components/ui/dropdown-menu/index.js';
 	import { formatDate } from '$lib/format';
 	import type { Skill } from './skills-types';
 
@@ -17,212 +23,158 @@
 		onduplicate: () => void;
 		ondelete: () => void;
 	} = $props();
+
+	let toolCount = $derived(skill.enabledTools.length);
+	let triggerCount = $derived(skill.triggerPhrases.length);
 </script>
 
 <article class="skill-card">
 	<div class="card-top">
-		<span class="card-icon"><WandSparkles size={18} /></span>
-		<span class="scope-badge" class:project={Boolean(skill.projectId)}
-			>{#if skill.projectId}<FolderKanban size={12} />{:else}<Sparkles
-					size={12}
-				/>{/if}{scopeLabel}</span
-		>
-	</div>
-	<h2>{skill.name}</h2>
-	<p class="skill-description">{skill.description || 'No description yet.'}</p>
-	<div class="card-footer">
-		<div class="card-meta">
-			<span
-				>{skill.enabledTools.length}
-				{skill.enabledTools.length === 1 ? 'tool' : 'tools'}</span
-			>
-			<span>·</span>
-			<span
-				>{skill.triggerPhrases.length} trigger {skill.triggerPhrases.length === 1
-					? 'phrase'
-					: 'phrases'}</span
-			>
+		<span class="card-icon"><WandSparkles size={22} aria-hidden="true" /></span>
+		<div class="card-top-actions">
+			<span class="scope-badge" class:project={Boolean(skill.projectId)}>{scopeLabel}</span>
+			<DropdownMenu>
+				<DropdownMenuTrigger>
+					{#snippet child({ props })}
+						<Button
+							{...props}
+							variant="ghost"
+							size="icon-sm"
+							class="card-menu-button"
+							aria-label={`More actions for ${skill.name}`}
+							title="More actions"><Ellipsis size={18} aria-hidden="true" /></Button
+						>
+					{/snippet}
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end" class="w-44">
+					<DropdownMenuItem onSelect={onduplicate}
+						><Copy size={15} aria-hidden="true" /> Duplicate</DropdownMenuItem
+					>
+					<DropdownMenuItem variant="destructive" onSelect={ondelete}
+						><Trash2 size={15} aria-hidden="true" /> Delete</DropdownMenuItem
+					>
+				</DropdownMenuContent>
+			</DropdownMenu>
 		</div>
-		{#if skill.triggerPhrases.length > 0}<div class="trigger-preview">
-				“{skill.triggerPhrases[0]}”{#if skill.triggerPhrases.length > 1}<span
-						>+{skill.triggerPhrases.length - 1}</span
-					>{/if}
-			</div>{/if}
-		<span class="updated">Updated {formatDate(skill.updatedAt, 'long')}</span>
 	</div>
-	<div class="card-actions">
-		<Button variant="outline" size="sm" class="card-edit-button" onclick={onedit}
-			><FileText size={14} /> Edit</Button
-		><button
-			class="icon-action"
-			onclick={onduplicate}
-			aria-label={`Duplicate ${skill.name}`}
-			title="Duplicate"><Plus size={16} /></button
-		><button
-			class="icon-action danger"
-			onclick={ondelete}
-			aria-label={`Delete ${skill.name}`}
-			title="Delete"><Trash2 size={15} /></button
+	<h2 class="card-title md-title-lg">{skill.name}</h2>
+	<p class="card-description md-body-lg">{skill.description || 'No description yet.'}</p>
+	<div class="card-meta">
+		<span>{toolCount} {toolCount === 1 ? 'tool' : 'tools'}</span>
+		<span aria-hidden="true">·</span>
+		<span>{triggerCount} {triggerCount === 1 ? 'trigger' : 'triggers'}</span>
+	</div>
+	<div class="card-footer">
+		<Button variant="ghost" size="sm" class="card-edit-button" onclick={onedit}
+			><Pencil size={15} aria-hidden="true" /> Edit skill</Button
 		>
+		<span class="updated">{formatDate(skill.updatedAt)}</span>
 	</div>
 </article>
 
 <style>
 	.skill-card {
-		min-height: 220px;
-		padding: 18px;
+		display: flex;
+		min-height: 16rem;
+		flex-direction: column;
+		padding: var(--space-5);
+		color: inherit;
 		text-align: left;
+		text-decoration: none;
+		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-xl);
-		background: var(--surface);
 		transition:
 			border-color var(--duration-short4) var(--ease-standard),
-			box-shadow var(--duration-short4) var(--ease-standard),
-			transform var(--duration-short4) var(--ease-standard);
-		text-decoration: none;
-		color: inherit;
-		display: flex;
-		flex-direction: column;
+			box-shadow var(--duration-short4) var(--ease-standard);
 	}
 	.skill-card:hover {
 		border-color: var(--text-dim);
 		box-shadow: 0 8px 22px var(--shadow-soft);
-		transform: translateY(-2px);
 	}
 	.card-top {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
 		gap: var(--space-2);
 	}
 	.card-icon {
 		display: grid;
 		place-items: center;
-		width: 36px;
-		height: 36px;
-		border-radius: var(--radius-lg);
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		color: var(--text-strong);
+		color: var(--text-body);
+	}
+	.card-top-actions {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
 	}
 	.scope-badge {
 		display: inline-flex;
 		align-items: center;
-		gap: 5px;
+		max-width: 14ch;
 		padding: 3px var(--space-2);
-		border-radius: var(--radius-sm);
-		background: var(--surface-2);
-		border: 1px solid var(--border);
+		overflow: hidden;
 		color: var(--text-muted);
 		font-size: var(--text-body-sm);
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		font-weight: 500;
 		white-space: nowrap;
+		text-overflow: ellipsis;
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
 	}
 	.scope-badge.project {
 		color: var(--status-working-text);
 		border-color: color-mix(in srgb, var(--status-working-text) 25%, var(--border));
 	}
-	.skill-card h2 {
-		margin: 14px 0 6px;
-		font-family: var(--font-body);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
+	:global(.card-menu-button) {
+		margin-right: calc(-1 * var(--space-1));
+		color: var(--text-dim);
+	}
+	.card-title {
+		margin: var(--space-5) 0 0;
 		color: var(--text-strong);
 	}
-	.skill-description {
-		margin: 0 0 14px;
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		color: var(--text-muted);
+	.card-description {
 		display: -webkit-box;
+		min-height: 3rem;
+		margin: var(--space-2) 0 0;
+		overflow: hidden;
+		color: var(--text-muted);
+		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 2;
 		line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-	.card-footer {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-1);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-dim);
 	}
 	.card-meta {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: var(--space-2);
+		margin-top: var(--space-5);
 		color: var(--text-dim);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
 	}
-	.trigger-preview {
+	.card-footer {
 		display: flex;
 		align-items: center;
-		gap: 7px;
-		min-width: 0;
-		overflow: hidden;
-		color: var(--text-body);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		font-style: italic;
-		white-space: nowrap;
-		text-overflow: ellipsis;
+		justify-content: space-between;
+		gap: var(--space-3);
+		margin-top: auto;
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--border);
 	}
-	.trigger-preview span {
-		flex: 0 0 auto;
-		color: var(--text-faint);
-		font-style: normal;
+	.card-footer :global(.card-edit-button) {
+		margin-left: calc(-1 * var(--space-2));
+		color: var(--text-body);
 	}
 	.updated {
 		color: var(--text-dim);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-	}
-	.card-actions {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		margin-top: auto;
-		padding-top: 14px;
-		border-top: 1px solid var(--border);
-	}
-	.card-actions :global(.card-edit-button) {
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-	}
-	.icon-action {
-		display: grid;
-		place-items: center;
-		width: 32px;
-		height: 32px;
-		padding: 0;
-		color: var(--text-muted);
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		transition:
-			color var(--duration-short3) var(--ease-standard),
-			background var(--duration-short3) var(--ease-standard);
-	}
-	.icon-action + .icon-action {
-		margin-left: 0;
-	}
-	.icon-action:hover {
-		color: var(--text-strong);
-		background: var(--surface-hover);
-	}
-	.icon-action.danger:hover {
-		color: var(--danger-text);
-		background: color-mix(in srgb, var(--danger-text) 10%, transparent);
+		font-size: var(--text-body-md);
+		line-height: var(--text-body-md--line-height);
+		letter-spacing: var(--text-body-md--letter-spacing);
+		white-space: nowrap;
 	}
 </style>

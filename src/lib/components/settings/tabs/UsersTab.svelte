@@ -1,12 +1,26 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { Check, Copy, KeyRound, UserPlus, Users } from '@lucide/svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import {
+		ArrowLeft,
+		Check,
+		Copy,
+		KeyRound,
+		MoreHorizontal,
+		Plus,
+		Search,
+		X
+	} from '@lucide/svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Card } from '$lib/components/ui/card/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
 	import { authClient } from '$lib/client/auth';
+	import { SvelteURLSearchParams } from 'svelte/reactivity';
+
+	type Props = {
+		isDirty?: boolean;
+		discard?: () => void;
+	};
+
+	// eslint-disable-next-line no-useless-assignment
+	let { isDirty = $bindable(false), discard = $bindable() }: Props = $props();
 
 	type ManagedUser = {
 		id: string;
@@ -23,6 +37,10 @@
 	let saving = $state(false);
 	let error = $state('');
 	let success = $state('');
+	let searchQuery = $state('');
+	let showCreateForm = $state(false);
+	let openMenuUserId = $state<string | null>(null);
+
 	let page = $state(0);
 	const pageSize = 10;
 	let name = $state('');
@@ -30,11 +48,43 @@
 	let password = $state('');
 	let role = $state<'user' | 'admin'>('user');
 
+	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
 	type ResetLink = { email: string; url: string; expiresAt: string };
 	let resetLink = $state<ResetLink | null>(null);
 	let resetLinkBusyId = $state('');
 	let resetLinkError = $state('');
 	let resetLinkCopied = $state(false);
+
+	let formDirty = $derived(showCreateForm && Boolean(name.trim() || email.trim() || password));
+
+	$effect(() => {
+		isDirty = formDirty;
+	});
+
+	$effect(() => {
+		discard = () => {
+			name = '';
+			email = '';
+			password = '';
+			role = 'user';
+			error = '';
+			showCreateForm = false;
+		};
+	});
+
+	onDestroy(() => {
+		clearTimeout(searchTimer);
+		password = '';
+	});
+
+	let filteredUsers = $derived.by(() => {
+		const q = searchQuery.trim().toLowerCase();
+		if (!q) return users;
+		return users.filter(
+			(u) => u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+		);
+	});
 
 	function messageFrom(errorValue: unknown, fallback: string) {
 		return errorValue && typeof errorValue === 'object' && 'message' in errorValue
@@ -42,29 +92,65 @@
 			: fallback;
 	}
 
-	async function loadUsers() {
+	async function loadUsers(query = searchQuery) {
 		loading = true;
 		error = '';
 		try {
-			const result = await authClient.admin.listUsers({
-				query: {
-					limit: pageSize,
-					offset: page * pageSize,
-					sortBy: 'createdAt',
-					sortDirection: 'asc'
-				}
-			});
-			if (result.error) {
-				error = messageFrom(result.error, 'Could not load users.');
-				return;
+			const params = new SvelteURLSearchParams();
+			if (query.trim()) {
+				params.set('search', query.trim());
 			}
-			users = result.data?.users ?? [];
-			total = result.data?.total ?? users.length;
+			params.set('limit', String(pageSize));
+			params.set('offset', String(page * pageSize));
+
+			const response = await fetch(`/api/admin/users?${params.toString()}`);
+			if (response.ok) {
+				const data = await response.json();
+				users = data.users ?? [];
+				total = data.total ?? users.length;
+			} else {
+				const fallback = await authClient.admin.listUsers({
+					query: {
+						limit: pageSize,
+						offset: page * pageSize,
+						sortBy: 'createdAt',
+						sortDirection: 'asc'
+					}
+				});
+				if (fallback.error) {
+					error = messageFrom(fallback.error, 'Could not load users.');
+					return;
+				}
+				users = fallback.data?.users ?? [];
+				total = fallback.data?.total ?? users.length;
+			}
 		} catch (value) {
 			error = messageFrom(value, 'Could not load users.');
 		} finally {
 			loading = false;
 		}
+	}
+
+	function onSearchInput(e: Event) {
+		const target = e.target as HTMLInputElement;
+		searchQuery = target.value;
+		clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => {
+			page = 0;
+			loadUsers(searchQuery);
+		}, 250);
+	}
+
+	function abandonCreateForm() {
+		if (formDirty) {
+			if (!window.confirm('Discard unsaved changes?')) return;
+		}
+		name = '';
+		email = '';
+		password = '';
+		role = 'user';
+		error = '';
+		showCreateForm = false;
 	}
 
 	async function createUser() {
@@ -97,6 +183,7 @@
 			password = '';
 			role = 'user';
 			success = 'User created successfully.';
+			showCreateForm = false;
 			await loadUsers();
 		} catch (value) {
 			error = messageFrom(value, 'Could not create user.');
@@ -143,351 +230,898 @@
 	onMount(async () => {
 		await loadUsers();
 	});
+
 	let pageCount = $derived(Math.max(1, Math.ceil(total / pageSize)));
 </script>
 
-<div class="tab-content">
-	<PageHeader
-		title="User management"
-		eyebrow="Administration"
-		subtitle="Provision workspace accounts and choose their access role."
-	>
-		{#snippet icon()}<Users size={24} aria-hidden="true" />{/snippet}
-	</PageHeader>
+<svelte:window
+	onclick={() => {
+		openMenuUserId = null;
+	}}
+	onkeydown={(e) => {
+		if (e.key === 'Escape') openMenuUserId = null;
+	}}
+/>
 
-	<div class="admin-grid">
-		<Card shadow="raised">
-			<div class="panel-heading">
-				<UserPlus size={18} />
-				<h2 class="md-body-lg">Create account</h2>
+<div class="tab-pane">
+	{#if showCreateForm}
+		<!-- Separate Create Account Form (Screen 13 requirement) -->
+		<div class="create-user-view">
+			<div class="editor-header">
+				<button type="button" class="back-button" onclick={abandonCreateForm}>
+					<ArrowLeft size={16} />
+					<span>Users</span>
+				</button>
+				<h1 class="editor-title">Create account</h1>
+				<p class="editor-subtitle">
+					Users receive access immediately with the initial password you provide.
+				</p>
 			</div>
-			<p class="muted">Users receive access immediately with the initial password you provide.</p>
+
 			<form
-				onsubmit={(event) => {
-					event.preventDefault();
+				class="create-form"
+				onsubmit={(e) => {
+					e.preventDefault();
 					createUser();
 				}}
-				aria-busy={saving}
 			>
-				<label>Name<Input class="mt-1.5" bind:value={name} autocomplete="name" required /></label>
-				<label
-					>Email<Input
-						class="mt-1.5"
-						bind:value={email}
+				<div class="form-field">
+					<label for="new-user-name">Name</label>
+					<input
+						id="new-user-name"
+						type="text"
+						bind:value={name}
+						placeholder="Admin"
+						autocomplete="name"
+						required
+					/>
+				</div>
+
+				<div class="form-field">
+					<label for="new-user-email">Email</label>
+					<input
+						id="new-user-email"
 						type="email"
+						bind:value={email}
+						placeholder="user@example.com"
 						autocomplete="email"
 						required
-					/></label
-				>
-				<label
-					>Initial password<Input
-						class="mt-1.5"
-						bind:value={password}
+					/>
+				</div>
+
+				<div class="form-field">
+					<label for="new-user-password">Initial password</label>
+					<input
+						id="new-user-password"
 						type="password"
 						minlength={8}
+						bind:value={password}
+						placeholder="At least 8 characters"
 						autocomplete="new-password"
 						required
-					/></label
-				>
-				<label
-					>Role<select bind:value={role}
-						><option value="user">User</option><option value="admin">Admin</option></select
-					></label
-				>
-				{#if error}<p class="message error" role="alert">{error}</p>{/if}
-				{#if success}<p class="message success" role="status">{success}</p>{/if}
-				<Button class="mt-[var(--space-2)] w-full" size="lg" type="submit" disabled={saving}
-					>{saving ? 'Creating…' : 'Create user'}</Button
-				>
-			</form>
-		</Card>
+					/>
+				</div>
 
-		<Card shadow="raised">
-			<div class="panel-heading">
-				<Users size={18} />
-				<h2 class="md-body-lg">Workspace users</h2>
-				<span class="count">{total}</span>
+				<div class="form-field">
+					<label for="new-user-role">Role</label>
+					<div class="select-wrapper">
+						<select id="new-user-role" bind:value={role}>
+							<option value="user">User</option>
+							<option value="admin">Admin</option>
+						</select>
+					</div>
+				</div>
+
+				{#if error}
+					<div class="message error" role="alert">{error}</div>
+				{/if}
+
+				<div class="form-actions">
+					<button type="button" class="cancel-btn" onclick={abandonCreateForm}> Cancel </button>
+					<button type="submit" class="create-btn" disabled={saving}>
+						{saving ? 'Creating…' : 'Create account'}
+					</button>
+				</div>
+			</form>
+		</div>
+	{:else}
+		<!-- Screen 13: Users List View -->
+		<div class="users-view">
+			<div class="view-header">
+				<div class="title-group">
+					<h1 class="view-title">Users</h1>
+					<p class="view-subtitle">Manage workspace accounts and access.</p>
+				</div>
+				<button
+					type="button"
+					class="create-account-btn"
+					onclick={() => {
+						showCreateForm = true;
+						error = '';
+						success = '';
+					}}
+				>
+					<Plus size={15} />
+					<span>Create account</span>
+				</button>
 			</div>
-			{#if loading}
-				<div class="user-list" role="status" aria-label="Loading users">
-					{#each [1, 2, 3, 4, 5] as i (i)}
-						<div class="user-entry">
-							<Skeleton width="32px" height="32px" radius="50%" />
-							<div class="identity">
-								<Skeleton width="140px" height="14px" />
-								<Skeleton width="200px" height="12px" />
-							</div>
-						</div>
-					{/each}
+
+			{#if success}
+				<div class="message success" role="status">{success}</div>
+			{/if}
+			{#if error}
+				<div class="message error" role="alert">{error}</div>
+			{/if}
+
+			<!-- Search bar -->
+			<div class="search-bar">
+				<Search size={15} />
+				<input
+					type="text"
+					value={searchQuery}
+					oninput={onSearchInput}
+					placeholder="Search users"
+					aria-label="Search users"
+				/>
+			</div>
+
+			<!-- Users table/list -->
+			<div class="users-table-container">
+				<div class="table-header-row">
+					<span class="col-name">Name</span>
+					<span class="col-role">Role</span>
+					<span class="col-actions">Actions</span>
 				</div>
-			{:else if users.length === 0}<p class="muted">No users found.</p>
-			{:else}
-				<div class="user-list">
-					{#each users as managedUser (managedUser.id)}
-						<div class="user-entry">
-							<span class="avatar-chip">{managedUser.name.slice(0, 1).toUpperCase()}</span>
-							<div class="identity">
-								<strong>{managedUser.name}</strong><span>{managedUser.email}</span>
+
+				{#if loading}
+					<div class="skeleton-list">
+						{#each [1, 2] as i (i)}
+							<div class="skeleton-row">
+								<Skeleton width="32px" height="32px" radius="50%" />
+								<div class="skeleton-info">
+									<Skeleton width="120px" height="13px" />
+									<Skeleton width="180px" height="11px" />
+								</div>
 							</div>
-							<span class:admin-role={managedUser.role === 'admin'} class="role"
-								>{managedUser.role ?? 'user'}</span
-							>
-							<Button
-								variant="secondary"
-								size="sm"
-								class="whitespace-nowrap"
-								onclick={() => createResetLink(managedUser)}
-								disabled={resetLinkBusyId === managedUser.id}
-							>
-								{resetLinkBusyId === managedUser.id ? 'Creating…' : 'Reset link'}
-							</Button>
-						</div>
-					{/each}
-				</div>
-				{#if resetLinkError}<p class="message error" role="alert">{resetLinkError}</p>{/if}
-				{#if resetLink}
-					<div class="reset-link">
-						<div class="reset-link-head">
+						{/each}
+					</div>
+				{:else if filteredUsers.length === 0}
+					<div class="empty-state">No users found.</div>
+				{:else}
+					<div class="user-rows">
+						{#each filteredUsers as managedUser (managedUser.id)}
+							<div class="user-row">
+								<div class="user-profile">
+									<div class="avatar-circle">
+										{managedUser.name.slice(0, 1).toUpperCase()}
+									</div>
+									<div class="user-identity">
+										<strong class="user-name">{managedUser.name}</strong>
+										<span class="user-email">{managedUser.email}</span>
+									</div>
+								</div>
+
+								<div class="user-role-cell">
+									<span class="role-text">{managedUser.role === 'admin' ? 'Admin' : 'User'}</span>
+								</div>
+
+								<div class="user-actions-cell">
+									<button
+										type="button"
+										class="reset-btn"
+										onclick={() => createResetLink(managedUser)}
+										disabled={resetLinkBusyId === managedUser.id}
+									>
+										{resetLinkBusyId === managedUser.id ? 'Creating…' : 'Reset link'}
+									</button>
+									<div class="menu-container">
+										<button
+											type="button"
+											class="overflow-btn"
+											title="User options"
+											aria-label={`Options for ${managedUser.name}`}
+											aria-haspopup="menu"
+											aria-expanded={openMenuUserId === managedUser.id}
+											onclick={(e) => {
+												e.stopPropagation();
+												openMenuUserId = openMenuUserId === managedUser.id ? null : managedUser.id;
+											}}
+										>
+											<MoreHorizontal size={15} />
+										</button>
+										{#if openMenuUserId === managedUser.id}
+											<div
+												class="dropdown-menu"
+												role="menu"
+												aria-label={`Options for ${managedUser.name}`}
+											>
+												<button
+													type="button"
+													role="menuitem"
+													class="dropdown-item"
+													onclick={() => {
+														openMenuUserId = null;
+														createResetLink(managedUser);
+													}}
+												>
+													<KeyRound size={14} />
+													<span>Reset password link</span>
+												</button>
+												<button
+													type="button"
+													role="menuitem"
+													class="dropdown-item"
+													onclick={async () => {
+														openMenuUserId = null;
+														try {
+															await navigator.clipboard.writeText(managedUser.email);
+															success = `Copied ${managedUser.email} to clipboard`;
+															setTimeout(() => {
+																if (success) success = '';
+															}, 3000);
+														} catch {
+															error = 'Could not copy email';
+														}
+													}}
+												>
+													<Copy size={14} />
+													<span>Copy email</span>
+												</button>
+												<button
+													type="button"
+													role="menuitem"
+													class="dropdown-item"
+													onclick={async () => {
+														openMenuUserId = null;
+														try {
+															await navigator.clipboard.writeText(managedUser.id);
+															success = 'Copied user ID to clipboard';
+															setTimeout(() => {
+																if (success) success = '';
+															}, 3000);
+														} catch {
+															error = 'Could not copy user ID';
+														}
+													}}
+												>
+													<Copy size={14} />
+													<span>Copy user ID</span>
+												</button>
+											</div>
+										{/if}
+									</div>
+								</div>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Reset Link Modal / Card -->
+			{#if resetLink}
+				<div class="reset-link-card">
+					<div class="reset-link-header">
+						<div class="reset-link-title">
 							<KeyRound size={15} />
 							<strong>Reset link for {resetLink.email}</strong>
 						</div>
-						<p class="muted">
-							Give it to the user privately. It works once and expires at
-							{new Date(resetLink.expiresAt).toLocaleTimeString()}.
-						</p>
-						<div class="reset-link-row">
-							<Input
-								class="reset-link-input"
-								readonly
-								value={resetLink.url}
-								aria-label="Password reset link"
-							/>
-							<Button
-								variant="outline"
-								size="sm"
-								class="flex-none gap-1.5 px-[var(--space-3)]"
-								onclick={copyResetLink}
-							>
-								{#if resetLinkCopied}<Check size={14} /> Copied{:else}<Copy size={14} /> Copy{/if}
-							</Button>
-						</div>
+						<button
+							type="button"
+							class="close-reset-btn"
+							onclick={() => (resetLink = null)}
+							aria-label="Close reset link"
+						>
+							<X size={15} />
+						</button>
 					</div>
-				{/if}
+					<p class="reset-link-note">
+						Give it to the user privately. It works once and expires at
+						{new Date(resetLink.expiresAt).toLocaleTimeString()}.
+					</p>
+					<div class="reset-link-row">
+						<input
+							type="text"
+							readonly
+							value={resetLink.url}
+							class="reset-link-input"
+							aria-label="Password reset link"
+						/>
+						<button type="button" class="copy-btn" onclick={copyResetLink}>
+							{#if resetLinkCopied}
+								<Check size={14} />
+								<span>Copied</span>
+							{:else}
+								<Copy size={14} />
+								<span>Copy</span>
+							{/if}
+						</button>
+					</div>
+					{#if resetLinkError}
+						<p class="reset-error">{resetLinkError}</p>
+					{/if}
+				</div>
+			{/if}
+
+			<!-- Footnote / summary -->
+			<div class="users-summary">
+				<span>{filteredUsers.length} user{filteredUsers.length === 1 ? '' : 's'}</span>
+			</div>
+			<div class="users-footnote">New accounts can sign in with their initial password.</div>
+
+			<!-- Pagination if needed -->
+			{#if pageCount > 1}
 				<div class="pagination">
-					<Button
-						variant="outline"
-						size="sm"
+					<button
+						type="button"
+						class="page-btn"
 						onclick={() => {
 							page -= 1;
 							loadUsers();
 						}}
-						disabled={page === 0 || loading}>Previous</Button
-					><span>Page {page + 1} of {pageCount}</span><Button
-						variant="outline"
-						size="sm"
+						disabled={page === 0 || loading}
+					>
+						Previous
+					</button>
+					<span class="page-info">Page {page + 1} of {pageCount}</span>
+					<button
+						type="button"
+						class="page-btn"
 						onclick={() => {
 							page += 1;
 							loadUsers();
 						}}
-						disabled={page + 1 >= pageCount || loading}>Next</Button
+						disabled={page + 1 >= pageCount || loading}
 					>
+						Next
+					</button>
 				</div>
 			{/if}
-		</Card>
-	</div>
+		</div>
+	{/if}
 </div>
 
 <style>
-	.tab-content {
-		padding: 28px var(--space-6) var(--space-7);
+	.tab-pane {
+		padding: 28px 32px 36px;
+		color: #ececee;
+		font-family: var(--font-body);
 	}
-	.muted {
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	.admin-grid {
-		display: grid;
-		grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
-		gap: 20px;
-	}
-	.panel-heading {
+	.view-header {
 		display: flex;
-		align-items: center;
-		gap: 9px;
-		color: var(--text-strong);
-		min-width: 0;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 16px;
+		margin-bottom: 20px;
+		padding-right: 40px;
 	}
-	.panel-heading h2 {
+	.view-title {
 		margin: 0;
-		font-family: var(--font-body);
+		font-size: 22px;
+		font-weight: 600;
+		color: #ececee;
+		letter-spacing: -0.01em;
 	}
-	.count {
-		margin-left: auto;
-		color: var(--text-dim);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+	.view-subtitle {
+		margin: 4px 0 0;
+		font-size: 13px;
+		color: #a1a1aa;
 	}
-	form {
-		margin-top: 20px;
-	}
-	label {
-		display: block;
-		margin: 14px 0;
-		color: var(--text-body);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+	.create-account-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 36px;
+		padding: 0 16px;
+		background: #f4f4f5;
+		border: 0;
+		border-radius: 10px;
+		color: #18181b;
+		font-size: 13px;
 		font-weight: 500;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background-color var(--duration-short2) var(--ease-standard);
 	}
-	/* The inputs are the shared `Input`; the native `<select>` beside them is styled
-	 * to the same treatment so the two read as one field type. */
-	select {
-		display: block;
-		width: 100%;
-		min-height: 44px;
-		margin-top: var(--space-2);
-		padding: var(--space-2) 11px;
-		color: var(--text);
-		background: var(--surface);
-		border: 1px solid var(--input-border);
-		border-radius: var(--radius-md);
-		font-family: var(--font-body);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+	.create-account-btn:hover {
+		background: #e4e4e7;
 	}
 	.message {
-		padding: 9px 11px;
-		border-radius: var(--radius-md);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+		margin-bottom: 14px;
+		padding: 10px 14px;
+		border-radius: 10px;
+		font-size: 13px;
 	}
-	.error {
-		color: var(--danger-text);
-		background: color-mix(in srgb, var(--danger-text) 10%, transparent);
+	.message.success {
+		background: #1d271f;
+		border: 1px solid #28442d;
+		color: #4ade80;
 	}
-	.success {
-		color: var(--status-ok-text);
-		background: color-mix(in srgb, var(--accent-bg) 18%, transparent);
+	.message.error {
+		background: #2b1a19;
+		border: 1px solid #4d2321;
+		color: #f87171;
 	}
-	.user-list {
-		margin-top: 18px;
-		border-top: 1px solid var(--border);
-	}
-	.user-entry {
+	.search-bar {
 		display: flex;
 		align-items: center;
-		flex-wrap: wrap;
-		gap: var(--space-3);
-		padding: 14px 0;
-		border-bottom: 1px solid var(--border);
+		gap: 10px;
+		height: 38px;
+		padding: 0 12px;
+		background: #151517;
+		border: 1px solid #2c2c30;
+		border-radius: 10px;
+		color: #71717a;
+		margin-bottom: 16px;
+		transition: border-color var(--duration-short2) var(--ease-standard);
 	}
-	.avatar-chip {
+	.search-bar:focus-within {
+		border-color: #3f3f45;
+	}
+	.search-bar input {
+		flex: 1;
+		border: 0;
+		background: transparent;
+		color: #ececee;
+		font-size: 13px;
+		outline: none;
+	}
+	.search-bar input::placeholder {
+		color: #71717a;
+	}
+	.users-table-container {
+		display: flex;
+		flex-direction: column;
+		background: #18181b;
+		border: 1px solid #2c2c30;
+		border-radius: 14px;
+		overflow: hidden;
+	}
+	.table-header-row {
 		display: grid;
-		flex: 0 0 32px;
-		place-items: center;
+		grid-template-columns: minmax(0, 1fr) 110px 140px;
+		align-items: center;
+		padding: 10px 16px;
+		background: #1d1d20;
+		border-bottom: 1px solid #252528;
+		font-size: 12px;
+		color: #71717a;
+	}
+	.col-actions {
+		text-align: right;
+	}
+	.user-rows {
+		display: flex;
+		flex-direction: column;
+	}
+	.user-row {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 110px 140px;
+		align-items: center;
+		padding: 12px 16px;
+		border-bottom: 1px solid #222226;
+		transition: background-color var(--duration-short2) var(--ease-standard);
+	}
+	.user-row:last-child {
+		border-bottom: none;
+	}
+	.user-row:hover {
+		background: #1e1e22;
+	}
+	.user-profile {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		min-width: 0;
+	}
+	.avatar-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		width: 32px;
 		height: 32px;
-		color: var(--accent-fg);
-		background: var(--accent-bg);
 		border-radius: 50%;
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		font-weight: 500;
+		background: #f4f4f5;
+		color: #18181b;
+		font-weight: 600;
+		font-size: 13px;
+		flex-shrink: 0;
 	}
-	.identity {
-		display: grid;
+	.user-identity {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
 		min-width: 0;
-		gap: 3px;
 	}
-	.identity strong {
-		color: var(--text);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+	.user-name {
+		font-size: 13.5px;
+		font-weight: 500;
+		color: #ececee;
 	}
-	.identity span {
+	.user-email {
+		font-size: 12px;
+		color: #71717a;
 		overflow: hidden;
-		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.role {
-		margin-left: auto;
-		padding: var(--space-1) var(--space-2);
-		color: var(--text-muted);
-		background: var(--surface-3);
-		border-radius: 999px;
-		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		font-weight: 500;
+	.user-role-cell {
+		font-size: 13px;
+		color: #ececee;
 	}
-	.admin-role {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-	}
-	.reset-link {
-		margin-top: var(--space-4);
-		padding: 14px;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-xl);
-	}
-	.reset-link-head {
+	.user-actions-cell {
 		display: flex;
 		align-items: center;
-		gap: 7px;
-		color: var(--text-strong);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+		justify-content: flex-end;
+		gap: 8px;
 	}
-	.reset-link .muted {
-		margin: var(--space-2) 0 10px;
+	.reset-btn {
+		height: 28px;
+		padding: 0 10px;
+		background: #26262b;
+		border: 1px solid #34343a;
+		border-radius: 6px;
+		color: #ececee;
+		font-size: 12px;
+		font-weight: 500;
+		cursor: pointer;
+		white-space: nowrap;
+		transition:
+			background-color var(--duration-short2) var(--ease-standard),
+			border-color var(--duration-short2) var(--ease-standard);
+	}
+	.reset-btn:hover:not(:disabled) {
+		background: #2f2f35;
+		border-color: #404046;
+	}
+	.reset-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.overflow-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		background: transparent;
+		border: 0;
+		border-radius: 6px;
+		color: #71717a;
+		cursor: pointer;
+		transition: color var(--duration-short2) var(--ease-standard);
+	}
+	.overflow-btn:hover {
+		color: #ececee;
+		background: #252528;
+	}
+	.menu-container {
+		position: relative;
+		display: inline-flex;
+		align-items: center;
+	}
+	.dropdown-menu {
+		position: absolute;
+		top: calc(100% + 4px);
+		right: 0;
+		z-index: 50;
+		min-width: 175px;
+		padding: 5px;
+		border-radius: 10px;
+		background: #1c1c20;
+		border: 1px solid #2c2c30;
+		box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.dropdown-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 10px;
+		border: 0;
+		border-radius: 6px;
+		background: transparent;
+		color: #ececee;
+		font-size: 13px;
+		font-family: inherit;
+		text-align: left;
+		cursor: pointer;
+		transition: background var(--duration-short2) var(--ease-standard);
+	}
+	.dropdown-item:hover {
+		background: #28282d;
+	}
+	.reset-link-card {
+		margin-top: 16px;
+		padding: 14px 16px;
+		background: #1d1d20;
+		border: 1px solid #2c2c30;
+		border-radius: 12px;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.reset-link-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+	}
+	.reset-link-title {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 13px;
+		color: #ececee;
+	}
+	.close-reset-btn {
+		background: transparent;
+		border: 0;
+		color: #71717a;
+		cursor: pointer;
+		padding: 2px;
+	}
+	.close-reset-btn:hover {
+		color: #ececee;
+	}
+	.reset-link-note {
+		margin: 0;
+		font-size: 12px;
+		color: #71717a;
 	}
 	.reset-link-row {
 		display: flex;
-		gap: var(--space-2);
+		gap: 8px;
 	}
-	/* The reset URL is the one field rendered in the mono face. Two-class selector so
-	 * it outranks the shared input primitive's `md-body-md` role class. */
-	:global(.reset-link-row .reset-link-input) {
+	.reset-link-input {
+		flex: 1;
+		height: 36px;
+		padding: 0 12px;
+		background: #151517;
+		border: 1px solid #2c2c30;
+		border-radius: 8px;
+		color: #ececee;
 		font-family: var(--font-mono);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		font-size: 12px;
+		outline: none;
+	}
+	.copy-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 36px;
+		padding: 0 14px;
+		background: #26262b;
+		border: 1px solid #34343a;
+		border-radius: 8px;
+		color: #ececee;
+		font-size: 12px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.copy-btn:hover {
+		background: #2f2f35;
+	}
+	.reset-error {
+		color: #f87171;
+		font-size: 12px;
+		margin: 2px 0 0;
+	}
+	.users-summary {
+		margin-top: 14px;
+		font-size: 12px;
+		color: #71717a;
+	}
+	.users-footnote {
+		margin-top: 10px;
+		font-size: 12px;
+		color: #71717a;
 	}
 	.pagination {
 		display: flex;
 		align-items: center;
-		flex-wrap: wrap;
 		justify-content: space-between;
-		gap: 10px;
-		margin-top: 18px;
-		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		margin-top: 16px;
+		padding-top: 14px;
+		border-top: 1px solid #222226;
 	}
-	/* Two columns only once the settings pane is wide enough to give the users panel
-	 * a usable second column: the 260px floor on the form panel leaves the list panel
-	 * too narrow below this, and its rows used to spill past the dialog edge. */
-	@media (max-width: 1024px) {
-		.tab-content {
-			padding: 20px var(--space-4) var(--space-7);
+	.page-btn {
+		height: 32px;
+		padding: 0 14px;
+		background: #26262b;
+		border: 1px solid #34343a;
+		border-radius: 8px;
+		color: #ececee;
+		font-size: 12px;
+		cursor: pointer;
+	}
+	.page-btn:hover:not(:disabled) {
+		background: #2f2f35;
+	}
+	.page-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.page-info {
+		font-size: 12px;
+		color: #71717a;
+	}
+	.skeleton-list {
+		padding: 12px 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
+	.skeleton-row {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.skeleton-info {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.empty-state {
+		padding: 32px;
+		text-align: center;
+		font-size: 13px;
+		color: #71717a;
+	}
+
+	/* Separate Create User View */
+	.create-user-view {
+		display: flex;
+		flex-direction: column;
+		padding-right: 40px;
+	}
+	.editor-header {
+		margin-bottom: 22px;
+	}
+	.back-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		background: transparent;
+		border: 0;
+		color: #a1a1aa;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		padding: 0;
+		margin-bottom: 12px;
+	}
+	.back-button:hover {
+		color: #ececee;
+	}
+	.editor-title {
+		margin: 0;
+		font-size: 22px;
+		font-weight: 600;
+		color: #ececee;
+		letter-spacing: -0.01em;
+	}
+	.editor-subtitle {
+		margin: 4px 0 0;
+		font-size: 13px;
+		color: #71717a;
+	}
+	.create-form {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+	.form-field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.form-field label {
+		font-size: 13px;
+		font-weight: 500;
+		color: #a1a1aa;
+	}
+	.form-field input[type='text'],
+	.form-field input[type='email'],
+	.form-field input[type='password'],
+	.select-wrapper select {
+		width: 100%;
+		height: 40px;
+		padding: 0 12px;
+		background: #151517;
+		border: 1px solid #2c2c30;
+		border-radius: 10px;
+		color: #ececee;
+		font-family: var(--font-body);
+		font-size: 13px;
+		outline: none;
+	}
+	.form-field input:focus,
+	.select-wrapper select:focus {
+		border-color: #3f3f45;
+	}
+	.form-field input::placeholder {
+		color: #71717a;
+	}
+	.select-wrapper {
+		position: relative;
+	}
+	.select-wrapper select {
+		appearance: none;
+		cursor: pointer;
+		padding-right: 32px;
+	}
+	.select-wrapper::after {
+		content: '';
+		position: absolute;
+		right: 14px;
+		top: 50%;
+		width: 8px;
+		height: 8px;
+		border-right: 1.5px solid #a1a1aa;
+		border-bottom: 1.5px solid #a1a1aa;
+		transform: translateY(-65%) rotate(45deg);
+		pointer-events: none;
+	}
+	.form-actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 10px;
+		margin-top: 14px;
+	}
+	.cancel-btn {
+		height: 38px;
+		padding: 0 18px;
+		background: #26262b;
+		border: 1px solid #34343a;
+		border-radius: 10px;
+		color: #ececee;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.cancel-btn:hover {
+		background: #2f2f35;
+	}
+	.create-btn {
+		height: 38px;
+		padding: 0 18px;
+		background: #f4f4f5;
+		border: 0;
+		border-radius: 10px;
+		color: #18181b;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+	}
+	.create-btn:hover:not(:disabled) {
+		background: #e4e4e7;
+	}
+	.create-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	@media (max-width: 760px) {
+		.tab-pane {
+			padding: 16px;
 		}
-		.admin-grid {
+		.view-header {
+			padding-right: 0;
+		}
+		.table-header-row {
+			display: none;
+		}
+		.user-row {
 			grid-template-columns: 1fr;
+			gap: 10px;
+		}
+		.user-actions-cell {
+			justify-content: flex-start;
+		}
+		.create-user-view {
+			padding-right: 0;
 		}
 	}
 </style>

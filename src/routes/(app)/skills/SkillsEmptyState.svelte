@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { Plus } from '@lucide/svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 
@@ -8,7 +9,8 @@
 		query,
 		skillCount,
 		visibleCount,
-		onretry
+		onretry,
+		oncreate
 	}: {
 		loading: boolean;
 		error: string;
@@ -16,6 +18,7 @@
 		skillCount: number;
 		visibleCount: number;
 		onretry: () => void;
+		oncreate: () => void;
 	} = $props();
 </script>
 
@@ -23,8 +26,8 @@
 	<div class="skeleton-grid" role="status" aria-label="Loading skills">
 		{#each [1, 2, 3, 4, 5, 6] as i (i)}
 			<div class="skill-skeleton">
-				<Skeleton width="36px" height="36px" radius="var(--radius-lg)" />
-				<Skeleton width="64%" height="1.125rem" />
+				<Skeleton width="24px" height="24px" radius="var(--radius-sm)" />
+				<Skeleton width="64%" height="1.375rem" />
 				<Skeleton width="100%" />
 				<Skeleton width="80%" />
 			</div>
@@ -40,7 +43,10 @@
 	</div>
 {:else if skillCount === 0}
 	<div class="empty-state">
-		No skills yet. Create your first skill to give your assistant reusable workflows.
+		<span>No skills yet. Create your first skill to give your assistant reusable workflows.</span
+		><Button variant="default" class="mt-[15px]" onclick={oncreate}
+			><Plus size={16} /> New skill</Button
+		>
 	</div>
 {:else if visibleCount === 0}
 	<div class="empty-state">No skills match{query.trim() ? ` “${query}”` : ' this filter'}.</div>
@@ -52,19 +58,19 @@
 	.skeleton-grid {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 13px;
+		gap: var(--space-4);
 	}
 	.skill-skeleton {
 		display: flex;
 		flex-direction: column;
-		gap: 10px;
-		min-height: 220px;
-		padding: 18px;
+		gap: var(--space-3);
+		min-height: 16rem;
+		padding: var(--space-5);
 		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
+		border-radius: var(--radius-xl);
 		background: var(--surface);
 	}
-	@media (max-width: 850px) {
+	@media (max-width: 900px) {
 		.skeleton-grid {
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 		}
@@ -75,6 +81,9 @@
 		}
 	}
 	.empty-state {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
 		text-align: center;
 		color: var(--text-dim);
 		font-size: var(--text-body-md);

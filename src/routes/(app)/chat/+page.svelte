@@ -913,14 +913,14 @@
 
 	.chat-wrap {
 		width: 100%;
-		max-width: 920px;
+		max-width: 1120px;
 		margin-inline: auto;
 		min-width: 0;
 		min-height: 0;
 		flex: 1 0 auto;
 		display: flex;
 		flex-direction: column;
-		padding: 34px 44px 20px;
+		padding: 24px 32px 20px;
 	}
 
 	/* Placeholder transcript: alternating turn shapes, sized to the bubbles they

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
-	import { ArrowUpRight, FolderKanban, Grid2X2, List, Plus, Search, X } from '@lucide/svelte';
+	import { ArrowUpRight, Folder, Grid2X2, List, Plus, Search, X } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
@@ -10,7 +10,6 @@
 	import { Textarea } from '$lib/components/ui/textarea/index.js';
 	import Topbar from '$lib/components/Topbar.svelte';
 	import Page from '$lib/components/Page.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
 	import Skeleton from '$lib/components/Skeleton.svelte';
 
 	type Project = {
@@ -103,66 +102,67 @@
 	function formatDate(iso: string) {
 		return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 	}
+
+	function countLabel(count: number, noun: string) {
+		return `${count} ${noun}${count === 1 ? '' : 's'}`;
+	}
 </script>
 
 <svelte:head><title>Mimin WebUI | Projects</title></svelte:head>
 <Topbar />
-<Page>
-	<PageHeader title="Projects" subtitle="Persistent context for the work you return to.">
-		{#snippet actions()}
-			<Button variant="default" bind:ref={createProjectTrigger} onclick={() => (showCreate = true)}
-				><Plus size={16} /> New project</Button
-			>
-		{/snippet}
-	</PageHeader>
+<Page width="wide">
+	<header
+		class="flex flex-col gap-4 min-[760px]:flex-row min-[760px]:items-end min-[760px]:justify-between"
+	>
+		<div class="min-w-0">
+			<h1 class="md-headline-lg m-0 text-[var(--text-strong)]">Projects</h1>
+			<p class="md-body-lg mt-1.5 mb-0 text-[var(--text-muted)]">A space for work you return to.</p>
+		</div>
+		<Button
+			variant="default"
+			class="shrink-0"
+			bind:ref={createProjectTrigger}
+			onclick={() => (showCreate = true)}><Plus size={16} /> New project</Button
+		>
+	</header>
 	<div class="toolbar">
-		<span>{projects.length} {projects.length === 1 ? 'project' : 'projects'}</span>
+		<span class="count">{projects.length} {projects.length === 1 ? 'project' : 'projects'}</span>
 		<div class="toolbar-right">
 			<div class="search-field">
 				<Search size={15} aria-hidden="true" /><input
 					bind:value={query}
 					aria-label="Search projects"
-					placeholder="Search projects..."
+					placeholder="Search projects"
 				/>
 			</div>
-			<Button
-				variant="ghost"
-				size="icon"
-				class="size-[38px] border border-[var(--border)] bg-[var(--surface)] text-[var(--text-faint)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)] {view ===
-				'grid'
-					? 'bg-[var(--surface-hover)] text-[var(--text-body)]'
-					: ''}"
-				aria-label="Grid view"
-				aria-pressed={view === 'grid'}
-				title="Grid view"
-				onclick={() => (view = 'grid')}><Grid2X2 size={16} /></Button
-			>
-			<Button
-				variant="ghost"
-				size="icon"
-				class="size-[38px] border border-[var(--border)] bg-[var(--surface)] text-[var(--text-faint)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-body)] {view ===
-				'list'
-					? 'bg-[var(--surface-hover)] text-[var(--text-body)]'
-					: ''}"
-				aria-label="List view"
-				aria-pressed={view === 'list'}
-				title="List view"
-				onclick={() => (view = 'list')}><List size={16} /></Button
-			>
+			<div class="view-toggle" role="group" aria-label="Project layout">
+				<Button
+					variant="ghost"
+					size="icon"
+					class="view-toggle-button {view === 'grid' ? 'active' : ''}"
+					aria-label="Grid view"
+					aria-pressed={view === 'grid'}
+					title="Grid view"
+					onclick={() => (view = 'grid')}><Grid2X2 size={16} /></Button
+				>
+				<Button
+					variant="ghost"
+					size="icon"
+					class="view-toggle-button {view === 'list' ? 'active' : ''}"
+					aria-label="List view"
+					aria-pressed={view === 'list'}
+					title="List view"
+					onclick={() => (view = 'list')}><List size={16} /></Button
+				>
+			</div>
 		</div>
 	</div>
 	{#if loading}
-		<div
-			class:grid-view={view === 'grid'}
-			class:list-view={view === 'list'}
-			class="project-grid"
-			role="status"
-			aria-label="Loading projects"
-		>
+		<div class="project-grid" role="status" aria-label="Loading projects">
 			{#each [1, 2, 3, 4, 5, 6] as i (i)}
 				<div class="project-skeleton">
-					<Skeleton width="36px" height="36px" radius="var(--radius-lg)" />
-					<Skeleton width="60%" height="1.125rem" />
+					<Skeleton width="24px" height="24px" radius="var(--radius-sm)" />
+					<Skeleton width="60%" height="1.375rem" />
 					<Skeleton width="100%" />
 					<Skeleton width="84%" />
 					<Skeleton width="52%" />
@@ -177,34 +177,26 @@
 		<div class="empty-state">No projects match “{query}”.</div>
 	{/if}
 	{#if !loading}
-		<div class:grid-view={view === 'grid'} class:list-view={view === 'list'} class="project-grid">
+		<div class:list-view={view === 'list'} class="project-grid">
 			{#each filteredProjects as project (project.id)}
-				<Card
-					href={resolve(`/projects/${project.id}`)}
-					padding="none"
-					class="flex min-h-[220px] flex-col p-[18px] text-left text-inherit no-underline transition-[border-color,box-shadow,transform] duration-(--duration-short4) ease-standard hover:-translate-y-[2px] hover:border-[var(--text-dim)] hover:shadow-[0_8px_22px_var(--shadow-soft)]"
-				>
+				<Card href={resolve(`/projects/${project.id}`)} padding="none" class="project-card">
 					<div class="card-top">
-						<span class="card-icon"><FolderKanban size={18} /></span>
-						<span class="card-arrow"><ArrowUpRight size={17} /></span>
+						<span class="card-icon"><Folder size={22} aria-hidden="true" /></span>
+						<span class="card-arrow"><ArrowUpRight size={18} aria-hidden="true" /></span>
 					</div>
-					<h2 class="md-body-lg mt-5 mb-[6px] text-[var(--text-strong)]">{project.name}</h2>
-					<p class="md-body-md m-0 min-h-[52px] text-[var(--text-muted)]">
+					<h2 class="card-title md-title-lg">{project.name}</h2>
+					<p class="card-description md-body-lg">
 						{project.description || 'No description yet.'}
 					</p>
 					<div class="card-footer">
-						<span>Context · {project.fileCount ?? 0} files · {project.chatCount ?? 0} chats</span>
-						<span>Updated {formatDate(project.updatedAt)}</span>
+						<span
+							>{countLabel(project.fileCount ?? 0, 'file')} ·
+							{countLabel(project.chatCount ?? 0, 'chat')}</span
+						>
+						<span>{formatDate(project.updatedAt)}</span>
 					</div>
 				</Card>
 			{/each}
-			{#if !query.trim()}
-				<button class="empty-card" onclick={() => (showCreate = true)}
-					><Plus size={19} /><strong>Create a new project</strong><span
-						>Give your agent persistent context</span
-					></button
-				>
-			{/if}
 		</div>
 	{/if}
 </Page>
@@ -212,7 +204,12 @@
 	<Dialog.Content
 		showCloseButton={false}
 		class="w-[min(420px,100%)] max-w-none! gap-0 rounded-xl border border-[var(--border-strong)] p-6 shadow-[0_20px_50px_var(--shadow)] ring-0"
-		onCloseAutoFocus={(event) => event.preventDefault()}
+		onCloseAutoFocus={(event) => {
+			// The trigger is outside the dialog, and the close focus scope lands on
+			// <body> once the content unmounts, so focus is handed back here.
+			event.preventDefault();
+			createProjectTrigger?.focus();
+		}}
 	>
 		<form
 			class="dialog-shell"
@@ -273,11 +270,17 @@
 </Dialog.Root>
 
 <style>
+	/* The page heading is local rather than PageHeader: the design drops the
+	 * divider and lifts the title a step, and PageHeader is shared with screens
+	 * that have not been redesigned yet. */
 	.toolbar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 20px 0;
+		gap: var(--space-4);
+		padding: var(--space-6) 0 var(--space-5);
+	}
+	.count {
 		color: var(--text-dim);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
@@ -285,19 +288,27 @@
 	}
 	.toolbar-right {
 		display: flex;
-		gap: 6px;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
 	}
 	.search-field {
 		display: flex;
 		align-items: center;
 		gap: var(--space-2);
-		width: 220px;
+		/* Shrinks before the view toggle and the tabs do. */
+		flex: 0 1 280px;
+		width: 280px;
+		min-width: 0;
 		min-height: 38px;
 		padding: 7px 10px;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		color: var(--text-dim);
+	}
+	.search-field:focus-within {
+		border-color: var(--focus);
 	}
 	.search-field input {
 		min-width: 0;
@@ -310,6 +321,25 @@
 		letter-spacing: var(--text-body-md--letter-spacing);
 		background: transparent;
 	}
+	.view-toggle {
+		display: flex;
+		align-items: center;
+		flex: none;
+		gap: 3px;
+	}
+	.view-toggle :global(.view-toggle-button) {
+		border: 1px solid var(--border);
+		background: var(--surface);
+		color: var(--text-faint);
+	}
+	.view-toggle :global(.view-toggle-button:hover) {
+		background: var(--surface-hover);
+		color: var(--text-body);
+	}
+	.view-toggle :global(.view-toggle-button.active) {
+		background: var(--surface-hover);
+		color: var(--text-body);
+	}
 	.empty-state {
 		text-align: center;
 		color: var(--text-dim);
@@ -321,91 +351,78 @@
 	.project-grid {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 13px;
+		gap: var(--space-4);
 	}
 	.project-grid.list-view {
 		grid-template-columns: 1fr;
-	}
-	.empty-card {
-		min-height: 220px;
-		padding: 18px;
-		text-align: left;
-		border: 1px dashed var(--border);
-		border-radius: var(--radius-xl);
-		background: transparent;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: var(--space-2);
-		color: var(--text-muted);
-		cursor: pointer;
 	}
 	/* Mirrors the project Card's box so the placeholder occupies the space the real
 	 * card will, keeping the grid from reflowing when the data lands. */
 	.project-skeleton {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-2);
-		min-height: 220px;
-		padding: 18px;
+		gap: var(--space-3);
+		min-height: 240px;
+		padding: var(--space-5);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-xl);
 		background: var(--surface);
 	}
+	/* The card class is handed to the Card component, so its selector has to be global. */
+	:global(.project-card) {
+		display: flex;
+		min-height: 240px;
+		flex-direction: column;
+		padding: var(--space-5);
+		color: inherit;
+		text-align: left;
+		text-decoration: none;
+		transition:
+			border-color var(--duration-short4) var(--ease-standard),
+			box-shadow var(--duration-short4) var(--ease-standard);
+	}
+	:global(.project-card:hover) {
+		border-color: var(--text-dim);
+		box-shadow: 0 8px 22px var(--shadow-soft);
+	}
 	.card-top {
 		display: flex;
-		align-items: center;
+		align-items: flex-start;
 		justify-content: space-between;
+		gap: var(--space-2);
 	}
 	.card-icon {
 		display: grid;
 		place-items: center;
-		width: 36px;
-		height: 36px;
-		border-radius: var(--radius-lg);
-		background: var(--surface-hover);
 		color: var(--text-body);
+	}
+	.card-arrow {
+		color: var(--text-faint);
+	}
+	.card-title {
+		margin: var(--space-5) 0 0;
+		color: var(--text-strong);
+	}
+	.card-description {
+		display: -webkit-box;
+		min-height: 3rem;
+		margin: var(--space-2) 0 0;
+		overflow: hidden;
+		color: var(--text-muted);
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 	}
 	.card-footer {
 		display: flex;
 		justify-content: space-between;
-		gap: 6px;
-		margin-top: 18px;
-		padding-top: var(--space-3);
-		border-top: 1px solid var(--border);
+		gap: var(--space-3);
+		margin-top: auto;
+		padding-top: var(--space-5);
 		color: var(--text-dim);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-	}
-	/* The arrow rides in `.card-top`'s space-between row. It cannot float: the Card
-	 * is a flex column, and floats are ignored on flex items. */
-	.card-arrow {
-		color: var(--text-faint);
-	}
-	.empty-card {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: var(--space-2);
-		color: var(--text-muted);
-		border-style: dashed;
-		background: transparent;
-	}
-	.empty-card strong {
-		color: var(--text-strong);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
-		font-weight: 500;
-	}
-	.empty-card span {
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-dim);
 	}
 	.dialog-shell label {
 		display: block;
@@ -422,8 +439,6 @@
 		gap: var(--space-2);
 		margin-top: 22px;
 	}
-	/* Two columns until the cards have room for three. The sidebar still takes 260px
-	 * above 760px, so three 200px cards only fit from 900px up. */
 	@media (max-width: 900px) {
 		.project-grid {
 			grid-template-columns: 1fr 1fr;
@@ -434,7 +449,7 @@
 			grid-template-columns: 1fr;
 		}
 		.toolbar {
-			align-items: flex-start;
+			align-items: stretch;
 			gap: var(--space-3);
 			flex-direction: column;
 		}

@@ -1,10 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Plus } from '@lucide/svelte';
+	import { ArrowLeft, Eye, EyeOff, Lock, Plus, RotateCcw } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
-	import { Button } from '$lib/components/ui/button/index.js';
 	import ProviderCard from '../ProviderCard.svelte';
-	import ProviderFormModal from '../ProviderFormModal.svelte';
+	import ModelSelector from '../ModelSelector.svelte';
 	import {
 		consumeNavigationHandoff,
 		createNavigationHandoff
@@ -17,8 +16,15 @@
 		type Protocol,
 		type ProviderState
 	} from '../provider-types';
-	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { notifyModelsChanged } from '$lib/client/models-cache';
+
+	type Props = {
+		isDirty?: boolean;
+		discard?: () => void;
+	};
+
+	// eslint-disable-next-line no-useless-assignment
+	let { isDirty = $bindable(false), discard = $bindable() }: Props = $props();
 
 	const PROVIDERS: Array<{ id: string; name: string; description: string; envVar: string }> = [
 		{
@@ -42,6 +48,7 @@
 	];
 
 	let loading = $state(true);
+	let loadError = $state<string | null>(null);
 	let saving = $state(false);
 	let providers = $state<ProviderState[]>([]);
 	let editing = $state<string | null>(null);
@@ -56,8 +63,70 @@
 	let modelFilter = $state('');
 	let manualModelId = $state('');
 	let textEditMode = $state(false);
+	let showApiKey = $state(false);
 	let returnTarget = $state<string | null>(null);
 	let returnPrompt = $state('');
+
+	let initialBaseUrl = $state('');
+	let initialName = $state('');
+	let initialProtocol = $state<Protocol>('openai-completions');
+	let initialDraftModels = $state('');
+	let initialModelsJson = $state('');
+
+	let isEditorDirty = $derived(
+		Boolean(
+			editing &&
+			(draftKey.trim() !== '' ||
+				draftBaseUrl !== initialBaseUrl ||
+				draftName !== initialName ||
+				draftProtocol !== initialProtocol ||
+				draftModels !== initialDraftModels ||
+				JSON.stringify(modelsList) !== initialModelsJson)
+		)
+	);
+
+	$effect(() => {
+		isDirty = isEditorDirty;
+	});
+
+	$effect(() => {
+		discard = () => {
+			closeEditor();
+		};
+	});
+
+	function closeEditor() {
+		editing = null;
+		creatingCustom = false;
+		draftKey = '';
+		draftBaseUrl = '';
+		draftName = '';
+		draftModels = '';
+		modelsList = [];
+	}
+
+	function handleBack() {
+		if (isEditorDirty) {
+			if (!window.confirm('Discard unsaved changes?')) return;
+		}
+		closeEditor();
+	}
+
+	let connectedProviders = $derived(
+		providers.filter((p) => p.configured || p.fromUser || p.customConfig)
+	);
+	let availableProviders = $derived(
+		providers.filter((p) => !p.configured && !p.fromUser && !p.customConfig)
+	);
+	let currentEditingProvider = $derived(
+		editing ? (providers.find((p) => p.provider === editing) ?? null) : null
+	);
+	let isCustomEditor = $derived(creatingCustom || Boolean(currentEditingProvider?.customConfig));
+	let editorTitle = $derived(
+		creatingCustom
+			? draftName.trim() || 'New provider'
+			: currentEditingProvider?.name || 'Provider settings'
+	);
 
 	function notify(message: string) {
 		toast(message);
@@ -103,17 +172,23 @@
 		providers = [...builtIns, ...custom];
 	}
 
+	async function fetchProviders() {
+		loading = true;
+		loadError = null;
+		try {
+			await loadProviders();
+		} catch (error) {
+			loadError = error instanceof Error ? error.message : 'Could not load providers';
+		} finally {
+			loading = false;
+		}
+	}
+
 	onMount(async () => {
 		const handoff = consumeNavigationHandoff();
 		returnTarget = handoff?.returnTo === '/' ? '/' : null;
 		returnPrompt = handoff?.returnTo === '/' ? handoff.prompt : '';
-		try {
-			await loadProviders();
-		} catch (error) {
-			notify(error instanceof Error ? error.message : 'Could not load providers');
-		} finally {
-			loading = false;
-		}
+		await fetchProviders();
 	});
 
 	function openEditor(provider: string) {
@@ -122,11 +197,12 @@
 		const current = providers.find((p) => p.provider === provider);
 		draftKey = '';
 		draftBaseUrl = current?.baseUrl ?? '';
-		draftName = current?.customConfig?.name ?? '';
+		draftName = current?.customConfig?.name ?? current?.name ?? '';
 		draftProtocol = current?.customConfig?.protocol ?? 'openai-completions';
 		modelFilter = '';
 		manualModelId = '';
 		textEditMode = false;
+		showApiKey = false;
 		const existingModels = current?.customConfig?.models ?? [];
 		modelsList = existingModels.map((m) => ({
 			id: m.id,
@@ -139,6 +215,12 @@
 			checked: true
 		}));
 		draftModels = modelsList.map((m) => m.id).join('\n');
+
+		initialBaseUrl = draftBaseUrl;
+		initialName = draftName;
+		initialProtocol = draftProtocol;
+		initialDraftModels = draftModels;
+		initialModelsJson = JSON.stringify(modelsList);
 	}
 
 	function openCustomEditor() {
@@ -153,6 +235,13 @@
 		modelFilter = '';
 		manualModelId = '';
 		textEditMode = false;
+		showApiKey = false;
+
+		initialBaseUrl = '';
+		initialName = '';
+		initialProtocol = 'openai-completions';
+		initialDraftModels = '';
+		initialModelsJson = '[]';
 	}
 
 	async function discoverModels() {
@@ -230,7 +319,6 @@
 		saving = true;
 		try {
 			const body: Record<string, unknown> = {};
-			// An empty key field keeps the saved key; use Remove to delete it.
 			if (draftKey.trim()) body.apiKey = draftKey.trim();
 			if (draftBaseUrl.trim()) body.baseUrl = draftBaseUrl.trim();
 			else if (current?.baseUrl) body.baseUrl = null;
@@ -323,81 +411,484 @@
 	}
 </script>
 
-<div class="tab-content">
-	<PageHeader
-		title="Models & connections"
-		subtitle="Connect the models Mimin can use. Your keys are encrypted and only power your conversations."
-	>
-		{#snippet actions()}
-			<Button variant="default" onclick={openCustomEditor}><Plus size={15} /> Add provider</Button>
-		{/snippet}
-	</PageHeader>
+<div class="tab-pane">
 	{#if loading}
 		<div class="empty-state" role="status">Checking model connections...</div>
-	{:else}
-		<div class="provider-list">
-			{#each providers as provider (provider.provider)}
-				<ProviderCard {provider} onmanage={openEditor} onremove={removeProvider} />
-			{/each}
+	{:else if loadError}
+		<div class="load-error-card" role="alert">
+			<div class="error-content">
+				<span class="error-title">Failed to load providers</span>
+				<p class="error-message">{loadError}</p>
+			</div>
+			<button type="button" class="retry-btn" onclick={fetchProviders}>
+				<RotateCcw size={15} />
+				<span>Retry</span>
+			</button>
 		</div>
-		<p class="footnote">
-			Technical connection details stay here. Saved keys are encrypted and never returned to your
-			browser.
-		</p>
+	{:else if editing}
+		<!-- Screen 08: In-Pane Provider Editor -->
+		<div class="provider-editor">
+			<div class="editor-header">
+				<button type="button" class="back-button" onclick={handleBack}>
+					<ArrowLeft size={16} />
+					<span>Models & providers</span>
+				</button>
+				<h1 class="editor-title">{editorTitle}</h1>
+				<p class="editor-subtitle">Connection settings</p>
+			</div>
+
+			<form
+				class="editor-form"
+				onsubmit={(e) => {
+					e.preventDefault();
+					saveProvider();
+				}}
+			>
+				{#if isCustomEditor}
+					<div class="form-field">
+						<label for="provider-name-input">Provider name</label>
+						<input
+							id="provider-name-input"
+							type="text"
+							bind:value={draftName}
+							placeholder="OpenCode Zen"
+							autocomplete="off"
+							required
+						/>
+					</div>
+
+					<div class="form-field">
+						<label for="provider-protocol-select">API template</label>
+						<div class="select-wrapper">
+							<select id="provider-protocol-select" bind:value={draftProtocol}>
+								{#each PROTOCOLS as preset (preset.id)}
+									<option value={preset.id}>
+										{preset.name} · {preset.description}
+									</option>
+								{/each}
+							</select>
+						</div>
+					</div>
+				{/if}
+
+				<div class="form-field">
+					<label for="provider-url-input">
+						Base URL {#if !isCustomEditor}<span class="field-hint">optional</span>{/if}
+					</label>
+					<input
+						id="provider-url-input"
+						type="text"
+						bind:value={draftBaseUrl}
+						placeholder="https://opencode.ai/zen/v1"
+						autocomplete="off"
+					/>
+				</div>
+
+				<div class="form-field">
+					<label for="provider-key-input">API key</label>
+					<div class="input-with-action">
+						<input
+							id="provider-key-input"
+							type={showApiKey ? 'text' : 'password'}
+							bind:value={draftKey}
+							placeholder="Enter API key"
+							autocomplete="off"
+						/>
+						<button
+							type="button"
+							class="input-action-btn"
+							onclick={() => (showApiKey = !showApiKey)}
+							title={showApiKey ? 'Hide key' : 'Show key'}
+							aria-label={showApiKey ? 'Hide key' : 'Show key'}
+						>
+							{#if showApiKey}
+								<EyeOff size={16} />
+							{:else}
+								<Eye size={16} />
+							{/if}
+						</button>
+					</div>
+					<span class="field-hint-bottom">Optional for keyless servers.</span>
+				</div>
+
+				{#if isCustomEditor}
+					<ModelSelector
+						bind:models={modelsList}
+						bind:filter={modelFilter}
+						bind:manualModelId
+						bind:textEditMode
+						bind:draftModels
+						{discovering}
+						ondiscover={discoverModels}
+						onnotify={notify}
+					/>
+				{/if}
+
+				<div class="editor-actions">
+					<button type="button" class="cancel-btn" onclick={handleBack}> Cancel </button>
+					<button type="submit" class="save-btn" disabled={saving}>
+						{saving ? 'Saving...' : 'Save connection'}
+					</button>
+				</div>
+			</form>
+		</div>
+	{:else}
+		<!-- Screen 07: Providers List -->
+		<div class="providers-view">
+			<div class="view-header">
+				<div class="title-group">
+					<h1 class="view-title">Models & providers</h1>
+					<p class="view-subtitle">Choose the models available in your chats.</p>
+				</div>
+				<button type="button" class="add-provider-btn" onclick={openCustomEditor}>
+					<Plus size={15} />
+					<span>Add provider</span>
+				</button>
+			</div>
+
+			<div class="sections-container">
+				{#if connectedProviders.length > 0}
+					<div class="provider-section">
+						<h2 class="section-label">CONNECTED</h2>
+						<div class="provider-list">
+							{#each connectedProviders as provider (provider.provider)}
+								<ProviderCard {provider} onmanage={openEditor} onremove={removeProvider} />
+							{/each}
+						</div>
+					</div>
+				{/if}
+
+				{#if availableProviders.length > 0}
+					<div class="provider-section">
+						<h2 class="section-label">AVAILABLE</h2>
+						<div class="provider-list">
+							{#each availableProviders as provider (provider.provider)}
+								<ProviderCard {provider} onmanage={openEditor} onremove={removeProvider} />
+							{/each}
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<div class="footnote-bar">
+				<Lock size={13} />
+				<span>API keys are encrypted.</span>
+			</div>
+		</div>
 	{/if}
 </div>
 
-{#if editing}
-	<ProviderFormModal
-		creating={creatingCustom}
-		provider={providers.find((p) => p.provider === editing) ?? null}
-		{saving}
-		bind:name={draftName}
-		bind:protocol={draftProtocol}
-		bind:baseUrl={draftBaseUrl}
-		bind:apiKey={draftKey}
-		bind:models={modelsList}
-		bind:filter={modelFilter}
-		bind:manualModelId
-		bind:textEditMode
-		bind:draftModels
-		{discovering}
-		onclose={() => (editing = null)}
-		onsave={saveProvider}
-		ondiscover={discoverModels}
-		onnotify={notify}
-	/>
-{/if}
-
-<svelte:window onkeydown={(event) => event.key === 'Escape' && (editing = null)} />
+<svelte:window onkeydown={(event) => event.key === 'Escape' && editing && handleBack()} />
 
 <style>
-	.tab-content {
-		padding: 28px var(--space-6) var(--space-7);
+	.tab-pane {
+		padding: 28px 32px 36px;
+		color: #ececee;
+		font-family: var(--font-body);
 	}
-	.empty-state {
-		text-align: center;
-		color: var(--text-dim);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		padding: 40px 0;
+	.view-header {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 16px;
+		margin-bottom: 24px;
+		padding-right: 40px;
+	}
+	.view-title {
+		margin: 0;
+		font-size: 22px;
+		font-weight: 600;
+		color: #ececee;
+		letter-spacing: -0.01em;
+	}
+	.view-subtitle {
+		margin: 4px 0 0;
+		font-size: 13px;
+		color: #a1a1aa;
+	}
+	.add-provider-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 36px;
+		padding: 0 16px;
+		background: #f4f4f5;
+		border: 0;
+		border-radius: 10px;
+		color: #18181b;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background-color var(--duration-short2) var(--ease-standard);
+	}
+	.add-provider-btn:hover {
+		background: #e4e4e7;
+	}
+	.sections-container {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+	}
+	.section-label {
+		margin: 0 0 10px;
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		color: #71717a;
+		text-transform: uppercase;
 	}
 	.provider-list {
 		display: flex;
 		flex-direction: column;
-		gap: 11px;
+		gap: 8px;
 	}
-	.footnote {
-		margin: 22px 0 0;
-		color: var(--text-dim);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+	.empty-state {
+		text-align: center;
+		color: #71717a;
+		font-size: 13px;
+		padding: 48px 0;
 	}
+	.footnote-bar {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		margin-top: 24px;
+		color: #71717a;
+		font-size: 12px;
+	}
+
+	/* In-Pane Editor Styles (Screen 08) */
+	.provider-editor {
+		display: flex;
+		flex-direction: column;
+		padding-right: 36px;
+	}
+	.editor-header {
+		margin-bottom: 22px;
+	}
+	.back-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		background: transparent;
+		border: 0;
+		color: #a1a1aa;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		padding: 0;
+		margin-bottom: 12px;
+		transition: color var(--duration-short2) var(--ease-standard);
+	}
+	.back-button:hover {
+		color: #ececee;
+	}
+	.editor-title {
+		margin: 0;
+		font-size: 22px;
+		font-weight: 600;
+		color: #ececee;
+		letter-spacing: -0.01em;
+	}
+	.editor-subtitle {
+		margin: 4px 0 0;
+		font-size: 13px;
+		color: #71717a;
+	}
+	.editor-form {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+	.form-field {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.form-field label {
+		font-size: 13px;
+		font-weight: 500;
+		color: #a1a1aa;
+	}
+	.field-hint {
+		color: #71717a;
+		font-weight: 400;
+		margin-left: 4px;
+	}
+	.field-hint-bottom {
+		font-size: 12px;
+		color: #71717a;
+		margin-top: 2px;
+	}
+	.form-field input[type='text'],
+	.form-field input[type='password'],
+	.select-wrapper select {
+		width: 100%;
+		height: 40px;
+		padding: 0 12px;
+		background: #151517;
+		border: 1px solid #2c2c30;
+		border-radius: 10px;
+		color: #ececee;
+		font-family: var(--font-body);
+		font-size: 13px;
+		outline: none;
+		transition: border-color var(--duration-short2) var(--ease-standard);
+	}
+	.form-field input:focus,
+	.select-wrapper select:focus {
+		border-color: #3f3f45;
+	}
+	.form-field input::placeholder {
+		color: #71717a;
+	}
+	.select-wrapper {
+		position: relative;
+	}
+	.select-wrapper select {
+		appearance: none;
+		cursor: pointer;
+		padding-right: 32px;
+	}
+	.select-wrapper::after {
+		content: '';
+		position: absolute;
+		right: 14px;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 8px;
+		height: 8px;
+		border-right: 1.5px solid #a1a1aa;
+		border-bottom: 1.5px solid #a1a1aa;
+		transform: translateY(-65%) rotate(45deg);
+		pointer-events: none;
+	}
+	.input-with-action {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+	.input-with-action input {
+		padding-right: 40px;
+	}
+	.input-action-btn {
+		position: absolute;
+		right: 10px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 26px;
+		height: 26px;
+		background: transparent;
+		border: 0;
+		color: #71717a;
+		cursor: pointer;
+		transition: color var(--duration-short2) var(--ease-standard);
+	}
+	.input-action-btn:hover {
+		color: #ececee;
+	}
+	.editor-actions {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 10px;
+		margin-top: 16px;
+		padding-top: 16px;
+	}
+	.cancel-btn {
+		height: 38px;
+		padding: 0 18px;
+		background: #26262b;
+		border: 1px solid #34343a;
+		border-radius: 10px;
+		color: #ececee;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		transition:
+			background-color var(--duration-short2) var(--ease-standard),
+			border-color var(--duration-short2) var(--ease-standard);
+	}
+	.cancel-btn:hover {
+		background: #2f2f35;
+		border-color: #404046;
+	}
+	.save-btn {
+		height: 38px;
+		padding: 0 18px;
+		background: #f4f4f5;
+		border: 0;
+		border-radius: 10px;
+		color: #18181b;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background-color var(--duration-short2) var(--ease-standard);
+	}
+	.save-btn:hover:not(:disabled) {
+		background: #e4e4e7;
+	}
+	.save-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.load-error-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 16px 20px;
+		background: rgba(239, 68, 68, 0.08);
+		border: 1px solid rgba(239, 68, 68, 0.25);
+		border-radius: 12px;
+		color: #ececee;
+		margin-bottom: 20px;
+	}
+	.error-content {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.error-title {
+		font-size: 14px;
+		font-weight: 600;
+		color: #f87171;
+	}
+	.error-message {
+		margin: 0;
+		font-size: 13px;
+		color: #d4d4d8;
+	}
+	.retry-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		padding: 8px 14px;
+		border-radius: 8px;
+		border: 1px solid #3f3f46;
+		background: #27272a;
+		color: #ececee;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		white-space: nowrap;
+		transition: background var(--duration-short2) var(--ease-standard);
+	}
+	.retry-btn:hover {
+		background: #3f3f46;
+	}
+
 	@media (max-width: 760px) {
-		.tab-content {
-			padding: 20px var(--space-4) var(--space-7);
+		.tab-pane {
+			padding: 16px;
+		}
+		.view-header {
+			padding-right: 0;
+		}
+		.provider-editor {
+			padding-right: 0;
 		}
 	}
 </style>

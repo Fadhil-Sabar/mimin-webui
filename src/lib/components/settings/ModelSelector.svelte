@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { Plus, Search, Trash2, X } from '@lucide/svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
 	import { isModelFree, type ModelItem } from './provider-types';
 
 	type Props = {
@@ -26,7 +25,6 @@
 	}: Props = $props();
 
 	let checkedCount = $derived(models.filter((m) => m.checked).length);
-	let totalCount = $derived(models.length);
 	let filteredModels = $derived.by(() => {
 		const q = filter.trim().toLowerCase();
 		if (!q) return models;
@@ -127,21 +125,16 @@
 <div class="models-section">
 	<div class="models-label-row">
 		<div class="models-title-wrap">
-			<span class="field-title">Model IDs</span>
-			{#if models.length > 0}
-				<span class="models-count-badge">
-					{checkedCount} of {totalCount} shown
-				</span>
-			{:else}
-				<span class="optional">auto-retrieved if blank</span>
-			{/if}
+			<span class="field-title">Models</span>
+			<span class="models-count-badge">
+				{#if models.length > 0}
+					{checkedCount} selected
+				{:else}
+					auto-retrieved if blank
+				{/if}
+			</span>
 		</div>
 		<div class="models-header-actions">
-			{#if models.length > 0}
-				<button type="button" class="text-mode-btn" onclick={toggleTextMode}>
-					{textEditMode ? 'Show list' : 'Raw text'}
-				</button>
-			{/if}
 			<button type="button" class="fetch-models-btn" onclick={ondiscover} disabled={discovering}>
 				{discovering ? 'Fetching...' : 'Fetch models'}
 			</button>
@@ -149,14 +142,27 @@
 	</div>
 
 	{#if textEditMode}
+		<div class="text-mode-bar">
+			<button type="button" class="text-mode-toggle-btn active" onclick={toggleTextMode}>
+				Raw text mode (click to switch to list)
+			</button>
+		</div>
 		<textarea
+			class="raw-textarea"
 			bind:value={draftModels}
 			rows="5"
-			placeholder="Leave blank to retrieve automatically, or enter one per line"></textarea>
+			placeholder="Leave blank to retrieve automatically, or enter one model ID per line"
+		></textarea>
 	{:else}
 		{#if models.length > 0}
 			<div class="models-toolbar">
 				<div class="btn-group-selection">
+					<button type="button" class="filter-btn" onclick={selectAll} title="Select all models">
+						All
+					</button>
+					<button type="button" class="filter-btn" onclick={selectNone} title="Deselect all models">
+						None
+					</button>
 					<button
 						type="button"
 						class="filter-btn"
@@ -164,12 +170,6 @@
 						title="Invert selection"
 					>
 						Reverse
-					</button>
-					<button type="button" class="filter-btn" onclick={selectAll} title="Select all models">
-						All
-					</button>
-					<button type="button" class="filter-btn" onclick={selectNone} title="Deselect all models">
-						None
 					</button>
 					<button
 						type="button"
@@ -180,6 +180,7 @@
 						Free
 					</button>
 				</div>
+				<button type="button" class="raw-text-pill" onclick={toggleTextMode}> Raw text </button>
 				<div class="models-search-box">
 					<Search size={13} />
 					<input type="text" bind:value={filter} placeholder="Filter..." />
@@ -246,222 +247,225 @@
 			<input
 				type="text"
 				bind:value={manualModelId}
-				placeholder="Add model ID manually (e.g. meta-llama/llama-3.3-70b-instruct:free)"
+				placeholder="Add model manually (e.g. meta-llama/llama-3.3-70b-instruct:free)"
 				onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), addManualModel())}
 			/>
-			<Button
-				variant="outline"
-				size="sm"
+			<button
 				type="button"
 				class="add-model-btn"
 				onclick={addManualModel}
 				disabled={!manualModelId.trim()}
 			>
-				<Plus size={14} /> Add
-			</Button>
+				<Plus size={14} /> <span>Add</span>
+			</button>
 		</div>
 	{/if}
 </div>
 
 <style>
 	.models-section {
-		margin-top: var(--space-4);
+		margin-top: 16px;
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-2);
+		gap: 10px;
 	}
 	.models-label-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 10px;
-		margin-top: var(--space-1);
-		margin-bottom: 2px;
 	}
 	.models-title-wrap {
 		display: flex;
 		align-items: center;
-		gap: var(--space-2);
-		flex-wrap: wrap;
+		gap: 8px;
 	}
 	.field-title {
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+		font-size: 13px;
 		font-weight: 500;
-		color: var(--text);
+		color: #ececee;
 	}
 	.models-count-badge {
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-muted);
-		background: var(--surface-2);
-		padding: 2px 7px;
-		border-radius: var(--radius-xl);
-		border: 1px solid var(--border);
-	}
-	.optional {
-		color: var(--text-faint);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		font-weight: 400;
-		margin-left: var(--space-1);
+		font-size: 12px;
+		color: #71717a;
 	}
 	.models-header-actions {
 		display: flex;
 		align-items: center;
 		gap: 6px;
 	}
-	.text-mode-btn {
-		background: transparent;
-		border: none;
-		color: var(--text-muted);
-		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		font-weight: 500;
-		cursor: pointer;
-		padding: 3px 6px;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-	}
-	.text-mode-btn:hover {
-		color: var(--text);
-	}
 	.fetch-models-btn {
-		background: var(--surface-subtle, rgba(255, 255, 255, 0.05));
-		border: 1px solid var(--border);
-		border-radius: var(--radius-sm);
-		color: var(--text-muted);
+		background: #26262b;
+		border: 1px solid #34343a;
+		border-radius: 8px;
+		color: #ececee;
 		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-size: 12px;
 		font-weight: 500;
-		padding: 3px 9px;
+		padding: 5px 12px;
 		cursor: pointer;
 		transition:
-			color var(--duration-short3) var(--ease-standard),
-			background var(--duration-short3) var(--ease-standard),
-			border-color var(--duration-short3) var(--ease-standard);
+			background-color var(--duration-short2) var(--ease-standard),
+			border-color var(--duration-short2) var(--ease-standard);
 	}
 	.fetch-models-btn:hover:not(:disabled) {
-		color: var(--text);
-		border-color: var(--text-dim);
+		background: #2f2f35;
+		border-color: #404046;
 	}
 	.fetch-models-btn:disabled {
 		opacity: 0.5;
 		cursor: not-allowed;
 	}
+	.text-mode-bar {
+		display: flex;
+		margin-bottom: 4px;
+	}
+	.text-mode-toggle-btn {
+		background: transparent;
+		border: 0;
+		color: #a1a1aa;
+		font-size: 12px;
+		cursor: pointer;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+	}
+	.text-mode-toggle-btn:hover {
+		color: #ececee;
+	}
+	.raw-textarea {
+		width: 100%;
+		background: #151517;
+		border: 1px solid #2c2c30;
+		border-radius: 10px;
+		color: #ececee;
+		font-family: var(--font-mono);
+		font-size: 13px;
+		padding: 10px 12px;
+		outline: none;
+		resize: vertical;
+	}
+	.raw-textarea:focus {
+		border-color: #3f3f45;
+	}
 	.models-toolbar {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-2);
-		margin-top: var(--space-1);
+		gap: 8px;
 		flex-wrap: wrap;
 	}
 	.btn-group-selection {
 		display: inline-flex;
 		align-items: center;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
+		background: #1b1b1e;
+		border: 1px solid #2c2c30;
+		border-radius: 8px;
 		overflow: hidden;
 	}
 	.filter-btn {
 		background: transparent;
 		border: none;
-		border-right: 1px solid var(--border);
-		color: var(--text-body);
+		border-right: 1px solid #2c2c30;
+		color: #a1a1aa;
 		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-size: 12px;
 		font-weight: 500;
-		padding: 5px 9px;
+		padding: 4px 10px;
 		cursor: pointer;
 		transition:
-			background var(--duration-short3) var(--ease-standard),
-			color var(--duration-short3) var(--ease-standard);
+			background-color var(--duration-short2) var(--ease-standard),
+			color var(--duration-short2) var(--ease-standard);
 	}
 	.filter-btn:last-child {
 		border-right: none;
 	}
 	.filter-btn:hover {
-		background: var(--surface-hover);
-		color: var(--text-strong);
+		background: #242428;
+		color: #ececee;
 	}
 	.filter-btn.free-btn {
-		color: var(--status-ok-text);
+		color: #4ade80;
 	}
-	.filter-btn.free-btn:hover {
-		background: color-mix(in srgb, var(--status-ok-dot) 15%, transparent);
+	.raw-text-pill {
+		background: #1b1b1e;
+		border: 1px solid #2c2c30;
+		border-radius: 8px;
+		color: #a1a1aa;
+		font-size: 12px;
+		font-weight: 500;
+		padding: 4px 10px;
+		cursor: pointer;
+		transition:
+			background-color var(--duration-short2) var(--ease-standard),
+			color var(--duration-short2) var(--ease-standard);
+	}
+	.raw-text-pill:hover {
+		background: #242428;
+		color: #ececee;
 	}
 	.models-search-box {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		background: var(--surface);
-		border: 1px solid var(--input-border);
-		border-radius: var(--radius-md);
-		padding: 3px var(--space-2);
-		flex: 1;
-		min-width: 120px;
-		max-width: 190px;
-		color: var(--text-muted);
+		background: #151517;
+		border: 1px solid #2c2c30;
+		border-radius: 8px;
+		padding: 3px 10px;
+		color: #71717a;
+		min-width: 140px;
+		transition: border-color var(--duration-short2) var(--ease-standard);
+	}
+	.models-search-box:focus-within {
+		border-color: #3f3f45;
 	}
 	.models-search-box input {
 		width: 100%;
 		border: none;
 		background: transparent;
-		color: var(--text);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		color: #ececee;
+		font-size: 12px;
+		outline: none;
 		padding: 0;
-		min-height: auto;
-		margin: 0;
+	}
+	.models-search-box input::placeholder {
+		color: #71717a;
 	}
 	.clear-search-btn {
 		background: transparent;
 		border: none;
-		color: var(--text-dim);
+		color: #71717a;
 		cursor: pointer;
 		padding: 0;
 		display: flex;
 		align-items: center;
 	}
 	.clear-search-btn:hover {
-		color: var(--text);
+		color: #ececee;
 	}
 	.models-list-box {
-		max-height: 220px;
+		max-height: 240px;
 		overflow-y: auto;
-		border: 1px solid var(--input-border);
-		border-radius: var(--radius-md);
-		background: var(--surface);
+		border: 1px solid #2c2c30;
+		border-radius: 10px;
+		background: #151517;
 		display: flex;
 		flex-direction: column;
 	}
 	.model-row {
 		display: flex;
 		align-items: center;
-		gap: 9px;
-		padding: 7px 10px;
-		border-bottom: 1px solid var(--border);
+		gap: 10px;
+		padding: 8px 12px;
+		border-bottom: 1px solid #202024;
 		cursor: pointer;
-		transition: background var(--duration-short2) var(--ease-standard);
+		transition: background-color var(--duration-short2) var(--ease-standard);
 		user-select: none;
 	}
 	.model-row:last-child {
 		border-bottom: none;
 	}
 	.model-row:hover {
-		background: var(--surface-hover);
+		background: #1c1c20;
 	}
 	.model-row.unchecked {
 		opacity: 0.55;
@@ -469,11 +473,10 @@
 	.model-row-checkbox {
 		width: 15px;
 		height: 15px;
-		min-height: 15px;
 		margin: 0;
 		cursor: pointer;
 		flex-shrink: 0;
-		accent-color: var(--accent-bg);
+		accent-color: #f4f4f5;
 	}
 	.model-row-content {
 		flex: 1;
@@ -485,65 +488,52 @@
 	.model-row-main {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 		flex-wrap: wrap;
 	}
 	.mono {
 		font-family: var(--font-mono);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-body);
 	}
 	.model-row-id {
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-strong);
+		font-size: 13px;
+		color: #ececee;
 		word-break: break-all;
 	}
 	.model-row-name {
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		color: var(--text-dim);
+		font-size: 11px;
+		color: #71717a;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.model-badge-free {
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-size: 11px;
 		font-weight: 500;
-		text-transform: uppercase;
-		padding: 1px 5px;
-		border-radius: var(--radius-sm);
-		color: var(--status-ok-text);
-		background: color-mix(in srgb, var(--status-ok-dot) 15%, transparent);
-		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 30%, transparent);
+		padding: 1px 6px;
+		border-radius: 6px;
+		color: #4ade80;
+		background: #182c1e;
+		border: 1px solid #234a2e;
 	}
 	.model-badge-meta {
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
+		font-size: 11px;
 		padding: 1px 5px;
-		border-radius: var(--radius-sm);
-		color: var(--text-dim);
-		background: var(--surface-2);
-		border: 1px solid var(--border);
+		border-radius: 4px;
+		color: #71717a;
+		background: #1f1f23;
+		border: 1px solid #2c2c30;
 	}
 	.model-remove-btn {
 		background: transparent;
 		border: none;
-		color: var(--text-dim);
+		color: #71717a;
 		cursor: pointer;
-		padding: var(--space-1);
-		border-radius: var(--radius-sm);
+		padding: 4px;
+		border-radius: 4px;
 		opacity: 0;
 		transition:
-			opacity var(--duration-short3) var(--ease-standard),
-			color var(--duration-short3) var(--ease-standard);
+			opacity var(--duration-short2) var(--ease-standard),
+			color var(--duration-short2) var(--ease-standard);
 		display: flex;
 		align-items: center;
 	}
@@ -552,50 +542,73 @@
 	}
 	.model-remove-btn:hover {
 		opacity: 1;
-		color: var(--danger-text);
+		color: #f87171;
 	}
 	.models-empty-state {
-		border: 1px dashed var(--border);
-		border-radius: var(--radius-md);
+		border: 1px dashed #2c2c30;
+		border-radius: 10px;
 		padding: 18px 14px;
 		text-align: center;
-		background: var(--surface-2);
+		background: #151517;
 	}
 	.models-empty-state p {
 		margin: 0;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-muted);
+		font-size: 13px;
+		color: #71717a;
 	}
 	.models-empty-filter {
-		padding: var(--space-4);
+		padding: 16px;
 		text-align: center;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-dim);
+		font-size: 13px;
+		color: #71717a;
 	}
 	.model-add-row {
 		display: flex;
 		align-items: center;
-		gap: 6px;
-		margin-top: 2px;
+		gap: 8px;
+		margin-top: 4px;
 	}
 	.model-add-row input {
 		flex: 1;
-		min-height: 34px;
-		padding: 6px 10px;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		margin: 0;
+		height: 36px;
+		padding: 0 12px;
+		background: #151517;
+		border: 1px solid #2c2c30;
+		border-radius: 8px;
+		color: #ececee;
+		font-size: 12px;
+		outline: none;
+		transition: border-color var(--duration-short2) var(--ease-standard);
 	}
-	:global(.add-model-btn) {
-		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
+	.model-add-row input:focus {
+		border-color: #3f3f45;
+	}
+	.model-add-row input::placeholder {
+		color: #71717a;
+	}
+	.add-model-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		height: 36px;
+		padding: 0 14px;
+		background: #26262b;
+		border: 1px solid #34343a;
+		border-radius: 8px;
+		color: #ececee;
+		font-size: 12px;
 		font-weight: 500;
+		cursor: pointer;
+		transition:
+			background-color var(--duration-short2) var(--ease-standard),
+			border-color var(--duration-short2) var(--ease-standard);
+	}
+	.add-model-btn:hover:not(:disabled) {
+		background: #2f2f35;
+		border-color: #404046;
+	}
+	.add-model-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 </style>

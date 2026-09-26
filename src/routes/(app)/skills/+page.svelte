@@ -6,7 +6,6 @@
 	import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
 	import Topbar from '$lib/components/Topbar.svelte';
 	import Page from '$lib/components/Page.svelte';
-	import PageHeader from '$lib/components/PageHeader.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import SkillEditorModal from './SkillEditorModal.svelte';
 	import SkillGrid from './SkillGrid.svelte';
@@ -34,6 +33,8 @@
 	let formError = $state('');
 	let loadSequence = 0;
 	let restoreFocusTarget = $state<HTMLElement | null>(null);
+	let discardOpen = $state(false);
+	let editorBaseline = $state('');
 	let draft = $state<SkillDraft>({
 		name: '',
 		description: '',
@@ -113,12 +114,29 @@
 		};
 	}
 
+	/** Serialised draft, so "did the user change anything?" is one comparison. */
+	function snapshotDraft() {
+		return JSON.stringify({
+			name: draft.name,
+			description: draft.description,
+			instructions: draft.instructions,
+			projectId: draft.projectId,
+			enabledTools: [...draft.enabledTools].sort(),
+			triggerPhrases: draft.triggerPhrases,
+			triggerDraft
+		});
+	}
+
+	let editorDirty = $derived(editorOpen && snapshotDraft() !== editorBaseline);
+
 	function openCreate(projectId: string | null = null) {
 		captureFocus();
 		editingSkill = null;
 		draft = blankDraft(projectId);
 		triggerDraft = '';
 		formError = '';
+		discardOpen = false;
+		editorBaseline = snapshotDraft();
 		editorOpen = true;
 	}
 
@@ -135,6 +153,8 @@
 		};
 		triggerDraft = '';
 		formError = '';
+		discardOpen = false;
+		editorBaseline = snapshotDraft();
 		editorOpen = true;
 	}
 
@@ -151,14 +171,46 @@
 		};
 		triggerDraft = '';
 		formError = '';
+		discardOpen = false;
+		editorBaseline = snapshotDraft();
 		editorOpen = true;
 	}
 
 	function closeEditor() {
 		if (!saving && editorOpen) {
 			editorOpen = false;
+			discardOpen = false;
 			restoreFocus();
 		}
+	}
+
+	/** X, Cancel, Escape and outside clicks all land here, so the discard warning
+	 * is asked once instead of at every exit. */
+	function requestCloseEditor() {
+		if (saving || !editorOpen) return;
+		// A second close request while the prompt is up (Escape can reach both
+		// dialogs) must not throw the edits away on its way out.
+		if (discardOpen) return;
+		if (editorDirty) {
+			discardOpen = true;
+			return;
+		}
+		closeEditor();
+	}
+
+	function confirmDiscard() {
+		discardOpen = false;
+		closeEditor();
+	}
+
+	function cancelDiscard() {
+		discardOpen = false;
+	}
+
+	/** The grid's create card used the active project scope; keep that convenience
+	 * on the empty state now that the card is gone. */
+	function openCreateFromContext() {
+		openCreate(scopeFilter === 'project' && selectedProjectId ? selectedProjectId : null);
 	}
 
 	function captureFocus() {
@@ -317,14 +369,20 @@
 
 <Topbar />
 
-<Page>
-	<PageHeader title="Skills" subtitle="Specialized instructions and workflows for your assistant.">
-		{#snippet actions()}
-			<Button variant="default" onclick={() => openCreate(null)}
-				><Plus size={16} /> New skill</Button
-			>
-		{/snippet}
-	</PageHeader>
+<Page width="wide">
+	<header
+		class="flex flex-col gap-4 min-[760px]:flex-row min-[760px]:items-end min-[760px]:justify-between"
+	>
+		<div class="min-w-0">
+			<h1 class="md-headline-lg m-0 text-[var(--text-strong)]">Skills</h1>
+			<p class="md-body-lg mt-1.5 mb-0 text-[var(--text-muted)]">
+				Reusable instructions for the way you work.
+			</p>
+		</div>
+		<Button variant="default" class="shrink-0" onclick={() => openCreate(null)}
+			><Plus size={16} /> New skill</Button
+		>
+	</header>
 
 	<SkillsToolbar
 		{scopeFilter}
@@ -344,15 +402,13 @@
 		skillCount={skills.length}
 		visibleCount={visibleSkills.length}
 		onretry={() => void loadData()}
+		oncreate={openCreateFromContext}
 	/>
 
 	{#if !loading && !loadingError}
 		<SkillGrid
 			skills={visibleSkills}
 			{scopeLabel}
-			showCreateCard={!query.trim()}
-			oncreate={() =>
-				openCreate(scopeFilter === 'project' && selectedProjectId ? selectedProjectId : null)}
 			onedit={openEdit}
 			onduplicate={openDuplicate}
 			ondelete={openDelete}
@@ -375,12 +431,27 @@
 		{saving}
 		{formError}
 		onsave={saveSkill}
-		onclose={closeEditor}
+		onclose={requestCloseEditor}
 		ontoggletool={toggleTool}
 		onchooseproject={chooseProject}
 		onaddtrigger={addTrigger}
 		onremovetrigger={removeTrigger}
 	/>
+{/if}
+
+{#if discardOpen}
+	<ConfirmDialog
+		open={true}
+		title="Discard changes?"
+		confirmLabel="Discard changes"
+		cancelLabel="Keep editing"
+		onconfirm={confirmDiscard}
+		oncancel={cancelDiscard}
+	>
+		{#snippet description()}
+			Your unsaved edits to this skill will be lost.
+		{/snippet}
+	</ConfirmDialog>
 {/if}
 
 {#if deletingSkill}
@@ -402,9 +473,10 @@
 
 <svelte:window
 	onkeydown={(event) => {
-		if (event.key === 'Escape') {
-			if (editorOpen) closeEditor();
-			else if (deletingSkill && !deleting) closeDelete();
-		}
+		// The dialog primitives own Escape for their own layer stack, so the editor
+		// and the discard prompt are deliberately left out of this handler: a second
+		// Escape here would re-open the prompt it just closed.
+		if (event.key !== 'Escape' || editorOpen) return;
+		if (deletingSkill && !deleting) closeDelete();
 	}}
 />
