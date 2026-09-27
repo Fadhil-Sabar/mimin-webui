@@ -1,9 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Check, FileText, Loader2, RotateCcw } from '@lucide/svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
-	import { Card } from '$lib/components/ui/card/index.js';
-	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { Check, ChevronRight, Loader2, Trash2 } from '@lucide/svelte';
+
+	type Props = {
+		isDirty?: boolean;
+		discard?: () => void;
+	};
+
+	// eslint-disable-next-line no-useless-assignment
+	let { isDirty = $bindable(false), discard = $bindable() }: Props = $props();
 
 	const MAX_LENGTH = 10000;
 
@@ -13,6 +18,17 @@
 	let saving = $state(false);
 	let notification = $state<{ type: 'success' | 'error'; message: string } | null>(null);
 	let changed = $derived(instructions !== savedInstructions);
+	let howItWorksOpen = $state(false);
+
+	$effect(() => {
+		isDirty = changed;
+	});
+
+	$effect(() => {
+		discard = () => {
+			instructions = savedInstructions;
+		};
+	});
 
 	function notify(type: 'success' | 'error', message: string) {
 		notification = { type, message };
@@ -78,13 +94,11 @@
 	onMount(loadInstructions);
 </script>
 
-<div class="tab-content">
-	<PageHeader
-		title="Custom instructions"
-		subtitle="Tell Mimin how you want it to respond across all of your conversations."
-	>
-		{#snippet icon()}<FileText size={20} />{/snippet}
-	</PageHeader>
+<div class="tab-pane">
+	<div class="view-header">
+		<h1 class="view-title">Custom instructions</h1>
+		<p class="view-subtitle">Set the tone for all your conversations.</p>
+	</div>
 
 	{#if notification}
 		<div
@@ -99,239 +113,368 @@
 	{#if loading}
 		<div class="empty-state" role="status">Loading your instructions...</div>
 	{:else}
-		<div class="scope-strip" aria-label="Instruction priority">
-			<div><span>1</span><small>Mimin defaults</small></div>
-			<i aria-hidden="true"></i>
-			<div class="current"><span>2</span><small>Your instructions</small></div>
-			<i aria-hidden="true"></i>
-			<div><span>3</span><small>Project context</small></div>
-		</div>
+		<form
+			class="instructions-form"
+			onsubmit={(e) => {
+				e.preventDefault();
+				saveInstructions();
+			}}
+		>
+			<div class="field-label-row">
+				<label for="instructions-textarea">How should Mimin respond?</label>
+			</div>
 
-		<Card class="p-[20px] max-[760px]:p-[var(--space-4)]" shadow="soft">
-			<form
-				onsubmit={(event) => {
-					event.preventDefault();
-					saveInstructions();
-				}}
-			>
-				<div class="field-heading">
-					<div>
-						<label for="custom-instructions">How should Mimin behave?</label>
-						<p>Describe your preferred tone, format, working style, or standing context.</p>
-					</div>
-					<span class:near-limit={instructions.length > MAX_LENGTH * 0.9}
-						>{instructions.length.toLocaleString()} / {MAX_LENGTH.toLocaleString()}</span
-					>
-				</div>
+			<div class="textarea-card">
 				<textarea
-					id="custom-instructions"
+					id="instructions-textarea"
 					bind:value={instructions}
 					maxlength={MAX_LENGTH}
-					rows="12"
-					placeholder="For example: Be concise and direct. Lead with the answer, explain technical terms in plain language, and use bullet points for multi-step guidance."
+					rows="10"
+					placeholder="don't use emoji if not necessary. don't use dash em. use proper punctuation like dot, commas, etc"
 					spellcheck="true"></textarea>
-				<p class="privacy-note">
-					These instructions are added to new responses in every chat. Project instructions can add
-					more specific guidance when you work inside a project.
-				</p>
-				<div class="form-actions">
-					{#if savedInstructions}
-						<Button
-							variant="destructive"
-							type="button"
-							onclick={clearInstructions}
-							disabled={saving}><RotateCcw size={15} /> Clear</Button
-						>
-					{/if}
-					<span class="save-state" aria-live="polite"
-						>{changed ? 'Unsaved changes' : 'Up to date'}</span
-					>
-					<Button type="submit" variant="default" class="ml-auto" disabled={saving || !changed}>
-						{#if saving}<span class="spin"><Loader2 size={16} /></span> Saving...{:else}<Check
-								size={16}
-							/> Save instructions{/if}
-					</Button>
+				<div class="char-count" class:near-limit={instructions.length > MAX_LENGTH * 0.9}>
+					{instructions.length.toLocaleString()} / {MAX_LENGTH.toLocaleString()}
 				</div>
-			</form>
-		</Card>
+			</div>
+
+			<p class="footnote-text">Used in every chat. Projects can add specific guidance.</p>
+
+			<div class="disclosure-card">
+				<button
+					type="button"
+					class="disclosure-toggle"
+					onclick={() => (howItWorksOpen = !howItWorksOpen)}
+					aria-expanded={howItWorksOpen}
+				>
+					<ChevronRight size={15} class={howItWorksOpen ? 'chevron open' : 'chevron'} />
+					<span>How instructions work</span>
+				</button>
+				{#if howItWorksOpen}
+					<div class="disclosure-content">
+						<div class="precedence-item">
+							<span class="step-num">1</span>
+							<div class="step-info">
+								<strong>Mimin defaults</strong>
+								<p>Core personality, safety guidelines, and base capabilities.</p>
+							</div>
+						</div>
+						<div class="precedence-item active">
+							<span class="step-num">2</span>
+							<div class="step-info">
+								<strong>Your instructions</strong>
+								<p>Applied to every conversation you start in this workspace.</p>
+							</div>
+						</div>
+						<div class="precedence-item">
+							<span class="step-num">3</span>
+							<div class="step-info">
+								<strong>Project context</strong>
+								<p>Specific project instructions add guidance when working in a project.</p>
+							</div>
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<div class="form-actions">
+				<div class="left-actions">
+					{#if savedInstructions || instructions}
+						<button
+							type="button"
+							class="clear-button"
+							onclick={clearInstructions}
+							disabled={saving}
+						>
+							<Trash2 size={14} />
+							<span>Clear</span>
+						</button>
+						<span class="separator">•</span>
+					{/if}
+					<span class="save-state">
+						{#if changed}
+							<span class="unsaved">Unsaved changes</span>
+						{:else}
+							<Check size={14} class="check-icon" />
+							<span>Saved</span>
+						{/if}
+					</span>
+				</div>
+
+				<button type="submit" class="save-button" disabled={saving || !changed}>
+					{#if saving}
+						<Loader2 size={15} class="spin" />
+						<span>Saving...</span>
+					{:else}
+						<span>Save instructions</span>
+					{/if}
+				</button>
+			</div>
+		</form>
 	{/if}
 </div>
 
 <style>
-	.tab-content {
-		padding: 28px var(--space-6) var(--space-7);
+	.tab-pane {
+		padding: 28px 32px 36px;
+		color: #ececee;
+		font-family: var(--font-body);
+	}
+	.view-header {
+		margin-bottom: 24px;
+		padding-right: 40px;
+	}
+	.view-title {
+		margin: 0;
+		font-size: 22px;
+		font-weight: 600;
+		color: #ececee;
+		letter-spacing: -0.01em;
+	}
+	.view-subtitle {
+		margin: 4px 0 0;
+		font-size: 13px;
+		color: #a1a1aa;
+	}
+	.notification {
+		margin-bottom: 16px;
+		padding: 10px 14px;
+		background: #1d271f;
+		border: 1px solid #28442d;
+		border-radius: 10px;
+		color: #4ade80;
+		font-size: 13px;
+	}
+	.notification.error {
+		background: #2b1a19;
+		border-color: #4d2321;
+		color: #f87171;
 	}
 	.empty-state {
 		text-align: center;
-		color: var(--text-dim);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		padding: 40px 0;
+		color: #71717a;
+		font-size: 13px;
+		padding: 48px 0;
 	}
-	.field-heading p,
-	.privacy-note {
-		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	.notification {
-		margin-top: 20px;
-		padding: 11px 13px;
-		color: var(--status-ok-text);
-		background: color-mix(in srgb, var(--status-ok-dot) 8%, var(--surface));
-		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 24%, var(--border));
-		border-radius: var(--radius-lg);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	.notification.error {
-		color: var(--danger-text);
-		background: color-mix(in srgb, var(--danger-text) 8%, var(--surface));
-		border-color: color-mix(in srgb, var(--danger-text) 24%, var(--border));
-	}
-	.scope-strip {
-		display: grid;
-		grid-template-columns: auto 1fr auto 1fr auto;
-		align-items: center;
-		gap: var(--space-3);
-		margin: var(--space-5) 0 13px;
-		padding: var(--space-3) 14px;
-		background: var(--surface-2);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-	}
-	.scope-strip div {
+	.instructions-form {
 		display: flex;
-		align-items: center;
-		gap: 7px;
-		color: var(--text-muted);
+		flex-direction: column;
+		gap: 12px;
 	}
-	.scope-strip span {
-		display: grid;
-		place-items: center;
-		width: 20px;
-		height: 20px;
-		border: 1px solid var(--border-strong);
-		border-radius: 50%;
-		font-size: var(--text-label-sm);
-		font-style: normal;
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
+	.field-label-row label {
+		font-size: 13px;
 		font-weight: 500;
+		color: #ececee;
 	}
-	.scope-strip .current {
-		color: var(--text-strong);
-		font-weight: 500;
-	}
-	.scope-strip .current span {
-		color: var(--accent-fg);
-		background: var(--accent-bg);
-		border-color: var(--accent-bg);
-	}
-	.scope-strip small {
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		white-space: nowrap;
-	}
-	.scope-strip i {
-		height: 1px;
-		background: var(--border-strong);
-	}
-	.field-heading {
+	.textarea-card {
 		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 20px;
-		margin-bottom: var(--space-3);
+		flex-direction: column;
+		background: #151517;
+		border: 1px solid #2c2c30;
+		border-radius: 14px;
+		padding: 14px 16px;
+		transition: border-color var(--duration-short2) var(--ease-standard);
 	}
-	.field-heading label {
-		display: block;
-		margin-bottom: 3px;
-		color: var(--text-strong);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
+	.textarea-card:focus-within {
+		border-color: #3f3f45;
 	}
-	.field-heading > span {
-		flex: 0 0 auto;
-		color: var(--text-faint);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+	.textarea-card textarea {
+		width: 100%;
+		min-height: 250px;
+		border: 0;
+		background: transparent;
+		color: #ececee;
+		font-family: var(--font-body);
+		font-size: 13.5px;
+		line-height: 1.6;
+		resize: vertical;
+		outline: none;
+		padding: 0;
+	}
+	.textarea-card textarea::placeholder {
+		color: #52525b;
+	}
+	.char-count {
+		align-self: flex-end;
+		margin-top: 8px;
+		font-size: 11px;
+		color: #71717a;
 		font-variant-numeric: tabular-nums;
 	}
-	.field-heading > span.near-limit {
-		color: var(--danger-text);
+	.char-count.near-limit {
+		color: #f87171;
 	}
-	textarea {
-		display: block;
-		width: 100%;
-		min-height: 230px;
-		resize: vertical;
-		padding: 14px 15px;
-		color: var(--text-body);
-		background: var(--surface-subtle);
-		border: 1px solid var(--input-border);
-		border-radius: var(--radius-lg);
-		font-family: var(--font-body);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
+	.footnote-text {
+		margin: 0;
+		font-size: 12px;
+		color: #71717a;
 	}
-	textarea:focus {
-		border-color: var(--focus);
+	.disclosure-card {
+		margin-top: 8px;
 	}
-	.privacy-note {
+	.disclosure-toggle {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		background: transparent;
+		border: 0;
+		color: #ececee;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		padding: 4px 0;
+	}
+	:global(.chevron) {
+		transition: transform var(--duration-short2) var(--ease-standard);
+		color: #71717a;
+	}
+	:global(.chevron.open) {
+		transform: rotate(90deg);
+	}
+	.disclosure-content {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 		margin-top: 10px;
+		padding: 12px 14px;
+		background: #18181b;
+		border: 1px solid #2c2c30;
+		border-radius: 10px;
+	}
+	.precedence-item {
+		display: flex;
+		align-items: flex-start;
+		gap: 10px;
+		padding: 6px 8px;
+		border-radius: 8px;
+	}
+	.precedence-item.active {
+		background: #202024;
+	}
+	.step-num {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background: #27272b;
+		border: 1px solid #34343a;
+		font-size: 11px;
+		font-weight: 600;
+		color: #ececee;
+		flex-shrink: 0;
+	}
+	.precedence-item.active .step-num {
+		background: #f4f4f5;
+		color: #18181b;
+		border-color: #f4f4f5;
+	}
+	.step-info strong {
+		display: block;
+		font-size: 12px;
+		font-weight: 500;
+		color: #ececee;
+	}
+	.step-info p {
+		margin: 1px 0 0;
+		font-size: 11px;
+		color: #71717a;
 	}
 	.form-actions {
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		margin-top: 24px;
+		padding-top: 18px;
+		border-top: 1px solid #242428;
+	}
+	.left-actions {
+		display: flex;
+		align-items: center;
 		gap: 10px;
-		margin-top: 20px;
-		padding-top: 17px;
-		border-top: 1px solid var(--border);
+	}
+	.clear-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		background: transparent;
+		border: 0;
+		color: #a1a1aa;
+		font-size: 13px;
+		cursor: pointer;
+		padding: 0;
+		transition: color var(--duration-short2) var(--ease-standard);
+	}
+	.clear-button:hover:not(:disabled) {
+		color: #ececee;
+	}
+	.clear-button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.separator {
+		color: #3f3f45;
 	}
 	.save-state {
-		color: var(--text-faint);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: 12px;
+		color: #71717a;
 	}
-	.spin {
+	:global(.check-icon) {
+		color: #4ade80;
+	}
+	.unsaved {
+		color: #a1a1aa;
+	}
+	.save-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		height: 38px;
+		padding: 0 18px;
+		background: #f4f4f5;
+		border: 0;
+		border-radius: 10px;
+		color: #18181b;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background-color var(--duration-short2) var(--ease-standard);
+	}
+	.save-button:hover:not(:disabled) {
+		background: #e4e4e7;
+	}
+	.save-button:disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
+	}
+	:global(.spin) {
 		animation: spin 0.8s linear infinite;
 	}
-	@media (prefers-reduced-motion: reduce) {
-		.spin {
-			animation: none;
+	@keyframes spin {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
 		}
 	}
 	@media (max-width: 760px) {
-		.tab-content {
-			padding: 20px var(--space-4) var(--space-7);
+		.tab-pane {
+			padding: 16px;
 		}
-		.scope-strip {
-			grid-template-columns: 1fr;
-			gap: var(--space-2);
-		}
-		.scope-strip i {
-			display: none;
-		}
-		.field-heading {
-			gap: 10px;
+		.view-header {
+			padding-right: 0;
 		}
 		.form-actions {
 			flex-wrap: wrap;
 		}
-		.save-state {
-			order: -1;
+		.save-button {
 			width: 100%;
+			justify-content: center;
 		}
 	}
 </style>

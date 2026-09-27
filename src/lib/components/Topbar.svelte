@@ -28,6 +28,7 @@
 
 <header class="topbar">
 	<div class="topbar-left">
+		<a class="topbar-brand" href={resolve('/')} aria-label="Mimin home">mimin</a>
 		<!-- Visibility is owned by the global `.topbar-toggle` rules: it depends on the
 		     `.app-shell` ancestor's collapsed state, which no utility can express. -->
 		<Button
@@ -69,6 +70,13 @@
 </header>
 
 <style>
+	.topbar-brand {
+		color: var(--text-strong);
+		font-size: 23px;
+		font-weight: 600;
+		letter-spacing: -0.055em;
+		text-decoration: none;
+	}
 	.crumb-sep {
 		color: var(--text-faint);
 		margin: 0 3px;

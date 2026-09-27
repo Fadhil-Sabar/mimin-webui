@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
-	import { Download, MonitorUp, Puzzle, ShieldCheck } from '@lucide/svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
+	import { ChevronDown, ChevronRight, Download } from '@lucide/svelte';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Switch } from '$lib/components/ui/switch/index.js';
 	import {
@@ -10,19 +9,27 @@
 		isBrowserBridgeEnabled,
 		setBrowserBridgeEnabled
 	} from '$lib/client/browser-bridge';
-	import PageHeader from '$lib/components/PageHeader.svelte';
+
+	type Props = {
+		ondone?: () => void;
+	};
+
+	let { ondone }: Props = $props();
 
 	let enabled = $state(false);
 	let hydrated = $state(false);
-	let browser = $state<'firefox' | 'chromium'>('chromium');
 	let connected = $state(false);
 	let updateRequired = $state(false);
 	let installedVersion = $state<string | undefined>(undefined);
-	let requiredVersion = $state<string>('0.4.0');
+	let requiredVersion = $state<string>('0.4.2');
 	let checking = $state(false);
-	let status = $state('Checking connection…');
 	let permissions = $state<{ google?: boolean; publicWebsites?: boolean } | undefined>(undefined);
 	let pageOrigin = $state('');
+
+	let activeStepBrowser = $state<'chrome' | 'firefox'>('chrome');
+	let installStepsOpen = $state(true);
+	let permissionsOpen = $state(false);
+	let troubleshootingOpen = $state(false);
 
 	let downloadOrigin = $derived(pageOrigin);
 	let chromeDownload = $derived(
@@ -34,7 +41,6 @@
 
 	onMount(() => {
 		enabled = isBrowserBridgeEnabled();
-		browser = /firefox/i.test(navigator.userAgent) ? 'firefox' : 'chromium';
 		pageOrigin = window.location.origin;
 		hydrated = true;
 		void checkConnection();
@@ -46,7 +52,7 @@
 			enabled = value;
 			void checkConnection();
 		} catch {
-			status = 'Browser storage is unavailable. Allow site storage to enable the bridge.';
+			// Browser storage unavailable
 		}
 	}
 
@@ -55,7 +61,6 @@
 		const result = await getBrowserBridgeStatus();
 		connected = enabled && result.connected;
 		updateRequired = Boolean(enabled && result.updateRequired);
-		status = result.message;
 		installedVersion = result.version;
 		requiredVersion = result.requiredVersion;
 		permissions = result.permissions;
@@ -63,376 +68,576 @@
 	}
 </script>
 
-<div class="tab-content">
-	<PageHeader
-		title="Mimin Browser Bridge"
-		subtitle="Let Mimin open tabs, search Google or Google Scholar, and read public web pages directly from your chat."
-	>
-		{#snippet icon()}<Puzzle size={23} />{/snippet}
-	</PageHeader>
+<div class="tab-pane">
+	<div class="view-header">
+		<h1 class="view-title">Browser bridge</h1>
+		<p class="view-subtitle">Connect Mimin to this browser.</p>
+	</div>
 
-	<section class="enable-card">
-		<div>
-			<div class="title-row">
-				<strong>Enable browser tools on this device</strong>
-				<Badge>Optional</Badge>
+	<div class="bridge-content">
+		<!-- Enable card -->
+		<div class="enable-card">
+			<div class="enable-info">
+				<strong class="enable-title">Enable browser tools</strong>
+				<p class="enable-desc">Open tabs and read public pages from chat.</p>
 			</div>
-			<p>
-				When enabled and connected, Mimin can open tabs and read search results or public web pages
-				back to your chat and configured AI provider to answer your request.
-			</p>
-		</div>
-		<label class="switch-row">
 			<Switch
 				checked={enabled}
 				disabled={!hydrated || checking}
 				onCheckedChange={(v) => setEnabled(v)}
 			/>
-			<b>{enabled ? 'Enabled' : 'Disabled'}</b>
-		</label>
-	</section>
-	<div class="connection-row" role="status">
-		<Badge variant={connected ? 'success' : updateRequired ? 'warning' : 'default'}
-			>{checking
-				? 'Checking…'
-				: connected
-					? 'Connected'
-					: updateRequired
-						? 'Update required'
-						: enabled
-							? 'Not connected'
-							: 'Disabled'}</Badge
-		>
-		<span>{status}</span>
-		{#if enabled}<Button variant="outline" onclick={checkConnection} disabled={checking}
-				>Check connection</Button
-			>{/if}
-	</div>
+		</div>
 
-	{#if enabled}
-		<div class="permissions-card">
-			<div class="title-row">
-				<strong>Browser Bridge</strong>
-				<Badge variant={connected ? 'success' : updateRequired ? 'warning' : 'default'}>
-					{connected ? 'Connected' : updateRequired ? 'Update required' : 'Not connected'}
-				</Badge>
-			</div>
-			<div class="perm-status-list">
-				<div class="perm-status-item">
-					<span>Installed version</span>
-					<span class="version-tag">{installedVersion ?? 'Not detected'}</span>
-				</div>
-				<div class="perm-status-item">
-					<span>Required version</span>
-					<span class="version-tag">{requiredVersion}</span>
-				</div>
-				{#if connected}
-					<div class="perm-status-item">
-						<span>Google / Scholar access</span>
-						<Badge variant="success">Enabled</Badge>
+		<!-- Status row -->
+		<div class="status-card">
+			<div class="status-top-row">
+				<div class="status-dot-group">
+					<span class="status-dot" class:connected class:warning={updateRequired}></span>
+					<span class="status-text">
+						{checking
+							? 'Checking…'
+							: connected
+								? 'Connected'
+								: updateRequired
+									? 'Update required'
+									: enabled
+										? 'Not connected'
+										: 'Disabled'}
+					</span>
+					<div class="hidden-accessibility-badge">
+						<Badge variant={connected ? 'success' : updateRequired ? 'warning' : 'default'}>
+							{connected ? 'Connected' : updateRequired ? 'Update required' : 'Not connected'}
+						</Badge>
 					</div>
-					<div class="perm-status-item">
-						<span>Tab reading &amp; interaction</span>
-						{#if permissions?.publicWebsites}
-							<Badge variant="success">Enabled</Badge>
+				</div>
+				<button type="button" class="check-btn" onclick={checkConnection} disabled={checking}>
+					{checking ? 'Checking…' : 'Check connection'}
+				</button>
+			</div>
+			<div class="status-bottom-row">
+				<span>Installed: {installedVersion ?? 'Not detected'}</span>
+				<span>·</span>
+				<span>Required: {requiredVersion}</span>
+			</div>
+		</div>
+
+		<!-- Install the extension section -->
+		<div class="install-section">
+			<h2 class="section-title">Install the extension</h2>
+
+			<div class="download-grid">
+				<div class="download-card">
+					<strong class="package-name">Chrome & Chromium</strong>
+					<p class="package-desc">Chrome, Edge, Brave, Arc and Opera</p>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+					<a href={chromeDownload} download rel="external" class="download-action-btn">
+						<Download size={14} />
+						<span>Download package</span>
+					</a>
+				</div>
+
+				<div class="download-card">
+					<strong class="package-name">Firefox</strong>
+					<p class="package-desc">Temporary local add-on</p>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+					<a href={firefoxDownload} download rel="external" class="download-action-btn">
+						<Download size={14} />
+						<span>Download package</span>
+					</a>
+				</div>
+			</div>
+		</div>
+
+		<!-- Accordions -->
+		<div class="disclosures-container">
+			<!-- Installation steps -->
+			<div class="accordion-item">
+				<button
+					type="button"
+					class="accordion-header"
+					onclick={() => (installStepsOpen = !installStepsOpen)}
+					aria-expanded={installStepsOpen}
+				>
+					<span>Installation steps</span>
+					{#if installStepsOpen}
+						<ChevronDown size={15} />
+					{:else}
+						<ChevronRight size={15} />
+					{/if}
+				</button>
+				{#if installStepsOpen}
+					<div class="accordion-body">
+						<div class="browser-step-tabs">
+							<button
+								type="button"
+								class="tab-pill"
+								class:active={activeStepBrowser === 'chrome'}
+								onclick={() => (activeStepBrowser = 'chrome')}
+							>
+								Chrome
+							</button>
+							<button
+								type="button"
+								class="tab-pill"
+								class:active={activeStepBrowser === 'firefox'}
+								onclick={() => (activeStepBrowser = 'firefox')}
+							>
+								Firefox
+							</button>
+						</div>
+
+						{#if activeStepBrowser === 'chrome'}
+							<ol class="step-list">
+								<li>
+									<span class="step-circle">1</span>
+									<span>Unzip the package.</span>
+								</li>
+								<li>
+									<span class="step-circle">2</span>
+									<span
+										>Open <code class="inline-code">chrome://extensions</code> and enable Developer mode.</span
+									>
+								</li>
+								<li>
+									<span class="step-circle">3</span>
+									<span>Choose Load unpacked and select the folder.</span>
+								</li>
+							</ol>
 						{:else}
-							<Badge>Not granted</Badge>
+							<ol class="step-list">
+								<li>
+									<span class="step-circle">1</span>
+									<span>Unzip the downloaded package.</span>
+								</li>
+								<li>
+									<span class="step-circle">2</span>
+									<span
+										>Open <code class="inline-code">about:debugging#/runtime/this-firefox</code
+										>.</span
+									>
+								</li>
+								<li>
+									<span class="step-circle">3</span>
+									<span
+										>Choose Load Temporary Add-on and select <code class="inline-code"
+											>manifest.json</code
+										>.</span
+									>
+								</li>
+							</ol>
 						{/if}
 					</div>
 				{/if}
 			</div>
-			{#if updateRequired}
-				<p class="footnote-perm warning">
-					An updated extension package is required. Download and reload version <code
-						>{requiredVersion}</code
-					> below to restore browser bridge functionality.
-				</p>
-			{:else if connected}
-				<p class="footnote-perm">
-					To let Mimin read and click inside your open tabs, open the Mimin Browser Bridge extension
-					popup in your browser toolbar and click <strong>Grant</strong> under
-					<em>Tab reading &amp; interaction</em>. Mimin still asks you in the chat the first time it
-					needs your tabs.
-				</p>
-			{/if}
-		</div>
 
-		<div class="privacy-note">
-			<ShieldCheck size={18} />
-			<div>
-				<strong>Search & Browser Tools</strong>
-				<p>
-					<strong>Web Search</strong> is the default server-side research tool for general queries.
-					<strong>Browser Search</strong> is only exposed when you explicitly ask to search Google
-					or Google Scholar.
-					<strong>Browser Open</strong> opens a specific public URL in your browser and reads its
-					snapshot if public website reading permission is granted.
-					<strong>Browser Tabs</strong>, <strong>Browser Read Tab</strong>, and
-					<strong>Browser Interact</strong> read and operate the tabs you already have open. The first
-					time in a chat that Mimin needs them, it asks whether to allow access once or for that conversation.
-					Cookies, saved passwords, and browsing history are never read.
-				</p>
+			<!-- Permissions & privacy -->
+			<div class="accordion-item">
+				<button
+					type="button"
+					class="accordion-header"
+					onclick={() => (permissionsOpen = !permissionsOpen)}
+					aria-expanded={permissionsOpen}
+				>
+					<span>Permissions & privacy</span>
+					{#if permissionsOpen}
+						<ChevronDown size={15} />
+					{:else}
+						<ChevronRight size={15} />
+					{/if}
+				</button>
+				{#if permissionsOpen}
+					<div class="accordion-body info-text">
+						<p>
+							<strong>Web Search</strong> is the default server-side research tool for general
+							queries.
+							<strong>Browser Search</strong> is only exposed when you explicitly ask to search Google
+							or Google Scholar.
+						</p>
+						<p>
+							<strong>Tab reading & interaction</strong> reads and operates open tabs upon your prompt.
+							Cookies, saved passwords, and browsing history are never read.
+						</p>
+						{#if permissions}
+							<div class="perm-status-row">
+								<span>Google Scholar: {permissions.google ? 'Enabled' : 'Disabled'}</span>
+								<span>·</span>
+								<span>Public sites: {permissions.publicWebsites ? 'Granted' : 'Not granted'}</span>
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Troubleshooting -->
+			<div class="accordion-item">
+				<button
+					type="button"
+					class="accordion-header"
+					onclick={() => (troubleshootingOpen = !troubleshootingOpen)}
+					aria-expanded={troubleshootingOpen}
+				>
+					<span>Troubleshooting</span>
+					{#if troubleshootingOpen}
+						<ChevronDown size={15} />
+					{:else}
+						<ChevronRight size={15} />
+					{/if}
+				</button>
+				{#if troubleshootingOpen}
+					<div class="accordion-body info-text">
+						<p>
+							A package only bridges the origin it was downloaded from. If installed for another
+							address, it reports <em>Not connected</em>. Replace the folder, reload the extension,
+							and refresh Mimin.
+						</p>
+					</div>
+				{/if}
 			</div>
 		</div>
 
-		<div class="package-grid">
-			<article class:recommended={browser === 'chromium'}>
-				<div class="card-icon"><MonitorUp size={20} /></div>
-				<div class="card-title">
-					<strong>Chrome-based browsers</strong>
-					{#if browser === 'chromium'}<Badge variant="success">Recommended</Badge>{/if}
-				</div>
-				<p>Chrome, Edge, Brave, Arc, Opera, and other Chromium browsers.</p>
-				<Button variant="default" class="package-download" href={chromeDownload} download>
-					<Download size={15} /> Download Chrome package
-				</Button>
-				<ol>
-					<li>Unzip the downloaded package.</li>
-					<li>Open <code>chrome://extensions</code> and enable Developer mode.</li>
-					<li>Choose Load unpacked, then select the unzipped folder.</li>
-				</ol>
-			</article>
-
-			<article class:recommended={browser === 'firefox'}>
-				<div class="card-icon"><MonitorUp size={20} /></div>
-				<div class="card-title">
-					<strong>Firefox</strong>
-					{#if browser === 'firefox'}<Badge variant="success">Recommended</Badge>{/if}
-				</div>
-				<p>Firefox 109 or newer using a temporary local add-on.</p>
-				<Button variant="default" class="package-download" href={firefoxDownload} download>
-					<Download size={15} /> Download Firefox package
-				</Button>
-				<ol>
-					<li>Unzip the downloaded package.</li>
-					<li>Open <code>about:debugging#/runtime/this-firefox</code>.</li>
-					<li>Choose Load Temporary Add-on and select <code>manifest.json</code>.</li>
-				</ol>
-			</article>
+		<!-- Footer row -->
+		<div class="tab-footer">
+			<span class="footer-note">Local packages for testing and internal use.</span>
+			<button type="button" class="done-btn" onclick={() => ondone?.()}> Done </button>
 		</div>
-
-		<p class="footnote">
-			Already installed an earlier package? Download this one again, replace it in
-			<code>chrome://extensions</code> or <code>about:debugging</code>, reload the extension, then
-			reload Mimin in the same browser. A package only bridges the origin it was downloaded from, so
-			an extension installed for a different address (for example
-			<code>localhost</code>) reports <em>Not connected</em> here. Keep the chat open while Mimin works.
-			If Google shows a CAPTCHA, complete it yourself and ask Mimin to retry.
-		</p>
-		<p class="footnote">
-			Local packages are intended for testing and managed internal use. Publish signed builds to the
-			Chrome Web Store and Firefox Add-ons before offering one-click production installation.
-		</p>
-	{/if}
+	</div>
 </div>
 
 <style>
-	.tab-content {
-		padding: 28px var(--space-6) var(--space-7);
+	.tab-pane {
+		padding: 28px 32px 64px;
+		color: #ececee;
+		font-family: var(--font-body);
 	}
-	.card-icon {
-		display: grid;
-		place-items: center;
-		color: var(--text-muted);
-		background: var(--surface-2);
-		border: 1px solid var(--border);
+	.view-header {
+		margin-bottom: 20px;
+		padding-right: 40px;
 	}
-	.enable-card p,
-	article p,
-	.privacy-note p,
-	.footnote {
+	.view-title {
 		margin: 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
+		font-size: 22px;
+		font-weight: 600;
+		color: #ececee;
+		letter-spacing: -0.01em;
+	}
+	.view-subtitle {
+		margin: 4px 0 0;
+		font-size: 13px;
+		color: #a1a1aa;
+	}
+	.bridge-content {
+		display: flex;
+		flex-direction: column;
+		gap: 14px;
+		padding-bottom: 32px;
 	}
 	.enable-card {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: var(--space-5);
-		margin-top: var(--space-5);
-		padding: 18px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-xl);
+		gap: 16px;
+		padding: 14px 18px;
+		background: #1d1d20;
+		border: 1px solid #2c2c30;
+		border-radius: 14px;
 	}
-	.permissions-card {
-		margin: var(--space-4) 0;
-		padding: var(--space-4) 18px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-xl);
+	.enable-title {
+		display: block;
+		font-size: 14px;
+		font-weight: 500;
+		color: #ececee;
 	}
-	.perm-status-list {
-		display: grid;
-		gap: var(--space-2);
-		margin-top: 10px;
+	.enable-desc {
+		margin: 2px 0 0;
+		font-size: 12px;
+		color: #71717a;
 	}
-	.perm-status-item {
+	.status-card {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 12px 18px;
+		background: #1d1d20;
+		border: 1px solid #2c2c30;
+		border-radius: 14px;
+	}
+	.status-top-row {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		color: var(--text-strong);
+		gap: 12px;
 	}
-	.footnote-perm {
-		margin-top: 10px;
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		color: var(--text-muted);
-	}
-	.title-row,
-	.card-title {
+	.status-dot-group {
 		display: flex;
 		align-items: center;
-		gap: 9px;
+		gap: 8px;
 	}
-	.title-row {
-		margin-bottom: 5px;
+	.status-dot {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: #71717a;
 	}
-	.title-row strong,
-	.card-title strong,
-	.privacy-note > div > strong {
-		color: var(--text-strong);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
+	.status-dot.connected {
+		background: #22c55e;
+	}
+	.status-dot.warning {
+		background: #eab308;
+	}
+	.status-text {
+		font-size: 13px;
+		color: #ececee;
+		font-weight: 400;
+	}
+	.hidden-accessibility-badge {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+	.check-btn {
+		height: 30px;
+		padding: 0 12px;
+		background: #26262b;
+		border: 1px solid #34343a;
+		border-radius: 8px;
+		color: #ececee;
+		font-size: 12px;
 		font-weight: 500;
+		cursor: pointer;
+		transition:
+			background-color var(--duration-short2) var(--ease-standard),
+			border-color var(--duration-short2) var(--ease-standard);
 	}
-	.privacy-note p strong {
-		color: var(--text-strong);
-		font-size: inherit;
-		line-height: inherit;
-		letter-spacing: inherit;
-		font-weight: 500;
+	.check-btn:hover:not(:disabled) {
+		background: #2f2f35;
+		border-color: #404046;
 	}
-	.footnote-perm.warning {
-		color: #eab308;
+	.check-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
-	.version-tag {
-		font-family: var(--font-mono);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		color: var(--text-body);
-		background: var(--surface-2);
-		padding: 2px 6px;
-		border-radius: var(--radius-sm);
-		border: 1px solid var(--border);
-	}
-	.switch-row {
+	.status-bottom-row {
 		display: flex;
 		align-items: center;
-		gap: 9px;
-		flex: 0 0 auto;
-		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		gap: 6px;
+		font-size: 12px;
+		color: #71717a;
 	}
-	.switch-row b {
+	.install-section {
+		margin-top: 4px;
+	}
+	.section-title {
+		margin: 0 0 10px;
+		font-size: 13px;
 		font-weight: 500;
+		color: #ececee;
 	}
-	.privacy-note {
-		display: flex;
-		align-items: flex-start;
-		gap: 11px;
-		margin: var(--space-4) 0;
-		padding: 14px var(--space-4);
-		color: var(--status-ok-text);
-		background: color-mix(in srgb, var(--status-ok-dot) 8%, var(--surface));
-		border: 1px solid color-mix(in srgb, var(--status-ok-dot) 26%, var(--border));
-		border-radius: var(--radius-lg);
-	}
-	.connection-row {
-		display: flex;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 10px;
-		margin: 14px 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	.privacy-note p {
-		margin-top: 3px;
-	}
-	.package-grid {
+	.download-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 13px;
+		gap: 12px;
 	}
-	article {
-		padding: 18px;
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-xl);
+	.download-card {
+		display: flex;
+		flex-direction: column;
+		padding: 14px 16px;
+		background: #1d1d20;
+		border: 1px solid #2c2c30;
+		border-radius: 14px;
 	}
-	article.recommended {
-		border-color: var(--border-strong);
-		box-shadow: 0 5px 20px var(--shadow-softer);
+	.package-name {
+		font-size: 13px;
+		font-weight: 500;
+		color: #ececee;
 	}
-	.card-icon {
-		width: 38px;
-		height: 38px;
-		margin-bottom: 14px;
-		border-radius: var(--radius-lg);
+	.package-desc {
+		margin: 2px 0 14px;
+		font-size: 11px;
+		color: #71717a;
 	}
-	.card-title {
-		justify-content: space-between;
-	}
-	article > p {
-		min-height: 43px;
-		margin-top: 6px;
-	}
-	:global(.package-download) {
-		width: 100%;
-		margin: var(--space-4) 0 14px;
+	.download-action-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 6px;
+		height: 34px;
+		background: #f4f4f5;
+		border: 0;
+		border-radius: 8px;
+		color: #18181b;
+		font-size: 12px;
+		font-weight: 500;
 		text-decoration: none;
+		cursor: pointer;
+		transition: background-color var(--duration-short2) var(--ease-standard);
 	}
-	ol {
+	.download-action-btn:hover {
+		background: #e4e4e7;
+	}
+	.disclosures-container {
+		display: flex;
+		flex-direction: column;
+		background: #1d1d20;
+		border: 1px solid #2c2c30;
+		border-radius: 14px;
+		overflow: hidden;
+	}
+	.accordion-item {
+		border-bottom: 1px solid #252528;
+	}
+	.accordion-item:last-child {
+		border-bottom: none;
+	}
+	.accordion-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+		padding: 12px 16px;
+		background: transparent;
+		border: 0;
+		color: #ececee;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background-color var(--duration-short2) var(--ease-standard);
+	}
+	.accordion-header:hover {
+		background: #222226;
+	}
+	.accordion-body {
+		padding: 4px 16px 16px;
+	}
+	.browser-step-tabs {
+		display: inline-flex;
+		align-items: center;
+		background: #242428;
+		border: 1px solid #2f2f34;
+		border-radius: 8px;
+		padding: 2px;
+		margin-bottom: 12px;
+	}
+	.tab-pill {
+		padding: 4px 12px;
+		background: transparent;
+		border: 0;
+		border-radius: 6px;
+		color: #71717a;
+		font-size: 12px;
+		font-weight: 500;
+		cursor: pointer;
+		transition:
+			background-color var(--duration-short2) var(--ease-standard),
+			color var(--duration-short2) var(--ease-standard);
+	}
+	.tab-pill.active {
+		background: #34343a;
+		color: #ececee;
+	}
+	.step-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 		margin: 0;
-		padding-left: 20px;
-		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
+		padding: 0;
+		list-style: none;
 	}
-	code {
+	.step-list li {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-size: 12px;
+		color: #a1a1aa;
+	}
+	.step-circle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		background: #27272b;
+		border: 1px solid #34343a;
+		font-size: 10px;
+		font-weight: 600;
+		color: #ececee;
+		flex-shrink: 0;
+	}
+	.inline-code {
 		font-family: var(--font-mono);
-		padding: 1px var(--space-1);
-		color: var(--text-body);
-		background: var(--surface-2);
-		border-radius: var(--radius-sm);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		word-break: break-all;
+		background: #151517;
+		padding: 1px 5px;
+		border-radius: 4px;
+		color: #ececee;
+		border: 1px solid #2c2c30;
 	}
-	.footnote {
-		margin-top: 18px;
-		padding-top: var(--space-4);
-		border-top: 1px solid var(--border);
+	.info-text p {
+		margin: 0 0 6px;
+		font-size: 12px;
+		line-height: 1.5;
+		color: #a1a1aa;
 	}
+	.info-text p:last-child {
+		margin-bottom: 0;
+	}
+	.perm-status-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 8px;
+		font-size: 11px;
+		color: #71717a;
+	}
+	.tab-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		margin-top: 6px;
+		padding-top: 14px;
+	}
+	.footer-note {
+		font-size: 12px;
+		color: #71717a;
+	}
+	.done-btn {
+		height: 36px;
+		padding: 0 20px;
+		background: #f4f4f5;
+		border: 0;
+		border-radius: 10px;
+		color: #18181b;
+		font-size: 13px;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background-color var(--duration-short2) var(--ease-standard);
+	}
+	.done-btn:hover {
+		background: #e4e4e7;
+	}
+
 	@media (max-width: 760px) {
-		.tab-content {
-			padding: 20px var(--space-4) var(--space-7);
+		.tab-pane {
+			padding: 16px 16px 64px;
 		}
-		.enable-card {
-			align-items: flex-start;
-			flex-direction: column;
+		.view-header {
+			padding-right: 0;
 		}
-		.package-grid {
+		.download-grid {
 			grid-template-columns: 1fr;
 		}
-		article > p {
-			min-height: auto;
+		.tab-footer {
+			flex-direction: column-reverse;
+			align-items: stretch;
+		}
+		.done-btn {
+			width: 100%;
 		}
 	}
 </style>

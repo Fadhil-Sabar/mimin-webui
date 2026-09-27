@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ProjectFileRow from './ProjectFileRow.svelte';
 	import ProjectUpload from './ProjectUpload.svelte';
+	import ProjectSearch from './ProjectSearch.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import type { PageInfo, ProjectFile, UploadSummary } from './project-types';
 
@@ -8,7 +9,7 @@
 		projectId,
 		filteredFiles,
 		loadedCount,
-		query,
+		query = $bindable(''),
 		pagination,
 		loadingMore,
 		reindexing,
@@ -24,7 +25,7 @@
 		projectId: string;
 		filteredFiles: ProjectFile[];
 		loadedCount: number;
-		query: string;
+		query?: string;
 		pagination: PageInfo;
 		loadingMore: boolean;
 		reindexing: string | null;
@@ -46,6 +47,7 @@
 			<p>Files available to the agent in this project.</p>
 			{#if query.trim()}<small class="search-scope">Searching all project files…</small>{/if}
 		</div>
+		<ProjectSearch bind:value={query} />
 	</div>
 	<ProjectUpload {uploading} {indexingNotice} {uploadSummary} {onupload} />
 	{#if filteredFiles.length > 0}
@@ -81,6 +83,9 @@
 		justify-content: space-between;
 		gap: var(--space-4);
 		margin-bottom: var(--space-3);
+	}
+	.section-heading :global(.project-search) {
+		flex: 0 0 auto;
 	}
 	.section-heading h2 {
 		margin: 0;
@@ -121,5 +126,14 @@
 	}
 	.filtered-empty {
 		padding: var(--space-5) 0;
+	}
+	@media (max-width: 760px) {
+		.section-heading {
+			align-items: stretch;
+			flex-direction: column;
+		}
+		.section-heading :global(.project-search) {
+			width: 100%;
+		}
 	}
 </style>

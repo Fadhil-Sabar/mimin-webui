@@ -252,8 +252,8 @@
  * app.html. Newsreader stays as a display accent for the brand wordmark only. */
 :root {
 	--font-body:
-		'Roboto', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-	--font-display: 'Newsreader', Georgia, 'Times New Roman', serif;
+		'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	--font-display: var(--font-body);
 }
 
 /* ---------- Layout metrics ----------
@@ -270,8 +270,8 @@
 	--space-6: 32px;
 	--space-7: 48px;
 	--topbar-h: 66px;
-	--content-max: 960px;
-	--content-max-wide: 1120px;
+	--content-max: 1100px;
+	--content-max-wide: 1100px;
 	/* Reserved for the mobile bottom nav; zero until the nav is shown. */
 	--mobile-nav-h: 0px;
 }
@@ -359,22 +359,22 @@
 
 /* ---------- Dark theme ---------- */
 :root[data-theme='dark'] {
-	--bg: #101012;
-	--surface: #17171a;
-	--surface-2: #141416;
-	--surface-3: #1c1c1f;
-	--surface-hover: #232327;
+	--bg: #141416;
+	--surface: #202023;
+	--surface-2: #1b1b1e;
+	--surface-3: #29292d;
+	--surface-hover: #36363b;
 	--surface-subtle: #1a1a1d;
-	--border: #2a2a2e;
-	--border-strong: #3f3f45;
+	--border: #2c2c30;
+	--border-strong: #45454b;
 	--input-border: #33333a;
-	--text: #ededf0;
-	--text-strong: #ffffff;
+	--text: #ececee;
+	--text-strong: #f4f4f5;
 	--text-body: #c9c9ce;
-	--text-muted: #b5b5bc;
+	--text-muted: #a1a1aa;
 	--text-dim: #9a9aa2;
 	--text-faint: #85858d;
-	--accent-bg: #ededf0;
+	--accent-bg: #f4f4f5;
 	--accent-bg-hover: #ffffff;
 	--accent-fg: #111114;
 	--focus: #a9d2ff;
@@ -1592,7 +1592,7 @@ svg {
 	position: fixed;
 	right: 0.75rem;
 	bottom: calc(0.5rem + var(--mobile-nav-h));
-	z-index: 100;
+	z-index: 20;
 	font-size: var(--text-label-sm);
 	line-height: var(--text-label-sm--line-height);
 	letter-spacing: var(--text-label-sm--letter-spacing);
@@ -1605,4 +1605,61 @@ svg {
 .source-link:focus-visible {
 	opacity: 1;
 	text-decoration: underline;
+}
+
+/* Mimin design pack shell */
+@media (min-width: 761px) {
+	.app-shell,
+	.app-shell.sidebar-collapsed {
+		grid-template-columns: 122px minmax(0, 1fr);
+	}
+	.sidebar[data-mimin-dock],
+	.app-shell.sidebar-collapsed .sidebar[data-mimin-dock] {
+		display: flex;
+		position: sticky;
+		top: 34px;
+		width: 74px;
+		height: calc(100dvh - 68px);
+		margin: 34px 0 34px 24px;
+		padding: 10px 9px;
+		background: var(--surface-2);
+		border: 1px solid var(--border);
+		border-radius: 18px;
+		box-shadow: 0 16px 42px var(--shadow);
+		overflow: visible;
+	}
+	.topbar-toggle,
+	.app-shell.sidebar-collapsed .topbar-toggle {
+		display: none;
+	}
+}
+.main-content {
+	overflow-x: hidden;
+}
+.topbar {
+	background: transparent;
+	border-bottom: 0;
+	backdrop-filter: none;
+	height: 102px;
+	padding: 0 clamp(24px, 3vw, 52px);
+}
+.topbar-left {
+	gap: 44px;
+}
+.top-actions {
+	gap: 12px;
+}
+@media (max-width: 760px) {
+	.sidebar[data-mimin-dock],
+	.app-shell.sidebar-collapsed .sidebar[data-mimin-dock] {
+		display: flex;
+		padding: 18px 14px;
+	}
+	.topbar {
+		height: 66px;
+		padding-inline: 18px;
+	}
+	.topbar-left {
+		gap: 14px;
+	}
 }

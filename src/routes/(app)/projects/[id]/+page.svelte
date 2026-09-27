@@ -10,7 +10,6 @@
 	import ProjectHeader from './ProjectHeader.svelte';
 	import ProjectInstructions from './ProjectInstructions.svelte';
 	import ProjectKnowledge from './ProjectKnowledge.svelte';
-	import ProjectSearch from './ProjectSearch.svelte';
 	import ProjectSkills from './ProjectSkills.svelte';
 	import ProjectCanvases from './ProjectCanvases.svelte';
 	import type { CanvasSummary } from '$lib/canvas';
@@ -66,6 +65,27 @@
 	});
 	let loadSequence = 0;
 	let reindexing = $state<string | null>(null);
+	type ProjectTab = 'conversations' | 'knowledge' | 'canvas' | 'instructions' | 'skills';
+	let activeTab = $state<ProjectTab>('conversations');
+	const tabs: { id: ProjectTab; label: string }[] = [
+		{ id: 'conversations', label: 'Conversations' },
+		{ id: 'knowledge', label: 'Knowledge' },
+		{ id: 'canvas', label: 'Canvas' },
+		{ id: 'instructions', label: 'Instructions' },
+		{ id: 'skills', label: 'Skills' }
+	];
+	function handleTabKeydown(event: KeyboardEvent, current: ProjectTab) {
+		const index = tabs.findIndex((tab) => tab.id === current);
+		let nextIndex: number;
+		if (event.key === 'ArrowRight') nextIndex = (index + 1) % tabs.length;
+		else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + tabs.length) % tabs.length;
+		else if (event.key === 'Home') nextIndex = 0;
+		else if (event.key === 'End') nextIndex = tabs.length - 1;
+		else return;
+		event.preventDefault();
+		activeTab = tabs[nextIndex].id;
+		requestAnimationFrame(() => document.getElementById(`project-tab-${activeTab}`)?.focus());
+	}
 	async function reindexFile(file: ProjectFile) {
 		reindexing = file.id;
 		try {
@@ -444,12 +464,8 @@
 		{ label: project?.name ?? '...', strong: true }
 	]}
 	separator="chevron-right"
->
-	{#snippet actions()}
-		<ProjectSearch bind:value={projectQuery} />
-	{/snippet}
-</Topbar>
-<Page>
+></Topbar>
+<Page width="wide">
 	{#if loading}
 		<div class="empty-state" role="status">Loading project...</div>
 	{:else if loadError}
@@ -468,35 +484,70 @@
 			onedit={openEdit}
 			ondelete={promptDeleteProject}
 		/>
-		<ProjectInstructions {project} onedit={openEdit} />
-		<ProjectCanvases canvases={projectCanvases} oncreatecanvas={createProjectCanvas} />
-		<ProjectSkills {projectId} onskillchat={startSkillChat} />
-		<ProjectKnowledge
-			{projectId}
-			filteredFiles={files}
-			loadedCount={files.length}
-			query={projectQuery}
-			pagination={filePagination}
-			loadingMore={loadingMoreFiles}
-			{reindexing}
-			{uploading}
-			{indexingNotice}
-			{uploadSummary}
-			onupload={uploadFiles}
-			onreindex={reindexFile}
-			ondelete={promptDeleteFile}
-			onask={askAboutFile}
-			onloadmore={loadMoreFiles}
-		/>
-		<ProjectConversations
-			{filteredConversations}
-			loadedCount={conversations.length}
-			query={projectQuery}
-			pagination={conversationPagination}
-			loadingMore={loadingMoreConversations}
-			onloadmore={loadMoreConversations}
-			onstartchat={startChat}
-		/>
+		<div class="project-tabs" aria-label="Project sections" role="tablist">
+			{#each tabs as tab (tab.id)}
+				<button
+					type="button"
+					role="tab"
+					id={`project-tab-${tab.id}`}
+					class:active={activeTab === tab.id}
+					aria-selected={activeTab === tab.id}
+					aria-controls={activeTab === tab.id ? `project-panel-${tab.id}` : undefined}
+					tabindex={activeTab === tab.id ? 0 : -1}
+					onclick={() => (activeTab = tab.id)}
+					onkeydown={(event) => handleTabKeydown(event, tab.id)}
+				>
+					<span>{tab.label}</span>
+					{#if tab.id === 'conversations'}<span class="tab-count"
+							>{conversationPagination.total}</span
+						>{/if}
+					{#if tab.id === 'knowledge'}<span class="tab-count">{filePagination.total}</span>{/if}
+					{#if tab.id === 'canvas'}<span class="tab-count">{projectCanvases.length}</span>{/if}
+				</button>
+			{/each}
+		</div>
+		<div
+			class="project-tab-panel"
+			id={`project-panel-${activeTab}`}
+			role="tabpanel"
+			aria-labelledby={`project-tab-${activeTab}`}
+			tabindex="-1"
+		>
+			{#if activeTab === 'conversations'}
+				<ProjectConversations
+					{filteredConversations}
+					loadedCount={conversations.length}
+					bind:query={projectQuery}
+					pagination={conversationPagination}
+					loadingMore={loadingMoreConversations}
+					onloadmore={loadMoreConversations}
+				/>
+			{:else if activeTab === 'knowledge'}
+				<ProjectKnowledge
+					{projectId}
+					filteredFiles={files}
+					loadedCount={files.length}
+					bind:query={projectQuery}
+					pagination={filePagination}
+					loadingMore={loadingMoreFiles}
+					{reindexing}
+					{uploading}
+					{indexingNotice}
+					{uploadSummary}
+					onupload={uploadFiles}
+					onreindex={reindexFile}
+					ondelete={promptDeleteFile}
+					onask={askAboutFile}
+					onloadmore={loadMoreFiles}
+				/>
+			{:else if activeTab === 'canvas'}
+				<ProjectCanvases canvases={projectCanvases} oncreatecanvas={createProjectCanvas} />
+			{:else if activeTab === 'instructions'}
+				<ProjectInstructions {project} onedit={openEdit} />
+			{:else if activeTab === 'skills'}
+				<ProjectSkills {projectId} onskillchat={startSkillChat} />
+			{/if}
+		</div>
 	{/if}
 </Page>
 <ProjectDialogs
@@ -558,5 +609,73 @@
 		color: var(--text-body);
 		text-decoration: underline;
 		text-underline-offset: 3px;
+	}
+	.project-tabs {
+		display: flex;
+		align-items: flex-end;
+		gap: 2px;
+		margin-top: 26px;
+		border-bottom: 1px solid var(--border);
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.project-tabs::-webkit-scrollbar {
+		display: none;
+	}
+	.project-tabs button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
+		min-height: 42px;
+		padding: 0 13px;
+		border: 0;
+		border-bottom: 2px solid transparent;
+		color: var(--text-muted);
+		background: transparent;
+		font-size: var(--text-body-md);
+		line-height: 1;
+		white-space: nowrap;
+		transition:
+			color var(--duration-short3) var(--ease-standard),
+			border-color var(--duration-short3) var(--ease-standard);
+	}
+	.project-tabs button:hover {
+		color: var(--text-strong);
+	}
+	.project-tabs button.active {
+		border-bottom-color: var(--text-strong);
+		color: var(--text-strong);
+	}
+	.project-tabs button:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: -2px;
+	}
+	.tab-count {
+		min-width: 1.25rem;
+		padding: 2px 5px;
+		border: 1px solid var(--border);
+		border-radius: 999px;
+		color: var(--text-dim);
+		font-size: var(--text-label-sm);
+		line-height: 1;
+		font-variant-numeric: tabular-nums;
+	}
+	.project-tabs button.active .tab-count {
+		border-color: var(--border-strong);
+		color: var(--text-body);
+	}
+	.project-tab-panel {
+		min-width: 0;
+	}
+	@media (max-width: 760px) {
+		.project-tabs {
+			margin-left: -4px;
+			margin-right: -4px;
+		}
+		.project-tabs button {
+			padding-inline: 10px;
+			font-size: var(--text-body-sm);
+		}
 	}
 </style>

@@ -1,5 +1,13 @@
 <script lang="ts">
-	import { ArrowUp, Paperclip, SlidersHorizontal, Sparkles, Square, X } from '@lucide/svelte';
+	import {
+		ArrowUpRight,
+		Paperclip,
+		Plus,
+		SlidersHorizontal,
+		Sparkles,
+		Square,
+		X
+	} from '@lucide/svelte';
 	import { onDestroy, untrack } from 'svelte';
 	import ModelPicker, {
 		type ModelOption,
@@ -253,9 +261,7 @@
 			bind:this={textareaEl}
 			bind:value={message}
 			aria-label="Message Mimin"
-			placeholder={running
-				? 'Prepare your next message...'
-				: 'Ask Mimin to think, write, or plan...'}
+			placeholder={running ? 'Prepare your next message...' : 'Message Mimin...'}
 			onkeydown={handleKeydown}
 			onpaste={handlePaste}></textarea>
 		<div class="composer-row">
@@ -274,8 +280,9 @@
 					variant="secondary"
 					class="file-attach-control gap-1.5 bg-[var(--surface-subtle)] px-[9px] py-[7px] text-[var(--text-muted)] hover:border-[var(--text-faint)] hover:text-[var(--text-strong)] max-[760px]:px-[8px] max-[760px]:py-[5px] max-[560px]:px-[7px] max-[560px]:py-[4px]"
 					title="Attach files or images"
+					aria-label="Attach files or images"
 					disabled={blocked()}
-					onclick={() => fileInput?.click()}><Paperclip size={15} aria-hidden="true" /> File</Button
+					onclick={() => fileInput?.click()}><Plus size={22} aria-hidden="true" /></Button
 				>
 				<ModelPicker
 					{models}
@@ -340,8 +347,8 @@
 				aria-label={running ? 'Stop generation' : 'Send message'}
 				title={running ? 'Stop generation' : 'Send message'}
 				onclick={() => (running ? onstop() : sendMessage())}
-				>{#if running}<Square size={13} aria-hidden="true" />{:else}<ArrowUp
-						size={16}
+				>{#if running}<Square size={13} aria-hidden="true" />{:else}<ArrowUpRight
+						size={20}
 						aria-hidden="true"
 					/>{/if}</Button
 			>
@@ -546,23 +553,23 @@
 		margin-top: auto;
 		padding-top: var(--space-5);
 		padding-bottom: 20px;
-		background: linear-gradient(to top, var(--bg) 80%, transparent);
+		background: var(--bg);
 		z-index: 15;
 	}
 	.chat-composer {
 		position: relative;
 		background: var(--surface);
 		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-lg);
-		padding: var(--space-3);
-		box-shadow: 0 10px 28px var(--shadow-faint);
+		border-radius: 20px;
+		padding: 24px 28px 20px;
+		box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
 	}
 	.chat-composer > .attachment-list {
 		margin: 0 0 var(--space-2);
 	}
 	.chat-composer textarea {
 		width: 100%;
-		min-height: 45px;
+		min-height: 75px;
 		border: 0;
 		resize: none;
 		font-family: inherit;
@@ -583,7 +590,7 @@
 		align-items: flex-end;
 		justify-content: space-between;
 		gap: var(--space-2);
-		border-top: 1px solid var(--border);
+		border-top: 0;
 		padding-top: 10px;
 	}
 	.composer-tools {
@@ -689,6 +696,41 @@
 		}
 		.thinking-level-control {
 			max-width: 95px;
+		}
+	}
+	.composer-container {
+		padding-top: 28px;
+		padding-bottom: 24px;
+	}
+	.composer-tools {
+		gap: 10px;
+	}
+	:global(.file-attach-control) {
+		min-width: 42px;
+		min-height: 42px;
+		padding: 7px !important;
+		border: 0;
+		background: transparent;
+		color: var(--text-strong);
+	}
+	:global(.send-control) {
+		width: 52px;
+		height: 52px;
+		border-radius: 11px;
+	}
+	@media (max-width: 760px) {
+		.chat-composer {
+			padding: 18px;
+		}
+		.chat-composer textarea {
+			min-height: 65px;
+		}
+		.composer-container {
+			padding-bottom: 12px;
+		}
+		:global(.send-control) {
+			width: 44px;
+			height: 44px;
 		}
 	}
 </style>

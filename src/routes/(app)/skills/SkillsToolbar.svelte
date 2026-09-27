@@ -60,7 +60,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 20px 0;
+		gap: var(--space-4);
+		padding: var(--space-6) 0 var(--space-5);
 		color: var(--text-dim);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
@@ -69,6 +70,7 @@
 	.scope-tabs {
 		display: flex;
 		align-items: center;
+		flex: none;
 		gap: 3px;
 		padding: 3px;
 		background: var(--surface-2);
@@ -76,8 +78,8 @@
 		border-radius: var(--radius-md);
 	}
 	.scope-tabs button {
-		min-height: 30px;
-		padding: 5px 10px;
+		min-height: 32px;
+		padding: 6px 12px;
 		color: var(--text-muted);
 		background: transparent;
 		border: 0;
@@ -110,7 +112,9 @@
 	.toolbar-tools {
 		display: flex;
 		align-items: center;
+		justify-content: flex-end;
 		gap: var(--space-2);
+		min-width: 0;
 	}
 	.search-field,
 	.project-filter {
@@ -124,7 +128,10 @@
 		border-radius: var(--radius-md);
 	}
 	.search-field {
-		width: 220px;
+		/* Shrinks before the scope tabs do. */
+		flex: 0 1 360px;
+		width: 360px;
+		min-width: 0;
 		padding: 7px 10px;
 	}
 	.search-field input,
@@ -180,6 +187,8 @@
 			flex-direction: column;
 		}
 		.search-field {
+			/* Column layout: the flex-basis would act as a height, so drop it. */
+			flex: none;
 			width: 100%;
 		}
 		.project-filter {

@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
-	import { Loader2, Send } from '@lucide/svelte';
+	import { ArrowUpRight, Folder, Loader2, Plus } from '@lucide/svelte';
 	import ModelPicker, { type ModelOption } from '$lib/components/ModelPicker.svelte';
 	import {
 		loadModelsCached,
@@ -45,10 +45,6 @@
 		setHomeDraft(value, data.user?.id);
 	});
 	let submitting = $state(false);
-	function usePrompt(value: string) {
-		prompt = value;
-	}
-
 	function modelRef(model: ModelOption) {
 		return `${model.provider}/${model.id}`;
 	}
@@ -175,9 +171,8 @@
 <svelte:head><title>Mimin WebUI | Home</title></svelte:head>
 <Topbar />
 <div class="home-wrap">
-	<span class="workbench-label">Your workbench</span>
-	<h1>Start a chat with<br />Mimin.</h1>
-	<p class="intro">Ask a question or describe what you want to work on.</p>
+	<div class="home-mark" aria-hidden="true">m</div>
+	<h1>Where shall we start?</h1>
 	{#if !modelsLoading && !selectedModel}
 		<a class="setup-callout" href={resolve('/settings')} onclick={openProviderSetup}
 			>Connect a model to start chatting <span>→</span></a
@@ -187,7 +182,7 @@
 		<textarea
 			bind:value={prompt}
 			aria-label="Prompt"
-			placeholder="What would you like to work on?"
+			placeholder="Ask anything, or start an idea..."
 			disabled={submitting}
 			aria-busy={submitting}
 			onkeydown={onKeydown}></textarea>
@@ -206,40 +201,8 @@
 			</div>
 		{/if}
 		<div class="composer-row">
-			<ModelPicker
-				models={configuredModels}
-				value={selectedModel}
-				loading={modelsLoading}
-				disabled={submitting || configuredModels.length === 0}
-				placeholder={modelLoadError ? 'Models unavailable' : 'Choose a model'}
-				onselect={(model) => {
-					selectedModel = model;
-					setLastUsedModel(model);
-				}}
-			/>
-			<label class="composer-select"
-				>Project
-				<select
-					aria-label="Project"
-					bind:value={selectedProjectId}
-					disabled={submitting}
-					onchange={() => (selectedSkillId = '')}
-				>
-					<option value="">No project</option>
-					{#each projects as project (project.id)}<option value={project.id}>{project.name}</option
-						>{/each}
-				</select>
-			</label>
-			<label class="composer-select"
-				>Skill
-				<select aria-label="Skill" bind:value={selectedSkillId} disabled={submitting}>
-					<option value="">No skill</option>
-					{#each eligibleSkills as skill (skill.id)}<option value={skill.id}>{skill.name}</option
-						>{/each}
-				</select>
-			</label>
-			<label class="attach-input"
-				>Attach files
+			<label class="attach-input" title="Attach files" aria-label="Attach files">
+				<Plus size={24} />
 				<input
 					type="file"
 					multiple
@@ -248,26 +211,60 @@
 						(attachments = Array.from(event.currentTarget.files ?? []).slice(0, 5))}
 				/>
 			</label>
+			<div class="composer-divider"></div>
+			<div class="context-controls">
+				<Folder size={19} /><span>Context</span>
+				<label class="composer-select"
+					><span class="sr-only">Project</span>
+					<select
+						aria-label="Project"
+						bind:value={selectedProjectId}
+						disabled={submitting}
+						onchange={() => (selectedSkillId = '')}
+					>
+						<option value="">No project</option>
+						{#each projects as project (project.id)}<option value={project.id}
+								>{project.name}</option
+							>{/each}
+					</select>
+				</label>
+				<label class="composer-select"
+					><span class="sr-only">Skill</span>
+					<select aria-label="Skill" bind:value={selectedSkillId} disabled={submitting}>
+						<option value="">No skill</option>
+						{#each eligibleSkills as skill (skill.id)}<option value={skill.id}>{skill.name}</option
+							>{/each}
+					</select>
+				</label>
+			</div>
+			<div class="model-slot">
+				<ModelPicker
+					models={configuredModels}
+					value={selectedModel}
+					loading={modelsLoading}
+					disabled={submitting || configuredModels.length === 0}
+					placeholder={modelLoadError ? 'Models unavailable' : 'Choose a model'}
+					onselect={(model) => {
+						selectedModel = model;
+						setLastUsedModel(model);
+					}}
+				/>
+			</div>
 			<Button
 				variant="default"
 				size="icon-lg"
-				class="ml-auto rounded-lg"
+				class="send-button"
 				disabled={submitting}
 				aria-label={submitting ? 'Starting chat' : 'Send prompt'}
 				title={submitting ? 'Starting chat' : 'Send prompt'}
 				onclick={submitPrompt}
-				>{#if submitting}<Loader2 size={16} class="animate-spin" aria-hidden="true" />{:else}<Send
-						size={16}
+				>{#if submitting}<Loader2
+						size={20}
+						class="animate-spin"
 						aria-hidden="true"
-					/>{/if}</Button
+					/>{:else}<ArrowUpRight size={22} aria-hidden="true" />{/if}</Button
 			>
 		</div>
-	</div>
-	<div class="example-row">
-		<button onclick={() => usePrompt('Summarize project notes')}>Summarize project notes</button
-		><button onclick={() => usePrompt('Design a clean API')}>Design a clean API</button><button
-			onclick={() => usePrompt('Explore ideas')}>Explore ideas</button
-		>
 	</div>
 </div>
 
@@ -284,24 +281,6 @@
 		letter-spacing: var(--text-display-sm--letter-spacing);
 		color: var(--text-strong);
 		margin: 0 0 14px;
-	}
-	.workbench-label {
-		display: inline-flex;
-		margin-bottom: var(--space-3);
-		color: var(--text-muted);
-		font-size: var(--text-body-sm);
-		line-height: var(--text-body-sm--line-height);
-		letter-spacing: var(--text-body-sm--letter-spacing);
-		font-weight: 500;
-		text-transform: uppercase;
-	}
-	.intro {
-		max-width: 500px;
-		color: var(--text-muted);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
-		margin: 0 0 var(--space-6);
 	}
 	.setup-callout {
 		display: flex;
@@ -387,26 +366,6 @@
 		margin-left: 4px;
 		color: var(--text-muted);
 	}
-	.example-row {
-		display: flex;
-		gap: var(--space-2);
-		flex-wrap: wrap;
-		margin-top: 18px;
-	}
-	.example-row button {
-		border: 1px solid var(--border);
-		background: transparent;
-		color: var(--text-muted);
-		border-radius: 999px;
-		padding: 7px 11px;
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	.example-row button:hover {
-		color: var(--text-body);
-		background: var(--surface-hover);
-	}
 	@media (max-width: 760px) {
 		.home-wrap {
 			padding: clamp(var(--space-7), 10vh, 84px) 18px 60px;
@@ -418,6 +377,128 @@
 		}
 		.composer-row {
 			flex-wrap: wrap;
+		}
+	}
+	.home-wrap {
+		width: min(100%, 1100px);
+		max-width: 1100px;
+		padding: clamp(110px, 17vh, 185px) 28px 70px;
+		text-align: center;
+	}
+	.home-mark {
+		margin: 0 auto 42px;
+		color: var(--text-strong);
+		font-size: 45px;
+		font-weight: 600;
+		letter-spacing: -0.08em;
+		line-height: 1;
+	}
+	.home-wrap h1 {
+		margin: 0 0 42px;
+		font-size: clamp(38px, 4vw, 56px);
+		line-height: 1.12;
+		letter-spacing: -0.055em;
+		font-weight: 400;
+	}
+	.home-composer {
+		width: 100%;
+		min-height: 250px;
+		display: flex;
+		flex-direction: column;
+		padding: 28px 32px 24px;
+		text-align: left;
+		border-color: var(--border-strong);
+		border-radius: 20px;
+		box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+	}
+	.home-composer textarea {
+		flex: 1;
+		min-height: 120px;
+		font-size: 20px;
+		line-height: 1.45;
+	}
+	.composer-row {
+		gap: 14px;
+		padding-top: 12px;
+		border: 0;
+	}
+	.attach-input {
+		width: 38px;
+		height: 42px;
+		display: grid;
+		place-items: center;
+		color: var(--text-strong);
+		cursor: pointer;
+	}
+	.attach-input input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+	}
+	.composer-divider {
+		height: 30px;
+		width: 1px;
+		background: var(--border-strong);
+	}
+	.context-controls {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		min-width: 0;
+		color: var(--text-body);
+	}
+	.context-controls > span {
+		font-size: 14px;
+	}
+	.composer-select {
+		display: flex;
+	}
+	.composer-select select {
+		max-width: 122px;
+		padding: 5px 18px 5px 5px;
+		border: 0;
+		background: transparent;
+		color: var(--text-body);
+		font-size: 13px;
+	}
+	.model-slot {
+		margin-left: auto;
+	}
+	:global(.send-button) {
+		min-width: 58px;
+		min-height: 58px;
+		border-radius: 11px;
+	}
+	@media (max-width: 760px) {
+		.home-wrap {
+			padding: clamp(70px, 13vh, 130px) 18px 80px;
+		}
+		.home-mark {
+			margin-bottom: 28px;
+		}
+		.home-wrap h1 {
+			font-size: clamp(32px, 8vw, 46px);
+			margin-bottom: 32px;
+		}
+		.home-composer {
+			min-height: 245px;
+			padding: 20px;
+		}
+		.home-composer textarea {
+			min-height: 95px;
+			font-size: 17px;
+		}
+		.composer-row {
+			gap: 8px;
+		}
+		.context-controls {
+			flex: 1 1 100%;
+			order: 3;
+			flex-wrap: wrap;
+		}
+		.model-slot {
+			margin-left: auto;
 		}
 	}
 </style>

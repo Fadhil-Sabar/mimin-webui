@@ -1,14 +1,11 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { LogOut, PanelLeft, Plus, Sparkles } from '@lucide/svelte';
+	import { Folder, LogOut, MessageSquare, Plus, Settings, Workflow, X } from '@lucide/svelte';
 	import RecentChats from '$lib/components/RecentChats.svelte';
-	import SettingsMenu from '$lib/components/SettingsMenu.svelte';
-	import { Button } from '$lib/components/ui/button/index.js';
 	import { authClient } from '$lib/client/auth';
 	import { shell } from '$lib/client/shell.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
-	import { activeNavKey, visibleNavSections } from '$lib/nav';
 	import { settingsModal } from '$lib/client/settings-modal.svelte';
 	import { clearSensitiveDraftState } from '$lib/client/drafts';
 	import { clearAllCanvasDrafts } from '$lib/client/canvas-drafts';
@@ -18,19 +15,39 @@
 		conversationsState
 	} from '$lib/client/conversations.svelte';
 
-	type Props = {
-		user?: { id?: string | null; name?: string | null; role?: string | null } | null;
-	};
-
+	type Props = { user?: { id?: string | null; name?: string | null; role?: string | null } | null };
 	let { user = null }: Props = $props();
-
+	let historyOpen = $state(false);
+	let profileOpen = $state(false);
 	let initial = $derived(user?.name?.[0]?.toUpperCase() ?? 'U');
-	let sections = $derived(
-		visibleNavSections(user?.role === 'admin').filter((section) => section.label !== 'Settings')
+	let path = $derived(page.url.pathname);
+	let active = $derived(
+		settingsModal.open
+			? 'settings'
+			: path.startsWith('/projects')
+				? 'projects'
+				: path.startsWith('/skills')
+					? 'skills'
+					: 'chat'
 	);
-	let activeKey = $derived(
-		settingsModal.open ? settingsModal.activeTab : activeNavKey(page.url.pathname)
-	);
+
+	function closePanels() {
+		historyOpen = false;
+		profileOpen = false;
+		sidebar.closeMobile();
+	}
+
+	function newChat() {
+		closePanels();
+		if (shell.newChat) shell.newChat();
+		else window.location.href = resolve('/chat?new=1');
+	}
+
+	function selectChat(id: string) {
+		if (shell.chats?.onSelectChat) shell.chats.onSelectChat(id);
+		else window.location.href = resolve('/chat') + '?id=' + encodeURIComponent(id);
+		closePanels();
+	}
 
 	async function logout() {
 		clearSensitiveDraftState();
@@ -41,117 +58,287 @@
 		try {
 			localStorage.removeItem(LAST_USED_MODEL_STORAGE_KEY);
 		} catch {
-			/* Storage is best effort. */
+			/* best effort */
 		}
 		await authClient.signOut();
 		window.location.href = '/login';
 	}
 </script>
 
-<aside class="sidebar">
-	<div class="sidebar-top-row">
-		<div class="brand">
-			<span class="brand-mark"><Sparkles size={13} /></span><span>mimin</span><span
-				class="brand-muted">/ workbench</span
-			>
-		</div>
-		<Button
-			variant="ghost"
-			size="icon-sm"
-			class="mb-[var(--space-4)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-strong)]"
-			onclick={() => sidebar.toggle()}
-			title="Collapse sidebar"
-			aria-label="Collapse sidebar"><PanelLeft size={16} /></Button
-		>
-	</div>
-	{#if shell.newChat}
-		<Button
-			variant="default"
-			class="mb-[var(--space-4)] w-full justify-start px-[11px] py-[8px] text-left shadow-[0_2px_8px_var(--shadow-soft)] hover:-translate-y-px active:translate-y-0 active:scale-[0.97]"
+<svelte:window
+	onkeydown={(event) => {
+		if (event.key === 'Escape') closePanels();
+	}}
+/>
+
+<aside class="sidebar" data-mimin-dock aria-label="Workspace navigation">
+	<a
+		class="dock-logo"
+		href={resolve('/')}
+		aria-label="Mimin home"
+		title="Mimin home"
+		onclick={closePanels}>m</a
+	>
+	<div class="dock-rule"></div>
+	<nav class="dock-nav" aria-label="Main">
+		<button
+			class="dock-item"
+			type="button"
+			title="New chat"
+			aria-label="New chat"
 			disabled={shell.newChatDisabled}
-			title={shell.newChatEmpty ? 'Already on a new conversation' : 'New chat'}
+			onclick={newChat}><Plus size={23} strokeWidth={1.8} /><span>New chat</span></button
+		>
+		<button
+			class="dock-item"
+			class:active={active === 'chat'}
+			type="button"
+			title="Chats and recent history"
+			aria-label="Chats and recent history"
+			aria-expanded={historyOpen}
 			onclick={() => {
-				sidebar.closeMobile();
-				shell.newChat?.();
-			}}
+				historyOpen = !historyOpen;
+				profileOpen = false;
+			}}><MessageSquare size={22} strokeWidth={1.8} /><span>Chats</span></button
 		>
-			<Plus size={16} /> New chat<kbd class="side-kbd">⌘ K</kbd>
-		</Button>
-	{:else}
-		<Button
-			variant="default"
-			href={resolve('/chat?new=1')}
-			class="mb-[var(--space-4)] w-full justify-start px-[11px] py-[8px] text-left shadow-[0_2px_8px_var(--shadow-soft)] hover:-translate-y-px active:translate-y-0 active:scale-[0.97]"
-			onclick={() => sidebar.closeMobile()}
-			><Plus size={16} /> New chat<kbd class="side-kbd">⌘ K</kbd></Button
+		<a
+			class="dock-item"
+			class:active={active === 'projects'}
+			href={resolve('/projects')}
+			title="Projects"
+			aria-label="Projects"
+			aria-current={active === 'projects' ? 'page' : undefined}
+			onclick={closePanels}><Folder size={22} strokeWidth={1.8} /><span>Projects</span></a
 		>
+		<a
+			class="dock-item"
+			class:active={active === 'skills'}
+			href={resolve('/skills')}
+			title="Skills"
+			aria-label="Skills"
+			aria-current={active === 'skills' ? 'page' : undefined}
+			onclick={closePanels}><Workflow size={22} strokeWidth={1.8} /><span>Skills</span></a
+		>
+	</nav>
+	<div class="dock-spacer"></div>
+	<div class="dock-rule"></div>
+	<div class="dock-bottom">
+		<button
+			class="dock-item"
+			class:active={active === 'settings'}
+			type="button"
+			title="Settings"
+			aria-label="Settings"
+			onclick={() => {
+				settingsModal.show('models');
+				closePanels();
+			}}><Settings size={22} strokeWidth={1.8} /><span>Settings</span></button
+		>
+		<button
+			class="dock-avatar"
+			type="button"
+			title={user?.name ?? 'Profile'}
+			aria-label="Profile"
+			aria-expanded={profileOpen}
+			onclick={() => {
+				profileOpen = !profileOpen;
+				historyOpen = false;
+			}}>{initial}</button
+		>
+	</div>
+	{#if historyOpen || sidebar.mobileOpen}
+		<section class="dock-panel dock-history" aria-label="Recent chats">
+			<div class="dock-panel-head">
+				<strong>Chats</strong><button
+					type="button"
+					aria-label="Close chats"
+					title="Close chats"
+					onclick={() => {
+						historyOpen = false;
+						sidebar.closeMobile();
+					}}><X size={18} /></button
+				>
+			</div>
+			<div class="dock-panel-scroll">
+				<RecentChats
+					conversations={shell.chats?.conversations}
+					activeId={shell.chats?.activeId}
+					editingId={shell.chats?.editingId}
+					onSelectChat={selectChat}
+					onStartRename={shell.chats?.onStartRename}
+					onPromptDelete={shell.chats?.onPromptDelete}
+					onSaveRename={shell.chats?.onSaveRename}
+					onCancelRename={shell.chats?.onCancelRename}
+				/>
+			</div>
+		</section>
 	{/if}
-	<div class="sidebar-scroll">
-		{#each sections as section, index (section.label)}
-			<div class="nav-label" class:nav-label-group={index > 0}>{section.label}</div>
-			{#each section.items as item (item.key)}
-				<a
-					class="nav-item state-layer"
-					class:active={item.key === activeKey}
-					href={resolve(item.href as '/chat')}
-					aria-current={item.key === activeKey ? 'page' : undefined}
-				>
-					<item.icon size={16} />
-					{item.label}
-				</a>
-			{/each}
-		{/each}
-		<RecentChats
-			conversations={shell.chats?.conversations}
-			activeId={shell.chats?.activeId}
-			editingId={shell.chats?.editingId}
-			onSelectChat={shell.chats?.onSelectChat}
-			onStartRename={shell.chats?.onStartRename}
-			onPromptDelete={shell.chats?.onPromptDelete}
-			onSaveRename={shell.chats?.onSaveRename}
-			onCancelRename={shell.chats?.onCancelRename}
-		/>
-	</div>
-	<div class="sidebar-bottom">
-		<div class="user-row">
-			<span class="avatar">{initial}</span>
-			<div class="user-meta">
-				<strong>{user?.name ?? 'User'}</strong>
-			</div>
-			<div class="user-actions">
-				<SettingsMenu />
-				<Button
-					variant="ghost"
-					size="icon-xs"
-					class="hover:bg-[color-mix(in_srgb,var(--danger-text)_10%,transparent)] hover:text-[var(--danger-text)]"
-					onclick={logout}
-					title="Log out"
-					aria-label="Log out"><LogOut size={15} /></Button
-				>
-			</div>
+	{#if profileOpen}
+		<div class="dock-profile" role="group" aria-label="Profile actions">
+			<strong>{user?.name ?? 'User'}</strong>
+			<button type="button" onclick={logout}><LogOut size={16} /> Log out</button>
 		</div>
-	</div>
+	{/if}
 </aside>
 
 <style>
-	.user-actions {
+	.dock-logo {
+		display: grid;
+		place-items: center;
+		height: 54px;
+		color: var(--text-strong);
+		text-decoration: none;
+		font-size: 34px;
+		font-weight: 600;
+		letter-spacing: -0.08em;
+	}
+	.dock-rule {
+		height: 1px;
+		width: 42px;
+		margin: 8px auto 15px;
+		background: var(--border-strong);
+		opacity: 0.65;
+	}
+	.dock-nav,
+	.dock-bottom {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+	}
+	.dock-spacer {
+		flex: 1;
+	}
+	.dock-item {
+		width: 52px;
+		height: 52px;
 		display: flex;
 		align-items: center;
-		gap: 2px;
-		margin-left: auto;
+		justify-content: center;
+		border: 0;
+		border-radius: 11px;
+		color: var(--text-body);
+		background: transparent;
+		text-decoration: none;
 	}
-
-	.side-kbd {
-		margin-left: auto;
-		padding: 1px 5px;
-		border-radius: var(--radius-sm);
-		background: color-mix(in srgb, var(--accent-fg) 12%, transparent);
-		color: var(--accent-fg);
-		font-family: var(--font-body);
-		font-size: var(--text-label-sm);
-		line-height: var(--text-label-sm--line-height);
-		letter-spacing: var(--text-label-sm--letter-spacing);
-		font-weight: var(--text-label-sm--font-weight);
-		opacity: 0.65;
+	.dock-item:hover,
+	.dock-item.active {
+		color: var(--text-strong);
+		background: var(--surface-hover);
+	}
+	.dock-item:disabled {
+		opacity: 0.45;
+	}
+	.dock-item span {
+		display: none;
+	}
+	.dock-avatar {
+		width: 47px;
+		height: 47px;
+		display: grid;
+		place-items: center;
+		border-radius: 50%;
+		border: 1px solid var(--border-strong);
+		color: var(--text-strong);
+		background: var(--surface-3);
+		font-size: 19px;
+	}
+	.dock-panel {
+		position: fixed;
+		left: 111px;
+		top: 34px;
+		bottom: 34px;
+		z-index: 48;
+		width: min(330px, calc(100vw - 130px));
+		display: flex;
+		flex-direction: column;
+		padding: 20px 14px;
+		border: 1px solid var(--border);
+		border-radius: 18px;
+		background: var(--surface);
+		box-shadow: 0 20px 55px var(--shadow);
+	}
+	.dock-panel-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0 7px 16px;
+		font-size: 19px;
+	}
+	.dock-panel-head button {
+		display: grid;
+		place-items: center;
+		width: 30px;
+		height: 30px;
+		border: 0;
+		border-radius: 8px;
+		color: var(--text-muted);
+		background: transparent;
+	}
+	.dock-panel-head button:hover {
+		background: var(--surface-hover);
+		color: var(--text-strong);
+	}
+	.dock-panel-scroll {
+		flex: 1;
+		min-height: 0;
+		overflow: auto;
+	}
+	.dock-profile {
+		position: fixed;
+		z-index: 49;
+		left: 108px;
+		bottom: 34px;
+		width: 210px;
+		display: grid;
+		gap: 12px;
+		padding: 16px;
+		border: 1px solid var(--border);
+		border-radius: 14px;
+		background: var(--surface);
+		box-shadow: 0 12px 32px var(--shadow);
+	}
+	.dock-profile button {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		padding: 8px;
+		border: 0;
+		border-radius: 8px;
+		color: var(--text-body);
+		background: transparent;
+		text-align: left;
+	}
+	.dock-profile button:hover {
+		background: var(--surface-hover);
+	}
+	@media (max-width: 760px) {
+		.dock-item {
+			width: 100%;
+			justify-content: flex-start;
+			gap: 16px;
+			padding: 0 16px;
+		}
+		.dock-item span {
+			display: inline;
+		}
+		.dock-nav,
+		.dock-bottom {
+			align-items: stretch;
+		}
+		.dock-panel {
+			position: static;
+			flex: 1;
+			width: 100%;
+			min-height: 160px;
+			padding: 8px 0;
+			border: 0;
+			box-shadow: none;
+			background: transparent;
+		}
+		.dock-profile {
+			left: 16px;
+			bottom: 72px;
+		}
 	}
 </style>

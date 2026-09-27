@@ -11,3 +11,5 @@ drizzle/
 # Miscellaneous
 /static/
 pi-session-*.html
+# Supplied visual reference pack; preserve its generated source files as delivered.
+mimin-ui-design-pack/

@@ -1,9 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { SlidersHorizontal } from '@lucide/svelte';
-	import SwitchIndicator from '$lib/components/SwitchIndicator.svelte';
-	import { Card } from '$lib/components/ui/card/index.js';
-	import PageHeader from '$lib/components/PageHeader.svelte';
+	import { Switch } from '$lib/components/ui/switch/index.js';
 	import { displayPreferences } from '$lib/client/display-preferences.svelte';
 
 	/** Stored preferences are read from the browser, so the control waits for hydration. */
@@ -13,109 +10,134 @@
 		hydrated = true;
 	});
 
-	function toggleShowMessageContext() {
+	function setAnswerContext(checked: boolean) {
 		if (!hydrated) return;
-		displayPreferences.showMessageContext = !displayPreferences.showMessageContext;
+		displayPreferences.showMessageContext = checked;
 	}
 </script>
 
-<div class="tab-content">
-	<PageHeader
-		title="Preferences"
-		subtitle="Choose how much Mimin shows you while you work. These apply to this browser."
-	>
-		{#snippet icon()}<SlidersHorizontal size={20} />{/snippet}
-	</PageHeader>
+<div class="tab-pane">
+	<div class="view-header">
+		<h1 class="view-title">Preferences</h1>
+		<p class="view-subtitle">Make your workspace feel right.</p>
+	</div>
 
-	<Card
-		shadow="soft"
-		class="mt-[var(--space-5)] flex items-start gap-5 p-[18px_20px] max-[760px]:flex-wrap max-[760px]:gap-[14px]"
-	>
-		<div class="preference-text">
-			<strong>Show answer context</strong>
-			<p>
-				Adds a compact line to each finished answer with the tokens it used, how long it took, the
-				estimated tokens per second, and how many sources and tool calls it drew on. Turn it off for
-				a plainer transcript.
+	<div class="section-label">SAVED IN THIS BROWSER</div>
+
+	<div class="preference-row">
+		<div class="preference-info">
+			<strong class="preference-title">Show answer context</strong>
+			<p class="preference-desc">
+				Show token usage, response time, speed,
+				<br />
+				and source and tool counts below answers.
+				<br />
+				Turn off for a cleaner conversation.
 			</p>
 		</div>
-		<button
-			type="button"
-			class="preference-toggle"
-			aria-pressed={displayPreferences.showMessageContext}
-			disabled={!hydrated}
-			onclick={toggleShowMessageContext}
-		>
-			<SwitchIndicator checked={displayPreferences.showMessageContext} />
-			<span>{displayPreferences.showMessageContext ? 'Shown' : 'Hidden'}</span>
-		</button>
-	</Card>
+		<div class="toggle-group">
+			<Switch
+				checked={displayPreferences.showMessageContext}
+				disabled={!hydrated}
+				onCheckedChange={setAnswerContext}
+				aria-label="Toggle show answer context"
+			/>
+			<span class="toggle-label">
+				{displayPreferences.showMessageContext ? 'Shown' : 'Hidden'}
+			</span>
+		</div>
+	</div>
+
+	<div class="footer-note">Changes save automatically.</div>
 </div>
 
 <style>
-	.tab-content {
-		padding: 28px var(--space-6) var(--space-7);
-	}
-	.preference-text {
-		min-width: 0;
-		flex: 1;
-	}
-	.preference-text strong {
-		display: block;
-		color: var(--text-strong);
-		font-size: var(--text-body-lg);
-		line-height: var(--text-body-lg--line-height);
-		letter-spacing: var(--text-body-lg--letter-spacing);
-		font-weight: 500;
-	}
-	.preference-text p {
-		margin: var(--space-1) 0 0;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-	}
-	.preference-toggle {
-		display: inline-flex;
-		align-items: center;
-		gap: 9px;
-		flex: 0 0 auto;
-		padding: 5px 10px 5px 7px;
-		color: var(--text-muted);
-		background: transparent;
-		border: 1px solid var(--border);
-		border-radius: 999px;
+	.tab-pane {
+		display: flex;
+		flex-direction: column;
+		min-height: 100%;
+		padding: 28px 32px 36px;
+		color: #ececee;
 		font-family: var(--font-body);
-		font-size: var(--text-label-lg);
-		line-height: var(--text-label-lg--line-height);
-		letter-spacing: var(--text-label-lg--letter-spacing);
-		font-weight: var(--text-label-lg--font-weight);
-		cursor: pointer;
-		transition:
-			color var(--duration-short3) var(--ease-standard),
-			background var(--duration-short3) var(--ease-standard),
-			border-color var(--duration-short3) var(--ease-standard);
 	}
-	.preference-toggle:hover:not(:disabled) {
-		color: var(--text);
-		background: var(--surface-2);
-		border-color: var(--border-strong);
+	.view-header {
+		margin-bottom: 24px;
+		padding-right: 40px;
 	}
-	.preference-toggle[aria-pressed='true'] {
-		color: var(--text);
-		border-color: var(--border-strong);
+	.view-title {
+		margin: 0;
+		font-size: 22px;
+		font-weight: 600;
+		color: #ececee;
+		letter-spacing: -0.01em;
 	}
-	.preference-toggle:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
+	.view-subtitle {
+		margin: 4px 0 0;
+		font-size: 13px;
+		color: #a1a1aa;
+	}
+	.section-label {
+		font-size: 11px;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		color: #71717a;
+		text-transform: uppercase;
+		border-bottom: 1px solid #242428;
+		padding-bottom: 8px;
+		margin-bottom: 16px;
+	}
+	.preference-row {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 24px;
+		padding: 6px 0;
+	}
+	.preference-info {
+		flex: 1;
+		min-width: 0;
+	}
+	.preference-title {
+		display: block;
+		font-size: 14px;
+		font-weight: 500;
+		color: #ececee;
+	}
+	.preference-desc {
+		margin: 6px 0 0;
+		font-size: 12.5px;
+		line-height: 1.5;
+		color: #71717a;
+	}
+	.toggle-group {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-shrink: 0;
+		padding-top: 2px;
+	}
+	.toggle-label {
+		font-size: 13px;
+		color: #ececee;
+		font-weight: 400;
+		min-width: 44px;
+	}
+	.footer-note {
+		margin-top: auto;
+		padding-top: 36px;
+		font-size: 12px;
+		color: #71717a;
 	}
 	@media (max-width: 760px) {
-		.tab-content {
-			padding: 20px var(--space-4) var(--space-7);
+		.tab-pane {
+			padding: 16px;
 		}
-		.preference-toggle {
-			width: 100%;
-			justify-content: space-between;
+		.view-header {
+			padding-right: 0;
+		}
+		.preference-row {
+			flex-direction: column;
+			gap: 14px;
 		}
 	}
 </style>
