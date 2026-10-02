@@ -10,8 +10,10 @@
 		RotateCcw,
 		Sparkles
 	} from '@lucide/svelte';
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { createTextPacer } from '$lib/client/text-pacer';
 	import Markdown from '$lib/components/Markdown.svelte';
+	import SmoothDisclosure from '$lib/components/SmoothDisclosure.svelte';
 	import * as Bubble from '$lib/components/ui/bubble';
 	import * as Message from '$lib/components/ui/message';
 	import { cn } from '$lib/utils.js';
@@ -107,6 +109,18 @@
 	 */
 	const bodyText = $derived(contentText(message.content));
 	const thoughtText = $derived(thinkingText(message.content));
+	let renderedThought = $state(untrack(() => (message.isStreaming ? '' : thoughtText)));
+	let thoughtPacer = $state.raw<ReturnType<typeof createTextPacer> | null>(null);
+
+	onMount(() => {
+		const pacer = createTextPacer((text) => (renderedThought = text));
+		thoughtPacer = pacer;
+		return () => pacer.destroy();
+	});
+
+	$effect(() => {
+		thoughtPacer?.set(thoughtText, !!message.isStreaming);
+	});
 
 	/** Short status suffix for an attachment chip; images carry no extraction state. */
 	function attachmentStatusLabel(status?: string | null) {
@@ -180,7 +194,7 @@
 
 	$effect(() => {
 		const streaming = message.isStreaming && !bodyText;
-		if (!streaming || !thoughtText || !thinkingPinned) return;
+		if (!streaming || !renderedThought || !thinkingPinned) return;
 		if (thinkingEl) thinkingEl.scrollTop = thinkingEl.scrollHeight;
 	});
 
@@ -270,22 +284,27 @@
 					</div>
 				{/if}
 				{#if message.role === 'assistant' && thoughtText}
-					<details class="thinking-block" open={message.isStreaming && !bodyText}>
-						<summary class="thinking-summary state-layer">
-							<Sparkles size={13} />
-							<span class:shimmer-text={message.isStreaming && !bodyText}> Thinking process </span>
-							<ChevronDown size={13} class="chevron" />
-						</summary>
-						<div class="thinking-content" bind:this={thinkingEl} onscroll={handleThinkingScroll}>
-							{thoughtText}
-						</div>
-					</details>
+					<div class="thinking-block">
+						<SmoothDisclosure
+							open={!!message.isStreaming && !bodyText}
+							summaryClass="thinking-summary state-layer"
+						>
+							{#snippet summary()}
+								<Sparkles size={13} />
+								<span class:shimmer-text={message.isStreaming && !bodyText}>
+									Thinking process
+								</span>
+								<ChevronDown size={13} class="chevron" />
+							{/snippet}
+							<div class="thinking-content" bind:this={thinkingEl} onscroll={handleThinkingScroll}>
+								{renderedThought}
+							</div>
+						</SmoothDisclosure>
+					</div>
 				{/if}
 				{#if bodyText}
-					{#if message.role === 'assistant' && message.isStreaming}
-						<Markdown content={bodyText} {sources} streaming />
-					{:else if message.role === 'assistant'}
-						<Markdown content={bodyText} {sources} />
+					{#if message.role === 'assistant'}
+						<Markdown content={bodyText} {sources} streaming={!!message.isStreaming} />
 					{:else}
 						<p>{bodyText}</p>
 					{/if}
@@ -301,6 +320,7 @@
 				{#if message.toolCalls && message.toolCalls.length > 0}
 					<ToolCallPanel
 						toolCalls={message.toolCalls}
+						motion={animateEnter && !!message.isStreaming}
 						{running}
 						{onquestionsubmit}
 						{onconsentsubmit}
@@ -754,7 +774,7 @@
 		letter-spacing: var(--text-body-md--letter-spacing);
 		overflow: hidden;
 	}
-	.thinking-summary {
+	:global(.thinking-summary) {
 		display: flex;
 		align-items: center;
 		gap: 6px;
@@ -768,10 +788,10 @@
 		user-select: none;
 		list-style: none;
 	}
-	.thinking-summary::-webkit-details-marker {
+	:global(.thinking-summary::-webkit-details-marker) {
 		display: none;
 	}
-	.thinking-summary:hover {
+	:global(.thinking-summary:hover) {
 		color: var(--text-strong);
 		background: var(--surface-hover);
 	}
@@ -779,7 +799,7 @@
 		margin-left: auto;
 		transition: transform var(--duration-short4) var(--ease-standard);
 	}
-	details[open] > .thinking-summary :global(.chevron) {
+	:global(.thinking-block [data-expanded='true'] .thinking-summary .chevron) {
 		transform: rotate(180deg);
 	}
 	.thinking-content {

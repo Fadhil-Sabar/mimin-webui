@@ -1,13 +1,5 @@
 <script lang="ts">
-	import {
-		ArrowUpRight,
-		Paperclip,
-		Plus,
-		SlidersHorizontal,
-		Sparkles,
-		Square,
-		X
-	} from '@lucide/svelte';
+	import { ArrowUp, Paperclip, Plus, SlidersHorizontal, Sparkles, Square, X } from '@lucide/svelte';
 	import { onDestroy, untrack, type Snippet } from 'svelte';
 	import ModelPicker, {
 		type ModelOption,
@@ -291,6 +283,8 @@
 					{models}
 					value={conversation?.model ?? ''}
 					loading={modelsLoading}
+					{thinkingLevels}
+					{thinkingLevel}
 					disabled={blocked() || !hasActiveId || configuredModels.length === 0}
 					placeholder={configuredModels.length
 						? 'Pick a model'
@@ -298,6 +292,7 @@
 							? 'Models unavailable'
 							: 'Configure a provider'}
 					onselect={onselectmodel}
+					{onselectthinkinglevel}
 				/>
 				<Button
 					variant="secondary"
@@ -312,20 +307,6 @@
 					<span>Options</span>
 				</Button>
 				<div id="composer-options" class="composer-options" class:open={mobileOptionsOpen}>
-					<select
-						class="control thinking-level-control"
-						value={thinkingLevel}
-						disabled={blocked() || !hasActiveId || !conversation?.model}
-						aria-label="Thinking level"
-						title="Thinking level"
-						onchange={(event) => onselectthinkinglevel(event.currentTarget.value)}
-					>
-						{#each thinkingLevels as level (level)}
-							<option value={level}>
-								{level === 'off' ? 'Thinking off' : `${level[0].toUpperCase()}${level.slice(1)}`}
-							</option>
-						{/each}
-					</select>
 					<SkillPicker
 						{skills}
 						activeSkillId={conversation?.activeSkill?.id}
@@ -350,7 +331,7 @@
 				aria-label={running ? 'Stop generation' : 'Send message'}
 				title={running ? 'Stop generation' : 'Send message'}
 				onclick={() => (running ? onstop() : sendMessage())}
-				>{#if running}<Square size={13} aria-hidden="true" />{:else}<ArrowUpRight
+				>{#if running}<Square size={13} aria-hidden="true" />{:else}<ArrowUp
 						size={20}
 						aria-hidden="true"
 					/>{/if}</Button
@@ -566,6 +547,12 @@
 		border-radius: 20px;
 		padding: 24px 28px 20px;
 		box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+		transition:
+			border-color 220ms ease,
+			box-shadow 220ms ease;
+	}
+	.chat-composer:focus-within {
+		border-color: var(--focus);
 	}
 	.chat-composer > .attachment-list {
 		margin: 0 0 var(--space-2);
@@ -610,38 +597,6 @@
 	.composer-options {
 		display: contents;
 	}
-	.control {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		min-height: 38px;
-		border: 1px solid var(--border);
-		border-radius: var(--radius-md);
-		background: var(--surface-subtle);
-		padding: 7px 9px;
-		color: var(--text-muted);
-		font-size: var(--text-body-md);
-		line-height: var(--text-body-md--line-height);
-		letter-spacing: var(--text-body-md--letter-spacing);
-		transition:
-			color var(--duration-short4) var(--ease-standard),
-			background var(--duration-short4) var(--ease-standard),
-			border-color var(--duration-short4) var(--ease-standard);
-	}
-	/* Only the native `<select>` still uses this: the file-picker control next to it
-	 * is the shared `Button`, styled to match. */
-	.control:hover {
-		color: var(--text-strong);
-		border-color: var(--text-faint);
-	}
-	.thinking-level-control {
-		max-width: 138px;
-		cursor: pointer;
-	}
-	.thinking-level-control:disabled {
-		opacity: 0.72;
-		cursor: not-allowed;
-	}
 	@media (max-width: 760px) {
 		.composer-row {
 			gap: 6px;
@@ -680,25 +635,9 @@
 		.composer-options.open {
 			display: flex;
 		}
-		.control {
-			min-height: 44px;
-			padding: 5px var(--space-2);
-		}
 		:global(.composer-options .skill-trigger),
 		:global(.composer-options .tool-trigger) {
 			min-height: 44px;
-		}
-		.thinking-level-control {
-			max-width: 110px;
-		}
-	}
-	@media (max-width: 560px) {
-		.control {
-			min-height: 44px;
-			padding: 8px 7px;
-		}
-		.thinking-level-control {
-			max-width: 95px;
 		}
 	}
 	.composer-container {

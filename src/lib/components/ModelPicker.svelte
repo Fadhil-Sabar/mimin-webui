@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Check, ChevronDown, Bot, Search } from '@lucide/svelte';
+	import { Check, ChevronDown, Bot, Brain, Search } from '@lucide/svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { tick } from 'svelte';
 	import * as Popover from '$lib/components/ui/popover/index.js';
@@ -29,7 +29,10 @@
 		loading?: boolean;
 		disabled?: boolean;
 		placeholder?: string;
+		thinkingLevels?: ThinkingLevel[];
+		thinkingLevel?: string;
 		onselect?: (value: string) => void | Promise<void>;
+		onselectthinkinglevel?: (level: string) => void | Promise<void>;
 	};
 
 	let {
@@ -38,7 +41,10 @@
 		loading = false,
 		disabled = false,
 		placeholder = 'Pick a model',
-		onselect
+		thinkingLevels = [],
+		thinkingLevel = 'off',
+		onselect,
+		onselectthinkinglevel
 	}: Props = $props();
 
 	let open = $state(false);
@@ -47,6 +53,8 @@
 	let isMobile = $state(false);
 	let listElement = $state<HTMLDivElement | undefined>();
 	let highlightedIndex = $state(0);
+	let previewIndex = $state(0);
+	let thinkingSlider = $state<HTMLInputElement | undefined>();
 
 	const providerNames: Record<string, string> = {
 		openai: 'OpenAI',
@@ -57,6 +65,15 @@
 	let selected = $derived(models.find((model) => modelRef(model) === value));
 	let selectedLabel = $derived(selected?.name ?? (value ? modelId(value) : placeholder));
 	let triggerDisabled = $derived(disabled || loading || models.length === 0);
+	let showThinking = $derived(
+		!!onselectthinkinglevel && !!selected && thinkingLevels.some((level) => level !== 'off')
+	);
+	let effectiveThinkingLevel = $derived(thinkingLevels[previewIndex] ?? thinkingLevel);
+	let triggerTitle = $derived(
+		showThinking
+			? `${selectedLabel} · Thinking ${thinkingLabel(effectiveThinkingLevel)}`
+			: selectedLabel
+	);
 
 	let groups = $derived.by(() => {
 		const grouped = new SvelteMap<string, ModelOption[]>();
@@ -148,6 +165,18 @@
 		return () => query.removeEventListener('change', onChange);
 	});
 
+	function syncPreviewIndex() {
+		const index = thinkingLevels.indexOf(thinkingLevel as ThinkingLevel);
+		previewIndex = index >= 0 ? index : 0;
+	}
+
+	$effect(() => {
+		void thinkingLevel;
+		void value;
+		void thinkingLevels;
+		syncPreviewIndex();
+	});
+
 	function handleOpenChange(next: boolean) {
 		open = next;
 		if (next) {
@@ -157,6 +186,7 @@
 			scrollHighlightedIntoView(highlightedIndex);
 		} else {
 			search = '';
+			syncPreviewIndex();
 		}
 	}
 
@@ -166,13 +196,47 @@
 	}
 
 	function choose(model: ModelOption) {
-		open = false;
-		search = '';
+		if (triggerDisabled) return;
+		// Keep the composer picker open so thinking can be adjusted after the model saves.
+		// Model-only callers, such as the home page, retain their close-on-select behavior.
+		if (!onselectthinkinglevel) {
+			open = false;
+			search = '';
+		}
 		void onselect?.(modelRef(model));
 	}
 
+	function thinkingLabel(level: string) {
+		return level === 'xhigh' ? 'Extra high' : `${level[0]?.toUpperCase() ?? ''}${level.slice(1)}`;
+	}
+
+	async function commitThinkingLevel() {
+		if (triggerDisabled || !showThinking) return;
+		const level = thinkingLevels[previewIndex];
+		if (!level || level === thinkingLevel) return;
+		const slider = thinkingSlider;
+		const restoreFocus = document.activeElement === slider;
+		await onselectthinkinglevel?.(level);
+		await tick();
+		// Saving disables the focused input. Resume keyboard adjustment without stealing focus.
+		if (
+			restoreFocus &&
+			open &&
+			!triggerDisabled &&
+			thinkingSlider === slider &&
+			document.activeElement === document.body
+		)
+			slider?.focus({ preventScroll: true });
+	}
+
 	function handleMenuKeydown(event: KeyboardEvent) {
-		if (!open || flatModels.length === 0) return;
+		if (
+			!open ||
+			triggerDisabled ||
+			flatModels.length === 0 ||
+			(event.target instanceof HTMLInputElement && event.target.type === 'range')
+		)
+			return;
 
 		if (event.key === 'ArrowDown') {
 			event.preventDefault();
@@ -193,7 +257,14 @@
 </script>
 
 {#snippet pickerBody()}
-	<div class="model-list" bind:this={listElement}>
+	<div
+		class="model-list"
+		bind:this={listElement}
+		role="listbox"
+		aria-label="Available models"
+		tabindex={-1}
+		onkeydown={handleMenuKeydown}
+	>
 		{#each filteredGroups as group (group.provider)}
 			<div class="model-group">
 				<div class="model-group-label">{group.label}</div>
@@ -209,7 +280,10 @@
 						role="option"
 						aria-selected={ref === value}
 						data-model-idx={modelIdx}
+						data-model-ref={ref}
+						disabled={triggerDisabled}
 						onclick={() => choose(model)}
+						onfocus={() => (highlightedIndex = modelIdx)}
 						onmousemove={() => {
 							highlightedIndex = modelIdx;
 						}}
@@ -241,45 +315,82 @@
 			placeholder="Search models..."
 			aria-label="Search models"
 			autocomplete="off"
+			onkeydown={handleMenuKeydown}
 		/>
 	</div>
+	{#if showThinking}
+		<div class="model-thinking">
+			<div class="model-thinking-heading">
+				<div class="model-thinking-label"><Brain size={14} aria-hidden="true" />Thinking</div>
+				<span class="model-thinking-value">{thinkingLabel(effectiveThinkingLevel)}</span>
+			</div>
+			<div class="model-thinking-rail">
+				<div
+					class="model-thinking-fill"
+					style:--thinking-progress={thinkingLevels.length > 1
+						? previewIndex / (thinkingLevels.length - 1)
+						: 0}
+				></div>
+				<div class="model-thinking-stops" aria-hidden="true">
+					{#each thinkingLevels as level, index (level)}
+						<span
+							class="model-thinking-stop"
+							class:filled={index <= previewIndex}
+							data-level={level}
+							data-filled={index <= previewIndex}
+						></span>
+					{/each}
+				</div>
+				<input
+					class="model-thinking-slider"
+					bind:this={thinkingSlider}
+					bind:value={previewIndex}
+					type="range"
+					min="0"
+					max={Math.max(0, thinkingLevels.length - 1)}
+					step="1"
+					aria-label="Thinking level"
+					aria-valuetext={thinkingLabel(effectiveThinkingLevel)}
+					disabled={triggerDisabled || thinkingLevels.length === 0}
+					onchange={commitThinkingLevel}
+				/>
+			</div>
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet triggerBody()}
+	<Bot size={15} aria-hidden="true" />
+	<span class="model-trigger-label">{loading ? 'Loading models...' : selectedLabel}</span>
+	{#if showThinking && !loading}
+		<span class="model-trigger-thinking">{thinkingLabel(effectiveThinkingLevel)}</span>
+	{/if}
+	<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
 {/snippet}
 
 {#if isMobile}
 	<Sheet.Root bind:open onOpenChange={handleOpenChange}>
-		<Sheet.Trigger class="model-trigger" disabled={triggerDisabled}>
-			<Bot size={15} aria-hidden="true" />
-			<span class="model-trigger-label">{loading ? 'Loading models...' : selectedLabel}</span>
-			<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
+		<Sheet.Trigger class="model-trigger" disabled={triggerDisabled} title={triggerTitle}>
+			{@render triggerBody()}
 		</Sheet.Trigger>
-		<Sheet.Content
-			side="bottom"
-			showCloseButton={false}
-			class="model-menu"
-			role="listbox"
-			aria-label="Available models"
-			tabindex={-1}
-			onkeydown={handleMenuKeydown}
-		>
+		<Sheet.Content side="bottom" showCloseButton={false} class="model-menu gap-0 p-1.5">
+			<Sheet.Title class="sr-only">Model settings</Sheet.Title>
+			<Sheet.Description class="sr-only">Choose a model and its thinking level.</Sheet.Description>
 			{@render pickerBody()}
 		</Sheet.Content>
 	</Sheet.Root>
 {:else}
 	<Popover.Root bind:open onOpenChange={handleOpenChange}>
-		<Popover.Trigger class="model-trigger" disabled={triggerDisabled} aria-haspopup="listbox">
-			<Bot size={15} aria-hidden="true" />
-			<span class="model-trigger-label">{loading ? 'Loading models...' : selectedLabel}</span>
-			<ChevronDown size={13} class={open ? 'rotated' : undefined} aria-hidden="true" />
+		<Popover.Trigger class="model-trigger" disabled={triggerDisabled} title={triggerTitle}>
+			{@render triggerBody()}
 		</Popover.Trigger>
 		<Popover.Content
 			side="top"
 			sideOffset={8}
 			avoidCollisions
 			class="model-menu max-h-[min(420px,58vh)] w-[min(360px,calc(100vw-36px))] gap-0 rounded-[9px] border border-[var(--border-strong)] p-1.5 shadow-[0_14px_32px_var(--shadow)] ring-0"
-			role="listbox"
-			aria-label="Available models"
+			aria-label="Model settings"
 			tabindex={-1}
-			onkeydown={handleMenuKeydown}
 			onOpenAutoFocus={handleOpenAutoFocus}
 		>
 			{@render pickerBody()}
@@ -294,7 +405,7 @@
 		gap: 6px;
 		min-height: 38px;
 		min-width: 0;
-		max-width: 260px;
+		max-width: 320px;
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		background: var(--surface-subtle);
@@ -316,9 +427,22 @@
 		opacity: 0.72;
 	}
 	.model-trigger-label {
+		min-width: 0;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.model-trigger-thinking {
+		flex: 0 0 auto;
+		border-left: 1px solid var(--border);
+		padding-left: 6px;
+		color: var(--text-dim);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+		white-space: nowrap;
+	}
+	:global(.model-trigger svg) {
+		flex: 0 0 auto;
 	}
 	:global(.model-trigger svg:last-child) {
 		flex: 0 0 auto;
@@ -350,6 +474,126 @@
 		background: var(--surface-subtle);
 		color: var(--text-dim);
 		flex-shrink: 0;
+	}
+	.model-thinking {
+		flex-shrink: 0;
+		margin-top: var(--space-2);
+		border-top: 1px solid var(--border);
+		padding: var(--space-2) 2px 2px;
+	}
+	.model-thinking-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		margin: 0 2px var(--space-2);
+	}
+	.model-thinking-label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--text-muted);
+		font-size: var(--text-body-sm);
+		line-height: var(--text-body-sm--line-height);
+	}
+	.model-thinking-value {
+		color: var(--text-muted);
+		font-size: var(--text-body-sm);
+		font-weight: 500;
+		line-height: var(--text-body-sm--line-height);
+	}
+	.model-thinking-rail {
+		position: relative;
+		height: 44px;
+		border-radius: 999px;
+		background: var(--surface-hover);
+	}
+	.model-thinking-fill {
+		position: absolute;
+		top: 0;
+		left: 0;
+		height: 100%;
+		width: calc(44px + (100% - 44px) * var(--thinking-progress));
+		border-radius: inherit;
+		background: var(--text-muted);
+		transition: width 180ms var(--ease-standard);
+		pointer-events: none;
+	}
+	.model-thinking-stops {
+		position: absolute;
+		top: 50%;
+		left: 22px;
+		right: 22px;
+		display: flex;
+		justify-content: space-between;
+		transform: translateY(-50%);
+		pointer-events: none;
+	}
+	.model-thinking-stop {
+		width: 7px;
+		height: 7px;
+		flex: 0 0 7px;
+		margin: 0 -3.5px;
+		border-radius: 50%;
+		background: var(--text-faint);
+	}
+	.model-thinking-stop.filled {
+		background: color-mix(in srgb, var(--surface) 60%, transparent);
+	}
+	.model-thinking-slider {
+		position: absolute;
+		top: 0;
+		left: 5px;
+		width: calc(100% - 10px);
+		height: 44px;
+		margin: 0;
+		appearance: none;
+		-webkit-appearance: none;
+		background: transparent;
+		cursor: pointer;
+	}
+	.model-thinking-slider:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+		border-radius: 999px;
+	}
+	.model-thinking-slider:disabled {
+		cursor: not-allowed;
+		opacity: 0.72;
+	}
+	.model-thinking-slider::-webkit-slider-runnable-track {
+		height: 44px;
+		background: transparent;
+	}
+	.model-thinking-slider::-moz-range-track {
+		height: 44px;
+		background: transparent;
+	}
+	.model-thinking-slider::-webkit-slider-thumb {
+		width: 34px;
+		height: 34px;
+		margin-top: 5px;
+		border: 0;
+		border-radius: 50%;
+		appearance: none;
+		-webkit-appearance: none;
+		background: var(--surface);
+		box-shadow: 0 2px 5px var(--shadow);
+	}
+	.model-thinking-slider::-moz-range-progress {
+		background: transparent;
+	}
+	.model-thinking-slider::-moz-range-thumb {
+		width: 34px;
+		height: 34px;
+		border: 0;
+		border-radius: 50%;
+		background: var(--surface);
+		box-shadow: 0 2px 5px var(--shadow);
+	}
+	.model-option:disabled {
+		opacity: 0.72;
+		cursor: not-allowed;
 	}
 	.model-search input {
 		flex: 1;
@@ -446,6 +690,11 @@
 		line-height: var(--text-body-sm--line-height);
 		letter-spacing: var(--text-body-sm--letter-spacing);
 		white-space: nowrap;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.model-thinking-fill {
+			transition: none;
+		}
 	}
 	@media (max-width: 760px) {
 		:global(.model-trigger) {

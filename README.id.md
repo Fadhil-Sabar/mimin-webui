@@ -6,7 +6,7 @@ Mimin WebUI adalah workspace AI agent berbasis project dengan chat, project know
 
 ## Fitur
 
-- **Chat:** respons streaming, riwayat percakapan, penghentian generasi, serta attachment file atau gambar.
+- **Chat:** respons muncul dengan halus, panel thinking dan tool beranimasi, serta scroll otomatis yang berhenti saat membaca pesan sebelumnya. Mendukung riwayat percakapan, penghentian generasi, attachment file atau gambar, dan pengaturan reduced motion.
 - **Project:** kelompokkan percakapan, kelola file, dan terapkan instruksi project pada setiap giliran agent.
 - **Knowledge:** ekstraksi teks PDF, OCR lokal, pencarian hybrid keyword/pgvector opsional, dan sitasi tersimpan dengan nomor halaman.
 - **Provider:** temukan model OpenAI, Anthropic, Google, atau endpoint kustom; simpan API key terenkripsi per pengguna.

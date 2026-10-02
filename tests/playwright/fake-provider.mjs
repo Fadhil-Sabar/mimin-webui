@@ -78,8 +78,16 @@ async function streamCompletion(req, res, body) {
 	req.on('aborted', close);
 	res.on('close', close);
 
-	const response = `Fake answer: ${prompt.replace(/\[(slow|reconnect|provider-error)\]/g, '').trim()}`;
-	const chunks = response.match(/.{1,18}(?:\s|$)|.{1,18}/g) ?? [response];
+	const motion = prompt.includes('[motion]');
+	const response = motion
+		? 'Smooth streaming should reveal incoming text without replacing the paragraph or jumping down the page. '.repeat(
+				40
+			) + 'End of smooth stream.'
+		: `Fake answer: ${prompt.replace(/\[(slow|reconnect|provider-error)\]/g, '').trim()}`;
+	const chunks = motion
+		? response.match(/.{1,160}/g)
+		: (response.match(/.{1,18}(?:\s|$)|.{1,18}/g) ?? [response]);
+	let chunkIndex = 0;
 	for (const chunk of chunks) {
 		if (closed) return;
 		sse(res, {
@@ -87,7 +95,8 @@ async function streamCompletion(req, res, body) {
 			object: 'chat.completion.chunk',
 			choices: [{ index: 0, delta: { content: chunk }, finish_reason: null }]
 		});
-		if (prompt.includes('[slow]') || prompt.includes('[reconnect]')) await wait(120);
+		if (motion) await wait([80, 180, 100, 240][chunkIndex++ % 4]);
+		else if (prompt.includes('[slow]') || prompt.includes('[reconnect]')) await wait(120);
 	}
 	if (closed) return;
 	sse(res, {

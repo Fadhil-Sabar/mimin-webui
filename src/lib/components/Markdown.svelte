@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { onMount, untrack } from 'svelte';
 	import { Marked, type MarkedExtension, type Tokens } from 'marked';
+	import { createTextPacer } from '$lib/client/text-pacer';
 	import 'katex/dist/katex.min.css';
 	import { slide } from 'svelte/transition';
 	import { ChevronDown, ExternalLink, Globe } from '@lucide/svelte';
@@ -10,6 +12,7 @@
 		type SourceItem
 	} from '$lib/client/citations';
 	import MermaidDiagram from '$lib/components/MermaidDiagram.svelte';
+	import StreamingMarkdownBlock from '$lib/components/StreamingMarkdownBlock.svelte';
 	import {
 		invalidateSegmentCache,
 		parseMarkdownSegments,
@@ -41,6 +44,23 @@
 		sources: externalSources = []
 	}: Props = $props();
 	let showSources = $state(false);
+	let renderedContent = $state(untrack(() => (streaming ? '' : content)));
+	let revealing = $state(false);
+	let textPacer = $state.raw<ReturnType<typeof createTextPacer> | null>(null);
+	const renderingLive = $derived(streaming || revealing);
+
+	onMount(() => {
+		const pacer = createTextPacer((text, pending) => {
+			renderedContent = text;
+			revealing = pending;
+		});
+		textPacer = pacer;
+		return () => pacer.destroy();
+	});
+
+	$effect(() => {
+		textPacer?.set(content, streaming);
+	});
 
 	/**
 	 * Content signature of `externalSources`, used as the segment-cache key and by
@@ -199,7 +219,7 @@
 	let processed = $derived.by(() => {
 		// Read so the parse re-runs once the lazy KaTeX extension has landed.
 		void mathReady;
-		if (!content || typeof content !== 'string') {
+		if (!renderedContent || typeof renderedContent !== 'string') {
 			return { segments: [] as MarkdownSegment[], sources: [] as SourceItem[] };
 		}
 		/**
@@ -211,14 +231,14 @@
 		 */
 		if (
 			lastProcessed &&
-			lastProcessed.content === content &&
+			lastProcessed.content === renderedContent &&
 			lastProcessed.sourcesKey === sourcesKey &&
 			lastProcessed.mathReady === mathReady
 		) {
 			return lastProcessed.result;
 		}
 
-		const { cleanedMarkdown, sources } = parseCitationsAndSources(content, externalSources);
+		const { cleanedMarkdown, sources } = parseCitationsAndSources(renderedContent, externalSources);
 		const sourcesMap: Record<number, SourceItem> = {};
 		for (const src of sources) {
 			sourcesMap[src.index] = src;
@@ -243,7 +263,7 @@
 				sources
 			};
 		}
-		lastProcessed = { content, sourcesKey, mathReady, result };
+		lastProcessed = { content: renderedContent, sourcesKey, mathReady, result };
 		return result;
 	});
 
@@ -285,16 +305,15 @@
 	     (see the ::after rule) so the caret never enters the markdown source. -->
 	<div
 		class="markdown-body"
-		class:streaming-caret={streaming}
+		class:streaming-caret={renderingLive}
 		role="presentation"
 		onclick={handleClick}
 	>
 		{#each processed.segments as segment (segment.id)}
 			{#if segment.type === 'html'}
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html segment.html}
+				<StreamingMarkdownBlock html={segment.html} streaming={renderingLive} />
 			{:else if segment.type === 'mermaid'}
-				<MermaidDiagram code={segment.code} {streaming} />
+				<MermaidDiagram code={segment.code} streaming={renderingLive} />
 			{/if}
 		{/each}
 	</div>
@@ -364,7 +383,8 @@
 	 * without ever being appended to the markdown source — a caret inside the source
 	 * flips fence pairing and tokenization while blocks are still open. `caret-fade`
 	 * (layout.css) breathes it smoothly instead of a hard on/off blink. */
-	:global(.markdown-body.streaming-caret > *:last-child::after) {
+	:global(.markdown-body.streaming-caret > .markdown-segment:last-child > :last-child::after),
+	:global(.markdown-body.streaming-caret > :not(.markdown-segment):last-child::after) {
 		content: '▍';
 		color: var(--accent-bg);
 		margin-left: 1px;
@@ -379,10 +399,12 @@
 		color: var(--text-body);
 		word-wrap: break-word;
 	}
-	:global(.markdown-body > *:first-child) {
+	:global(.markdown-body > .markdown-segment:first-child > :first-child),
+	:global(.markdown-body > :not(.markdown-segment):first-child) {
 		margin-top: 0;
 	}
-	:global(.markdown-body > *:last-child) {
+	:global(.markdown-body > .markdown-segment:last-child > :last-child),
+	:global(.markdown-body > :not(.markdown-segment):last-child) {
 		margin-bottom: 0;
 	}
 	:global(.markdown-body p) {

@@ -19,6 +19,7 @@
 	} from '$lib/client/conversations.svelte';
 	import { isBrowserBridgeEnabled } from '$lib/client/browser-bridge';
 	import { displayPreferences } from '$lib/client/display-preferences.svelte';
+	import { createScrollFollower } from '$lib/client/scroll-follower';
 	import { shell } from '$lib/client/shell.svelte';
 	import { setConversationDraft } from '$lib/client/drafts';
 	import { MODELS_CHANGED_EVENT } from '$lib/client/models-cache';
@@ -75,6 +76,9 @@
 	let deletingConversation = $state<ConversationSummary | null>(null);
 	let deleteLoading = $state(false);
 	let scrollEl: HTMLElement | undefined;
+	let chatWrapEl: HTMLElement | undefined;
+	let scrollFollower: ReturnType<typeof createScrollFollower> | undefined;
+	let lastScrollTop = 0;
 	let userAtBottom = $state(true);
 	let conversationLoadToken = 0;
 	let conversationNavigationToken = 0;
@@ -294,20 +298,40 @@
 
 	function handleScroll() {
 		if (!scrollEl) return;
-		userAtBottom = isNearBottom(scrollEl);
+		const movingUp = scrollEl.scrollTop < lastScrollTop - 1;
+		const movingDown = scrollEl.scrollTop > lastScrollTop + 1;
+		lastScrollTop = scrollEl.scrollTop;
+		if (scrollFollower?.active) return;
+		if (movingUp || !isNearBottom(scrollEl)) userAtBottom = false;
+		else if (movingDown) userAtBottom = true;
 		if (userAtBottom) newResponseWhileReading = false;
 	}
 
 	function scrollToBottom() {
-		if (!scrollEl) return;
-		scrollEl.scrollTop = scrollEl.scrollHeight;
+		if (!userAtBottom) return;
+		// Rendering can still be catching up after the network stream has finished.
+		scrollFollower?.request();
+	}
+
+	function pauseFollowing() {
+		scrollFollower?.cancel();
+		lastScrollTop = scrollEl?.scrollTop ?? 0;
+		userAtBottom = false;
+	}
+
+	function handleScrollKeydown(event: KeyboardEvent) {
+		if (
+			event.target instanceof HTMLElement &&
+			event.target.closest('input, textarea, [contenteditable="true"]')
+		)
+			return;
+		if (['ArrowUp', 'PageUp', 'Home'].includes(event.key)) pauseFollowing();
 	}
 
 	function jumpToLatest() {
 		userAtBottom = true;
 		newResponseWhileReading = false;
-		if (!scrollEl) return;
-		scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+		scrollFollower?.request();
 	}
 
 	let newResponseWhileReading = $state(false);
@@ -396,8 +420,10 @@
 		}
 	}
 
-	/** Local Esc handling only: the global app shortcuts live in the root layout. */
+	/** Pause reading-position keys; the remaining app shortcuts live in the root layout. */
 	function handleWindowKeydown(event: KeyboardEvent) {
+		if (event.target instanceof Node && scrollEl?.contains(event.target))
+			handleScrollKeydown(event);
 		if (event.key === 'Escape') {
 			if (conversationSearch.isOpen) {
 				conversationSearch.close();
@@ -409,6 +435,9 @@
 	}
 
 	onMount(() => {
+		if (scrollEl) scrollFollower = createScrollFollower(scrollEl, () => userAtBottom);
+		const resizeObserver = new ResizeObserver(() => scrollFollower?.request());
+		if (chatWrapEl) resizeObserver.observe(chatWrapEl);
 		conversationSearch.registerSelectHandler((id) => {
 			void navigation.loadConversation(id);
 		});
@@ -467,6 +496,8 @@
 		})();
 
 		return () => {
+			resizeObserver.disconnect();
+			scrollFollower?.destroy();
 			conversationSearch.unregisterSelectHandler();
 			shell.clear();
 		};
@@ -573,7 +604,16 @@
 </script>
 
 <svelte:head><title>Mimin WebUI | Chat</title></svelte:head>
-<svelte:window onpopstate={navigation.handlePopState} onkeydown={handleWindowKeydown} />
+<svelte:window
+	onpopstate={navigation.handlePopState}
+	onkeydown={handleWindowKeydown}
+	ontouchstart={(event) => {
+		if (event.target instanceof Node && scrollEl?.contains(event.target)) pauseFollowing();
+	}}
+	onpointerdown={(event) => {
+		if (event.target === scrollEl) pauseFollowing();
+	}}
+/>
 <div class="chat-main">
 	<ChatHeader
 		conversation={activeConversation}
@@ -614,13 +654,18 @@
 		<!-- Left/Top: Chat Column -->
 		<div
 			class="split-pane chat-pane"
+			role="region"
+			aria-label="Chat conversation"
 			class:mobile-hidden={canvas.canvasOpen &&
 				!!canvas.activeCanvas &&
 				canvas.mobileTab === 'canvas'}
 			bind:this={scrollEl}
 			onscroll={handleScroll}
+			onwheel={(event) => {
+				if (event.deltaY < 0) pauseFollowing();
+			}}
 		>
-			<div class="chat-wrap">
+			<div class="chat-wrap" bind:this={chatWrapEl}>
 				{#if busy}
 					<div class="loading-thread" role="status" aria-label="Loading conversation">
 						{#each [1, 2, 3] as i (i)}
@@ -821,6 +866,8 @@
 	.chat-pane {
 		min-width: 0;
 		position: relative;
+		/* The follower owns scrolling; native anchoring must not fight it or re-pin a reader. */
+		overflow-anchor: none;
 	}
 
 	.scroll-to-latest {

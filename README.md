@@ -6,7 +6,7 @@ Mimin WebUI is a project-based AI agent workspace with chat, project knowledge, 
 
 ## Features
 
-- **Chat:** streamed responses, conversation history, stop generation, and file or image attachments.
+- **Chat:** smoothly revealed responses, animated thinking and tool panels, and scroll following that pauses when you read earlier messages. Includes conversation history, stop generation, and file or image attachments; honors reduced-motion settings.
 - **Projects:** organize conversations, manage files, and apply project instructions to every turn.
 - **Knowledge:** PDF text extraction, local OCR, optional hybrid keyword/pgvector search, and persistent page-aware citations.
 - **Providers:** discover models from OpenAI, Anthropic, Google, or custom endpoints; save encrypted per-user API keys.
