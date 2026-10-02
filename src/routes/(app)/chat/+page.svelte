@@ -620,17 +620,6 @@
 			bind:this={scrollEl}
 			onscroll={handleScroll}
 		>
-			{#if !userAtBottom && stream.messages.length > 0}
-				<button
-					type="button"
-					class="scroll-to-latest"
-					onclick={jumpToLatest}
-					aria-label={scrollActionLabel}
-				>
-					<ArrowDown size={14} aria-hidden="true" />
-					<span>{scrollActionLabel}</span>
-				</button>
-			{/if}
 			<div class="chat-wrap">
 				{#if busy}
 					<div class="loading-thread" role="status" aria-label="Loading conversation">
@@ -730,7 +719,21 @@
 					onselectthinkinglevel={settings.selectThinkingLevel}
 					ontoggleskill={settings.toggleSkill}
 					ontoggletool={settings.toggleTool}
-				/>
+				>
+					{#snippet above()}
+						{#if !userAtBottom && stream.messages.length > 0}
+							<button
+								type="button"
+								class="scroll-to-latest"
+								onclick={jumpToLatest}
+								aria-label={scrollActionLabel}
+							>
+								<ArrowDown size={14} aria-hidden="true" />
+								<span>{scrollActionLabel}</span>
+							</button>
+						{/if}
+					{/snippet}
+				</ChatComposer>
 			</div>
 		</div>
 
@@ -823,8 +826,8 @@
 	.scroll-to-latest {
 		position: absolute;
 		z-index: 20;
-		right: max(18px, calc((100% - 832px) / 2));
-		bottom: 112px;
+		right: 0;
+		bottom: 100%;
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;

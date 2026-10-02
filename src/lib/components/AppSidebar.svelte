@@ -1,8 +1,12 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
+	import { fly } from 'svelte/transition';
+	import { cubicOut } from 'svelte/easing';
+	import { afterNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { Folder, LogOut, MessageSquare, Plus, Settings, Workflow, X } from '@lucide/svelte';
-	import RecentChats from '$lib/components/RecentChats.svelte';
+	import { Folder, MessageSquare, Plus, Settings, Workflow, X } from '@lucide/svelte';
+	import DockPanelContents, { type DockPanel } from '$lib/components/DockPanelContents.svelte';
 	import { authClient } from '$lib/client/auth';
 	import { shell } from '$lib/client/shell.svelte';
 	import { sidebar } from '$lib/client/sidebar.svelte';
@@ -15,10 +19,22 @@
 		conversationsState
 	} from '$lib/client/conversations.svelte';
 
-	type Props = { user?: { id?: string | null; name?: string | null; role?: string | null } | null };
+	type Props = {
+		user?: { id?: string | null; name?: string | null; role?: string | null } | null;
+	};
 	let { user = null }: Props = $props();
-	let historyOpen = $state(false);
-	let profileOpen = $state(false);
+	let panel = $state<DockPanel | null>(null);
+	let pinnedPanel = $state<DockPanel | null>(null);
+	let closeTimer: ReturnType<typeof setTimeout> | undefined;
+	let visiblePanel = $derived(panel ?? (sidebar.mobileOpen ? 'chats' : null));
+	const panelTitles: Record<DockPanel, string> = {
+		'new-chat': 'New chat',
+		chats: 'Chats',
+		projects: 'Projects',
+		skills: 'Skills',
+		settings: 'Settings',
+		profile: 'Profile'
+	};
 	let initial = $derived(user?.name?.[0]?.toUpperCase() ?? 'U');
 	let path = $derived(page.url.pathname);
 	let active = $derived(
@@ -31,11 +47,61 @@
 					: 'chat'
 	);
 
+	function panelTransition(node: HTMLElement) {
+		return fly(node, {
+			x: window.innerWidth > 760 ? -24 : 0,
+			duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220,
+			easing: cubicOut
+		});
+	}
+
+	function cancelClose() {
+		clearTimeout(closeTimer);
+		closeTimer = undefined;
+	}
+
 	function closePanels() {
-		historyOpen = false;
-		profileOpen = false;
+		cancelClose();
+		panel = null;
+		pinnedPanel = null;
 		sidebar.closeMobile();
 	}
+
+	function previewPanel(next: DockPanel, event: PointerEvent) {
+		if (
+			event.pointerType !== 'mouse' ||
+			!window.matchMedia('(min-width: 761px) and (hover: hover) and (pointer: fine)').matches
+		)
+			return;
+		cancelClose();
+		panel = next;
+	}
+
+	function scheduleClose() {
+		cancelClose();
+		if (sidebar.mobileOpen) return;
+		// Allow the pointer to cross the gutter between the rail and its panel.
+		closeTimer = setTimeout(() => {
+			panel = pinnedPanel;
+		}, 180);
+	}
+
+	function pinPanel() {
+		cancelClose();
+		pinnedPanel = panel;
+	}
+
+	function togglePanel(next: DockPanel) {
+		cancelClose();
+		if (pinnedPanel === next) closePanels();
+		else {
+			panel = next;
+			pinnedPanel = next;
+		}
+	}
+
+	afterNavigate(closePanels);
+	onDestroy(cancelClose);
 
 	function newChat() {
 		closePanels();
@@ -71,7 +137,13 @@
 	}}
 />
 
-<aside class="sidebar" data-mimin-dock aria-label="Workspace navigation">
+<aside
+	class="sidebar"
+	data-mimin-dock
+	aria-label="Workspace navigation"
+	onpointerenter={cancelClose}
+	onpointerleave={scheduleClose}
+>
 	<a
 		class="dock-logo"
 		href={resolve('/')}
@@ -87,6 +159,9 @@
 			title="New chat"
 			aria-label="New chat"
 			disabled={shell.newChatDisabled}
+			aria-expanded={visiblePanel === 'new-chat'}
+			aria-controls={visiblePanel === 'new-chat' ? 'dock-panel' : undefined}
+			onpointerenter={(event) => previewPanel('new-chat', event)}
 			onclick={newChat}><Plus size={23} strokeWidth={1.8} /><span>New chat</span></button
 		>
 		<button
@@ -95,11 +170,11 @@
 			type="button"
 			title="Chats and recent history"
 			aria-label="Chats and recent history"
-			aria-expanded={historyOpen}
-			onclick={() => {
-				historyOpen = !historyOpen;
-				profileOpen = false;
-			}}><MessageSquare size={22} strokeWidth={1.8} /><span>Chats</span></button
+			aria-expanded={visiblePanel === 'chats'}
+			aria-controls={visiblePanel === 'chats' ? 'dock-panel' : undefined}
+			onpointerenter={(event) => previewPanel('chats', event)}
+			onclick={() => togglePanel('chats')}
+			><MessageSquare size={22} strokeWidth={1.8} /><span>Chats</span></button
 		>
 		<a
 			class="dock-item"
@@ -108,6 +183,9 @@
 			title="Projects"
 			aria-label="Projects"
 			aria-current={active === 'projects' ? 'page' : undefined}
+			aria-expanded={visiblePanel === 'projects'}
+			aria-controls={visiblePanel === 'projects' ? 'dock-panel' : undefined}
+			onpointerenter={(event) => previewPanel('projects', event)}
 			onclick={closePanels}><Folder size={22} strokeWidth={1.8} /><span>Projects</span></a
 		>
 		<a
@@ -117,6 +195,9 @@
 			title="Skills"
 			aria-label="Skills"
 			aria-current={active === 'skills' ? 'page' : undefined}
+			aria-expanded={visiblePanel === 'skills'}
+			aria-controls={visiblePanel === 'skills' ? 'dock-panel' : undefined}
+			onpointerenter={(event) => previewPanel('skills', event)}
 			onclick={closePanels}><Workflow size={22} strokeWidth={1.8} /><span>Skills</span></a
 		>
 	</nav>
@@ -129,6 +210,9 @@
 			type="button"
 			title="Settings"
 			aria-label="Settings"
+			aria-expanded={visiblePanel === 'settings'}
+			aria-controls={visiblePanel === 'settings' ? 'dock-panel' : undefined}
+			onpointerenter={(event) => previewPanel('settings', event)}
 			onclick={() => {
 				settingsModal.show('models');
 				closePanels();
@@ -139,45 +223,45 @@
 			type="button"
 			title={user?.name ?? 'Profile'}
 			aria-label="Profile"
-			aria-expanded={profileOpen}
-			onclick={() => {
-				profileOpen = !profileOpen;
-				historyOpen = false;
-			}}>{initial}</button
+			aria-expanded={visiblePanel === 'profile'}
+			aria-controls={visiblePanel === 'profile' ? 'dock-panel' : undefined}
+			onpointerenter={(event) => previewPanel('profile', event)}
+			onclick={() => togglePanel('profile')}>{initial}</button
 		>
 	</div>
-	{#if historyOpen || sidebar.mobileOpen}
-		<section class="dock-panel dock-history" aria-label="Recent chats">
+	{#if visiblePanel}
+		<section
+			id="dock-panel"
+			class="dock-panel"
+			transition:panelTransition
+			aria-label={visiblePanel === 'chats' ? 'Recent chats' : panelTitles[visiblePanel]}
+			onpointerenter={cancelClose}
+			onpointerleave={scheduleClose}
+			onpointerdown={pinPanel}
+			onfocusin={pinPanel}
+		>
 			<div class="dock-panel-head">
-				<strong>Chats</strong><button
+				<strong>{panelTitles[visiblePanel]}</strong>
+				<button
 					type="button"
-					aria-label="Close chats"
-					title="Close chats"
-					onclick={() => {
-						historyOpen = false;
-						sidebar.closeMobile();
-					}}><X size={18} /></button
+					aria-label={`Close ${panelTitles[visiblePanel].toLowerCase()}`}
+					title={`Close ${panelTitles[visiblePanel].toLowerCase()}`}
+					onclick={closePanels}><X size={18} /></button
 				>
 			</div>
 			<div class="dock-panel-scroll">
-				<RecentChats
-					conversations={shell.chats?.conversations}
-					activeId={shell.chats?.activeId}
-					editingId={shell.chats?.editingId}
-					onSelectChat={selectChat}
-					onStartRename={shell.chats?.onStartRename}
-					onPromptDelete={shell.chats?.onPromptDelete}
-					onSaveRename={shell.chats?.onSaveRename}
-					onCancelRename={shell.chats?.onCancelRename}
-				/>
+				{#key visiblePanel}
+					<DockPanelContents
+						panel={visiblePanel}
+						{user}
+						{newChat}
+						{selectChat}
+						{closePanels}
+						{logout}
+					/>
+				{/key}
 			</div>
 		</section>
-	{/if}
-	{#if profileOpen}
-		<div class="dock-profile" role="group" aria-label="Profile actions">
-			<strong>{user?.name ?? 'User'}</strong>
-			<button type="button" onclick={logout}><LogOut size={16} /> Log out</button>
-		</div>
 	{/if}
 </aside>
 
@@ -245,11 +329,11 @@
 	}
 	.dock-panel {
 		position: fixed;
-		left: 111px;
+		left: var(--dock-panel-left);
 		top: 34px;
 		bottom: 34px;
-		z-index: 48;
-		width: min(330px, calc(100vw - 130px));
+		z-index: 1;
+		width: var(--dock-panel-width);
 		display: flex;
 		flex-direction: column;
 		padding: 20px 14px;
@@ -284,34 +368,6 @@
 		min-height: 0;
 		overflow: auto;
 	}
-	.dock-profile {
-		position: fixed;
-		z-index: 49;
-		left: 108px;
-		bottom: 34px;
-		width: 210px;
-		display: grid;
-		gap: 12px;
-		padding: 16px;
-		border: 1px solid var(--border);
-		border-radius: 14px;
-		background: var(--surface);
-		box-shadow: 0 12px 32px var(--shadow);
-	}
-	.dock-profile button {
-		display: flex;
-		gap: 8px;
-		align-items: center;
-		padding: 8px;
-		border: 0;
-		border-radius: 8px;
-		color: var(--text-body);
-		background: transparent;
-		text-align: left;
-	}
-	.dock-profile button:hover {
-		background: var(--surface-hover);
-	}
 	@media (max-width: 760px) {
 		.dock-item {
 			width: 100%;
@@ -330,15 +386,12 @@
 			position: static;
 			flex: 1;
 			width: 100%;
-			min-height: 160px;
+			min-height: 0;
+			margin-top: 12px;
 			padding: 8px 0;
 			border: 0;
 			box-shadow: none;
 			background: transparent;
-		}
-		.dock-profile {
-			left: 16px;
-			bottom: 72px;
 		}
 	}
 </style>

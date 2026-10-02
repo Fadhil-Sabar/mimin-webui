@@ -1,0 +1,52 @@
+{
+  "note": "Implementation targets inferred from the design briefs; raster pixels are not exact color specifications.",
+  "colors": {
+    "canvas": "#141416",
+    "dock": "#1B1B1E",
+    "surface": "#202023",
+    "field": "#151517",
+    "border": "#2C2C30",
+    "text": "#ECECEE",
+    "textMuted": "#A1A1AA",
+    "primary": "#F4F4F5",
+    "primaryText": "#18181B"
+  },
+  "radiusPx": {
+    "control": 10,
+    "card": 16,
+    "dock": 18,
+    "modal": 20
+  },
+  "spacingPx": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32,
+    48,
+    64
+  ],
+  "shadows": {
+    "card": "0 12px 32px rgba(0,0,0,0.22)",
+    "composer": "0 18px 48px rgba(0,0,0,0.32)",
+    "modal": "0 28px 90px rgba(0,0,0,0.50)"
+  },
+  "typography": {
+    "family": "Inter, ui-sans-serif, system-ui, sans-serif",
+    "pageTitlePx": 34,
+    "modalTitlePx": 26,
+    "bodyPx": 15,
+    "labelPx": 13,
+    "metadataPx": 12
+  },
+  "layout": {
+    "desktopReferencePx": [
+      1600,
+      1000
+    ],
+    "dockWidthPx": 74,
+    "contentMaxWidthPx": 1100,
+    "chatReadMaxWidthPx": 850
+  }
+}

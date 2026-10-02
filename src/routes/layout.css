@@ -1609,6 +1609,10 @@ svg {
 
 /* Mimin design pack shell */
 @media (min-width: 761px) {
+	.app-shell {
+		--dock-panel-left: 111px;
+		--dock-panel-width: clamp(240px, 24vw, 330px);
+	}
 	.app-shell,
 	.app-shell.sidebar-collapsed {
 		grid-template-columns: 122px minmax(0, 1fr);
@@ -1617,6 +1621,7 @@ svg {
 	.app-shell.sidebar-collapsed .sidebar[data-mimin-dock] {
 		display: flex;
 		position: sticky;
+		z-index: 40;
 		top: 34px;
 		width: 74px;
 		height: calc(100dvh - 68px);
@@ -1634,6 +1639,7 @@ svg {
 	}
 }
 .main-content {
+	isolation: isolate;
 	overflow-x: hidden;
 }
 .topbar {
@@ -1641,10 +1647,28 @@ svg {
 	border-bottom: 0;
 	backdrop-filter: none;
 	height: 102px;
+	gap: var(--space-3);
 	padding: 0 clamp(24px, 3vw, 52px);
 }
 .topbar-left {
+	flex: 1;
 	gap: 44px;
+}
+.topbar-left > .topbar-brand,
+.top-actions {
+	flex-shrink: 0;
+}
+.topbar-left .breadcrumb {
+	min-width: 0;
+}
+.breadcrumb > :not(:last-child) {
+	flex-shrink: 0;
+}
+.breadcrumb > :last-child {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .top-actions {
 	gap: 12px;

@@ -8,7 +8,7 @@
 		Square,
 		X
 	} from '@lucide/svelte';
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, untrack, type Snippet } from 'svelte';
 	import ModelPicker, {
 		type ModelOption,
 		type ThinkingLevel
@@ -21,6 +21,7 @@
 	import type { Conversation } from './chat-types';
 
 	type Props = {
+		above?: Snippet;
 		message?: string;
 		attachments?: File[];
 		running?: boolean;
@@ -57,6 +58,7 @@
 	};
 
 	let {
+		above,
 		message = $bindable(''),
 		attachments = [],
 		running = false,
@@ -175,6 +177,7 @@
 </script>
 
 <div class="composer-container">
+	{@render above?.()}
 	<div class="chat-composer">
 		{#if conversation?.activeSkill}
 			<div class="skill-status">

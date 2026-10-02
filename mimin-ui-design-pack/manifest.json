@@ -1,0 +1,189 @@
+[
+  {
+    "title": "Home",
+    "stage": "latest",
+    "image": "screens/01-home.png",
+    "prompt": "prompts/screens/01-home.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "53c92253308ddcc0dc4d509fce67db9e4e99556e095a689c77625e3c55826a9a"
+  },
+  {
+    "title": "Projects",
+    "stage": "latest",
+    "image": "screens/02-projects.png",
+    "prompt": "prompts/screens/02-projects.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "5d60978f9d87d0a73abd414059ed90363f7c7484a621688d408f0544b189371d"
+  },
+  {
+    "title": "Skills",
+    "stage": "latest",
+    "image": "screens/03-skills.png",
+    "prompt": "prompts/screens/03-skills.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "1603b0f1f2348f45347c30c4dec072d136007344748bb0bb0c387a2099867ba5"
+  },
+  {
+    "title": "Chat room",
+    "stage": "latest",
+    "image": "screens/04-chat-room.png",
+    "prompt": "prompts/screens/04-chat-room.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "0c1738e4523e9790267a86741854c5969397fc762eed173452b86f9061d106f7"
+  },
+  {
+    "title": "Project detail",
+    "stage": "latest",
+    "image": "screens/05-project-detail.png",
+    "prompt": "prompts/screens/05-project-detail.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "afbd15c033e8d9e0af0b7b0ac8dae150203f423ceef42b0fd71cd65e62aa34d6"
+  },
+  {
+    "title": "Edit skill",
+    "stage": "latest",
+    "image": "screens/06-edit-skill.png",
+    "prompt": "prompts/screens/06-edit-skill.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "533a2098c65bfe3dd7bf14ad37e67f600a2b8b32b117bfb56680fde7ba5a465e"
+  },
+  {
+    "title": "Settings \u00b7 Providers",
+    "stage": "latest",
+    "image": "screens/07-settings-providers.png",
+    "prompt": "prompts/screens/07-settings-providers.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "7566b0ca6a61ede8665c7cee4211ade2a0ec43e68741ab76f9f8f191ea2872b8"
+  },
+  {
+    "title": "Settings \u00b7 Provider connection",
+    "stage": "latest",
+    "image": "screens/08-settings-provider-edit.png",
+    "prompt": "prompts/screens/08-settings-provider-edit.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "8b752e90a6cd68b9d894996b437899a8a58253d19ccdeb3f0cea093afb5267dc"
+  },
+  {
+    "title": "Settings \u00b7 Instructions",
+    "stage": "latest",
+    "image": "screens/09-settings-instructions.png",
+    "prompt": "prompts/screens/09-settings-instructions.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "6b534b9b44a077e682524e5629da984e3689b7972167a586ce5ed9300a6ce842"
+  },
+  {
+    "title": "Settings \u00b7 Web search",
+    "stage": "latest",
+    "image": "screens/10-settings-web-search.png",
+    "prompt": "prompts/screens/10-settings-web-search.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "f3c6acc6e5e43d7863e5e710b713431408f3054ff24ade39b99bd895023c669a"
+  },
+  {
+    "title": "Settings \u00b7 Browser extension",
+    "stage": "latest",
+    "image": "screens/11-settings-browser.png",
+    "prompt": "prompts/screens/11-settings-browser.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "dc22ebc9be908a58fd49b103c4a5ab1dc8404bcf58ed266ad4ae5c5efb17d69b"
+  },
+  {
+    "title": "Settings \u00b7 Preferences",
+    "stage": "latest",
+    "image": "screens/12-settings-preferences.png",
+    "prompt": "prompts/screens/12-settings-preferences.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "54b7dcba99f21610f8c02b36200aedfbd7d340de9f268941c9c19b510b95d768"
+  },
+  {
+    "title": "Settings \u00b7 Users",
+    "stage": "latest",
+    "image": "screens/13-settings-users.png",
+    "prompt": "prompts/screens/13-settings-users.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "69d451831d8a368b4937ea86f6bfca750252f88f997c7a4d7295b3842b17c5f7"
+  },
+  {
+    "title": "Early exploration \u00b7 Editorial light",
+    "stage": "explorations",
+    "image": "explorations/01-editorial-light.png",
+    "prompt": "prompts/explorations/01-editorial-light.md",
+    "dimensions": [
+      1604,
+      980
+    ],
+    "sha256": "b42be10d48fc8efe8117283de276827b03ae9f3a69dc89e51b038a6d3b6ccf58"
+  },
+  {
+    "title": "Early exploration \u00b7 Obsidian gold",
+    "stage": "explorations",
+    "image": "explorations/02-obsidian-gold.png",
+    "prompt": "prompts/explorations/02-obsidian-gold.md",
+    "dimensions": [
+      1589,
+      990
+    ],
+    "sha256": "4fbb3ee5fcb4b97e7affbd66f887554a808c6231c05bdecb6a513453f9f22d44"
+  },
+  {
+    "title": "Early exploration \u00b7 Zinc orbital",
+    "stage": "explorations",
+    "image": "explorations/03-zinc-orbital.png",
+    "prompt": "prompts/explorations/03-zinc-orbital.md",
+    "dimensions": [
+      1589,
+      990
+    ],
+    "sha256": "b3f94294d0a92978195663b9848b3b890d6f4c833cdd0330e7185b724002b6cd"
+  },
+  {
+    "title": "Early exploration \u00b7 Minimal depth",
+    "stage": "explorations",
+    "image": "explorations/04-minimal-depth.png",
+    "prompt": "prompts/explorations/04-minimal-depth.md",
+    "dimensions": [
+      1586,
+      992
+    ],
+    "sha256": "db9a0e1f7e3d7d30634f061659af344390075e66b5026c17c5e4261e2099d34f"
+  }
+]
