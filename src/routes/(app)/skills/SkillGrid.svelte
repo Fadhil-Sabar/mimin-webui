@@ -18,9 +18,10 @@
 </script>
 
 <div class="skill-grid">
-	{#each skills as skill (skill.id)}
+	{#each skills as skill, index (skill.id)}
 		<SkillCard
 			{skill}
+			order={index}
 			scopeLabel={scopeLabel(skill)}
 			onedit={() => onedit(skill)}
 			onduplicate={() => onduplicate(skill)}

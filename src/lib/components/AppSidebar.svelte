@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { fly } from 'svelte/transition';
-	import { cubicOut } from 'svelte/easing';
+	import { reveal } from '$lib/client/motion';
 	import { afterNavigate } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -21,8 +20,9 @@
 
 	type Props = {
 		user?: { id?: string | null; name?: string | null; role?: string | null } | null;
+		inactive?: boolean;
 	};
-	let { user = null }: Props = $props();
+	let { user = null, inactive = false }: Props = $props();
 	let panel = $state<DockPanel | null>(null);
 	let pinnedPanel = $state<DockPanel | null>(null);
 	let closeTimer: ReturnType<typeof setTimeout> | undefined;
@@ -47,12 +47,12 @@
 					: 'chat'
 	);
 
-	function panelTransition(node: HTMLElement) {
-		return fly(node, {
-			x: window.innerWidth > 760 ? -24 : 0,
-			duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220,
-			easing: cubicOut
-		});
+	function panelTransition(
+		node: HTMLElement,
+		params: undefined,
+		options: Parameters<typeof reveal>[2]
+	) {
+		return reveal(node, { x: window.innerWidth > 760 ? -12 : 0, y: 0 }, options);
 	}
 
 	function cancelClose() {
@@ -138,7 +138,9 @@
 />
 
 <aside
+	id="workspace-sidebar"
 	class="sidebar"
+	inert={inactive}
 	data-mimin-dock
 	aria-label="Workspace navigation"
 	onpointerenter={cancelClose}
@@ -251,14 +253,16 @@
 			</div>
 			<div class="dock-panel-scroll">
 				{#key visiblePanel}
-					<DockPanelContents
-						panel={visiblePanel}
-						{user}
-						{newChat}
-						{selectChat}
-						{closePanels}
-						{logout}
-					/>
+					<div in:reveal={{ x: 6, y: 0, duration: 180 }}>
+						<DockPanelContents
+							panel={visiblePanel}
+							{user}
+							{newChat}
+							{selectChat}
+							{closePanels}
+							{logout}
+						/>
+					</div>
 				{/key}
 			</div>
 		</section>

@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { Code2, Monitor, Smartphone, Tablet, Trash2, X } from '@lucide/svelte';
+	import { Code2, Monitor, RotateCcw, Smartphone, Tablet, Trash2, X } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 	import type { CanvasScene, ViewportDevice } from '$lib/canvas';
 	import { VIEWPORT_SPECS } from '$lib/canvas';
-	import CanvasPreview from './CanvasPreview.svelte';
+	import CanvasPreviewViewport from './CanvasPreviewViewport.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
@@ -10,36 +11,44 @@
 		open: boolean;
 		scene: CanvasScene;
 		sceneCount: number;
-		onupdatescene: (sceneId: string, updates: Partial<CanvasScene>) => Promise<void>;
 		ondeletescene: (sceneId: string) => Promise<void>;
 		oneditcode: () => void;
 	};
 
-	let {
-		open = $bindable(),
-		scene,
-		sceneCount,
-		onupdatescene,
-		ondeletescene,
-		oneditcode
-	}: Props = $props();
+	let { open = $bindable(), scene, sceneCount, ondeletescene, oneditcode }: Props = $props();
+	let previewViewport = $state<ViewportDevice>('desktop');
+	let fit = $state(true);
+	let deleting = $state(false);
+	let deleteError = $state('');
 
-	let viewportSaving = $state(false);
+	const previewSession = $derived(open ? `${scene.id}:${scene.viewport}` : '');
+	$effect(() => {
+		if (!previewSession) return;
+		untrack(() => {
+			previewViewport = scene.viewport;
+			fit = true;
+			deleteError = '';
+		});
+	});
 
-	async function switchViewport(viewport: ViewportDevice) {
-		if (viewportSaving || viewport === scene.viewport) return;
-		viewportSaving = true;
-		try {
-			await onupdatescene(scene.id, { viewport });
-		} finally {
-			viewportSaving = false;
-		}
+	let previewInstance = $state(0);
+
+	function restartPreview() {
+		previewInstance += 1;
 	}
 
 	async function handleDeleteActiveScene() {
-		if (sceneCount <= 1) return;
-		if (confirm(`Delete scene "${scene.name}"?`)) {
+		if (deleting || sceneCount <= 1) return;
+		if (!confirm(`Delete scene "${scene.name}"?`)) return;
+		deleting = true;
+		deleteError = '';
+		try {
 			await ondeletescene(scene.id);
+			open = false;
+		} catch (error) {
+			deleteError = error instanceof Error ? error.message : 'Unable to delete scene.';
+		} finally {
+			deleting = false;
 		}
 	}
 </script>
@@ -47,61 +56,78 @@
 <Dialog.Root bind:open>
 	<Dialog.Content
 		showCloseButton={false}
-		aria-label="Interactive preview of {scene.name}"
-		class="flex! max-h-[96vh] w-fit! max-w-[min(96vw,1300px)]! min-w-[min(320px,96vw)] flex-col gap-0 overflow-hidden rounded-xl bg-[var(--surface)] p-0 leading-[normal] shadow-[0_24px_70px_var(--shadow)] ring-0"
+		class="preview-dialog flex! h-[min(96dvh,960px)] max-h-[96dvh] w-[min(96vw,1300px)]! max-w-[min(96vw,1300px)]! min-w-0 flex-col gap-0 overflow-hidden rounded-xl bg-[var(--surface)] p-0 leading-[normal] shadow-[0_24px_70px_var(--shadow)] ring-0"
 	>
+		<Dialog.Title class="sr-only">Interactive preview of {scene.name}</Dialog.Title>
+		<Dialog.Description class="sr-only"
+			>Preview the scene at different device sizes.</Dialog.Description
+		>
 		<div class="preview-dialog-bar">
-			<strong>{scene.name}</strong><span
-				>{VIEWPORT_SPECS[scene.viewport].width} × {VIEWPORT_SPECS[scene.viewport].height}</span
+			<strong title={scene.name}>{scene.name}</strong>
+			<span class="viewport-size"
+				>{VIEWPORT_SPECS[previewViewport].width} × {VIEWPORT_SPECS[previewViewport].height}</span
 			>
-			<div class="preview-device-switcher" role="group" aria-label="Ubah ukuran scene">
+			<div class="preview-device-switcher" role="group" aria-label="Preview size">
 				<button
 					type="button"
-					class:active={scene.viewport === 'mobile'}
+					class:active={previewViewport === 'mobile'}
 					aria-label="Mobile"
-					aria-pressed={scene.viewport === 'mobile'}
+					aria-pressed={previewViewport === 'mobile'}
 					title="Mobile"
-					disabled={viewportSaving}
-					onclick={() => switchViewport('mobile')}><Smartphone size={16} /></button
+					onclick={() => (previewViewport = 'mobile')}><Smartphone size={16} /></button
 				>
 				<button
 					type="button"
-					class:active={scene.viewport === 'tablet'}
+					class:active={previewViewport === 'tablet'}
 					aria-label="Tablet"
-					aria-pressed={scene.viewport === 'tablet'}
+					aria-pressed={previewViewport === 'tablet'}
 					title="Tablet"
-					disabled={viewportSaving}
-					onclick={() => switchViewport('tablet')}><Tablet size={16} /></button
+					onclick={() => (previewViewport = 'tablet')}><Tablet size={16} /></button
 				>
 				<button
 					type="button"
-					class:active={scene.viewport === 'desktop'}
+					class:active={previewViewport === 'desktop'}
 					aria-label="Desktop"
-					aria-pressed={scene.viewport === 'desktop'}
+					aria-pressed={previewViewport === 'desktop'}
 					title="Desktop"
-					disabled={viewportSaving}
-					onclick={() => switchViewport('desktop')}><Monitor size={16} /></button
+					onclick={() => (previewViewport = 'desktop')}><Monitor size={16} /></button
+				>
+			</div>
+			<div class="preview-scale-switcher" role="group" aria-label="Preview scale">
+				<button type="button" class:active={fit} aria-pressed={fit} onclick={() => (fit = true)}
+					>Fit</button
+				>
+				<button type="button" class:active={!fit} aria-pressed={!fit} onclick={() => (fit = false)}
+					>100%</button
 				>
 			</div>
 			<button class="icon-btn" onclick={() => (open = false)} aria-label="Close preview"
 				><X size={16} /></button
 			>
 		</div>
-		<div class="preview-scroll">
-			<div
-				class="interactive-screen"
-				style:width="{VIEWPORT_SPECS[scene.viewport].width}px"
-				style:height="{VIEWPORT_SPECS[scene.viewport].height}px"
-			>
-				{#key `${scene.id}:${scene.viewport}`}
-					<CanvasPreview html={scene.html} css={scene.css} js={scene.js} title={scene.name} />
-				{/key}
-			</div>
+		<div class="preview-body">
+			{#key `${scene.id}:${previewViewport}:${previewInstance}`}
+				<CanvasPreviewViewport
+					html={scene.html}
+					css={scene.css}
+					js={scene.js}
+					title={scene.name}
+					viewport={previewViewport}
+					{fit}
+				/>
+			{/key}
 		</div>
 		<div class="preview-dialog-actions">
-			<Button variant="outline" onclick={handleDeleteActiveScene} disabled={sceneCount <= 1}
-				><Trash2 size={13} /> Delete scene</Button
-			><Button
+			{#if deleteError}<p class="delete-error" role="alert">{deleteError}</p>{/if}
+			<Button variant="outline" onclick={restartPreview} aria-label="Restart preview"
+				><RotateCcw size={13} /> Restart preview</Button
+			>
+			<Button
+				variant="outline"
+				onclick={handleDeleteActiveScene}
+				disabled={sceneCount <= 1 || deleting}><Trash2 size={13} /> Delete scene</Button
+			>
+			<Button
 				variant="outline"
 				onclick={() => {
 					open = false;
@@ -117,68 +143,87 @@
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
+		min-width: 0;
 		padding: 10px 14px;
 		border-bottom: 1px solid var(--border);
 		font-size: var(--text-body-md);
 		line-height: var(--text-body-md--line-height);
 		letter-spacing: var(--text-body-md--letter-spacing);
 	}
-	.preview-dialog-bar span {
+	.preview-dialog-bar > strong {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.viewport-size {
+		flex: 0 0 auto;
 		color: var(--text-muted);
 		font-size: var(--text-label-sm);
 		line-height: var(--text-label-sm--line-height);
 		letter-spacing: var(--text-label-sm--letter-spacing);
 	}
-	.preview-dialog-bar > button {
-		margin-left: auto;
-	}
-	.preview-device-switcher {
+	.preview-device-switcher,
+	.preview-scale-switcher {
 		display: flex;
+		flex: 0 0 auto;
 		gap: 2px;
-		margin-left: auto;
 		padding: 2px;
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		background: var(--surface-2);
 	}
-	.preview-device-switcher button {
+	.preview-dialog-bar .preview-device-switcher {
+		margin-left: auto;
+	}
+	.preview-device-switcher button,
+	.preview-scale-switcher button {
 		display: grid;
 		place-items: center;
-		width: 29px;
+		min-width: 29px;
 		height: 27px;
-		padding: 0;
+		padding: 0 6px;
 		border: 0;
 		border-radius: var(--radius-sm);
 		background: transparent;
 		color: var(--text-muted);
+		font-size: var(--text-label-sm);
 		cursor: pointer;
 	}
 	.preview-device-switcher button:hover,
-	.preview-device-switcher button.active {
+	.preview-device-switcher button.active,
+	.preview-scale-switcher button:hover,
+	.preview-scale-switcher button.active {
 		background: var(--surface);
 		color: var(--text-strong);
 	}
-	.preview-device-switcher button:focus-visible {
+	.preview-device-switcher button:focus-visible,
+	.preview-scale-switcher button:focus-visible {
 		outline: 2px solid var(--focus);
 		outline-offset: 2px;
 	}
-	.preview-scroll {
-		overflow: auto;
-		background: var(--bg);
+	.preview-body {
+		flex: 1 1 auto;
+		min-width: 0;
+		min-height: 120px;
+		overflow: hidden;
 		padding: var(--space-4);
-	}
-	.interactive-screen {
-		max-width: none;
-		background: white;
-		margin: 0 auto;
-		box-shadow: 0 4px 20px var(--shadow-softer);
+		background: var(--bg);
 	}
 	.preview-dialog-actions {
 		display: flex;
+		flex: 0 0 auto;
+		flex-wrap: wrap;
 		gap: var(--space-2);
 		justify-content: flex-end;
 		border-top: 1px solid var(--border);
 		padding: 10px 14px;
+	}
+	.delete-error {
+		margin: 0 auto 0 0;
+		align-self: center;
+		color: var(--danger-text);
+		font-size: var(--text-label-sm);
 	}
 	.icon-btn {
 		display: grid;
@@ -191,22 +236,32 @@
 		padding: 0;
 		cursor: pointer;
 		color: var(--text-muted);
-		transition:
-			color var(--duration-short3) var(--ease-standard),
-			background var(--duration-short3) var(--ease-standard),
-			border-color var(--duration-short3) var(--ease-standard);
 	}
-	.icon-btn:hover:not(:disabled) {
+	.icon-btn:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+	.icon-btn:hover {
 		background: var(--surface-hover);
 		color: var(--text-strong);
 		border-color: var(--border-strong);
 	}
-	@media (max-width: 560px) {
+	@media (max-width: 680px) {
 		.preview-dialog-bar {
 			flex-wrap: wrap;
+			gap: var(--space-2);
 		}
-		.preview-device-switcher {
+		.preview-dialog-bar > strong {
+			flex: 1 1 100%;
+		}
+		.preview-dialog-bar .preview-device-switcher {
 			margin-left: 0;
+		}
+		.preview-body {
+			padding: var(--space-2);
+		}
+		.preview-dialog-actions > :global(button) {
+			flex: 1 1 auto;
 		}
 	}
 </style>

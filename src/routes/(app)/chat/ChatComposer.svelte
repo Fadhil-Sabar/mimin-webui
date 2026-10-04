@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ArrowUp, Paperclip, Plus, SlidersHorizontal, Sparkles, Square, X } from '@lucide/svelte';
-	import { onDestroy, untrack, type Snippet } from 'svelte';
+	import { onDestroy, onMount, untrack, type Snippet } from 'svelte';
+	import { expand, reveal } from '$lib/client/motion';
 	import ModelPicker, {
 		type ModelOption,
 		type ThinkingLevel
@@ -89,6 +90,15 @@
 	let fileInput = $state<HTMLInputElement | undefined>(undefined);
 	let textareaEl = $state<HTMLTextAreaElement | undefined>(undefined);
 	let mobileOptionsOpen = $state(false);
+	let isMobile = $state(false);
+
+	onMount(() => {
+		const media = window.matchMedia('(max-width: 760px)');
+		isMobile = media.matches;
+		const update = (event: MediaQueryListEvent) => (isMobile = event.matches);
+		media.addEventListener('change', update);
+		return () => media.removeEventListener('change', update);
+	});
 
 	const TEXTAREA_MAX_HEIGHT = 320;
 
@@ -172,7 +182,7 @@
 	{@render above?.()}
 	<div class="chat-composer">
 		{#if conversation?.activeSkill}
-			<div class="skill-status">
+			<div class="skill-status" transition:expand>
 				<span class="skill-badge">
 					<Sparkles size={12} class="skill-badge-icon" aria-hidden="true" />
 					<span class="skill-badge-name">{conversation.activeSkill.name}</span>
@@ -195,7 +205,7 @@
 			</div>
 		{/if}
 		{#if suggestion && !suggestionDismissed}
-			<div class="skill-suggestion-banner">
+			<div class="skill-suggestion-banner" transition:expand>
 				<div class="skill-suggestion-content">
 					<Sparkles size={13} class="skill-suggestion-icon" aria-hidden="true" />
 					<span class="skill-suggestion-text">
@@ -228,12 +238,13 @@
 			</div>
 		{/if}
 		{#if attachments.length}
-			<div class="attachment-list" role="list" aria-label="Files to attach">
-				{#each attachments as file, index (file.name + file.size + index)}
+			<div class="attachment-list" role="list" aria-label="Files to attach" transition:expand>
+				{#each attachments as file, index (file)}
 					<div
 						class="attachment-chip pending-attachment"
 						class:image-attachment={isImageFile(file)}
 						role="listitem"
+						in:reveal={{ y: 4, duration: 180 }}
 					>
 						{#if isImageFile(file) && previewUrl(file)}
 							<img class="attachment-thumb" src={previewUrl(file)} alt={file.name} />
@@ -306,21 +317,28 @@
 					<SlidersHorizontal size={15} aria-hidden="true" />
 					<span>Options</span>
 				</Button>
-				<div id="composer-options" class="composer-options" class:open={mobileOptionsOpen}>
-					<SkillPicker
-						{skills}
-						activeSkillId={conversation?.activeSkill?.id}
-						loading={skillsLoading}
-						disabled={blocked() || !hasActiveId}
-						ontoggle={ontoggleskill}
-					/>
-					<ToolPicker
-						{tools}
-						enabledTools={conversation?.enabledTools ?? []}
-						loading={toolsLoading}
-						disabled={blocked() || !hasActiveId}
-						ontoggle={ontoggletool}
-					/>
+				<div
+					id="composer-options"
+					class="composer-options"
+					class:open={mobileOptionsOpen}
+					inert={isMobile && !mobileOptionsOpen}
+				>
+					<div class="composer-options-inner">
+						<SkillPicker
+							{skills}
+							activeSkillId={conversation?.activeSkill?.id}
+							loading={skillsLoading}
+							disabled={blocked() || !hasActiveId}
+							ontoggle={ontoggleskill}
+						/>
+						<ToolPicker
+							{tools}
+							enabledTools={conversation?.enabledTools ?? []}
+							loading={toolsLoading}
+							disabled={blocked() || !hasActiveId}
+							ontoggle={ontoggletool}
+						/>
+					</div>
 				</div>
 			</div>
 			<Button
@@ -331,10 +349,15 @@
 				aria-label={running ? 'Stop generation' : 'Send message'}
 				title={running ? 'Stop generation' : 'Send message'}
 				onclick={() => (running ? onstop() : sendMessage())}
-				>{#if running}<Square size={13} aria-hidden="true" />{:else}<ArrowUp
-						size={20}
-						aria-hidden="true"
-					/>{/if}</Button
+			>
+				{#key running}
+					<span class="send-icon" in:reveal={{ y: 0, duration: 150 }}>
+						{#if running}<Square size={13} aria-hidden="true" />{:else}<ArrowUp
+								size={20}
+								aria-hidden="true"
+							/>{/if}
+					</span>
+				{/key}</Button
 			>
 		</div>
 	</div>
@@ -594,8 +617,14 @@
 	:global(.mobile-options-toggle) {
 		display: none;
 	}
-	.composer-options {
+	.composer-options,
+	.composer-options-inner {
 		display: contents;
+	}
+	.send-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
 	}
 	@media (max-width: 760px) {
 		.composer-row {
@@ -624,16 +653,34 @@
 			padding: 8px 10px;
 		}
 		.composer-options {
-			display: none;
+			display: grid;
+			grid-template-rows: 0fr;
+			opacity: 0;
+			visibility: hidden;
+			margin-top: -5px;
 			width: 100%;
 			flex-basis: 100%;
 			order: 2;
+			transition:
+				grid-template-rows var(--duration-medium1) var(--ease-emphasized),
+				opacity var(--duration-short4) var(--ease-standard),
+				margin-top var(--duration-medium1) var(--ease-emphasized),
+				visibility 0s var(--duration-medium1);
+		}
+		.composer-options-inner {
+			display: flex;
+			min-height: 0;
+			overflow: hidden;
 			align-items: center;
 			flex-wrap: wrap;
 			gap: 5px;
 		}
 		.composer-options.open {
-			display: flex;
+			grid-template-rows: 1fr;
+			opacity: 1;
+			visibility: visible;
+			margin-top: 0;
+			transition-delay: 0s;
 		}
 		:global(.composer-options .skill-trigger),
 		:global(.composer-options .tool-trigger) {

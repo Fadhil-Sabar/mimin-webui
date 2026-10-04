@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { toast } from 'svelte-sonner';
+	import { reveal } from '$lib/client/motion';
 	import { getLastUsedModel, setLastUsedModel } from '$lib/client/conversations.svelte';
 	import { createNavigationHandoff } from '$lib/client/navigation-handoff';
 	import ProjectConversations from './ProjectConversations.svelte';
@@ -513,40 +514,44 @@
 			aria-labelledby={`project-tab-${activeTab}`}
 			tabindex="-1"
 		>
-			{#if activeTab === 'conversations'}
-				<ProjectConversations
-					{filteredConversations}
-					loadedCount={conversations.length}
-					bind:query={projectQuery}
-					pagination={conversationPagination}
-					loadingMore={loadingMoreConversations}
-					onloadmore={loadMoreConversations}
-				/>
-			{:else if activeTab === 'knowledge'}
-				<ProjectKnowledge
-					{projectId}
-					filteredFiles={files}
-					loadedCount={files.length}
-					bind:query={projectQuery}
-					pagination={filePagination}
-					loadingMore={loadingMoreFiles}
-					{reindexing}
-					{uploading}
-					{indexingNotice}
-					{uploadSummary}
-					onupload={uploadFiles}
-					onreindex={reindexFile}
-					ondelete={promptDeleteFile}
-					onask={askAboutFile}
-					onloadmore={loadMoreFiles}
-				/>
-			{:else if activeTab === 'canvas'}
-				<ProjectCanvases canvases={projectCanvases} oncreatecanvas={createProjectCanvas} />
-			{:else if activeTab === 'instructions'}
-				<ProjectInstructions {project} onedit={openEdit} />
-			{:else if activeTab === 'skills'}
-				<ProjectSkills {projectId} onskillchat={startSkillChat} />
-			{/if}
+			{#key activeTab}
+				<div in:reveal={{ y: 6, duration: 200 }}>
+					{#if activeTab === 'conversations'}
+						<ProjectConversations
+							{filteredConversations}
+							loadedCount={conversations.length}
+							bind:query={projectQuery}
+							pagination={conversationPagination}
+							loadingMore={loadingMoreConversations}
+							onloadmore={loadMoreConversations}
+						/>
+					{:else if activeTab === 'knowledge'}
+						<ProjectKnowledge
+							{projectId}
+							filteredFiles={files}
+							loadedCount={files.length}
+							bind:query={projectQuery}
+							pagination={filePagination}
+							loadingMore={loadingMoreFiles}
+							{reindexing}
+							{uploading}
+							{indexingNotice}
+							{uploadSummary}
+							onupload={uploadFiles}
+							onreindex={reindexFile}
+							ondelete={promptDeleteFile}
+							onask={askAboutFile}
+							onloadmore={loadMoreFiles}
+						/>
+					{:else if activeTab === 'canvas'}
+						<ProjectCanvases canvases={projectCanvases} oncreatecanvas={createProjectCanvas} />
+					{:else if activeTab === 'instructions'}
+						<ProjectInstructions {project} onedit={openEdit} />
+					{:else if activeTab === 'skills'}
+						<ProjectSkills {projectId} onskillchat={startSkillChat} />
+					{/if}
+				</div>
+			{/key}
 		</div>
 	{/if}
 </Page>

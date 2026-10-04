@@ -21,6 +21,7 @@
 	import { clearHomeDraft, getHomeDraft, setHomeDraft } from '$lib/client/drafts';
 	import { settingsModal } from '$lib/client/settings-modal.svelte';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import { expand, reveal } from '$lib/client/motion';
 	import Topbar from '$lib/components/Topbar.svelte';
 	let { data } = $props();
 	let prompt = $state('');
@@ -187,9 +188,9 @@
 			aria-busy={submitting}
 			onkeydown={onKeydown}></textarea>
 		{#if attachments.length}
-			<div class="attachment-list" aria-label="Selected attachments">
-				{#each attachments as file, index (file.name + index)}
-					<span
+			<div class="attachment-list" aria-label="Selected attachments" transition:expand>
+				{#each attachments as file, index (file)}
+					<span in:reveal={{ y: 4, duration: 180 }}
 						>{file.name}
 						<button
 							type="button"

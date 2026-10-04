@@ -156,6 +156,7 @@ export async function runConversationTurn(
 	 */
 	const toolInputEmitAt = new Map<string, number>();
 	const lastToolInputPreview = new Map<string, string>();
+	const startedStreamingToolCalls = new Set<string>();
 	const TOOL_INPUT_THROTTLE_MS = 200;
 
 	function emitStreamingToolInput(messageId: string, toolCallId: string, args: unknown) {
@@ -396,24 +397,29 @@ export async function runConversationTurn(
 				if (delta) pendingToolFailureNotice = null;
 				currentAssistantText += delta;
 				emit({ type: 'message.delta', messageId: msgId, delta });
-			} else if (assistantEvent?.type === 'toolcall_start') {
-				// The model has only started writing the call; execute() has not run yet.
-				// Show the card now so a slow scene generation is not mistaken for a hang.
+			} else if (
+				assistantEvent?.type === 'toolcall_start' ||
+				assistantEvent?.type === 'toolcall_delta'
+			) {
+				// Start events already include id and name in pi-ai, but publish on
+				// deltas too so providers with late metadata still get a live card.
 				const block = streamingToolCallBlock(assistantEvent.partial, assistantEvent.contentIndex);
 				if (block) {
-					emit({
-						type: 'tool.start',
-						messageId: msgId,
-						toolCallId: block.id,
-						tool: block.name || 'tool',
-						label: block.name || 'tool',
-						input: previewToolInput(block.arguments),
-						preparing: true
-					});
+					if (!startedStreamingToolCalls.has(block.id)) {
+						startedStreamingToolCalls.add(block.id);
+						emit({
+							type: 'tool.start',
+							messageId: msgId,
+							toolCallId: block.id,
+							tool: block.name || 'tool',
+							label: block.name || 'tool',
+							input: previewToolInput(block.arguments),
+							preparing: true
+						});
+					}
+					if (assistantEvent.type === 'toolcall_delta')
+						emitStreamingToolInput(msgId, block.id, block.arguments);
 				}
-			} else if (assistantEvent?.type === 'toolcall_delta') {
-				const block = streamingToolCallBlock(assistantEvent.partial, assistantEvent.contentIndex);
-				if (block) emitStreamingToolInput(msgId, block.id, block.arguments);
 			}
 		}
 		if (e.type === 'message_end') {
@@ -429,6 +435,7 @@ export async function runConversationTurn(
 			}
 		}
 		if (e.type === 'tool_execution_start') {
+			startedStreamingToolCalls.delete(e.toolCallId);
 			timing.beginTool();
 			currentToolCallCount += 1;
 			const parentMessageId = lastAssistantMessageId ?? (await ensureAssistantMessage());

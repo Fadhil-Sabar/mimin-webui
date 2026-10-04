@@ -39,14 +39,16 @@
 		opacity: 0;
 		visibility: hidden;
 		transition:
-			grid-template-rows 360ms cubic-bezier(0.22, 1, 0.36, 1),
-			opacity 220ms ease,
-			visibility 360ms;
+			grid-template-rows var(--duration-short4) var(--ease-standard),
+			opacity var(--duration-short3) var(--ease-standard),
+			visibility 0s var(--duration-short4);
 	}
 	.disclosure-content.expanded {
 		grid-template-rows: 1fr;
 		opacity: 1;
 		visibility: visible;
+		transition-duration: var(--duration-medium2), var(--duration-short4), 0s;
+		transition-delay: 0s;
 	}
 	.disclosure-inner {
 		min-height: 0;

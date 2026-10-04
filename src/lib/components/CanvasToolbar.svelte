@@ -21,6 +21,9 @@
 	type Props = {
 		canvas: CanvasDetail;
 		activeScene: CanvasScene | null;
+		selectedSceneId?: string;
+		showLivePreview?: boolean;
+		hasUnsavedDraft?: boolean;
 		viewMode?: ViewMode;
 		showGuideline?: boolean;
 		arranging?: boolean;
@@ -32,12 +35,17 @@
 		onzoomin: () => void | Promise<unknown>;
 		onfitview: () => void | Promise<unknown>;
 		onaddscene: () => void;
+		onselectscene?: (sceneId: string) => void;
+		ontogglelivepreview?: () => void;
 		onrefresh?: () => void | Promise<void>;
 	};
 
 	let {
 		canvas,
 		activeScene,
+		selectedSceneId = activeScene?.id ?? '',
+		showLivePreview = true,
+		hasUnsavedDraft = false,
 		viewMode = 'preview',
 		showGuideline = false,
 		arranging = false,
@@ -49,6 +57,8 @@
 		onzoomin,
 		onfitview,
 		onaddscene,
+		onselectscene,
+		ontogglelivepreview,
 		onrefresh
 	}: Props = $props();
 
@@ -103,21 +113,23 @@
 				type="button"
 				class="toggle-btn"
 				class:active={viewMode === 'preview'}
+				aria-pressed={viewMode === 'preview'}
 				onclick={() => onviewmodechange('preview')}
 				title="Visual Preview"
 				aria-label="Visual Preview"
 			>
-				<Eye size={14} />
+				<Eye size={14} /> <span>Canvas</span>
 			</button>
 			<button
 				type="button"
 				class="toggle-btn"
 				class:active={viewMode === 'code'}
+				aria-pressed={viewMode === 'code'}
 				onclick={() => onviewmodechange('code')}
 				title="Source Code"
 				aria-label="Source Code"
 			>
-				<Code2 size={14} />
+				<Code2 size={14} /> <span>Code</span>
 			</button>
 		</div>
 
@@ -126,6 +138,9 @@
 				<Download size={14} /> <span class="btn-text">{exporting ? 'Exporting…' : 'Export'}</span>
 			</summary>
 			<div class="export-options">
+				{#if hasUnsavedDraft}
+					<p class="export-notice">Exports use saved code. Apply your edits first.</p>
+				{/if}
 				<button
 					type="button"
 					disabled={!activeScene || exporting}
@@ -151,6 +166,7 @@
 			type="button"
 			class="action-btn"
 			class:active={showGuideline}
+			aria-pressed={showGuideline}
 			onclick={ontoggleguideline}
 			title="Style Guideline"
 		>
@@ -185,27 +201,57 @@
 <div class="scenes-bar">
 	<div class="scenes-scroll">
 		<span class="scene-count"
-			>{canvas.scenes.length} scenes · Drag a frame to arrange · Connect handles for navigation</span
+			>{canvas.scenes.length} {canvas.scenes.length === 1 ? 'scene' : 'scenes'}</span
 		>
+		{#if canvas.scenes.length > 0}
+			<label class="scene-picker-label" for="canvas-scene-picker">Scene</label>
+			<select
+				id="canvas-scene-picker"
+				class="scene-picker"
+				value={selectedSceneId}
+				onchange={(event) => onselectscene?.(event.currentTarget.value)}
+			>
+				{#each canvas.scenes as scene (scene.id)}
+					<option value={scene.id}>{scene.name}</option>
+				{/each}
+			</select>
+		{/if}
 	</div>
 	<div class="canvas-controls">
-		<button
-			class="icon-btn"
-			onclick={onarrange}
-			disabled={arranging || canvas.scenes.length === 0}
-			title="Auto arrange scenes"
-			aria-label="Auto arrange scenes"
-			><LayoutGrid size={14} class={arranging ? 'spin' : ''} /></button
-		>
-		<button class="icon-btn" onclick={onzoomout} title="Zoom out" aria-label="Zoom out"
-			><ZoomOut size={14} /></button
-		>
-		<button class="icon-btn" onclick={onzoomin} title="Zoom in" aria-label="Zoom in"
-			><ZoomIn size={14} /></button
-		>
-		<button class="icon-btn" onclick={onfitview} title="Fit all scenes" aria-label="Fit all scenes"
-			><Maximize2 size={14} /></button
-		>
+		{#if viewMode === 'code' && ontogglelivepreview}
+			<button
+				class="action-btn"
+				class:active={showLivePreview}
+				aria-pressed={showLivePreview}
+				aria-label={showLivePreview ? 'Hide live preview' : 'Show live preview'}
+				title={showLivePreview ? 'Hide live preview' : 'Show live preview'}
+				onclick={ontogglelivepreview}
+				><Eye size={14} />
+				<span class="btn-text">{showLivePreview ? 'Hide preview' : 'Show preview'}</span></button
+			>
+		{/if}
+		{#if viewMode === 'preview'}
+			<button
+				class="icon-btn"
+				onclick={onarrange}
+				disabled={arranging || canvas.scenes.length === 0}
+				title="Auto arrange scenes"
+				aria-label="Auto arrange scenes"
+				><LayoutGrid size={14} class={arranging ? 'spin' : ''} /></button
+			>
+			<button class="icon-btn" onclick={onzoomout} title="Zoom out" aria-label="Zoom out"
+				><ZoomOut size={14} /></button
+			>
+			<button class="icon-btn" onclick={onzoomin} title="Zoom in" aria-label="Zoom in"
+				><ZoomIn size={14} /></button
+			>
+			<button
+				class="icon-btn"
+				onclick={onfitview}
+				title="Fit all scenes"
+				aria-label="Fit all scenes"><Maximize2 size={14} /></button
+			>
+		{/if}
 		<button class="add-scene-btn" onclick={onaddscene}><Plus size={12} /> Add scene</button>
 	</div>
 </div>
@@ -291,6 +337,24 @@
 		box-shadow: 0 8px 25px var(--shadow-softer);
 	}
 
+	.export-notice {
+		margin: 0;
+		padding: 7px 9px;
+		max-width: 235px;
+		color: var(--text-muted);
+		font-size: var(--text-label-sm);
+		line-height: var(--text-label-sm--line-height);
+		border-bottom: 1px solid var(--border);
+	}
+
+	:global(.canvas-topbar button:focus-visible),
+	:global(.scenes-bar button:focus-visible),
+	.scene-picker:focus-visible,
+	.export-menu summary:focus-visible {
+		outline: 2px solid var(--focus);
+		outline-offset: 2px;
+	}
+
 	.export-options button {
 		display: block;
 		width: 100%;
@@ -351,8 +415,11 @@
 		border-radius: var(--radius-sm);
 		color: var(--text-muted);
 		cursor: pointer;
-		display: grid;
-		place-items: center;
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		font-size: var(--text-label-sm);
+		white-space: nowrap;
 		transition:
 			color var(--duration-short3) var(--ease-standard),
 			background var(--duration-short3) var(--ease-standard);
@@ -437,9 +504,11 @@
 	}
 
 	.scenes-scroll {
+		flex: 1;
 		display: flex;
 		align-items: center;
-		gap: 5px;
+		gap: 7px;
+		min-width: 0;
 		overflow-x: auto;
 		scrollbar-width: none;
 	}
@@ -450,6 +519,25 @@
 		letter-spacing: var(--text-label-sm--letter-spacing);
 		color: var(--text-muted);
 		white-space: nowrap;
+	}
+
+	.scene-picker-label {
+		font-size: var(--text-label-sm);
+		color: var(--text-muted);
+	}
+
+	.scene-picker {
+		min-width: 0;
+		width: 180px;
+		max-width: 100%;
+		height: 28px;
+		padding: 0 24px 0 8px;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--text-strong);
+		font: inherit;
+		font-size: var(--text-body-sm);
 	}
 
 	.canvas-controls {
@@ -491,6 +579,16 @@
 	}
 
 	@container (max-width: 700px) {
+		.scenes-bar {
+			flex-wrap: wrap;
+		}
+		.scenes-scroll {
+			flex-basis: 100%;
+			overflow: visible;
+		}
+		.canvas-controls {
+			margin-left: auto;
+		}
 		.canvas-topbar {
 			flex-wrap: wrap;
 			height: auto;

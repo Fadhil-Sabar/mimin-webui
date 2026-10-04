@@ -3,7 +3,7 @@
 	import { Marked, type MarkedExtension, type Tokens } from 'marked';
 	import { createTextPacer } from '$lib/client/text-pacer';
 	import 'katex/dist/katex.min.css';
-	import { slide } from 'svelte/transition';
+	import { expand } from '$lib/client/motion';
 	import { ChevronDown, ExternalLink, Globe } from '@lucide/svelte';
 	import { escapeHtml, highlightCode } from '$lib/client/highlighter';
 	import {
@@ -336,7 +336,7 @@
 			</button>
 
 			{#if showSources}
-				<div class="sources-list" transition:slide={{ duration: 180 }}>
+				<div class="sources-list" transition:expand={{ duration: 180 }}>
 					{#each processed.sources as source (source.index + source.url)}
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 						<a href={source.url} target="_blank" rel="noopener noreferrer" class="source-card-item">

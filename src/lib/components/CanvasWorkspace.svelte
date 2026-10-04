@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '@xyflow/svelte/dist/style.css';
+	import { untrack } from 'svelte';
 	import type { CanvasDetail, CanvasScene, StyleGuideline, ViewportDevice } from '$lib/canvas';
 	import {
 		clearCanvasSceneDraft,
@@ -8,6 +9,7 @@
 		type CanvasSceneDraft
 	} from '$lib/client/canvas-drafts';
 	import CanvasCodeEditor from './CanvasCodeEditor.svelte';
+	import CanvasEditorPreview from './CanvasEditorPreview.svelte';
 	import CanvasPreviewDialog from './CanvasPreviewDialog.svelte';
 	import NewSceneModal from './NewSceneModal.svelte';
 	import StyleGuidelineEditor from './StyleGuidelineEditor.svelte';
@@ -52,6 +54,7 @@
 	}: Props = $props();
 	let previewOpen = $state(false);
 
+	let selectionScope = $state('');
 	let selectedSceneId = $state('');
 	let activeSceneId = $derived(
 		selectedSceneId || canvas.activeSceneId || canvas.scenes[0]?.id || ''
@@ -62,6 +65,7 @@
 
 	let showGuideline = $state(false);
 	let viewMode = $state<'preview' | 'code'>('preview');
+	let showLivePreview = $state(true);
 	let refreshing = $state(false);
 	let showNewSceneModal = $state(false);
 	let arranging = $state(false);
@@ -100,47 +104,75 @@
 	}
 
 	$effect(() => {
-		if (canvas.activeSceneId) {
-			selectedSceneId = canvas.activeSceneId;
+		const scope = `${canvas.id}:${userId ?? ''}`;
+		if (scope !== selectionScope) {
+			selectionScope = scope;
+			codeDrafts = {};
+			serverDrafts = {};
+			saveStates = {};
+			failedDrafts = {};
+			conflicts = {};
+			codeDraftSceneId = '';
+			previewOpen = false;
+			selectedSceneId = canvas.activeSceneId ?? canvas.scenes[0]?.id ?? '';
+		}
+		if (selectedSceneId && !canvas.scenes.some((scene) => scene.id === selectedSceneId)) {
+			selectedSceneId = canvas.activeSceneId ?? canvas.scenes[0]?.id ?? '';
 		}
 	});
 
 	$effect(() => {
 		const scene = activeScene;
-		if (!scene) return;
-		const sceneId = scene.id;
-		const latest = draftFromScene(scene);
-		const previousServer = serverDrafts[sceneId];
-		let current = codeDrafts[sceneId];
+		const latest = scene ? draftFromScene(scene) : null;
+		// Server snapshots drive reconciliation, not the state it updates.
+		// Tracking serverDrafts here would reschedule this effect on every copy.
+		const draftUserId = userId;
+		const canvasId = canvas.id;
+		untrack(() => {
+			if (!scene || !latest) {
+				codeDraftSceneId = '';
+				codeDraft = { tab: 'html', html: '', css: '', js: '' };
+				return;
+			}
+			const sceneId = scene.id;
+			const previousServer = serverDrafts[sceneId];
+			let current = codeDrafts[sceneId];
 
-		if (!current) {
-			const restored = getCanvasSceneDraft(userId, canvas.id, sceneId);
-			current = restored ?? latest;
-			codeDrafts[sceneId] = current;
-			saveStates[sceneId] = restored && !contentEqual(restored, latest) ? 'unsaved' : 'saved';
-		} else if (
-			previousServer &&
-			!contentEqual(previousServer, latest) &&
-			!contentEqual(current, previousServer) &&
-			saveStates[sceneId] !== 'saving'
-		) {
-			conflicts[sceneId] = latest;
-		} else if (
-			previousServer &&
-			!contentEqual(previousServer, latest) &&
-			contentEqual(current, previousServer)
-		) {
-			current = latest;
-			codeDrafts[sceneId] = current;
-			saveStates[sceneId] = 'saved';
-			clearCanvasSceneDraft(userId, canvas.id, sceneId);
-		}
+			if (!current) {
+				const restored = getCanvasSceneDraft(draftUserId, canvasId, sceneId);
+				codeDrafts[sceneId] = { ...(restored ?? latest) };
+				current = codeDrafts[sceneId];
+				saveStates[sceneId] = restored && !contentEqual(restored, latest) ? 'unsaved' : 'saved';
+			} else if (
+				previousServer &&
+				!contentEqual(previousServer, latest) &&
+				!contentEqual(current, previousServer) &&
+				!contentEqual(current, latest) &&
+				saveStates[sceneId] !== 'saving'
+			) {
+				conflicts[sceneId] = latest;
+			} else if (
+				previousServer &&
+				!contentEqual(previousServer, latest) &&
+				contentEqual(current, previousServer)
+			) {
+				codeDrafts[sceneId] = { ...latest, tab: current.tab };
+				current = codeDrafts[sceneId];
+				saveStates[sceneId] = 'saved';
+				clearCanvasSceneDraft(userId, canvas.id, sceneId);
+			}
 
-		serverDrafts[sceneId] = latest;
-		if (sceneId !== codeDraftSceneId) {
-			codeDraftSceneId = sceneId;
-			codeDraft = current;
-		}
+			if (contentEqual(current, latest)) delete conflicts[sceneId];
+			serverDrafts[sceneId] = latest;
+			if (
+				sceneId !== codeDraftSceneId ||
+				!contentEqual(codeDraft, current) ||
+				codeDraft.tab !== current.tab
+			) {
+				codeDraftSceneId = sceneId;
+				codeDraft = current;
+			}
+		});
 	});
 
 	$effect(() => {
@@ -152,12 +184,16 @@
 			css: codeDraft.css,
 			js: codeDraft.js
 		};
-		if (saveStates[sceneId] === 'saving') return;
+		if (saveStates[sceneId] === 'saving') {
+			setCanvasSceneDraft(userId, canvas.id, sceneId, draftForStorage(current));
+			return;
+		}
 		if (saveStates[sceneId] === 'error' && failedDrafts[sceneId]) {
 			if (contentEqual(current, failedDrafts[sceneId]!)) return;
 			delete failedDrafts[sceneId];
 		}
 		if (contentEqual(current, serverDrafts[sceneId])) {
+			delete conflicts[sceneId];
 			saveStates[sceneId] = 'saved';
 			clearCanvasSceneDraft(userId, canvas.id, sceneId);
 		} else {
@@ -173,9 +209,10 @@
 	function loadLatest(sceneId: string) {
 		const latest = conflicts[sceneId];
 		if (!latest) return;
-		codeDrafts[sceneId] = latest;
-		if (sceneId === codeDraftSceneId) codeDraft = latest;
-		serverDrafts[sceneId] = latest;
+		// Never share the editable proxy with the immutable server baseline.
+		codeDrafts[sceneId] = { ...latest, tab: codeDrafts[sceneId]?.tab ?? latest.tab };
+		if (sceneId === codeDraftSceneId) codeDraft = codeDrafts[sceneId];
+		serverDrafts[sceneId] = { ...latest };
 		saveStates[sceneId] = 'saved';
 		delete failedDrafts[sceneId];
 		clearCanvasSceneDraft(userId, canvas.id, sceneId);
@@ -183,25 +220,67 @@
 	}
 
 	async function saveCodeDraft(sceneId: string, html: string, css: string, js: string) {
-		const draft = codeDrafts[sceneId];
-		if (draft) {
-			draft.html = html;
-			draft.css = css;
-			draft.js = js;
-		}
+		if (saveStates[sceneId] === 'saving' || conflicts[sceneId]) return;
+		const scope = selectionScope;
+		const canvasId = canvas.id;
+		const draftUserId = userId;
+		const submitted: CodeDraft = {
+			tab: codeDrafts[sceneId]?.tab ?? (sceneId === codeDraftSceneId ? codeDraft.tab : 'html'),
+			html,
+			css,
+			js
+		};
 		saveStates[sceneId] = 'saving';
+		setCanvasSceneDraft(draftUserId, canvasId, sceneId, draftForStorage(submitted));
 		try {
 			await onupdatescene(sceneId, { html, css, js }, { throwOnError: true });
-			saveStates[sceneId] = 'saved';
-			delete failedDrafts[sceneId];
-			clearCanvasSceneDraft(userId, canvas.id, sceneId);
+			if (selectionScope !== scope) return;
+			serverDrafts[sceneId] = submitted;
+			delete conflicts[sceneId];
+			const current = codeDrafts[sceneId] ?? submitted;
+			if (contentEqual(current, submitted)) {
+				saveStates[sceneId] = 'saved';
+				delete failedDrafts[sceneId];
+				clearCanvasSceneDraft(userId, canvas.id, sceneId);
+			} else {
+				saveStates[sceneId] = 'unsaved';
+				delete failedDrafts[sceneId];
+				setCanvasSceneDraft(userId, canvas.id, sceneId, draftForStorage(current));
+			}
 		} catch (error) {
+			if (selectionScope !== scope) throw error;
 			saveStates[sceneId] = 'error';
-			failedDrafts[sceneId] = draft
-				? { tab: draft.tab, html: draft.html, css: draft.css, js: draft.js }
-				: null;
+			failedDrafts[sceneId] = { ...(codeDrafts[sceneId] ?? submitted) };
+			setCanvasSceneDraft(
+				userId,
+				canvas.id,
+				sceneId,
+				draftForStorage(codeDrafts[sceneId] ?? submitted)
+			);
 			throw error;
 		}
+	}
+
+	async function createScene(scene: Parameters<typeof oncreatescene>[0]) {
+		const scope = selectionScope;
+		await oncreatescene(scene);
+		if (selectionScope !== scope) return;
+		// This was an explicit user action, unlike a background agent refresh.
+		selectedSceneId = canvas.activeSceneId ?? selectedSceneId;
+	}
+
+	async function deleteScene(sceneId: string) {
+		const scope = selectionScope;
+		const canvasId = canvas.id;
+		const draftUserId = userId;
+		await ondeletescene(sceneId);
+		clearCanvasSceneDraft(draftUserId, canvasId, sceneId);
+		if (selectionScope !== scope) return;
+		delete codeDrafts[sceneId];
+		delete serverDrafts[sceneId];
+		delete saveStates[sceneId];
+		delete failedDrafts[sceneId];
+		delete conflicts[sceneId];
 	}
 
 	async function handleRefresh() {
@@ -219,10 +298,13 @@
 	<CanvasToolbar
 		{canvas}
 		{activeScene}
+		{selectedSceneId}
+		{showLivePreview}
 		{viewMode}
 		{showGuideline}
 		{arranging}
 		{refreshing}
+		hasUnsavedDraft={Object.values(saveStates).some((state) => state !== 'saved')}
 		onviewmodechange={(mode) => (viewMode = mode)}
 		ontoggleguideline={() => (showGuideline = !showGuideline)}
 		onarrange={() => graphRef?.autoArrange()}
@@ -230,6 +312,8 @@
 		onzoomin={() => graphRef?.zoomIn()}
 		onfitview={() => graphRef?.fitView()}
 		onaddscene={() => (showNewSceneModal = true)}
+		onselectscene={(sceneId) => (selectedSceneId = sceneId)}
+		ontogglelivepreview={() => (showLivePreview = !showLivePreview)}
 		onrefresh={onrefresh ? handleRefresh : undefined}
 	/>
 
@@ -253,15 +337,31 @@
 					onaddscene={() => (showNewSceneModal = true)}
 				/>
 			{:else if activeScene}
-				<!-- Code View / Quick Edit -->
-				<CanvasCodeEditor
-					bind:draft={codeDraft}
-					saveState={saveStates[activeScene.id] ?? 'saved'}
-					conflict={Boolean(conflicts[activeScene.id])}
-					onkeepdraft={() => keepDraft(activeScene.id)}
-					onloadlatest={() => loadLatest(activeScene.id)}
-					onsave={(html, css, js) => saveCodeDraft(activeScene.id, html, css, js)}
-				/>
+				<div class="code-preview-layout" class:preview-hidden={!showLivePreview}>
+					<div class="code-editor-panel">
+						{#key `${selectionScope}:${activeScene.id}`}
+							<CanvasCodeEditor
+								bind:draft={codeDraft}
+								saveState={saveStates[activeScene.id] ?? 'saved'}
+								conflict={Boolean(conflicts[activeScene.id])}
+								onkeepdraft={() => keepDraft(activeScene.id)}
+								onloadlatest={() => loadLatest(activeScene.id)}
+								onsave={(html, css, js) => saveCodeDraft(activeScene.id, html, css, js)}
+							/>
+						{/key}
+					</div>
+					{#if showLivePreview}
+						<div class="code-preview-panel">
+							{#key `${selectionScope}:${activeScene.id}`}
+								<CanvasEditorPreview
+									draft={codeDraft}
+									sceneName={activeScene.name}
+									viewport={activeScene.viewport}
+								/>
+							{/key}
+						</div>
+					{/if}
+				</div>
 			{:else}
 				<div class="empty-canvas">
 					<Button variant="default" onclick={() => (showNewSceneModal = true)}
@@ -288,8 +388,7 @@
 			bind:open={previewOpen}
 			scene={activeScene}
 			sceneCount={canvas.scenes.length}
-			{onupdatescene}
-			{ondeletescene}
+			ondeletescene={deleteScene}
 			oneditcode={() => (viewMode = 'code')}
 		/>
 	{/if}
@@ -299,7 +398,7 @@
 		bind:open={showNewSceneModal}
 		scenes={canvas.scenes}
 		activeSceneCss={activeScene?.css || ''}
-		{oncreatescene}
+		oncreatescene={createScene}
 	/>
 </div>
 
@@ -317,6 +416,7 @@
 	.workspace-content {
 		display: flex;
 		flex: 1;
+		min-height: 0;
 		overflow: hidden;
 		position: relative;
 	}
@@ -324,9 +424,52 @@
 	.canvas-main-area {
 		flex: 1;
 		height: 100%;
+		min-width: 0;
+		min-height: 0;
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
+	}
+
+	.code-preview-layout {
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.code-editor-panel,
+	.code-preview-panel {
+		flex: 1 1 0;
+		min-width: 0;
+		min-height: 0;
+		overflow: hidden;
+	}
+
+	.code-editor-panel {
+		border-right: 1px solid var(--border);
+	}
+
+	.code-preview-layout.preview-hidden .code-editor-panel {
+		border-right: 0;
+	}
+
+	@container (max-width: 700px) {
+		.code-preview-layout:not(.preview-hidden) {
+			flex-direction: column;
+		}
+
+		.code-editor-panel,
+		.code-preview-panel {
+			flex-basis: 50%;
+			width: 100%;
+		}
+
+		.code-editor-panel {
+			border-right: 0;
+			border-bottom: 1px solid var(--border);
+		}
 	}
 
 	.guideline-drawer {

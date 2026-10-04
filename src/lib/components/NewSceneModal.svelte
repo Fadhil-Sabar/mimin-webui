@@ -2,7 +2,7 @@
 	import { Plus } from '@lucide/svelte';
 	import { useSvelteFlow } from '@xyflow/svelte';
 	import type { CanvasScene, ViewportDevice } from '$lib/canvas';
-	import { findFreeScenePosition, type ScenePlacement } from '$lib/canvas';
+	import { escapeHtml, findFreeScenePosition, type ScenePlacement } from '$lib/canvas';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 
@@ -26,6 +26,11 @@
 	let newSceneName = $state('');
 	let newSceneViewport = $state<ViewportDevice>('desktop');
 	let creating = $state(false);
+	let createError = $state('');
+
+	$effect(() => {
+		if (open) createError = '';
+	});
 
 	/** Current frame boxes; measured node heights keep the layout accurate for tall content. */
 	function currentPlacements(): ScenePlacement[] {
@@ -41,6 +46,7 @@
 	async function submitNewScene() {
 		if (!newSceneName.trim() || creating) return;
 		creating = true;
+		createError = '';
 		try {
 			const position = findFreeScenePosition(currentPlacements(), newSceneViewport);
 			await oncreatescene({
@@ -48,11 +54,13 @@
 				viewport: newSceneViewport,
 				positionX: position.x,
 				positionY: position.y,
-				html: `<div class="container">\n  <h2>${newSceneName.trim()}</h2>\n  <p>New scene content...</p>\n</div>`,
+				html: `<div class="container">\n  <h2>${escapeHtml(newSceneName.trim())}</h2>\n  <p>New scene content...</p>\n</div>`,
 				css: activeSceneCss
 			});
 			open = false;
 			newSceneName = '';
+		} catch (error) {
+			createError = error instanceof Error ? error.message : 'Could not create scene. Try again.';
 		} finally {
 			creating = false;
 		}
@@ -72,7 +80,11 @@
 				><Plus style="transform: rotate(45deg)" size={14} /></button
 			>
 		</div>
+		<Dialog.Description class="sr-only"
+			>Name the scene and choose its initial screen size.</Dialog.Description
+		>
 		<div class="modal-body">
+			{#if createError}<p class="create-error" role="alert">{createError}</p>{/if}
 			<div class="form-group">
 				<label for="scene-name" class="label">Scene Name</label>
 				<input
@@ -115,6 +127,11 @@
 </Dialog.Root>
 
 <style>
+	.create-error {
+		margin: 0;
+		color: var(--danger-text);
+		font-size: var(--text-body-sm);
+	}
 	.modal-header {
 		display: flex;
 		align-items: center;

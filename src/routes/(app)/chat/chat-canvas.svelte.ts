@@ -116,9 +116,14 @@ export function createChatCanvas({
 		updates: Partial<CanvasScene>,
 		options: { throwOnError?: boolean } = {}
 	) {
-		if (!activeCanvas) return;
+		if (!activeCanvas) {
+			if (options.throwOnError) throw new Error('Open a canvas before saving changes.');
+			return;
+		}
+		const canvasId = activeCanvas.id;
 		try {
-			activeCanvas = await updateCanvasSceneApi(activeCanvas.id, sceneId, updates);
+			const updated = await updateCanvasSceneApi(canvasId, sceneId, updates);
+			if (activeCanvas?.id === canvasId) activeCanvas = updated;
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not update scene');
 			if (options.throwOnError) throw error;
@@ -133,23 +138,28 @@ export function createChatCanvas({
 		html?: string;
 		css?: string;
 	}) {
-		if (!activeCanvas) return;
+		if (!activeCanvas) throw new Error('Open a canvas before creating a scene.');
+		const canvasId = activeCanvas.id;
 		try {
-			const res = await addCanvasSceneApi(activeCanvas.id, scene);
-			activeCanvas = res.canvas;
+			const res = await addCanvasSceneApi(canvasId, scene);
+			if (activeCanvas?.id === canvasId) activeCanvas = res.canvas;
 			notify(`Scene "${scene.name}" created!`);
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not create scene');
+			throw error;
 		}
 	}
 
 	async function handleDeleteScene(sceneId: string) {
-		if (!activeCanvas) return;
+		if (!activeCanvas) throw new Error('Open a canvas before deleting a scene.');
+		const canvasId = activeCanvas.id;
 		try {
-			activeCanvas = await deleteCanvasSceneApi(activeCanvas.id, sceneId);
+			const updated = await deleteCanvasSceneApi(canvasId, sceneId);
+			if (activeCanvas?.id === canvasId) activeCanvas = updated;
 			notify('Scene deleted');
 		} catch (error) {
 			notify(error instanceof Error ? error.message : 'Could not delete scene');
+			throw error;
 		}
 	}
 

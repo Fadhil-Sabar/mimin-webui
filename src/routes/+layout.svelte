@@ -1,5 +1,7 @@
 <script lang="ts">
 	import './layout.css';
+	import './motion.css';
+	import './content-motion.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { afterNavigate } from '$app/navigation';
 	import { shell } from '$lib/client/shell.svelte';

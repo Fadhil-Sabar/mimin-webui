@@ -37,6 +37,8 @@
 			class="topbar-toggle hover:bg-[var(--surface-hover)] hover:text-[var(--text-strong)]"
 			onclick={() => sidebar.toggle()}
 			title="Toggle sidebar"
+			aria-expanded={sidebar.mobileOpen}
+			aria-controls="workspace-sidebar"
 			aria-label="Toggle sidebar"><PanelLeft size={16} /></Button
 		>
 		{#if breadcrumbs.length > 1}

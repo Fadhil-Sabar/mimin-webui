@@ -1,0 +1,233 @@
+/*
+ * Interaction motion
+ *
+ * This layer gives controls a shared rhythm without taking ownership of layout
+ * or page entrance motion. Values come from the MD3 tokens in layout.css so
+ * the same timing reads consistently in light and dark themes.
+ */
+
+@layer base {
+	/* Keep the default surface properties quiet and composable. Components that
+	 * already provide a more specific transition continue to own its details. */
+	:where(button, a, input, textarea, select, summary) {
+		transition-property: color, background-color, border-color, box-shadow, opacity;
+		transition-duration: var(--duration-short3, 150ms);
+		transition-timing-function: var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+	}
+
+	:where(summary) {
+		cursor: pointer;
+	}
+}
+
+/* Action controls can use the compositor-friendly individual transform
+ * properties. `translate` and `scale` compose with a component's existing
+ * `transform`, so dialog centering and other authored transforms stay intact. */
+:where([data-slot='button'], .dock-item, .dock-avatar, .icon-button, [data-icon-button]) {
+	transition-property: color, background-color, border-color, box-shadow, opacity, translate, scale;
+	transition-duration: var(--duration-short4, 200ms);
+	transition-timing-function: var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+:where([data-slot='button'], .dock-item, .dock-avatar, .icon-button, [data-icon-button]):active:not(
+		:disabled
+	):not([aria-disabled='true']) {
+	translate: 0 1px;
+	scale: 0.985;
+}
+
+/* Scoped shell styles own the dock's visual surface, so give the dock controls
+ * an equally intentional transition declaration for their additive motion. */
+.app-shell .sidebar :is(.dock-item, .dock-avatar) {
+	transition-property: color, background-color, border-color, box-shadow, opacity, translate, scale;
+	transition-duration: var(--duration-short4, 200ms);
+	transition-timing-function: var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+/* Lift only linked cards. Static panels and cards containing their own actions
+ * remain still so the hover signal belongs to the action that will run. */
+:where(a[data-slot='card'][href], .project-card) {
+	transition-property: color, background-color, border-color, box-shadow, opacity, translate;
+	transition-duration: var(--duration-short4, 200ms);
+	transition-timing-function: var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.project-grid [data-slot='card'].project-card {
+	transition-property: color, background-color, border-color, box-shadow, opacity, translate;
+	transition-duration: var(--duration-short4, 200ms);
+	transition-timing-function: var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+@media (hover: hover) and (pointer: fine) {
+	:where(a[data-slot='card'][href], .project-card):hover:not([aria-disabled='true']) {
+		translate: 0 -2px;
+		box-shadow: 0 10px 28px var(--shadow-soft);
+	}
+
+	.project-grid [data-slot='card'].project-card:hover:not([aria-disabled='true']) {
+		translate: 0 -2px;
+		box-shadow: 0 10px 28px var(--shadow-soft);
+	}
+}
+
+:where(a[data-slot='card'][href], .project-card):active:not([aria-disabled='true']) {
+	translate: 0 -1px;
+}
+
+.project-grid [data-slot='card'].project-card:active:not([aria-disabled='true']) {
+	translate: 0 -1px;
+}
+
+/* Bits UI exposes both boolean data-open/data-closed attributes and data-state
+ * values depending on the primitive. The utility classes on the primitives own
+ * the fade/zoom/slide keyframes; these rules tune their entrance and exit rhythm.
+ * Entrances have room to settle, while exits clear quickly from the pointer. */
+:where(
+	[data-slot='popover-content'],
+	[data-slot='dropdown-menu-content'],
+	[data-slot='dropdown-menu-sub-content'],
+	[data-slot='select-content'],
+	[data-slot='dialog-content'],
+	[data-slot='alert-dialog-content'],
+	[data-slot='sheet-content'],
+	[data-slot='tooltip-content']
+) {
+	animation-delay: 0s;
+	animation-fill-mode: both;
+}
+
+:where(
+	[data-slot='popover-content'],
+	[data-slot='dropdown-menu-content'],
+	[data-slot='dropdown-menu-sub-content'],
+	[data-slot='select-content'],
+	[data-slot='dialog-content'],
+	[data-slot='alert-dialog-content'],
+	[data-slot='sheet-content'],
+	[data-slot='tooltip-content']
+):is([data-open], [data-state='open'], [data-state='delayed-open']) {
+	animation-duration: var(--duration-medium1, 250ms);
+	animation-timing-function: var(--ease-emphasized-decelerate, cubic-bezier(0.05, 0.7, 0.1, 1));
+}
+
+:where(
+	[data-slot='popover-content'],
+	[data-slot='dropdown-menu-content'],
+	[data-slot='dropdown-menu-sub-content'],
+	[data-slot='select-content'],
+	[data-slot='dialog-content'],
+	[data-slot='alert-dialog-content'],
+	[data-slot='sheet-content'],
+	[data-slot='tooltip-content']
+):is([data-closed], [data-state='closed']) {
+	animation-duration: var(--duration-short3, 150ms);
+	animation-timing-function: var(--ease-emphasized-accelerate, cubic-bezier(0.3, 0, 0.8, 0.15));
+}
+
+/* Dialog and sheet overlays fade on the same short curve as their surfaces but
+ * avoid inheriting the longer content entrance. */
+:where(
+	[data-slot='dialog-overlay'],
+	[data-slot='alert-dialog-overlay'],
+	[data-slot='sheet-overlay']
+) {
+	animation-delay: 0s;
+	animation-fill-mode: both;
+}
+
+:where(
+	[data-slot='dialog-overlay'],
+	[data-slot='alert-dialog-overlay'],
+	[data-slot='sheet-overlay']
+):is([data-open], [data-state='open']) {
+	animation-duration: var(--duration-medium1, 250ms);
+	animation-timing-function: var(--ease-standard-decelerate, cubic-bezier(0, 0, 0, 1));
+}
+
+:where(
+	[data-slot='dialog-overlay'],
+	[data-slot='alert-dialog-overlay'],
+	[data-slot='sheet-overlay']
+):is([data-closed], [data-state='closed']) {
+	animation-duration: var(--duration-short2, 100ms);
+	animation-timing-function: var(--ease-standard-accelerate, cubic-bezier(0.3, 0, 1, 1));
+}
+
+/* Menu rows and tabs get the same surface-property interpolation as native
+ * controls while their state attributes continue to choose the actual colors. */
+:where(
+	[data-slot='dropdown-menu-item'],
+	[data-slot='command-item'],
+	[data-slot='select-item'],
+	[data-slot='tabs-trigger']
+) {
+	transition-property: color, background-color, border-color, box-shadow, opacity;
+	transition-duration: var(--duration-short2, 100ms);
+	transition-timing-function: var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-delay: 0s !important;
+		animation-delay: 0s !important;
+	}
+
+	/* Motion preferences remove both the visual displacement and any waiting
+	 * period. Keep the authored transform functions on the element untouched. */
+	:where(
+		[data-slot='button'],
+		.dock-item,
+		.dock-avatar,
+		.icon-button,
+		[data-icon-button],
+		a[data-slot='card'][href],
+		.project-card
+	):is(:hover, :active, :focus-visible) {
+		translate: 0 0 !important;
+		scale: 1 !important;
+	}
+
+	:where(
+		[data-slot='button'],
+		.dock-item,
+		.dock-avatar,
+		.icon-button,
+		[data-icon-button],
+		a[data-slot='card'][href],
+		.project-card
+	) {
+		transition-delay: 0s !important;
+		transition-duration: 0s !important;
+	}
+
+	:where(
+		[data-slot='popover-content'],
+		[data-slot='dropdown-menu-content'],
+		[data-slot='dropdown-menu-sub-content'],
+		[data-slot='select-content'],
+		[data-slot='dialog-content'],
+		[data-slot='alert-dialog-content'],
+		[data-slot='sheet-content'],
+		[data-slot='tooltip-content'],
+		[data-slot='dialog-overlay'],
+		[data-slot='alert-dialog-overlay'],
+		[data-slot='sheet-overlay']
+	) {
+		animation-delay: 0s !important;
+		animation-duration: 0s !important;
+		transition-delay: 0s !important;
+		transition-duration: 0s !important;
+	}
+
+	html,
+	body,
+	*,
+	.main-content,
+	.sidebar-scroll,
+	.dock-panel-scroll,
+	[data-slot='scroll-area-viewport'] {
+		scroll-behavior: auto !important;
+	}
+}

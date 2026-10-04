@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
 	listeners: [] as Array<(event: unknown) => void>,
 	messages: [] as Array<Record<string, unknown>>,
+	emitLateToolMetadata: false,
 	inserts: [] as Array<{ table: unknown; values: Record<string, unknown> }>,
 	liveFiles: [{ id: 'file-1' }] as Array<{ id: string }>,
 	emitSources: true,
@@ -121,6 +122,88 @@ vi.mock('@earendil-works/pi-agent-core', () => {
 			state.listeners.push(listener);
 		}
 		async prompt() {
+			if (state.emitLateToolMetadata) {
+				const events = [
+					{ type: 'agent_start' },
+					{ type: 'message_start', message: { role: 'assistant' } },
+					{
+						type: 'message_update',
+						assistantMessageEvent: {
+							type: 'toolcall_start',
+							contentIndex: 0,
+							partial: { content: [{ type: 'toolCall', id: '', name: '', arguments: {} }] }
+						}
+					},
+					{
+						type: 'message_update',
+						assistantMessageEvent: {
+							type: 'toolcall_delta',
+							contentIndex: 0,
+							partial: {
+								content: [
+									{
+										type: 'toolCall',
+										id: 'scene-1',
+										name: 'create_scene',
+										arguments: { title: 'Opening' }
+									}
+								]
+							}
+						}
+					},
+					{
+						type: 'message_update',
+						assistantMessageEvent: {
+							type: 'toolcall_delta',
+							contentIndex: 0,
+							partial: {
+								content: [
+									{
+										type: 'toolCall',
+										id: 'scene-1',
+										name: 'create_scene',
+										arguments: { title: 'Opening', duration: 5 }
+									}
+								]
+							}
+						}
+					},
+					{
+						type: 'message_update',
+						assistantMessageEvent: {
+							type: 'toolcall_delta',
+							contentIndex: 0,
+							partial: {
+								content: [
+									{
+										type: 'toolCall',
+										id: 'scene-1',
+										name: 'create_scene',
+										arguments: { title: 'Opening', duration: 5 }
+									}
+								]
+							}
+						}
+					},
+					{ type: 'message_end', message: { role: 'assistant' } },
+					{
+						type: 'tool_execution_start',
+						toolCallId: 'scene-1',
+						toolName: 'create_scene',
+						args: { title: 'Opening', duration: 5 }
+					},
+					{
+						type: 'tool_execution_end',
+						toolCallId: 'scene-1',
+						toolName: 'create_scene',
+						result: {},
+						isError: false
+					},
+					{ type: 'agent_end' }
+				];
+				for (const event of events) for (const listener of state.listeners) listener(event);
+				return;
+			}
 			const source = {
 				type: 'project_file',
 				title: 'requirements.pdf',
@@ -312,9 +395,61 @@ beforeEach(() => {
 	state.liveFiles = [{ id: 'file-1' }];
 	state.emitSources = true;
 	state.emitWeb = false;
+	state.emitLateToolMetadata = false;
 });
 
 describe('project knowledge citation persistence', () => {
+	it('emits one preparing tool start when tool metadata arrives after toolcall_start', async () => {
+		state.emitLateToolMetadata = true;
+		const events: Array<Record<string, unknown>> = [];
+		await runConversationTurn(
+			'conversation-1',
+			'openai/test',
+			'Create a scene',
+			(event) => events.push(event),
+			'user-1',
+			'user-message-1',
+			'turn-late-tool-metadata',
+			false,
+			['create_scene']
+		);
+
+		const toolStarts = events.filter((event) => event.type === 'tool.start');
+		const preparingStarts = toolStarts.filter((event) => event.preparing === true);
+		expect(preparingStarts).toHaveLength(1);
+		expect(preparingStarts[0]).toMatchObject({
+			toolCallId: 'scene-1',
+			tool: 'create_scene',
+			input: { title: 'Opening' },
+			preparing: true
+		});
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: 'tool.input',
+				toolCallId: 'scene-1',
+				input: { title: 'Opening' }
+			})
+		);
+		expect(toolStarts).toContainEqual(
+			expect.objectContaining({
+				toolCallId: 'scene-1',
+				tool: 'create_scene',
+				input: { title: 'Opening', duration: 5 },
+				preparing: false
+			})
+		);
+		const messageEndIndex = events.findIndex(
+			(event) => event.type === 'message.end' && event.messageId !== undefined
+		);
+		const executionIndex = events.findIndex(
+			(event) => event.type === 'tool.start' && event.preparing === false
+		);
+		expect(
+			events.findIndex((event) => event.type === 'tool.start' && event.preparing === true)
+		).toBeLessThan(messageEndIndex);
+		expect(messageEndIndex).toBeLessThan(executionIndex);
+	});
+
 	it('persists only active project citations on the final assistant message and emits them', async () => {
 		const events: Array<Record<string, unknown>> = [];
 		await runConversationTurn(

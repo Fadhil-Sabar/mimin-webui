@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { reveal } from '$lib/client/motion';
 	import {
 		ArrowLeft,
 		FileText,
@@ -230,19 +231,23 @@
 			>
 				<X size={18} aria-hidden="true" />
 			</button>
-			{#if settingsModal.activeTab === 'models'}
-				<ModelsTab bind:isDirty={modelsDirty} bind:discard={discardModels} />
-			{:else if settingsModal.activeTab === 'instructions'}
-				<InstructionsTab bind:isDirty={instructionsDirty} bind:discard={discardInstructions} />
-			{:else if settingsModal.activeTab === 'web-search'}
-				<WebSearchTab bind:isDirty={webSearchDirty} bind:discard={discardWebSearch} />
-			{:else if settingsModal.activeTab === 'browser-extension'}
-				<BrowserExtensionTab ondone={close} />
-			{:else if settingsModal.activeTab === 'preferences'}
-				<PreferencesTab />
-			{:else if settingsModal.activeTab === 'users' && user?.role === 'admin'}
-				<UsersTab bind:isDirty={usersDirty} bind:discard={discardUsers} />
-			{/if}
+			{#key settingsModal.activeTab}
+				<div class="settings-tab-content" in:reveal={{ enabled: !isMobile, y: 6, duration: 200 }}>
+					{#if settingsModal.activeTab === 'models'}
+						<ModelsTab bind:isDirty={modelsDirty} bind:discard={discardModels} />
+					{:else if settingsModal.activeTab === 'instructions'}
+						<InstructionsTab bind:isDirty={instructionsDirty} bind:discard={discardInstructions} />
+					{:else if settingsModal.activeTab === 'web-search'}
+						<WebSearchTab bind:isDirty={webSearchDirty} bind:discard={discardWebSearch} />
+					{:else if settingsModal.activeTab === 'browser-extension'}
+						<BrowserExtensionTab ondone={close} />
+					{:else if settingsModal.activeTab === 'preferences'}
+						<PreferencesTab />
+					{:else if settingsModal.activeTab === 'users' && user?.role === 'admin'}
+						<UsersTab bind:isDirty={usersDirty} bind:discard={discardUsers} />
+					{/if}
+				</div>
+			{/key}
 		</section>
 	</div>
 {/snippet}

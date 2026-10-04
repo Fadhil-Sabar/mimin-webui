@@ -2,6 +2,7 @@
 	import { SvelteFlowProvider } from '@xyflow/svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { ArrowDown } from '@lucide/svelte';
+	import { reveal } from '$lib/client/motion';
 	import { toast } from 'svelte-sonner';
 	import {
 		answerBrowserConsent,
@@ -680,7 +681,7 @@
 						{/each}
 					</div>
 				{:else if stream.messages.length === 0}
-					<div class="empty-state">Ask something to start a conversation.</div>
+					<div class="empty-state" in:reveal>Ask something to start a conversation.</div>
 				{/if}
 				{#if navigation.hasEarlierMessages}
 					<div class="history-loader">
@@ -770,6 +771,7 @@
 							<button
 								type="button"
 								class="scroll-to-latest"
+								transition:reveal={{ y: 4 }}
 								onclick={jumpToLatest}
 								aria-label={scrollActionLabel}
 							>

@@ -9,16 +9,19 @@
 	} from '$lib/components/ui/dropdown-menu/index.js';
 	import { formatDate } from '$lib/format';
 	import type { Skill } from './skills-types';
+	import { reveal } from '$lib/client/motion';
 
 	let {
 		skill,
 		scopeLabel,
+		order = 0,
 		onedit,
 		onduplicate,
 		ondelete
 	}: {
 		skill: Skill;
 		scopeLabel: string;
+		order?: number;
 		onedit: () => void;
 		onduplicate: () => void;
 		ondelete: () => void;
@@ -28,7 +31,7 @@
 	let triggerCount = $derived(skill.triggerPhrases.length);
 </script>
 
-<article class="skill-card">
+<article class="skill-card" in:reveal={{ delay: Math.min(order, 5) * 30 }}>
 	<div class="card-top">
 		<span class="card-icon"><WandSparkles size={22} aria-hidden="true" /></span>
 		<div class="card-top-actions">
