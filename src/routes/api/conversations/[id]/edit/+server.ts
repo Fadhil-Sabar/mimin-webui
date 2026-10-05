@@ -135,11 +135,16 @@ export const POST: RequestHandler = async (event) => {
 
 		let modelToUse = parsed.data.model ?? conversation.model;
 		if (!(await isModelAvailable(user.id, modelToUse))) {
-			const available = await listAvailableModels(user.id);
+			// Never silently replace subscription usage with a separately billed API provider.
+			const chatGptPlan = modelToUse.startsWith('chatgpt/');
+			const unavailableMessage = chatGptPlan
+				? 'ChatGPT plan model is unavailable. Reconnect in Settings or explicitly choose another provider.'
+				: 'No configured models are available.';
+			const available = chatGptPlan ? [] : await listAvailableModels(user.id);
 			if (!available.length) {
 				if (durableTurn) await finishTurn(turnToken, 'interrupted').catch(() => {});
 				await releaseConversationTurn(conversationId, turnToken);
-				return apiError('MODEL_NOT_AVAILABLE', 'No configured models are available.');
+				return apiError('MODEL_NOT_AVAILABLE', unavailableMessage);
 			}
 			const preferred = available.find(
 				(model) => `${model.provider}/${model.id}` === 'openai/gpt-4o-mini'

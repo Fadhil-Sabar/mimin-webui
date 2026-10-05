@@ -27,6 +27,8 @@ export interface ProviderCredential {
 	apiKey: string | null;
 	baseUrl: string | null;
 	customConfig: CustomProviderConfig | null;
+	/** Manually configured ChatGPT plan model IDs, distinct from discovered models. */
+	chatGptModelIds?: string[];
 	/** True when the effective key comes from a user setting, false when it falls back to the server env. */
 	fromUser: boolean;
 	/** Provenance of the effective key, used to keep server keys on trusted endpoints. */
@@ -36,7 +38,7 @@ export interface ProviderCredential {
 	baseUrlFromUser?: boolean;
 }
 
-const PROVIDERS = ['openai', 'anthropic', 'google'] as const;
+const PROVIDERS = ['openai', 'anthropic', 'google', 'chatgpt'] as const;
 export type ProviderId = (typeof PROVIDERS)[number];
 export const CUSTOM_PROVIDER_PROTOCOLS = [
 	'openai-completions',
@@ -64,14 +66,16 @@ export type CustomProviderConfig = {
 export const PROVIDER_ENV_KEYS: Record<ProviderId, string[]> = {
 	openai: ['OPENAI_API_KEY'],
 	anthropic: ['ANTHROPIC_API_KEY'],
-	google: ['GEMINI_API_KEY', 'GOOGLE_API_KEY']
+	google: ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
+	chatgpt: []
 };
 
 /** The canonical env var name shown to users for each provider. */
 export const PROVIDER_ENV_KEY: Record<ProviderId, string> = {
 	openai: 'OPENAI_API_KEY',
 	anthropic: 'ANTHROPIC_API_KEY',
-	google: 'GOOGLE_API_KEY'
+	google: 'GOOGLE_API_KEY',
+	chatgpt: ''
 };
 
 /** Reads a server env var, preferring live process.env (works in tests and dev). */
@@ -146,6 +150,21 @@ export async function getProviderCredential(
 			)
 		);
 	const apiKey = row ? await decryptSecret(row.apiKey) : null;
+	if (provider === 'chatgpt') {
+		const { getChatGptAccessToken } = await import('./chatgpt-plan.service');
+		const token = await getChatGptAccessToken(userId);
+		return {
+			provider,
+			apiKey: token,
+			baseUrl: null,
+			customConfig: null,
+			chatGptModelIds: parseChatGptModelIds(row?.customConfig),
+			fromUser: Boolean(token),
+			apiKeyFromUser: Boolean(token),
+			apiKeyFromEnv: false,
+			baseUrlFromUser: false
+		};
+	}
 	const envKey = isProviderId(provider) ? providerKeyFromEnv(provider) : undefined;
 	const apiKeyFromUser = Boolean(row && apiKey);
 	const apiKeyFromEnv = !apiKeyFromUser && Boolean(envKey);
@@ -168,7 +187,7 @@ export async function listProviderCredentials(userId: string): Promise<ProviderC
 		.where(eq(schema.providerSettings.userId, userId));
 	const byProvider = new Map(rows.map((row) => [row.provider, row]));
 	return Promise.all([
-		...PROVIDERS.map(async (provider) => {
+		...PROVIDERS.filter((provider) => provider !== 'chatgpt').map(async (provider) => {
 			const row = byProvider.get(provider);
 			const apiKey = row ? await decryptSecret(row.apiKey) : null;
 			const envKey = providerKeyFromEnv(provider);
@@ -185,6 +204,7 @@ export async function listProviderCredentials(userId: string): Promise<ProviderC
 				baseUrlFromUser: Boolean(row?.baseUrl)
 			};
 		}),
+
 		...rows
 			.filter(
 				(row) => !isProviderId(row.provider) && row.provider !== 'web_search' && row.customConfig
@@ -205,11 +225,69 @@ export async function listProviderCredentials(userId: string): Promise<ProviderC
 	]);
 }
 
+const CHATGPT_MODEL_DEFAULTS = ['gpt-6.1-sol', 'gpt-6-luna'];
+
+function parseChatGptModelIds(value: unknown): string[] {
+	if (!value || typeof value !== 'object' || Array.isArray(value))
+		return [...CHATGPT_MODEL_DEFAULTS];
+	const modelIds = (value as { chatGptModelIds?: unknown }).chatGptModelIds;
+	if (!Array.isArray(modelIds) || !modelIds.every((id) => typeof id === 'string'))
+		return [...CHATGPT_MODEL_DEFAULTS];
+	return [...new Set(modelIds.map((id) => id.trim()).filter(Boolean))];
+}
+
+/** Read/write only the dedicated manual model key in provider_settings.custom_config. */
+export async function getChatGptModelIds(userId: string): Promise<string[]> {
+	const [row] = await getDb()
+		.select({ customConfig: schema.providerSettings.customConfig })
+		.from(schema.providerSettings)
+		.where(
+			and(
+				eq(schema.providerSettings.userId, userId),
+				eq(schema.providerSettings.provider, 'chatgpt')
+			)
+		)
+		.limit(1);
+	return row ? parseChatGptModelIds(row.customConfig) : [...CHATGPT_MODEL_DEFAULTS];
+}
+
+export async function saveChatGptModelIds(userId: string, modelIds: string[]): Promise<void> {
+	const db = getDb();
+	const [existing] = await db
+		.select({ id: schema.providerSettings.id, customConfig: schema.providerSettings.customConfig })
+		.from(schema.providerSettings)
+		.where(
+			and(
+				eq(schema.providerSettings.userId, userId),
+				eq(schema.providerSettings.provider, 'chatgpt')
+			)
+		)
+		.limit(1);
+	const customConfig = {
+		...(existing?.customConfig && typeof existing.customConfig === 'object'
+			? (existing.customConfig as Record<string, unknown>)
+			: {}),
+		chatGptModelIds: [...new Set(modelIds.map((id) => id.trim()))]
+	};
+	if (existing) {
+		await db
+			.update(schema.providerSettings)
+			.set({ customConfig, updatedAt: new Date() })
+			.where(eq(schema.providerSettings.id, existing.id));
+	} else {
+		await db
+			.insert(schema.providerSettings)
+			.values({ userId, provider: 'chatgpt', apiKey: null, baseUrl: null, customConfig });
+	}
+}
+
 export async function saveProviderCredential(
 	userId: string,
 	provider: string,
 	input: { apiKey?: string | null; baseUrl?: string | null; customConfig?: CustomProviderConfig }
 ): Promise<void> {
+	if (provider === 'chatgpt')
+		throw new Error('ChatGPT plan connections must use the dedicated OAuth flow.');
 	if (input.baseUrl) assertConfiguredEndpoint(input.baseUrl);
 	// Undefined preserves the stored value; null explicitly clears it. This way
 	// a base-URL-only edit does not wipe a saved key.
@@ -255,6 +333,8 @@ export async function saveProviderCredential(
 }
 
 export async function deleteProviderCredential(userId: string, provider: string): Promise<void> {
+	if (provider === 'chatgpt')
+		throw new Error('ChatGPT plan connections must use the dedicated OAuth flow.');
 	await getDb()
 		.delete(schema.providerSettings)
 		.where(

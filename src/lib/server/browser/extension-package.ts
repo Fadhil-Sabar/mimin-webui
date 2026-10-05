@@ -2,12 +2,15 @@ import { readFile, readdir } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 /**
- * A browser extension only injects its content script on the origins its manifest matches, and
- * `config.js` refuses to answer any other origin. Mimin is self-hosted, so the origin is not
- * knowable when the app is built: an instance reached at a LAN IP, a Tailscale name, or a domain
- * would each need its own build. Instead the settings page downloads the package from this app
- * and this module rebuilds `config.js` and `manifest.json` for the origin the browser is on, so
- * the same image works for every origin without a rebuild.
+ * Mimin is self-hosted, so the origin a browser reaches it on is not knowable when the app is
+ * built. This module handles both halves of that:
+ *
+ * - the settings page downloads the package from this app, and this module rebuilds `config.js`
+ *   and `manifest.json` for the origin the browser is on, so a temporary build works anywhere;
+ * - the package itself is `universal`: its manifest covers localhost on any port, `config.js`
+ *   trusts localhost as a whole, and any other address is trusted through the popup, which grants
+ *   the host permission and registers the content script at runtime. One signed artifact therefore
+ *   serves every self-hosted instance, and a self-hoster never has to sign anything.
  */
 
 export const EXTENSION_TARGETS = ['chrome', 'firefox'] as const;
@@ -16,7 +19,34 @@ export type ExtensionTarget = (typeof EXTENSION_TARGETS)[number];
 /** Where `npm run extension:build` leaves the unpacked packages, relative to the app root. */
 export const EXTENSION_PACKAGE_DIR = join('static', 'extensions');
 
+/**
+ * What `npm run extension:sign` leaves behind: the signed XPI and the metadata describing it.
+ * Firefox release only installs signed add-ons, so this pair is what makes a permanent install
+ * possible without `about:debugging`.
+ */
+export const SIGNED_FIREFOX_METADATA = 'firefox-signed.json';
+export const SIGNED_FIREFOX_FILE = 'mimin-search-firefox.xpi';
+
+/**
+ * Baked into every package this module describes. `universal` means the package can be pointed at
+ * an address it was not built for; `trustLocalhost` means localhost needs no connection step,
+ * because the port a self-hosted instance listens on varies and cannot be baked in.
+ */
+export const UNIVERSAL_EXTENSION = true;
+export const TRUST_LOCALHOST = true;
+
+/** A signed XPI without this entry is not signed at all, whatever the metadata claims. */
+const SIGNATURE_ENTRY = 'META-INF/cose.sig';
+
 export type ExtensionArchiveEntry = { name: string; data: Buffer };
+
+export type SignedFirefoxPackage = {
+	version: string;
+	allowedOrigins: string[];
+	/** A universal package serves any origin, not only the ones in `allowedOrigins`. */
+	universal: boolean;
+	data: Buffer;
+};
 
 export function isExtensionTarget(value: string): value is ExtensionTarget {
 	return (EXTENSION_TARGETS as readonly string[]).includes(value);
@@ -76,7 +106,14 @@ export function extensionMatchPatterns(target: ExtensionTarget, origins: string[
 }
 
 export function extensionConfigSource(version: string, origins: string[]): string {
-	return `globalThis.MIMIN_EXTENSION_CONFIG = Object.freeze({\n\tversion: ${JSON.stringify(version)},\n\tallowedOrigins: Object.freeze(${JSON.stringify(origins)})\n});\n`;
+	return (
+		`globalThis.MIMIN_EXTENSION_CONFIG = Object.freeze({\n` +
+		`	version: ${JSON.stringify(version)},\n` +
+		`	allowedOrigins: Object.freeze(${JSON.stringify(origins)}),\n` +
+		`	trustLocalhost: ${TRUST_LOCALHOST},\n` +
+		`	universal: ${UNIVERSAL_EXTENSION}\n` +
+		`});\n`
+	);
 }
 
 /** The two package files that encode the allowed origins, rebuilt for `origins`. */
@@ -185,4 +222,42 @@ export async function buildExtensionArchive(options: {
 	const byName = new Map(entries.map((entry) => [entry.name, entry]));
 	for (const override of overrides) byName.set(override.name, override);
 	return zipArchive([...byName.values()]);
+}
+
+/**
+ * Reads the signed Firefox package, or `undefined` when there is no usable one: files missing, an
+ * XPI that carries no signature, or a signature older than the unpacked package it would replace.
+ * A stale signature is worse than none — it would install a bridge older than the app requires —
+ * so it is reported as absent and the caller falls back to the temporary package.
+ */
+export async function readSignedFirefoxPackage(
+	root?: string
+): Promise<SignedFirefoxPackage | undefined> {
+	const directory = join(root ?? process.cwd(), EXTENSION_PACKAGE_DIR);
+	try {
+		const metadata = JSON.parse(
+			await readFile(join(directory, SIGNED_FIREFOX_METADATA), 'utf8')
+		) as { version?: unknown; allowedOrigins?: unknown; universal?: unknown };
+		const version = typeof metadata.version === 'string' ? metadata.version : undefined;
+		const allowedOrigins = Array.isArray(metadata.allowedOrigins)
+			? metadata.allowedOrigins.filter((origin): origin is string => typeof origin === 'string')
+			: [];
+		const universal = metadata.universal === true;
+		if (!version) return undefined;
+		// A universal package needs no baked origins; a fixed one is useless without them.
+		if (!universal && !allowedOrigins.length) return undefined;
+
+		const built = JSON.parse(
+			await readFile(join(directory, 'firefox', 'manifest.json'), 'utf8')
+		) as {
+			version?: unknown;
+		};
+		if (String(built.version ?? '') !== version) return undefined;
+
+		const data = await readFile(join(directory, SIGNED_FIREFOX_FILE));
+		if (!data.includes(SIGNATURE_ENTRY)) return undefined;
+		return { version, allowedOrigins, universal, data };
+	} catch {
+		return undefined;
+	}
 }

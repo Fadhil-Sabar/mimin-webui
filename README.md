@@ -9,7 +9,7 @@ Mimin WebUI is a project-based AI agent workspace with chat, project knowledge, 
 - **Chat:** smoothly revealed responses, animated thinking and tool panels, and scroll following that pauses when you read earlier messages. Includes conversation history, stop generation, and file or image attachments; honors reduced-motion settings.
 - **Projects:** organize conversations, manage files, and apply project instructions to every turn.
 - **Knowledge:** PDF text extraction, local OCR, optional hybrid keyword/pgvector search, and persistent page-aware citations.
-- **Providers:** discover models from OpenAI, Anthropic, Google, or custom endpoints; save encrypted per-user API keys.
+- **Providers:** discover models from OpenAI, Anthropic, Google, or custom endpoints; save encrypted per-user API keys; optionally connect a ChatGPT plan through OpenAI's Sign in with ChatGPT preview.
 - **Research:** web search via Tavily, DuckDuckGo, or SearXNG, plus public URL reading with a fallback for JavaScript pages when the browser extension is connected. Cited web sources are persisted with the message and survive reloads.
 - **Browser bridge:** optional Chromium/Firefox extension for Google/Scholar search and permission-controlled tab reading and interaction.
 - **Skills:** reusable personal or project instructions, tool presets, and trigger suggestions.
@@ -87,6 +87,10 @@ Stop Compose services with `docker compose down`. Data persists in `mimin-postgr
 Public registration is disabled; administrators create users at `/admin/users`. Password reset links are single-use, expire after one hour, and sign out existing sessions when used. Configure SMTP to email links, or ask an administrator to create and copy one. See [password reset email](docs/deployment.md#password-reset-email).
 
 Save provider connections in **Settings**. User API keys are encrypted at rest and take precedence over server environment keys. Custom provider/search origins require operator approval through `OUTBOUND_ALLOWED_ORIGINS`; see the [provider reference](docs/api.md#providers).
+
+For a ChatGPT subscription, run Mimin directly on the same computer as your browser, apply migrations with `npm run db:migrate`, then choose **Settings → Models → Continue with ChatGPT**. OpenAI's Sign in with ChatGPT preview uses encrypted, rotating OAuth tokens and account-specific model discovery. Disconnect clears tokens and attempts remote revocation while retaining the account registration for later sign-in. It does not import ChatGPT history or change Mimin's login.
+
+The callback binds only to `127.0.0.1`. Standard Docker bridge networking and remote-browser deployments do **not** support this flow; don't expose the callback publicly. The database may still run in Docker while the Mimin application runs natively. See [connection requirements and preview limits](docs/api.md#providers).
 
 ### Attachments and project knowledge
 

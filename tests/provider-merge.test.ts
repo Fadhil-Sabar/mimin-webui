@@ -5,10 +5,17 @@ beforeAll(() => {
 	process.env.OUTBOUND_ALLOWED_ORIGINS = 'https://gateway.example.com';
 });
 
-const { encryptSecret, saveProviderCredential } =
+const { encryptSecret, saveProviderCredential, getChatGptModelIds, saveChatGptModelIds } =
 	await import('../src/lib/server/ai/provider-settings.service');
 
-function fakeDb(initialRow: { id: string; apiKey: string | null; baseUrl: string | null } | null) {
+function fakeDb(
+	initialRow: {
+		id: string;
+		apiKey: string | null;
+		baseUrl: string | null;
+		customConfig?: unknown;
+	} | null
+) {
 	const state = {
 		row: initialRow,
 		updated: null as Record<string, unknown> | null,
@@ -50,6 +57,43 @@ vi.mock('../src/lib/server/db/client', () => ({
 	}
 }));
 const { getDb } = await import('../src/lib/server/db/client');
+
+describe('ChatGPT manual model persistence', () => {
+	it('uses defaults only when no explicit model list was saved', async () => {
+		vi.mocked(getDb).mockReturnValue(fakeDb(null).db as never);
+		expect(await getChatGptModelIds('user-1')).toEqual(['gpt-6.1-sol', 'gpt-6-luna']);
+		vi.mocked(getDb).mockReturnValue(
+			fakeDb({ id: 'row', apiKey: null, baseUrl: null, customConfig: { chatGptModelIds: [] } })
+				.db as never
+		);
+		expect(await getChatGptModelIds('user-1')).toEqual([]);
+	});
+	it('inserts user-scoped manual configuration without any credentials', async () => {
+		const { db, state } = fakeDb(null);
+		vi.mocked(getDb).mockReturnValue(db as never);
+		await saveChatGptModelIds('user-1', [' gpt-custom ', 'gpt-custom']);
+		expect(state.inserted).toEqual({
+			userId: 'user-1',
+			provider: 'chatgpt',
+			apiKey: null,
+			baseUrl: null,
+			customConfig: { chatGptModelIds: ['gpt-custom'] }
+		});
+	});
+	it('updates only model configuration while preserving unrelated settings', async () => {
+		const { db, state } = fakeDb({
+			id: 'row',
+			apiKey: 'encrypted',
+			baseUrl: null,
+			customConfig: { retained: true, chatGptModelIds: ['old'] }
+		});
+		vi.mocked(getDb).mockReturnValue(db as never);
+		await saveChatGptModelIds('user-1', []);
+		expect(state.updated?.customConfig).toEqual({ retained: true, chatGptModelIds: [] });
+		expect(state.updated).not.toHaveProperty('apiKey');
+		expect(state.updated).not.toHaveProperty('baseUrl');
+	});
+});
 
 describe('saveProviderCredential merge semantics', () => {
 	it('preserves the stored key when only the base URL is provided', async () => {

@@ -52,6 +52,8 @@ export const PUT: RequestHandler = async (event) => {
 		const provider = event.params.provider;
 		if (!provider || !isValidProviderKey(provider))
 			return apiError('INVALID_PROVIDER', 'Unknown provider.', 404);
+		if (provider === 'chatgpt')
+			return apiError('INVALID_PROVIDER', 'Use the ChatGPT connection flow.', 400);
 		const existing = (await listProviderCredentials(user.id)).find(
 			(credential) => credential.provider === provider
 		);
@@ -128,6 +130,8 @@ export const DELETE: RequestHandler = async (event) => {
 		const provider = event.params.provider;
 		if (!provider || !isValidProviderKey(provider))
 			return apiError('INVALID_PROVIDER', 'Unknown provider.', 404);
+		if (provider === 'chatgpt')
+			return apiError('INVALID_PROVIDER', 'Use the ChatGPT connection flow.', 400);
 		if (
 			!isProviderId(provider) &&
 			!(await listProviderCredentials(user.id)).some(

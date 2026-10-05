@@ -283,6 +283,15 @@ describe('conversation retry route', () => {
 		await first.text();
 	});
 
+	it('does not silently replace an unavailable ChatGPT plan with API-key usage', async () => {
+		state.modelAvailable = false;
+		const response = await POST(event({ model: 'chatgpt/missing' }));
+		expect(response.status).toBe(400);
+		expect((await response.json()).error.message).toContain('ChatGPT plan model is unavailable');
+		expect(state.runModels).toEqual([]);
+		expect(state.deleteCount).toBe(0);
+	});
+
 	it('uses fallback model when current model is not available', async () => {
 		state.modelAvailable = false;
 		const res = await POST(event());

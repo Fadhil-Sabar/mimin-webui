@@ -33,7 +33,9 @@ describe('Mimin Search browser extension', () => {
 		);
 		expect(manifest.manifest_version).toBe(3);
 		expect(manifest.action.default_popup).toBe('popup.html');
-		expect(manifest.permissions).toEqual(['scripting', 'storage']);
+		// activeTab lets the popup read the address of the tab it was opened from, which is how the
+		// user connects a self-hosted instance that is not on localhost.
+		expect(manifest.permissions).toEqual(['scripting', 'storage', 'activeTab']);
 		expect(manifest.host_permissions).toEqual([
 			'https://www.google.com/*',
 			'https://scholar.google.com/*'

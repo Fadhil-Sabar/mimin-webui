@@ -3,6 +3,66 @@ import { assertAllowedOutboundUrl, assertConfiguredEndpoint } from '../outbound'
 
 export type DiscoverableProvider = 'openai' | 'anthropic' | 'google';
 
+export type ChatGptPlanModel = {
+	id: string;
+	name: string;
+	contextWindow?: number;
+	reasoning?: boolean;
+};
+
+/** Parse the account-specific ChatGPT plan catalog response. */
+export function parseChatGptPlanModels(body: unknown): ChatGptPlanModel[] {
+	if (!body || typeof body !== 'object') throw new Error('Invalid ChatGPT model list response');
+	const payload = body as { models?: unknown; data?: unknown };
+	const isOpenAiList = Array.isArray(payload.data);
+	const rows = isOpenAiList ? payload.data : payload.models;
+	if (!Array.isArray(rows) || rows.length === 0)
+		throw new Error('Invalid ChatGPT model list response');
+	const result: ChatGptPlanModel[] = [];
+	const seen = new Set<string>();
+	for (const row of rows) {
+		if (!row || typeof row !== 'object') continue;
+		const model = row as Record<string, unknown>;
+		const id = typeof model.id === 'string' ? model.id.trim() : '';
+		const slug = typeof model.slug === 'string' ? model.slug.trim() : '';
+		const modelId = id || slug;
+		if (
+			!modelId ||
+			seen.has(modelId) ||
+			(!isOpenAiList && model.visibility !== 'list') ||
+			(isOpenAiList && model.visibility === 'hidden') ||
+			(modelId === id && !isUsableOpenAiModel(modelId))
+		)
+			continue;
+		seen.add(modelId);
+		result.push({
+			id: modelId,
+			name:
+				typeof model.display_name === 'string' && model.display_name.trim()
+					? model.display_name
+					: typeof model.name === 'string' && model.name.trim()
+						? model.name
+						: modelId
+		});
+	}
+	return result;
+}
+
+/** Fetch the live allowed ChatGPT-plan model list (SIWC models-and-inference). */
+export async function fetchChatGptPlanModels(
+	accessToken: string,
+	fetcher: typeof globalThis.fetch = globalThis.fetch
+): Promise<ChatGptPlanModel[]> {
+	const response = await fetcher('https://api.openai.com/v1/models', {
+		method: 'GET',
+		headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+		signal: AbortSignal.timeout(5000),
+		redirect: 'error'
+	});
+	if (!response.ok) throw new Error(`ChatGPT model list returned ${response.status}`);
+	return parseChatGptPlanModels(await response.json());
+}
+
 export type DiscoveredModel = {
 	id: string;
 	name?: string;

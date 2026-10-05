@@ -143,6 +143,18 @@ describe('conversation messages route turn lifecycle', () => {
 		expect(state.runModels).toEqual(['openai/fallback']);
 	});
 
+	it('does not silently bill an API provider when the selected ChatGPT plan is unavailable', async () => {
+		state.modelAvailable = false;
+		const response = await POST(event({ content: 'hello', model: 'chatgpt/missing' }));
+		expect(response.status).toBe(400);
+		expect((await response.json()).error.message).toContain('ChatGPT plan model is unavailable');
+		expect(state.runModels).toEqual([]);
+		state.modelAvailable = true;
+		const next = await POST(event({ content: 'hello', model: 'openai/explicit' }));
+		await next.text();
+		expect(next.status).toBe(200);
+	});
+
 	it('rejects an overlapping turn before writing another message', async () => {
 		state.turn = { resolve: () => {} };
 		const first = await POST(event({ content: 'first' }));

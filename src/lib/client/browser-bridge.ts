@@ -90,7 +90,11 @@ export function requestBrowserBridge(
 	});
 }
 
-export const REQUIRED_BROWSER_EXTENSION_VERSION = '0.4.2';
+/**
+ * The version of the browser extension this app requires. It is bumped when the extension's
+ * contract changes; the package is universal, so one build serves every instance.
+ */
+export const REQUIRED_BROWSER_EXTENSION_VERSION = '0.4.3';
 
 const BROWSER_BRIDGE_ACTIONS = [
 	'browser_search',

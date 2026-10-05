@@ -521,11 +521,45 @@ describe('browser tab tools with consent', () => {
 		expect(first.text).toContain('Open browser tabs');
 		expect(first.text).toContain('tabId 5');
 		expect(first.text).toContain('URL: https://example.com/docs');
-		expect(first.text).toContain('URL hidden: an internal browser page');
+		expect(first.text).toContain('URL and title hidden: browser metadata is unavailable');
+		expect(first.text).toContain('open the Mimin Browser Bridge extension panel');
+		expect(first.text).toContain('click “Grant tab access”');
+		expect(first.text).toContain('approve the browser prompt');
+		expect(first.text).toContain('return to chat and ask to retry');
+		expect(first.text).toContain('Do not retry automatically');
+		expect(first.text).toContain('Some pages are restricted and may remain unreadable');
 
 		// The listing is also exposed as sources for the chat UI.
 		const sources = (result.details as { sources: Array<{ url?: string }> }).sources;
 		expect(sources.map((source) => source.url)).toEqual(['https://example.com/docs']);
+	});
+
+	it('guides the user to grant host access when a tab URL is visible but unreadable', async () => {
+		grantConversationBrowserConsent(tabContext.userId, tabContext.conversationId);
+		const tool = createBrowserTabsTool(tabContext, (event) => {
+			if (event.type !== 'browser.request') return;
+			queueMicrotask(() =>
+				settleBrowserRequest(tabContext.userId, event.requestId, event.token, true, {
+					tabs: [
+						{
+							tabId: 7,
+							title: 'Restricted site',
+							url: 'https://restricted.example/',
+							active: true,
+							readable: false,
+							reason: 'host_permission_required'
+						}
+					]
+				})
+			);
+		});
+
+		const result = await tool.execute('call-tabs-host-permission', {}, new AbortController().signal);
+		const first = result.content[0];
+		if (first.type !== 'text') throw new Error('Expected text content');
+		expect(first.text).toContain('host access is needed to reveal this tab’s title and URL');
+		expect(first.text).toContain('Grant tab access');
+		expect(first.text).toContain('Some pages are restricted and may remain unreadable');
 	});
 
 	it('bounds long tab listings and retrieves later tabs by offset', async () => {

@@ -296,9 +296,9 @@ function tabsText(result: BrowserTabsResult, offset = 0, totalTabs = result.tabs
 		return offset ? `No browser tabs at offset: ${offset}.` : 'No readable browser tabs are open.';
 	const reasonText = (reason?: string) => {
 		if (reason === 'host_permission_required')
-			return 'not readable: the user must grant website access in the Mimin Browser Bridge popup';
+			return 'not readable: host access is needed to reveal this tab’s title and URL or read its page';
 		if (reason === 'url_hidden')
-			return 'URL hidden: an internal browser page, or website access has not been granted';
+			return 'URL and title hidden: browser metadata is unavailable (this may be an internal page or require host access)';
 		return reason ? `not readable (${reason})` : 'not readable';
 	};
 	const lines = result.tabs.map((tab) => {
@@ -317,6 +317,9 @@ function tabsText(result: BrowserTabsResult, offset = 0, totalTabs = result.tabs
 		bounded.text,
 		offset + bounded.shown < totalTabs
 			? `[Read later tabs with browser_tabs offset: ${offset + bounded.shown}.]`
+			: '',
+		result.tabs.some((tab) => tab.reason === 'host_permission_required' || tab.reason === 'url_hidden')
+			? 'For hidden metadata or host access, open the Mimin Browser Bridge extension panel, click “Grant tab access”, approve the browser prompt, then return to chat and ask to retry. Do not retry automatically. Some pages are restricted and may remain unreadable.'
 			: '',
 		'Use browser_read_tab with a tabId to read one, or browser_interact to click and type in it.'
 	]

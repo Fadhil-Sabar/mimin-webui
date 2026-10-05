@@ -1,6 +1,15 @@
 (() => {
 	const extensionApi = globalThis.browser ?? globalThis.chrome;
-	const config = globalThis.MIMIN_EXTENSION_CONFIG ?? { version: '0.4.2', allowedOrigins: [] };
+	const config = globalThis.MIMIN_EXTENSION_CONFIG ?? {
+		version: '0.4.3',
+		allowedOrigins: [],
+		trustLocalhost: false,
+		universal: false
+	};
+	/** Exact origins the user connected through the popup, mirrored into storage. */
+	const CONNECTED_ORIGINS_KEY = 'mimin:connectedOrigins';
+	const CONNECTED_SCRIPT_PREFIX = 'mimin-connected-';
+	let connectedOrigins = null;
 	const MAX_QUERY_LENGTH = 500;
 	const LOAD_TIMEOUT_MS = 15_000;
 	const INTERACTION_SETTLE_MS = 350;
@@ -206,11 +215,162 @@
 		}
 	}
 
-	function isAllowedSender(sender) {
+	/**
+	 * True for `http://localhost:<port>` and `http://127.0.0.1:<port>`: the addresses a
+	 * self-hosted Mimin runs on by default. Any port is accepted because the port is chosen by
+	 * whoever runs the instance, and it cannot be known when the package is signed.
+	 */
+	function isLocalhostOrigin(origin) {
+		try {
+			const url = new URL(origin);
+			return (
+				url.protocol === 'http:' &&
+				(url.hostname === 'localhost' || url.hostname === '127.0.0.1')
+			);
+		} catch {
+			return false;
+		}
+	}
+
+	/** Match patterns and host permissions carry no port: `http://host:1234` becomes `http://host/*`. */
+	function originMatchPattern(origin) {
+		const url = new URL(origin);
+		return `${url.protocol}//${url.hostname}/*`;
+	}
+
+	async function readConnectedOrigins() {
+		const storage = extensionApi?.storage?.local ?? extensionApi?.storage?.session;
+		if (!storage) return [];
+		try {
+			const stored = await apiCall(storage, 'get', CONNECTED_ORIGINS_KEY);
+			const list = stored?.[CONNECTED_ORIGINS_KEY];
+			return Array.isArray(list) ? list.map(originFrom).filter(Boolean) : [];
+		} catch {
+			return [];
+		}
+	}
+
+	async function ensureConnectedOrigins() {
+		if (!connectedOrigins) connectedOrigins = await readConnectedOrigins();
+		return connectedOrigins;
+	}
+
+	async function writeConnectedOrigins(origins) {
+		connectedOrigins = origins;
+		const storage = extensionApi?.storage?.local ?? extensionApi?.storage?.session;
+		if (!storage) return;
+		try {
+			await apiCall(storage, 'set', { [CONNECTED_ORIGINS_KEY]: origins });
+		} catch {
+			// The in-memory list still holds for this session.
+		}
+	}
+
+	/**
+	 * Whether an origin may drive the bridge. A package built here ships with its own origins,
+	 * trusts localhost as a whole so a self-hosted instance works on any port without a rebuild,
+	 * and otherwise trusts only sites the user connected through the popup — which is also what
+	 * grants the extension access to them, so the browser prompt is the real trust decision.
+	 */
+	function isTrustedOrigin(origin) {
+		if (typeof origin !== 'string' || !origin) return false;
+		if (config.allowedOrigins.includes(origin)) return true;
+		if (config.trustLocalhost && isLocalhostOrigin(origin)) return true;
+		return (connectedOrigins ?? []).includes(origin);
+	}
+
+	async function isAllowedSender(sender) {
+		await ensureConnectedOrigins();
 		const candidates = [sender?.origin, sender?.url, sender?.tab?.url]
 			.map(originFrom)
 			.filter(Boolean);
-		return candidates.some((origin) => config.allowedOrigins.includes(origin));
+		return candidates.some((origin) => isTrustedOrigin(origin));
+	}
+
+	/**
+	 * One dynamic content script per connected origin. The manifest only covers localhost, so this
+	 * is what lets a single signed package serve an instance on somebody else's address: the script
+	 * is registered from the permission the user granted, never baked at build time.
+	 */
+	async function syncConnectedContentScripts() {
+		if (!extensionApi?.scripting?.registerContentScripts) return;
+		const origins = await ensureConnectedOrigins();
+		try {
+			const registered = await apiCall(extensionApi.scripting, 'getRegisteredContentScripts');
+			const stale = (Array.isArray(registered) ? registered : [])
+				.map((script) => script?.id)
+				.filter((id) => typeof id === 'string' && id.startsWith(CONNECTED_SCRIPT_PREFIX));
+			if (stale.length)
+				await apiCall(extensionApi.scripting, 'unregisterContentScripts', { ids: stale });
+		} catch {
+			// Browsers without getRegisteredContentScripts still get fresh registrations below.
+		}
+		if (!origins.length) return;
+		try {
+			await apiCall(
+				extensionApi.scripting,
+				'registerContentScripts',
+				origins.map((origin, index) => ({
+					id: `${CONNECTED_SCRIPT_PREFIX}${index}`,
+					matches: [originMatchPattern(origin)],
+					js: ['content.js'],
+					runAt: 'document_start',
+					persistAcrossSessions: true
+				}))
+			);
+		} catch {
+			// An origin whose permission is missing stays unregistered, and therefore untrusted.
+		}
+	}
+
+	/** Attach the page bridge to an already-open tab, so connecting does not need a reload. */
+	async function injectContentScript(tabId) {
+		if (typeof tabId !== 'number') return;
+		try {
+			await apiCall(extensionApi.scripting, 'executeScript', {
+				target: { tabId },
+				files: ['content.js']
+			});
+		} catch {
+			// The registered script covers the next page load anyway.
+		}
+	}
+
+	/**
+	 * Trust an origin the user granted access to. The popup requests the permission first, because
+	 * only a user gesture in an extension page can; here the grant is verified before it is stored.
+	 */
+	async function connectSite(origin, tabId) {
+		if (!config.universal)
+			return errorResponse('This build only bridges the addresses it was built for.');
+		const parsed = originFrom(origin);
+		if (!parsed || !/^https?:\/\//.test(parsed))
+			return errorResponse('Connecting needs an exact http(s) address.');
+		const pattern = originMatchPattern(parsed);
+		const granted = await apiCall(extensionApi.permissions, 'contains', {
+			origins: [pattern]
+		}).catch(() => false);
+		if (!granted) return errorResponse(`This extension has no access to ${pattern} yet.`);
+		const origins = await ensureConnectedOrigins();
+		if (!origins.includes(parsed)) await writeConnectedOrigins([...origins, parsed]);
+		await syncConnectedContentScripts();
+		await injectContentScript(tabId);
+		return successResponse({ origin: parsed, connectedOrigins: await ensureConnectedOrigins() });
+	}
+
+	async function disconnectSite(origin) {
+		const parsed = originFrom(origin);
+		if (!parsed) return errorResponse('Disconnecting needs an exact http(s) address.');
+		const origins = await ensureConnectedOrigins();
+		if (origins.includes(parsed))
+			await writeConnectedOrigins(origins.filter((candidate) => candidate !== parsed));
+		await syncConnectedContentScripts();
+		return successResponse({ origin: parsed, connectedOrigins: await ensureConnectedOrigins() });
+	}
+
+	/** Only the extension's own pages may change what it trusts; a page cannot ask to be connected. */
+	function isExtensionPageSender(sender) {
+		return Boolean(sender) && sender.tab === undefined && sender.id === extensionApi?.runtime?.id;
 	}
 
 	function buildSearchUrl(engine, query) {
@@ -1342,7 +1502,8 @@
 	}
 
 	async function handleRequest(request, sender) {
-		if (!isAllowedSender(sender)) return errorResponse('This page is not an allowed Mimin origin.');
+		if (!(await isAllowedSender(sender)))
+			return errorResponse('This Mimin page is not connected to the Browser Bridge.');
 		if (!request || request.source !== 'mimin-webui' || typeof request.id !== 'string')
 			return errorResponse('Invalid bridge request.');
 		const args = request.args && typeof request.args === 'object' ? request.args : {};
@@ -1398,8 +1559,25 @@
 					successResponse({
 						version: config.version,
 						allowedOrigins: config.allowedOrigins,
+						connectedOrigins: await ensureConnectedOrigins(),
+						universal: Boolean(config.universal),
+						trustLocalhost: Boolean(config.trustLocalhost),
 						permissions: { google: true, publicWebsites }
 					})
+				);
+			})();
+			return true;
+		}
+		if (message?.type === 'mimin:connect-site' || message?.type === 'mimin:disconnect-site') {
+			void (async () => {
+				if (!isExtensionPageSender(sender)) {
+					sendResponse(errorResponse('Connecting is only available from the extension popup.'));
+					return;
+				}
+				sendResponse(
+					message.type === 'mimin:connect-site'
+						? await connectSite(message.origin, message.tabId)
+						: await disconnectSite(message.origin)
 				);
 			})();
 			return true;
@@ -1408,6 +1586,10 @@
 		void handleRequest(message.request, sender).then(sendResponse);
 		return true;
 	});
+
+	// Restore the connected sites' content scripts after a browser restart, which also drops any
+	// origin whose permission the user has since revoked.
+	void syncConnectedContentScripts();
 
 	// Opt-in seam for tests. Never populated in a real browser session.
 	const testHooks = globalThis.MIMIN_EXTENSION_TEST_HOOKS;
@@ -1419,7 +1601,14 @@
 			listTabs,
 			readTab,
 			interactTab,
-			resolveTab
+			resolveTab,
+			isTrustedOrigin,
+			isLocalhostOrigin,
+			originMatchPattern,
+			ensureConnectedOrigins,
+			syncConnectedContentScripts,
+			connectSite,
+			disconnectSite
 		});
 	}
 })();

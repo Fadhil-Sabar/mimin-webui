@@ -1,10 +1,13 @@
 (() => {
 	const extensionApi = globalThis.browser ?? globalThis.chrome;
-	const configuredOrigins = globalThis.MIMIN_EXTENSION_CONFIG?.allowedOrigins ?? [];
 
-	function isAllowedOrigin(origin) {
-		return typeof origin === 'string' && configuredOrigins.includes(origin);
-	}
+	/**
+	 * The manifest injects this file on the built-in localhost origins, and the background injects it
+	 * into a site the user connected. Whichever happens first wins: a second copy would relay every
+	 * request twice, and an action like opening a tab would run twice.
+	 */
+	if (globalThis.__miminBridgeInstalled) return;
+	globalThis.__miminBridgeInstalled = true;
 
 	/**
 	 * Read a message off a thrown value without `instanceof Error`.
@@ -88,8 +91,11 @@
 	}
 
 	window.addEventListener('message', (event) => {
-		if (event.source !== window || !isAllowedOrigin(event.origin) || !isValidRequest(event.data))
-			return;
+		// Only the page this script was injected into may use the bridge. Whether that page's origin
+		// is trusted is decided by the background, which knows the connected sites; the compiled-in
+		// list cannot, which is exactly what lets one signed package serve any self-hosted address.
+		if (event.source !== window || event.origin !== window.location.origin) return;
+		if (!isValidRequest(event.data)) return;
 
 		const { id, action, args = {} } = event.data;
 		const request = { source: 'mimin-webui', id, action, args };

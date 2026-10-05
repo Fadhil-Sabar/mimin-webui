@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { ArrowLeft, Eye, EyeOff, Lock, Plus, RotateCcw } from '@lucide/svelte';
+	import { onDestroy, onMount } from 'svelte';
+	import { ArrowLeft, Eye, EyeOff, ExternalLink, Lock, Plus, RotateCcw, X } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import ProviderCard from '../ProviderCard.svelte';
 	import ModelSelector from '../ModelSelector.svelte';
@@ -66,6 +66,24 @@
 	let showApiKey = $state(false);
 	let returnTarget = $state<string | null>(null);
 	let returnPrompt = $state('');
+	let chatGpt = $state<{ connected: boolean; email: string | null; pending: boolean }>({
+		connected: false,
+		email: null,
+		pending: false
+	});
+	let chatGptBusy = $state(false);
+	let chatGptError = $state<string | null>(null);
+	let chatGptStatus = $state('');
+	let chatGptPollTimer: ReturnType<typeof setTimeout> | undefined;
+	let chatGptDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
+	let authWindow: Window | null = null;
+	let chatGptFlowActive = $state(false);
+	let chatGptDisposed = false;
+	let chatGptModelIds = $state<string[]>([]);
+	let chatGptModelIdDraft = $state('');
+	let chatGptModelsLoading = $state(true);
+	let chatGptModelsBusy = $state(false);
+	let chatGptModelsError = $state<string | null>(null);
 
 	let initialBaseUrl = $state('');
 	let initialName = $state('');
@@ -113,10 +131,14 @@
 	}
 
 	let connectedProviders = $derived(
-		providers.filter((p) => p.configured || p.fromUser || p.customConfig)
+		providers.filter(
+			(p) => (p.configured || p.fromUser || p.customConfig) && p.provider !== 'chatgpt'
+		)
 	);
 	let availableProviders = $derived(
-		providers.filter((p) => !p.configured && !p.fromUser && !p.customConfig)
+		providers.filter(
+			(p) => !p.configured && !p.fromUser && !p.customConfig && p.provider !== 'chatgpt'
+		)
 	);
 	let currentEditingProvider = $derived(
 		editing ? (providers.find((p) => p.provider === editing) ?? null) : null
@@ -188,8 +210,223 @@
 		const handoff = consumeNavigationHandoff();
 		returnTarget = handoff?.returnTo === '/' ? '/' : null;
 		returnPrompt = handoff?.returnTo === '/' ? handoff.prompt : '';
-		await fetchProviders();
+		await Promise.all([fetchProviders(), fetchChatGptStatus(), fetchChatGptModels()]);
+		if (chatGpt.pending && !chatGptDisposed) startChatGptPolling();
 	});
+
+	onDestroy(() => {
+		chatGptDisposed = true;
+		stopChatGptPolling();
+		chatGptFlowActive = false;
+	});
+
+	function stopChatGptPolling() {
+		if (chatGptPollTimer) clearTimeout(chatGptPollTimer);
+		if (chatGptDeadlineTimer) clearTimeout(chatGptDeadlineTimer);
+		chatGptPollTimer = undefined;
+		chatGptDeadlineTimer = undefined;
+	}
+
+	function errorMessage(
+		payload: { error?: { message?: string }; message?: string },
+		fallback: string
+	) {
+		return payload?.error?.message ?? payload?.message ?? fallback;
+	}
+
+	async function fetchChatGptModels() {
+		chatGptModelsLoading = true;
+		chatGptModelsError = null;
+		try {
+			const response = await fetch('/api/providers/chatgpt/models');
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(errorMessage(data, 'Could not load manual ChatGPT models'));
+			chatGptModelIds = Array.isArray(data?.modelIds)
+				? data.modelIds.filter((id: unknown): id is string => typeof id === 'string')
+				: [];
+		} catch (error) {
+			chatGptModelsError =
+				error instanceof Error ? error.message : 'Could not load manual ChatGPT models';
+		} finally {
+			chatGptModelsLoading = false;
+		}
+	}
+
+	async function saveChatGptModels(modelIds: string[]) {
+		if (chatGptModelsBusy) return;
+		chatGptModelsBusy = true;
+		chatGptModelsError = null;
+		try {
+			const response = await fetch('/api/providers/chatgpt/models', {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ modelIds })
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(errorMessage(data, 'Could not save manual ChatGPT models'));
+			chatGptModelIds = Array.isArray(data?.modelIds)
+				? data.modelIds.filter((id: unknown): id is string => typeof id === 'string')
+				: modelIds;
+			chatGptModelIdDraft = '';
+			notifyModelsChanged();
+		} catch (error) {
+			chatGptModelsError =
+				error instanceof Error ? error.message : 'Could not save manual ChatGPT models';
+		} finally {
+			chatGptModelsBusy = false;
+		}
+	}
+
+	function addChatGptModel() {
+		const modelId = chatGptModelIdDraft.trim();
+		if (!modelId) {
+			chatGptModelsError = 'Enter a model ID.';
+			return;
+		}
+		if (modelId.length > 200 || /\s/.test(modelId)) {
+			chatGptModelsError = 'Model IDs must be at most 200 characters and contain no whitespace.';
+			return;
+		}
+		if (chatGptModelIds.includes(modelId)) {
+			chatGptModelsError = 'That model ID is already in the list.';
+			return;
+		}
+		if (chatGptModelIds.length >= 100) {
+			chatGptModelsError = 'You can add up to 100 manual model IDs.';
+			return;
+		}
+		void saveChatGptModels([...chatGptModelIds, modelId]);
+	}
+
+	function removeChatGptModel(modelId: string) {
+		void saveChatGptModels(chatGptModelIds.filter((id) => id !== modelId));
+	}
+
+	async function fetchChatGptStatus(): Promise<boolean> {
+		try {
+			const response = await fetch('/api/providers/chatgpt');
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(errorMessage(data, 'Could not check ChatGPT connection'));
+			const account = data?.account && typeof data.account === 'object' ? data.account : null;
+			chatGpt = {
+				connected: data?.connected === true,
+				email: typeof account?.email === 'string' ? account.email : null,
+				pending:
+					data?.pending === true || data?.status === 'pending' || data?.status === 'authorizing'
+			};
+			chatGptError = typeof data?.error === 'string' && data.error ? data.error : null;
+			return chatGpt.connected;
+		} catch (error) {
+			if (!chatGptDisposed)
+				chatGptError =
+					error instanceof Error ? error.message : 'Could not check ChatGPT connection';
+			return false;
+		}
+	}
+
+	function scheduleChatGptPoll() {
+		if (!chatGptFlowActive || chatGptDisposed) return;
+		chatGptPollTimer = setTimeout(async () => {
+			const connected = await fetchChatGptStatus();
+			if (!chatGptFlowActive || chatGptDisposed) return;
+			if (connected) {
+				stopChatGptPolling();
+				chatGptFlowActive = false;
+				chatGptBusy = false;
+				chatGptStatus = 'ChatGPT connected.';
+				if (authWindow && !authWindow.closed) authWindow.close();
+				await fetchProviders();
+				notifyModelsChanged();
+				return;
+			}
+			if (chatGptError || !chatGpt.pending) {
+				stopChatGptPolling();
+				chatGptFlowActive = false;
+				chatGptBusy = false;
+				chatGptStatus = '';
+				return;
+			}
+			scheduleChatGptPoll();
+		}, 2000);
+	}
+
+	function startChatGptPolling() {
+		chatGptFlowActive = true;
+		chatGptBusy = true;
+		chatGptStatus = 'Waiting for sign-in to finish…';
+		stopChatGptPolling();
+		chatGptDeadlineTimer = setTimeout(
+			() => {
+				stopChatGptPolling();
+				chatGptFlowActive = false;
+				chatGptBusy = false;
+				chatGpt.pending = false;
+				chatGptStatus = '';
+				chatGptError = 'Sign-in timed out. Try connecting again.';
+			},
+			5 * 60 * 1000
+		);
+		scheduleChatGptPoll();
+	}
+
+	async function connectChatGpt() {
+		if (chatGptBusy) return;
+		// Open synchronously from the click to avoid popup blockers while the API responds.
+		authWindow = window.open('about:blank', '_blank');
+		if (!authWindow) {
+			chatGptError = 'Allow pop-ups for this site to continue with ChatGPT sign-in.';
+			return;
+		}
+		authWindow.opener = null;
+		chatGptBusy = true;
+		chatGptError = null;
+		chatGptStatus = 'Preparing secure sign-in…';
+		try {
+			const response = await fetch('/api/providers/chatgpt', { method: 'POST' });
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(errorMessage(data, 'Could not start ChatGPT sign-in'));
+			if (typeof data?.authorizationUrl !== 'string')
+				throw new Error('The sign-in service returned an invalid authorization URL.');
+			const authorization = new URL(data.authorizationUrl);
+			if (authorization.protocol !== 'https:' || authorization.hostname !== 'auth.openai.com') {
+				throw new Error('The sign-in service returned an untrusted authorization URL.');
+			}
+			authWindow.location.replace(authorization.href);
+			chatGpt.pending = true;
+			if (!chatGptDisposed) startChatGptPolling();
+		} catch (error) {
+			if (authWindow && !authWindow.closed) authWindow.close();
+			authWindow = null;
+			chatGptBusy = false;
+			chatGpt.pending = false;
+			chatGptError = error instanceof Error ? error.message : 'Could not start ChatGPT sign-in';
+		}
+	}
+
+	async function disconnectChatGpt() {
+		chatGptFlowActive = false;
+		stopChatGptPolling();
+		chatGptBusy = true;
+		chatGptError = null;
+		try {
+			const response = await fetch('/api/providers/chatgpt', { method: 'DELETE' });
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(errorMessage(data, 'Could not disconnect ChatGPT'));
+			if (authWindow && !authWindow.closed) authWindow.close();
+			authWindow = null;
+			chatGpt = { connected: false, email: null, pending: false };
+			chatGptStatus =
+				data.revocationConfirmed === false
+					? 'Disconnected locally. Remote revocation was not confirmed; remove access in ChatGPT Settings.'
+					: '';
+			await fetchProviders();
+			notifyModelsChanged();
+		} catch (error) {
+			chatGptError = error instanceof Error ? error.message : 'Could not disconnect ChatGPT';
+		} finally {
+			chatGptBusy = false;
+		}
+	}
 
 	function openEditor(provider: string) {
 		creatingCustom = false;
@@ -547,6 +784,114 @@
 			</div>
 
 			<div class="sections-container">
+				<section class="chatgpt-card" aria-labelledby="chatgpt-title">
+					<div class="chatgpt-copy">
+						<div class="chatgpt-heading">
+							<div>
+								<h2 id="chatgpt-title">ChatGPT</h2>
+								<p>Use your eligible ChatGPT plan</p>
+							</div>
+						</div>
+						{#if chatGpt.connected && chatGpt.email}
+							<p class="chatgpt-email">Connected as <span>{chatGpt.email}</span></p>
+						{/if}
+						<p class="chatgpt-disclaimer">
+							Sign-in runs locally on this computer. Your ChatGPT history is not imported.
+						</p>
+						{#if chatGpt.connected}
+							<p class="chatgpt-disclaimer">
+								<a
+									href="https://chatgpt.com/settings/usage"
+									target="_blank"
+									rel="noopener noreferrer">Manage usage and access in ChatGPT Settings</a
+								>
+							</p>
+						{/if}
+						<div class="chatgpt-model-config" aria-labelledby="chatgpt-models-title">
+							<h3 id="chatgpt-models-title">Manual model IDs</h3>
+							<p class="chatgpt-disclaimer" id="chatgpt-models-warning">
+								Manual model access is not verified. OpenAI may reject model IDs that are
+								unavailable to your account.
+							</p>
+							<form
+								class="chatgpt-model-form"
+								onsubmit={(event) => {
+									event.preventDefault();
+									addChatGptModel();
+								}}
+							>
+								<label class="sr-only" for="chatgpt-model-id">Model ID</label>
+								<input
+									id="chatgpt-model-id"
+									type="text"
+									bind:value={chatGptModelIdDraft}
+									placeholder="e.g. gpt-6.1-sol"
+									maxlength="200"
+									pattern="\S+"
+									autocomplete="off"
+									aria-describedby="chatgpt-models-warning"
+									disabled={chatGptModelsBusy || chatGptModelsLoading}
+								/>
+								<button
+									type="submit"
+									class="chatgpt-button secondary"
+									aria-label="Add manual ChatGPT model ID"
+									disabled={chatGptModelsBusy ||
+										chatGptModelsLoading ||
+										!chatGptModelIdDraft.trim()}>Add</button
+								>
+							</form>
+							{#if chatGptModelsLoading}
+								<p class="chatgpt-disclaimer" role="status">Loading manual models…</p>
+							{:else if chatGptModelIds.length > 0}
+								<ul class="chatgpt-model-list">
+									{#each chatGptModelIds as modelId (modelId)}
+										<li>
+											<code>{modelId}</code><button
+												type="button"
+												class="chatgpt-remove-model"
+												aria-label="Remove manual ChatGPT model {modelId}"
+												onclick={() => removeChatGptModel(modelId)}
+												disabled={chatGptModelsBusy}>Remove</button
+											>
+										</li>
+									{/each}
+								</ul>
+							{:else}
+								<p class="chatgpt-disclaimer">No manual model IDs configured.</p>
+							{/if}
+							{#if chatGptModelsError}<p class="chatgpt-error" role="alert">
+									{chatGptModelsError}
+								</p>{/if}
+						</div>
+						{#if chatGptStatus}<p class="chatgpt-status" role="status">{chatGptStatus}</p>{/if}
+						{#if chatGptError}<p class="chatgpt-error" role="alert">{chatGptError}</p>{/if}
+					</div>
+					<div class="chatgpt-actions">
+						{#if chatGpt.connected}
+							<button
+								type="button"
+								class="chatgpt-button secondary"
+								onclick={disconnectChatGpt}
+								disabled={chatGptBusy}>Disconnect</button
+							>
+						{:else if chatGptBusy || chatGpt.pending}
+							<button
+								type="button"
+								class="chatgpt-button secondary"
+								onclick={disconnectChatGpt}
+								disabled={chatGptBusy && !chatGptFlowActive}><X size={14} /> Cancel</button
+							>
+						{:else}
+							<button
+								type="button"
+								class="chatgpt-button"
+								onclick={connectChatGpt}
+								disabled={chatGptBusy}>Continue with ChatGPT <ExternalLink size={14} /></button
+							>
+						{/if}
+					</div>
+				</section>
 				{#if connectedProviders.length > 0}
 					<div class="provider-section">
 						<h2 class="section-label">CONNECTED</h2>
@@ -642,6 +987,184 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+	.chatgpt-card {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 20px;
+		padding: 18px;
+		border: 1px solid #34343a;
+		border-radius: 14px;
+		background: #1c1c1f;
+	}
+	.chatgpt-copy {
+		min-width: 0;
+	}
+	.chatgpt-heading {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	.chatgpt-heading h2 {
+		margin: 0;
+		color: #ececee;
+		font-size: 15px;
+		font-weight: 600;
+	}
+	.chatgpt-heading p,
+	.chatgpt-email,
+	.chatgpt-disclaimer,
+	.chatgpt-status,
+	.chatgpt-error {
+		margin: 3px 0 0;
+		font-size: 12px;
+		color: #a1a1aa;
+	}
+	.chatgpt-email {
+		margin: 12px 0 0;
+	}
+	.chatgpt-email span {
+		color: #ececee;
+	}
+	.chatgpt-disclaimer {
+		margin: 12px 0 0;
+		max-width: 540px;
+		line-height: 1.5;
+	}
+	.chatgpt-disclaimer a {
+		color: #d4d4d8;
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+	.chatgpt-status {
+		color: #d4d4d8;
+	}
+	.chatgpt-error {
+		color: #fca5a5;
+	}
+	.chatgpt-actions {
+		flex: 0 0 auto;
+	}
+	.chatgpt-model-config {
+		margin-top: 16px;
+		max-width: 560px;
+	}
+	.chatgpt-model-config h3 {
+		margin: 0;
+		color: #d4d4d8;
+		font-size: 12px;
+		font-weight: 600;
+	}
+	.chatgpt-model-form {
+		display: flex;
+		gap: 8px;
+		margin-top: 10px;
+	}
+	.chatgpt-model-form input {
+		flex: 1;
+		min-width: 0;
+		height: 36px;
+		padding: 0 10px;
+		border: 1px solid #34343a;
+		border-radius: 8px;
+		background: #151517;
+		color: #ececee;
+		font: inherit;
+		font-size: 12px;
+	}
+	.chatgpt-model-list {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		margin: 10px 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.chatgpt-model-list li {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 7px 9px;
+		border: 1px solid #2c2c30;
+		border-radius: 8px;
+		background: #19191c;
+	}
+	.chatgpt-model-list code {
+		min-width: 0;
+		overflow-wrap: anywhere;
+		color: #d4d4d8;
+		font-size: 12px;
+	}
+	.chatgpt-remove-model {
+		flex: 0 0 auto;
+		padding: 3px 6px;
+		border: 0;
+		background: transparent;
+		color: #a1a1aa;
+		font: inherit;
+		font-size: 11px;
+		cursor: pointer;
+	}
+	.chatgpt-remove-model:hover:not(:disabled) {
+		color: #ececee;
+	}
+	.chatgpt-remove-model:disabled {
+		opacity: 0.55;
+		cursor: wait;
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+	.chatgpt-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		min-height: 36px;
+		padding: 0 13px;
+		border: 0;
+		border-radius: 9px;
+		background: #f4f4f5;
+		color: #18181b;
+		font-size: 12px;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.chatgpt-button:hover:not(:disabled) {
+		background: #e4e4e7;
+	}
+	.chatgpt-button.secondary {
+		border: 1px solid #3b3b42;
+		background: #252529;
+		color: #ececee;
+	}
+	.chatgpt-button:focus-visible {
+		outline: 2px solid #d4d4d8;
+		outline-offset: 3px;
+	}
+	.chatgpt-button:disabled {
+		opacity: 0.55;
+		cursor: wait;
+	}
+	@media (max-width: 640px) {
+		.chatgpt-card {
+			align-items: flex-start;
+			flex-direction: column;
+		}
+		.chatgpt-actions,
+		.chatgpt-button {
+			width: 100%;
+		}
 	}
 	.empty-state {
 		text-align: center;

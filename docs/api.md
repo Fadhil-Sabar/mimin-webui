@@ -83,7 +83,61 @@ encrypted at rest with AES-256-GCM using a key derived from
 `PROVIDER_KEY_ENCRYPTION_SECRET` and are never returned to the browser; the API
 returns a masked value such as `•••• 4f2a`. Without a saved user key, the server
 uses `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GOOGLE_API_KEY`/`GEMINI_API_KEY`.
-An optional `baseUrl` routes requests to a custom endpoint.
+An optional `baseUrl` routes requests to a custom endpoint. `chatgpt` is
+intentionally excluded from generic provider credential writes/deletes; it is
+connected only through its own plan OAuth endpoints (mutations require a
+same-origin browser request):
+
+```text
+GET    /api/providers/chatgpt   # connected, account, pending/status/error
+POST   /api/providers/chatgpt   # starts OAuth; returns authorizationUrl/callbackPort
+DELETE /api/providers/chatgpt   # disconnects and cancels an in-flight attempt
+GET    /api/providers/chatgpt/models # returns { modelIds: string[] } manual additions
+PUT    /api/providers/chatgpt/models # saves { modelIds: string[] } manual additions
+```
+
+This flow uses OpenAI's Sign in with ChatGPT dynamic-agent registration, not
+the Codex CLI client. Tokens are encrypted at rest. Disconnect attempts remote
+session revocation, clears tokens, and retains the issued client/account mapping
+for reauthorization. Its response includes `revocationConfirmed`; if false, also
+remove access in ChatGPT Settings. A ChatGPT connection failure doesn't disable
+other configured providers. Requests selecting a ChatGPT plan never silently
+fall back to a separately billed API-key provider if the plan is unavailable.
+First authorization uses
+`dynamic_agent_client`; after the issued client is saved, later sign-ins reuse
+that client and send the retained ID token/email hints. Callbacks bind only to
+`127.0.0.1` at `CHATGPT_OAUTH_CALLBACK_PORT` (default `0`, OS-assigned). Thus
+the browser must be on the same host/network namespace as the app server.
+Run `npm run db:migrate` before using the new connection. Set
+`PROVIDER_KEY_ENCRYPTION_SECRET` to a durable secret as for API-key storage.
+Docker-published ports do not make a container's loopback listener accessible
+from the host browser. Remote-browser and remote-VM setups are unsupported; do
+not weaken the loopback bind or expose the listener publicly. The API status is
+process-local and there is one active listener per process; concurrent attempts
+receive `409 CHATGPT_OAUTH_BUSY`. Run this local connection on a single Mimin
+process; OAuth attempt state and refresh serialization are process-local.
+
+SIWC is a preview. Models are fetched live from the authenticated account's
+`/v1/models` catalog and filtered to `visibility: "list"`. Manual model IDs are
+merged into this list; they default to `gpt-6.1-sol` and `gpt-6-luna` until a user
+saves their own list. Saving `[]` removes all manual additions without hiding live
+models. Settings → Models → ChatGPT supports adding/removing these IDs; changes
+are saved per user without changing OAuth credentials. Up to 100 IDs of 200
+characters each are accepted, with no internal whitespace. Manual entries are
+not access-verified: OpenAI can reject unavailable models during inference.
+ChatGPT plan
+inference uses public Responses API with `store:false` and `stream:true`, preserves
+policies as developer messages and groups local function tools in a namespace.
+The API supplies no per-token subscription price, so Mimin does not infer an
+API-key dollar cost. Its
+preview does not support hosted tool search, file search, Code Interpreter,
+native computer use, or audio/video/files APIs. See OpenAI's
+[sign-in](https://developers.openai.com/siwc/token-sharing-open-source/sign-in),
+[model/inference](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference),
+[preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations),
+[profiles and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions),
+[token reference](https://developers.openai.com/siwc/token-sharing-open-source/token-reference),
+and [self-hosted VMs](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms).
 
 `POST /api/providers` creates a user-owned custom provider. The settings UI
 offers templates for the supported Pi HTTP protocols: OpenAI Chat Completions,

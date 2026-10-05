@@ -112,7 +112,28 @@ describe('page to extension content-script relay', () => {
 		await expect(requestBrowserBridge('ping', {})).rejects.toThrow('Receiving end does not exist.');
 	});
 
-	it('ignores page messages from a non-allowed origin', async () => {
+	it('ignores page messages that were posted from another origin', async () => {
+		const { sent } = loadContentScript({ window: windowMock });
+		setBrowserBridgeEnabled(true);
+
+		windowMock.dispatchMessage(
+			{
+				source: 'mimin-webui',
+				id: 'cross-origin-1',
+				action: 'browser_open',
+				args: { url: 'https://example.com' }
+			},
+			'https://other.example'
+		);
+
+		await Promise.resolve();
+		expect(sent).toEqual([]);
+	});
+
+	it("relays the page's own messages whatever the compiled-in origin list says", async () => {
+		// The list cannot know the address a self-hosted instance is reached on, so the relay no
+		// longer gates on it; the background decides whether the sender is trusted, which is what
+		// lets one signed package serve every instance.
 		const { sent } = loadContentScript({
 			window: windowMock,
 			allowedOrigins: ['https://other.example']
@@ -121,13 +142,33 @@ describe('page to extension content-script relay', () => {
 
 		windowMock.dispatchMessage({
 			source: 'mimin-webui',
-			id: 'spoofed-1',
+			id: 'own-origin-1',
 			action: 'browser_open',
 			args: { url: 'https://example.com' }
 		});
 
 		await Promise.resolve();
-		expect(sent).toEqual([]);
+		expect(sent).toHaveLength(1);
+	});
+
+	it('installs one relay even when the script is injected twice', async () => {
+		// A page can be covered by the manifest's localhost match and by the script registered for a
+		// connected site, and the background also injects the file to avoid a reload. A second relay
+		// would run every action twice, so the second injection must do nothing.
+		const { sent, install } = loadContentScript({ window: windowMock });
+		setBrowserBridgeEnabled(true);
+
+		install();
+
+		windowMock.dispatchMessage({
+			source: 'mimin-webui',
+			id: 'twice-1',
+			action: 'browser_open',
+			args: { url: 'https://example.com' }
+		});
+
+		await Promise.resolve();
+		expect(sent).toHaveLength(1);
 	});
 
 	it('ignores page messages whose source is not the page itself', async () => {

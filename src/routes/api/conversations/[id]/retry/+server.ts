@@ -115,7 +115,12 @@ export const POST: RequestHandler = async (event) => {
 		// regenerate that cannot run must leave the conversation exactly as it was.
 		let modelToUse = parsedModel ?? conversation.model;
 		if (!(await isModelAvailable(user.id, modelToUse))) {
-			const available = await listAvailableModels(user.id);
+			// Never silently replace subscription usage with a separately billed API provider.
+			const chatGptPlan = modelToUse.startsWith('chatgpt/');
+			const unavailableMessage = chatGptPlan
+				? 'ChatGPT plan model is unavailable. Reconnect in Settings or explicitly choose another provider.'
+				: 'No configured models are available.';
+			const available = chatGptPlan ? [] : await listAvailableModels(user.id);
 			if (available.length > 0) {
 				const preferred = available.find((m) => `${m.provider}/${m.id}` === 'openai/gpt-4o-mini');
 				const fallback = preferred ?? available[0];
@@ -128,12 +133,12 @@ export const POST: RequestHandler = async (event) => {
 				if (durableTurn) {
 					await appendTurnEvent(turnToken, 'error', {
 						type: 'error',
-						error: { code: 'MODEL_NOT_AVAILABLE', message: 'No configured models are available.' }
+						error: { code: 'MODEL_NOT_AVAILABLE', message: unavailableMessage }
 					});
 					await finishTurn(turnToken, 'interrupted');
 				}
 				await releaseConversationTurn(conversationId, turnToken);
-				return apiError('MODEL_NOT_AVAILABLE', 'No configured models are available.');
+				return apiError('MODEL_NOT_AVAILABLE', unavailableMessage);
 			}
 		} else if (parsedModel && parsedModel !== conversation.model) {
 			await db

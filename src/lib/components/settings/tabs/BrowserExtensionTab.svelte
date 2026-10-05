@@ -5,6 +5,10 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Switch } from '$lib/components/ui/switch/index.js';
 	import {
+		EXTENSION_PACKAGE_HEADER,
+		type ExtensionPackageKind
+	} from '$lib/browser-extension-package';
+	import {
 		getBrowserBridgeStatus,
 		isBrowserBridgeEnabled,
 		setBrowserBridgeEnabled
@@ -21,10 +25,13 @@
 	let connected = $state(false);
 	let updateRequired = $state(false);
 	let installedVersion = $state<string | undefined>(undefined);
-	let requiredVersion = $state<string>('0.4.2');
+	let requiredVersion = $state<string>('0.4.3');
 	let checking = $state(false);
 	let permissions = $state<{ google?: boolean; publicWebsites?: boolean } | undefined>(undefined);
 	let pageOrigin = $state('');
+	// Which Firefox artifact this instance can hand out: a signed XPI installs permanently, an
+	// unsigned package only as a temporary add-on. `undefined` until the probe answers.
+	let firefoxPackage = $state<ExtensionPackageKind | undefined>(undefined);
 
 	let activeStepBrowser = $state<'chrome' | 'firefox'>('chrome');
 	let installStepsOpen = $state(true);
@@ -58,13 +65,25 @@
 
 	async function checkConnection() {
 		checking = true;
-		const result = await getBrowserBridgeStatus();
+		const [result] = await Promise.all([getBrowserBridgeStatus(), probeFirefoxPackage()]);
 		connected = enabled && result.connected;
 		updateRequired = Boolean(enabled && result.updateRequired);
 		installedVersion = result.version;
 		requiredVersion = result.requiredVersion;
 		permissions = result.permissions;
 		checking = false;
+	}
+
+	/** Asks the download route which artifact it would serve, without downloading it. */
+	async function probeFirefoxPackage() {
+		try {
+			const response = await fetch(firefoxDownload, { method: 'HEAD' });
+			const kind = response.headers.get(EXTENSION_PACKAGE_HEADER);
+			firefoxPackage =
+				kind === 'signed' || kind === 'temporary' || kind === 'unpacked' ? kind : undefined;
+		} catch {
+			firefoxPackage = undefined;
+		}
 	}
 </script>
 
@@ -138,7 +157,11 @@
 
 				<div class="download-card">
 					<strong class="package-name">Firefox</strong>
-					<p class="package-desc">Temporary local add-on</p>
+					<p class="package-desc">
+						{firefoxPackage === 'signed'
+							? 'Signed · installs permanently'
+							: 'Temporary local add-on'}
+					</p>
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 					<a href={firefoxDownload} download rel="external" class="download-action-btn">
 						<Download size={14} />
@@ -201,6 +224,31 @@
 								<li>
 									<span class="step-circle">3</span>
 									<span>Choose Load unpacked and select the folder.</span>
+								</li>
+							</ol>
+						{:else if firefoxPackage === 'signed'}
+							<ol class="step-list">
+								<li>
+									<span class="step-circle">1</span>
+									<span>Download the package.</span>
+								</li>
+								<li>
+									<span class="step-circle">2</span>
+									<span
+										>Open the downloaded <code class="inline-code">.xpi</code> in Firefox, or use
+										<code class="inline-code">about:addons</code> and Install Add-on From File.</span
+									>
+								</li>
+								<li>
+									<span class="step-circle">3</span>
+									<span>Choose Add. The install is permanent, so no signing or debugging is needed.</span>
+								</li>
+								<li>
+									<span class="step-circle">4</span>
+									<span
+										>On an address other than <code class="inline-code">localhost</code>, click the
+										extension's toolbar icon and choose Connect this site.</span
+									>
 								</li>
 							</ol>
 						{:else}
@@ -289,6 +337,11 @@
 							A package only bridges the origin it was downloaded from. If installed for another
 							address, it reports <em>Not connected</em>. Replace the folder, reload the extension,
 							and refresh Mimin.
+						</p>
+						<p>
+							A signed package is fixed when it is signed, so it bridges the origins listed in
+							<code class="inline-code">MIMIN_EXTENSION_ORIGINS</code> at signing time; an unsigned package
+							is rebuilt for the address you download it from.
 						</p>
 					</div>
 				{/if}

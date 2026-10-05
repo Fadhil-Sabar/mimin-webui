@@ -476,6 +476,27 @@ export const pendingTurnRequests = pgTable(
 	})
 );
 
+export const chatgptPlanConnections = pgTable('chatgpt_plan_connections', {
+	userId: uuid('user_id')
+		.primaryKey()
+		.references(() => users.id, { onDelete: 'cascade' }),
+	clientId: text('client_id').notNull(),
+	subject: text('subject').notNull(),
+	email: text('email'),
+	accessToken: text('access_token'),
+	refreshToken: text('refresh_token'),
+	idToken: text('id_token'),
+	scopes: jsonb('scopes').$type<string[]>().notNull(),
+	expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+	hostId: text('host_id').notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const appSettings = pgTable('app_settings', {
+	key: text('key').primaryKey(),
+	value: text('value').notNull()
+});
+
 export const providerSettings = pgTable(
 	'provider_settings',
 	{
@@ -487,9 +508,9 @@ export const providerSettings = pgTable(
 		apiKey: text('api_key'),
 		baseUrl: text('base_url'),
 		customConfig: jsonb('custom_config').$type<{
-			name: string;
-			protocol: string;
-			models: Array<{
+			name?: string;
+			protocol?: string;
+			models?: Array<{
 				id: string;
 				name?: string;
 				contextWindow?: number;
@@ -497,6 +518,7 @@ export const providerSettings = pgTable(
 				reasoning?: boolean;
 				vision?: boolean;
 			}>;
+			chatGptModelIds?: string[];
 		}>(),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()

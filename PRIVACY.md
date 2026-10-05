@@ -6,7 +6,7 @@ Mimin WebUI is self-hosted software. The operator of each deployment controls it
 
 Depending on use, Mimin stores account and session records, projects, conversations, messages, tool-call records, uploaded files, extracted text and OCR results, citations, model preferences, project skills, and encrypted provider credentials in PostgreSQL and the configured storage path.
 
-Provider API keys saved through the UI are encrypted at rest. The encryption secret is controlled by the deployment operator. Losing or rotating it without a migration makes existing encrypted keys unreadable.
+Provider API keys and ChatGPT access, refresh, and retained ID tokens saved through the UI are encrypted at rest. The encryption secret is controlled by the deployment operator. Losing or rotating it without a migration makes existing encrypted credentials unreadable. A ChatGPT connection also stores its verified account identifier, email, issued client ID, granted scopes, expiry, and a stable opaque host ID. It does not import ChatGPT conversations. Disconnect clears local tokens and attempts remote revocation; the non-secret account registration remains available for later sign-in. Remove app access in ChatGPT Settings if revocation could not be confirmed.
 
 ## Data sent to third parties
 

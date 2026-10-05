@@ -6,7 +6,8 @@ import {
 	buildExtensionArchive,
 	configuredExtensionOrigins,
 	extensionMatchPatterns,
-	parseExtensionOrigin
+	parseExtensionOrigin,
+	readSignedFirefoxPackage
 } from '$lib/server/browser/extension-package';
 
 const roots: string[] = [];
@@ -29,6 +30,29 @@ async function fixture(
 
 function manifest(matches: string[], version = '0.4.2') {
 	return { version, content_scripts: [{ matches, js: ['config.js', 'content.js'] }] };
+}
+
+/**
+ * A built package plus the pair `npm run extension:sign` leaves beside it. `buildVersion` is what
+ * the unpacked package claims, `signedVersion` what AMO signed, so the two can drift apart.
+ */
+async function signedFixture(options: {
+	buildVersion?: string;
+	signedVersion?: string;
+	signature?: boolean;
+}) {
+	const { buildVersion = '0.4.2', signedVersion = '0.4.2', signature = true } = options;
+	const root = await fixture('firefox', manifest([], buildVersion));
+	const directory = join(root, 'static', 'extensions');
+	await writeFile(
+		join(directory, 'firefox-signed.json'),
+		JSON.stringify({ version: signedVersion, allowedOrigins: ['http://localhost:5173'] })
+	);
+	await writeFile(
+		join(directory, 'mimin-search-firefox.xpi'),
+		Buffer.from(signature ? 'PK\u0003\u0004META-INF/cose.sig' : 'PK\u0003\u0004not actually signed')
+	);
+	return root;
 }
 
 /** Reads the stored (uncompressed) entries back out of an archive this module wrote. */
@@ -166,5 +190,34 @@ describe('buildExtensionArchive', () => {
 		await expect(
 			buildExtensionArchive({ target: 'chrome', origins: ['http://a.test'], root })
 		).rejects.toThrow(/no manifest\.json/);
+	});
+});
+
+describe('readSignedFirefoxPackage', () => {
+	it('returns the signed package with the origins it bridges', async () => {
+		const root = await signedFixture({});
+		const signed = await readSignedFirefoxPackage(root);
+
+		expect(signed?.version).toBe('0.4.2');
+		expect(signed?.allowedOrigins).toEqual(['http://localhost:5173']);
+		expect(signed?.data.length).toBeGreaterThan(0);
+	});
+
+	it('treats a signature older than the built package as absent', async () => {
+		const root = await signedFixture({ buildVersion: '0.4.3', signedVersion: '0.4.2' });
+
+		expect(await readSignedFirefoxPackage(root)).toBeUndefined();
+	});
+
+	it('treats an XPI without a signature as absent', async () => {
+		const root = await signedFixture({ signature: false });
+
+		expect(await readSignedFirefoxPackage(root)).toBeUndefined();
+	});
+
+	it('is absent when nothing was ever signed', async () => {
+		const root = await fixture('firefox', manifest([]));
+
+		expect(await readSignedFirefoxPackage(root)).toBeUndefined();
 	});
 });

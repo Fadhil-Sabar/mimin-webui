@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const testState = vi.hoisted(() => ({
 	user: { id: 'user-1' } as { id: string } | null,
-	builds: [] as Array<{ target: string; origins: string[] }>
+	builds: [] as Array<{ target: string; origins: string[] }>,
+	signed: undefined as
+		| { version: string; allowedOrigins: string[]; universal?: boolean; data: Buffer }
+		| undefined
 }));
 
 vi.mock('$lib/server/api', () => ({
@@ -28,12 +31,14 @@ vi.mock('$lib/server/browser/extension-package', async (importOriginal) => {
 				testState.builds.push({ target, origins });
 				return Buffer.from('zip-bytes');
 			}
-		)
+		),
+		readSignedFirefoxPackage: vi.fn(async () => testState.signed)
 	};
 });
 
 import type { RequestEvent } from '@sveltejs/kit';
-import { GET } from '../src/routes/api/browser/extension/[target]/+server';
+import { EXTENSION_PACKAGE_HEADER } from '../src/lib/browser-extension-package';
+import { GET, HEAD } from '../src/routes/api/browser/extension/[target]/+server';
 
 const PAGE_ORIGIN = 'http://100.76.208.102:3200';
 
@@ -53,6 +58,7 @@ describe('GET /api/browser/extension/[target]', () => {
 	beforeEach(() => {
 		testState.user = { id: 'user-1' };
 		testState.builds = [];
+		testState.signed = undefined;
 		delete process.env.MIMIN_EXTENSION_ORIGINS;
 	});
 
@@ -64,9 +70,78 @@ describe('GET /api/browser/extension/[target]', () => {
 		expect(response.headers.get('content-disposition')).toBe(
 			'attachment; filename="mimin-search-chrome.zip"'
 		);
+		expect(response.headers.get(EXTENSION_PACKAGE_HEADER)).toBe('unpacked');
 		expect(response.headers.get('cache-control')).toBe('no-store');
 		expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('zip-bytes');
 		expect(testState.builds).toEqual([{ target: 'chrome', origins: [PAGE_ORIGIN] }]);
+	});
+
+	it('serves the signed XPI when it already bridges this origin', async () => {
+		testState.signed = {
+			version: '0.4.2',
+			allowedOrigins: [PAGE_ORIGIN, 'https://mimin.example.com'],
+			data: Buffer.from('signed-xpi')
+		};
+
+		const response = await GET(requestEvent('firefox'));
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get('content-type')).toBe('application/x-xpinstall');
+		expect(response.headers.get('content-disposition')).toBe(
+			'attachment; filename="mimin-search-firefox.xpi"'
+		);
+		expect(response.headers.get(EXTENSION_PACKAGE_HEADER)).toBe('signed');
+		expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('signed-xpi');
+		// A signed artifact cannot be rebuilt, so it is served as-is or not at all.
+		expect(testState.builds).toEqual([]);
+	});
+
+	it('serves a universal signed XPI to an origin it was not built for', async () => {
+		// The whole point of a universal package: one signed artifact, every self-hosted address,
+		// and nobody has to sign anything.
+		testState.signed = {
+			version: '0.4.3',
+			allowedOrigins: [],
+			universal: true,
+			data: Buffer.from('signed-xpi')
+		};
+
+		const response = await GET(requestEvent('firefox'));
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get('content-type')).toBe('application/x-xpinstall');
+		expect(response.headers.get(EXTENSION_PACKAGE_HEADER)).toBe('signed');
+		expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('signed-xpi');
+		expect(testState.builds).toEqual([]);
+	});
+
+	it('falls back to the temporary package when the signature misses this origin', async () => {
+		testState.signed = {
+			version: '0.4.2',
+			allowedOrigins: ['https://somewhere-else.test'],
+			data: Buffer.from('signed-xpi')
+		};
+
+		const response = await GET(requestEvent('firefox'));
+
+		expect(response.headers.get('content-type')).toBe('application/zip');
+		expect(response.headers.get(EXTENSION_PACKAGE_HEADER)).toBe('temporary');
+		expect(testState.builds).toEqual([{ target: 'firefox', origins: [PAGE_ORIGIN] }]);
+	});
+
+	it('probes the artifact kind without sending the package', async () => {
+		testState.signed = {
+			version: '0.4.2',
+			allowedOrigins: [PAGE_ORIGIN],
+			data: Buffer.from('signed-xpi')
+		};
+
+		const response = await HEAD(requestEvent('firefox'));
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get(EXTENSION_PACKAGE_HEADER)).toBe('signed');
+		expect(response.headers.get('content-length')).toBe('10');
+		expect((await response.arrayBuffer()).byteLength).toBe(0);
 	});
 
 	it('adds the origins configured in the environment', async () => {

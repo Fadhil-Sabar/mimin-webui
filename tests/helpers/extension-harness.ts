@@ -24,18 +24,32 @@ export type MockTab = {
 
 export const PROBE_ORIGIN = 'http://localhost:5173';
 
+/** The add-on id `web-ext sign` uses, which is also the sender id of extension pages. */
+export const EXTENSION_ID = 'mimin-search@mimin.local';
+
 function matchesPattern(pattern: string, origin: string) {
 	if (pattern === 'http://*/*') return origin.startsWith('http://');
 	if (pattern === 'https://*/*') return origin.startsWith('https://');
 	return pattern.replace(/\/\*$/, '') === origin.replace(/\/\*$/, '');
 }
 
-export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) {
+export function loadExtension(options: {
+	tabs: MockTab[];
+	granted?: string[];
+	/** Overrides for the baked `config.js`, which the shipped package sets universal. */
+	config?: AnyRecord;
+}) {
 	const hooks: AnyRecord = {};
 	const messageListeners: Array<(message: unknown, sender: unknown, reply: unknown) => unknown> =
 		[];
 	const updateListeners = new Set<(id: number, info: AnyRecord) => void>();
-	const executeCalls: Array<{ name: string; args: unknown[] }> = [];
+	const executeCalls: Array<{
+		name: string;
+		args: unknown[];
+		/** Set when the call injected a file rather than a function, as connecting a site does. */
+		files?: string[];
+		target?: unknown;
+	}> = [];
 	const granted = options.granted ?? [];
 	const tabs: MockTab[] = options.tabs.map((tab) => ({ ...tab }));
 	const stored: AnyRecord = {};
@@ -61,9 +75,16 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 	const digests: AnyRecord[] = [];
 	const updateCalls: Array<{ id: number; props: AnyRecord }> = [];
 	const createCalls: AnyRecord[] = [];
+	/** Dynamic content scripts, keyed by id, as `scripting.registerContentScripts` would keep them. */
+	const registeredScripts = new Map<string, AnyRecord>();
+
+	/** The mock's `permissions.contains` semantics: a grant covers a match pattern host. */
+	const hostGranted = (match: string) =>
+		granted.some((pattern) => matchesPattern(pattern, match.replace(/\/\*$/, '')));
 
 	const chromeMock: AnyRecord = {
 		runtime: {
+			id: EXTENSION_ID,
 			onMessage: { addListener: (listener: unknown) => messageListeners.push(listener as never) },
 			lastError: undefined
 		},
@@ -117,13 +138,32 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 			executeScript: async (injection: AnyRecord) => {
 				const func = injection.func as { name?: string } | undefined;
 				const name = func?.name ?? 'anonymous';
-				executeCalls.push({ name, args: (injection.args as unknown[]) ?? [] });
+				const call: {
+					name: string;
+					args: unknown[];
+					/** Set when the call injected a file rather than a function, as connecting a site does. */
+					files?: string[];
+				} = { name, args: (injection.args as unknown[]) ?? [] };
+				if (injection.files) call.files = injection.files as string[];
+				executeCalls.push(call);
 				if (name === 'pageSnapshot') return [{ result: snapshot.value }];
 				if (name === 'interactPage') return [{ result: interactOutcome.value }];
 				if (name === 'pageDigest')
 					return [{ result: digests.length > 1 ? digests.shift() : (digests[0] ?? null) }];
 				return [{ result: undefined }];
-			}
+			},
+			registerContentScripts: async (scripts: AnyRecord[]) => {
+				for (const script of scripts) {
+					const matches = (script.matches as string[]) ?? [];
+					if (!matches.length || !matches.every((match) => hostGranted(match)))
+						throw new Error(`Permission denied for ${matches.join(', ')}`);
+					registeredScripts.set(String(script.id), script);
+				}
+			},
+			unregisterContentScripts: async ({ ids = [] }: AnyRecord) => {
+				for (const id of ids as string[]) registeredScripts.delete(id);
+			},
+			getRegisteredContentScripts: async () => [...registeredScripts.values()]
 		},
 		permissions: {
 			contains: async ({ origins = [] }: AnyRecord) =>
@@ -137,8 +177,12 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 
 	vi.stubGlobal('chrome', chromeMock);
 	vi.stubGlobal('MIMIN_EXTENSION_CONFIG', {
-		version: '0.4.2',
-		allowedOrigins: [PROBE_ORIGIN]
+		version: '0.4.3',
+		allowedOrigins: [PROBE_ORIGIN],
+		// The shipped package is universal and trusts localhost on any port; a test can narrow it.
+		universal: true,
+		trustLocalhost: true,
+		...options.config
 	});
 	vi.stubGlobal('MIMIN_EXTENSION_TEST_HOOKS', hooks);
 
@@ -163,8 +207,16 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 			);
 		});
 
+	/** Dispatch a popup-style message, as an extension page would send it. */
+	const sendMessage = (message: AnyRecord, sender: AnyRecord = { id: EXTENSION_ID }) =>
+		new Promise<AnyRecord>((resolve) => {
+			const listener = messageListeners[0];
+			listener(message, sender, resolve);
+		});
+
 	return {
 		send,
+		sendMessage,
 		hooks,
 		executeCalls,
 		/** Fire a `tabs.onUpdated` event the way the browser would. */
@@ -176,7 +228,8 @@ export function loadExtension(options: { tabs: MockTab[]; granted?: string[] }) 
 		stored,
 		updateCalls,
 		createCalls,
-		chromeMock
+		chromeMock,
+		registeredScripts
 	};
 }
 
@@ -269,9 +322,12 @@ export function loadContentScript(options: {
 	};
 	sandbox.globalThis = sandbox;
 	const context = createContext(sandbox);
-	runInContext(
-		readFileSync(new URL('../../browser-extension/src/content.js', import.meta.url), 'utf8'),
-		context
+	const source = readFileSync(
+		new URL('../../browser-extension/src/content.js', import.meta.url),
+		'utf8'
 	);
-	return { sent };
+	runInContext(source, context);
+	/** Run the same file again in the same context, as a second injection would. */
+	const install = () => runInContext(source, context);
+	return { sent, install };
 }

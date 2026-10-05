@@ -193,11 +193,11 @@ describe('extension tab actions', () => {
 		expect(reply.error).toBe('Unsupported bridge action.');
 	});
 
-	it('refuses requests from a page that is not an allowed Mimin origin', async () => {
+	it('refuses requests from a page that is not connected to the bridge', async () => {
 		const harness = loadExtension({ tabs: exampleTabs, granted: ['https://*/*'] });
 		const reply = await harness.send('browser_tabs_list', {}, 'https://evil.example.com');
 		expect(reply.ok).toBe(false);
-		expect(reply.error).toBe('This page is not an allowed Mimin origin.');
+		expect(reply.error).toBe('This Mimin page is not connected to the Browser Bridge.');
 	});
 });
 

@@ -50,7 +50,9 @@ export const POST: RequestHandler = async (event) => {
 			const credential = await getProviderCredential(user.id, parsed.data.provider);
 			const credentialUrl =
 				credential.baseUrl ??
-				(isProviderId(parsed.data.provider) ? modelListUrl(parsed.data.provider) : null);
+				(isProviderId(parsed.data.provider) && parsed.data.provider !== 'chatgpt'
+					? modelListUrl(parsed.data.provider)
+					: null);
 			if (credentialUrl && outboundOrigin(credentialUrl) === outboundOrigin(parsed.data.baseUrl)) {
 				const envKeyOnUserEndpoint =
 					Boolean(credential.baseUrl) &&

@@ -3,12 +3,22 @@ import {
 	BROWSER_BRIDGE_STORAGE_KEY,
 	getBrowserBridgeStatus,
 	handleBrowserRequest,
+	REQUIRED_BROWSER_EXTENSION_VERSION,
 	requestBrowserBridge,
 	setBrowserBridgeEnabled
 } from '../src/lib/client/browser-bridge';
 import { streamMessage } from '../src/lib/client/api';
 
 type Listener = (event: MessageEvent) => void;
+
+/**
+ * A version the client always accepts as current. Deriving it keeps these tests from needing an
+ * edit every time the required extension version is bumped.
+ */
+const NEWER_VERSION = (() => {
+	const [major, minor] = REQUIRED_BROWSER_EXTENSION_VERSION.split('.').map(Number);
+	return `${major}.${(minor ?? 0) + 1}.0`;
+})();
 
 function createWindowMock() {
 	const listeners = new Set<Listener>();
@@ -63,7 +73,7 @@ describe('browser bridge client', () => {
 			connected: false,
 			updateRequired: false,
 			message: 'Disabled on this browser.',
-			requiredVersion: '0.4.2'
+			requiredVersion: REQUIRED_BROWSER_EXTENSION_VERSION
 		});
 		await expect(requestBrowserBridge('ping')).rejects.toThrow('Browser bridge is disabled.');
 		expect(windowMock.postMessage).not.toHaveBeenCalled();
@@ -77,7 +87,7 @@ describe('browser bridge client', () => {
 			connected: false,
 			updateRequired: false,
 			message: 'Disabled on this browser.',
-			requiredVersion: '0.4.2'
+			requiredVersion: REQUIRED_BROWSER_EXTENSION_VERSION
 		});
 		expect(windowMock.postMessage).not.toHaveBeenCalled();
 	});
@@ -92,7 +102,7 @@ describe('browser bridge client', () => {
 			connected: false,
 			updateRequired: false,
 			message: 'Browser request canceled.',
-			requiredVersion: '0.4.2'
+			requiredVersion: REQUIRED_BROWSER_EXTENSION_VERSION
 		});
 		expect(windowMock.postMessage).toHaveBeenCalledWith(
 			expect.objectContaining({ source: 'mimin-webui', action: 'ping' }),
@@ -207,7 +217,7 @@ describe('browser bridge client', () => {
 					ok: true,
 					result:
 						message.action === 'ping'
-							? { version: '0.4.2', permissions: { google: true, publicWebsites: true } }
+							? { version: NEWER_VERSION, permissions: { google: true, publicWebsites: true } }
 							: { url: 'https://chatgpt.com/share/example', title: 'Shared chat' }
 				})
 			);
@@ -271,7 +281,7 @@ describe('browser bridge client', () => {
 		);
 	});
 
-	it('detects outdated extension (installed 0.2.0, required 0.4.1) and marks update required', async () => {
+	it('detects an extension older than the required version and marks update required', async () => {
 		setBrowserBridgeEnabled(true);
 		windowMock.postMessage.mockImplementation((message: { id: string; action: string }) => {
 			if (message.action !== 'ping') return;
@@ -292,7 +302,7 @@ describe('browser bridge client', () => {
 		expect(status.connected).toBe(false);
 		expect(status.updateRequired).toBe(true);
 		expect(status.version).toBe('0.2.0');
-		expect(status.requiredVersion).toBe('0.4.2');
+		expect(status.requiredVersion).toBe(REQUIRED_BROWSER_EXTENSION_VERSION);
 		expect(status.message).toContain('Extension update required');
 	});
 
@@ -307,7 +317,7 @@ describe('browser bridge client', () => {
 					ok: true,
 					result: {
 						// Newer than this client requires, so it must still be accepted.
-						version: '0.4.2',
+						version: NEWER_VERSION,
 						permissions: { google: true, publicWebsites: true }
 					}
 				})
@@ -317,8 +327,8 @@ describe('browser bridge client', () => {
 		const status = await getBrowserBridgeStatus();
 		expect(status.connected).toBe(true);
 		expect(status.updateRequired).toBe(false);
-		expect(status.version).toBe('0.4.2');
-		expect(status.requiredVersion).toBe('0.4.2');
+		expect(status.version).toBe(NEWER_VERSION);
+		expect(status.requiredVersion).toBe(REQUIRED_BROWSER_EXTENSION_VERSION);
 		expect(status.permissions?.publicWebsites).toBe(true);
 	});
 });

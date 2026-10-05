@@ -26,6 +26,7 @@ import { createAgentEventQueue } from './agent-event-queue';
 import { loadTurnContext } from './turn-context';
 import { buildTurnTools } from './turn-tools';
 import { buildTurnPrompts } from './turn-prompt';
+import { chatGptPlanPayload, chatGptPlanErrorMessage } from './chatgpt-plan-payload';
 import {
 	isConversationTurnCanceled,
 	refreshConversationTurnCanceled,
@@ -99,12 +100,26 @@ export async function runConversationTurn(
 	// turn-outcome.ts).
 	const registry = modelRegistry();
 	const registryStream = registry.streamSimple.bind(registry);
-	const streamFn: typeof registryStream = (model, context, options) =>
-		registryStream(
-			model,
-			context,
-			configuredMaxTokens ? { ...options, maxTokens: configuredMaxTokens } : options
-		);
+	const streamFn: typeof registryStream = (model, context, options) => {
+		const chatGptPlan = model.provider === 'chatgpt';
+		const safeOptions = chatGptPlan
+			? {
+					...options,
+					temperature: undefined,
+					serviceTier: undefined,
+					cacheRetention: 'none' as const,
+					sessionId: undefined,
+					samplingParams: undefined,
+					headers: undefined,
+					maxTokens: undefined
+				}
+			: options;
+		return registryStream(model, context, {
+			...safeOptions,
+			...(chatGptPlan ? { onPayload: chatGptPlanPayload } : {}),
+			...(configuredMaxTokens && !chatGptPlan ? { maxTokens: configuredMaxTokens } : {})
+		});
+	};
 	const agentMessages = toAgentMessages(history, toolCallsByMessage, historicalAttachments);
 	timing.markContextAssembled({
 		promptChars: systemPrompt.length + turnPrompt.length,
@@ -126,7 +141,17 @@ export async function runConversationTurn(
 			if (policy) pendingToolFailureNotice = WEB_SEARCH_FAILURE_NOTICE;
 			return policy;
 		},
-		getApiKey: credential?.apiKey ? () => credential.apiKey as string : undefined
+		getApiKey: credential?.apiKey
+			? async () => {
+					if (requestModel.provider === 'chatgpt') {
+						const { getChatGptAccessToken } = await import('./chatgpt-plan.service');
+						const token = await getChatGptAccessToken(userId ?? conversation.userId ?? '');
+						if (!token) throw new Error('ChatGPT is disconnected. Reconnect in Settings.');
+						return token;
+					}
+					return credential.apiKey as string;
+				}
+			: undefined
 	});
 	await registerActiveAgent(conversationId, agent, turnToken);
 	// The row's lease keeps other instances from reclaiming a turn that is alive
@@ -533,8 +558,10 @@ export async function runConversationTurn(
 				notice: turnOutcome.last.notice
 			});
 		}
+		const failureMessage = (message: string) =>
+			requestModel.provider === 'chatgpt' ? chatGptPlanErrorMessage(message) : message;
 		if (agent.state.errorMessage) {
-			throw new Error(agent.state.errorMessage);
+			throw new Error(failureMessage(agent.state.errorMessage));
 		}
 		const lastMsg = agent.state.messages[agent.state.messages.length - 1];
 		if (
@@ -543,7 +570,9 @@ export async function runConversationTurn(
 			(lastMsg as { stopReason?: string }).stopReason === 'error'
 		) {
 			throw new Error(
-				(lastMsg as { errorMessage?: string }).errorMessage || 'Agent execution failed'
+				failureMessage(
+					(lastMsg as { errorMessage?: string }).errorMessage || 'Agent execution failed'
+				)
 			);
 		}
 		if (lastTextAssistantMessageId && (projectCitations.length > 0 || webCitations.length > 0)) {

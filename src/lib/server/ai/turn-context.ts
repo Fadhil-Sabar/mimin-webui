@@ -4,6 +4,7 @@ import { getDb, schema } from '$lib/server/db/client';
 import {
 	configuredModelMaxTokens,
 	listAvailableModels,
+	loadChatGptPlanModels,
 	resolveModel,
 	splitModelRef
 } from './model.service';
@@ -78,6 +79,10 @@ export async function loadTurnContext({
 	if (effectiveUserId) {
 		credential = await getProviderCredential(effectiveUserId, provider);
 		if (credential.baseUrl) assertConfiguredEndpoint(credential.baseUrl);
+		if (provider === 'chatgpt' && !credential.apiKey)
+			throw new Error(
+				'ChatGPT is disconnected. Reconnect in Settings or explicitly choose another provider.'
+			);
 		if (!credential.apiKey && !credential.customConfig) {
 			const available = await listAvailableModels(effectiveUserId);
 			if (available.length > 0) {
@@ -110,9 +115,13 @@ export async function loadTurnContext({
 			apiKey: envKeyOnUserEndpoint ? null : credential.apiKey
 		};
 	}
-	const model = resolveModel(provider, modelId, credential);
+	const model =
+		provider === 'chatgpt'
+			? (await loadChatGptPlanModels(credential)).find((model) => model.id === modelId)
+			: resolveModel(provider, modelId, credential);
 	if (!model) throw new Error('MODEL_NOT_AVAILABLE');
 	// A user-saved base URL points the provider adapters at a custom endpoint.
+	const isChatGptPlan = provider === 'chatgpt';
 	const isCustomOpenAi =
 		provider === 'openai' &&
 		Boolean(
@@ -121,7 +130,21 @@ export async function loadTurnContext({
 	const requestModel = {
 		...model,
 		...(credential?.baseUrl ? { baseUrl: credential.baseUrl } : {}),
-		...(isCustomOpenAi ? { api: 'openai-completions' as const } : {})
+		...(isCustomOpenAi ? { api: 'openai-completions' as const } : {}),
+		...(isChatGptPlan
+			? {
+					api: 'openai-responses' as const,
+					baseUrl: 'https://api.openai.com/v1',
+					headers: {},
+					compat: {
+						...model.compat,
+						supportsToolSearch: false,
+						supportsAdditionalTools: false,
+						supportsExplicitPromptCacheMode: false,
+						supportsLongCacheRetention: false
+					}
+				}
+			: {})
 	};
 	// A custom provider gets an output cap only when its model entry declares one.
 	// Reasoning and the answer share that budget, so it has to be known before the

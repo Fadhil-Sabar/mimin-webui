@@ -28,6 +28,7 @@ import {
 	type ProviderId
 } from './provider-settings.service';
 import {
+	fetchChatGptPlanModels,
 	fetchCustomProviderModels,
 	fetchProviderModels,
 	modelDisplayName,
@@ -37,6 +38,7 @@ import {
 import { BoundedTtlLruCache, hashSecret } from '../cache';
 
 const PROVIDERS: DiscoverableProvider[] = ['openai', 'anthropic', 'google'];
+const CHATGPT_PROVIDER = 'chatgpt';
 const LIVE_MODEL_CACHE_TTL = 60_000;
 const FAILED_MODEL_CACHE_TTL = 10_000;
 const LIVE_MODEL_CACHE_MAX_ENTRIES = 128;
@@ -81,6 +83,26 @@ function createCustomOpenAiProvider() {
 function getRegistry() {
 	if (registry) return registry;
 	registry = createModels();
+	registry.setProvider(
+		createProvider({
+			id: CHATGPT_PROVIDER,
+			name: 'ChatGPT plan',
+			baseUrl: 'https://api.openai.com/v1',
+			auth: {
+				apiKey: {
+					name: 'ChatGPT access token',
+					resolve: async ({ credential, signal }) => {
+						signal.throwIfAborted();
+						return credential?.key
+							? { auth: { apiKey: credential.key }, source: 'user ChatGPT plan token' }
+							: { auth: {}, source: 'unconnected ChatGPT plan' };
+					}
+				}
+			},
+			models: [],
+			api: { 'openai-responses': openAIResponsesApi() }
+		})
+	);
 	registry.setProvider(createCustomOpenAiProvider());
 	registry.setProvider(anthropicProvider());
 	registry.setProvider(googleProvider());
@@ -92,10 +114,11 @@ export function isProviderConfigured(provider: string) {
 	return isProviderId(provider) && Boolean(providerKeyFromEnv(provider));
 }
 
-const PROVIDER_NAMES: Record<DiscoverableProvider, string> = {
+const PROVIDER_NAMES: Record<string, string> = {
 	openai: 'OpenAI',
 	anthropic: 'Anthropic',
-	google: 'Google'
+	google: 'Google',
+	chatgpt: 'ChatGPT plan'
 };
 
 export interface AppModel {
@@ -434,6 +457,19 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 	const customCredentials = userId
 		? (await listProviderCredentials(userId)).filter((credential) => credential.customConfig)
 		: [];
+	let chatgptModels: RuntimeModel[] = [];
+	if (userId) {
+		try {
+			const credential = await getProviderCredential(userId, CHATGPT_PROVIDER);
+			chatgptModels = await loadChatGptPlanModels(credential);
+		} catch {
+			// A revoked subscription must not break other providers.
+			errors.push({
+				provider: CHATGPT_PROVIDER,
+				message: 'Could not load ChatGPT plan models. Reconnect in Settings.'
+			});
+		}
+	}
 
 	for (const { provider, credential, loaded } of loadedProviders) {
 		if (loaded.error) errors.push({ provider, message: loaded.error });
@@ -457,6 +493,25 @@ export async function listModels(userId?: string): Promise<ModelListResult> {
 				source: loaded.source
 			});
 		}
+	}
+
+	for (const model of chatgptModels) {
+		models.push({
+			id: model.id,
+			provider: CHATGPT_PROVIDER,
+			providerName: PROVIDER_NAMES.chatgpt,
+			name: model.name,
+			contextWindow: model.contextWindow,
+			capabilities: {
+				vision: model.input?.includes('image') ?? false,
+				tools: true,
+				reasoning: Boolean(model.reasoning),
+				thinkingLevels: getSupportedThinkingLevels(model)
+			},
+			configured: true,
+			userConfigured: true,
+			source: 'live'
+		});
 	}
 
 	for (const credential of customCredentials) {
@@ -566,7 +621,77 @@ export async function isModelAvailable(userId: string, value: string) {
 	return available.some((model) => model.provider === parsed.provider && model.id === parsed.id);
 }
 
+export async function loadChatGptPlanModels(
+	credential?: ProviderCredential
+): Promise<RuntimeModel[]> {
+	if (!credential?.apiKey) return [];
+	const manualIds = [
+		...new Set((credential.chatGptModelIds ?? []).map((id) => id.trim()).filter(Boolean))
+	];
+	const key = `chatgpt:${hashSecret(credential.apiKey)}`;
+	const cached = liveModelCache.get(key);
+	let discovered: Awaited<ReturnType<typeof fetchChatGptPlanModels>> = [];
+	let discoveryError = cached?.error;
+	if (cached) {
+		discovered = cached.models.map((model) => ({
+			id: model.id,
+			name: model.name,
+			reasoning: model.reasoning,
+			contextWindow: model.contextWindow
+		}));
+	} else {
+		try {
+			discovered = await fetchChatGptPlanModels(credential.apiKey);
+		} catch (error) {
+			// Account selections remain usable when catalog discovery is unavailable.
+			discoveryError = error instanceof Error ? error.message : 'ChatGPT model discovery failed';
+		}
+	}
+	const entries = new Map(discovered.map((item) => [item.id, item]));
+	for (const id of manualIds)
+		if (!entries.has(id)) entries.set(id, { id, name: modelDisplayName(id) });
+	const models = [...entries.values()].map((item): RuntimeModel => {
+		const template = getRegistry()
+			.getModels('openai')
+			.find((model) => model.id === item.id);
+		return {
+			...(template ?? {}),
+			id: item.id,
+			name: item.name,
+			provider: CHATGPT_PROVIDER,
+			api: 'openai-responses',
+			baseUrl: 'https://api.openai.com/v1',
+			reasoning: item.reasoning ?? template?.reasoning ?? /^(o[1-9]|gpt-[5-9])/i.test(item.id),
+			input: template?.input ?? ['text'],
+			contextWindow: item.contextWindow ?? template?.contextWindow ?? 128_000,
+			maxTokens: template?.maxTokens ?? 16_384,
+			// Plan usage has no API per-token price. Never show invented API costs.
+			cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			headers: {},
+			compat: {
+				...template?.compat,
+				supportsToolSearch: false,
+				supportsAdditionalTools: false,
+				supportsExplicitPromptCacheMode: false,
+				supportsLongCacheRetention: false
+			}
+		};
+	});
+	if (!cached) {
+		const discoveredIds = new Set(discovered.map((item) => item.id));
+		// Cache only server-discovered entries; manual edits must take effect immediately.
+		liveModelCache.set(
+			key,
+			{ models: models.filter((model) => discoveredIds.has(model.id)), error: discoveryError },
+			discoveryError ? FAILED_MODEL_CACHE_TTL : LIVE_MODEL_CACHE_TTL
+		);
+	}
+	if (discoveryError && models.length === 0) throw new Error(discoveryError);
+	return models;
+}
+
 export function resolveModel(provider: string, id: string, credential?: ProviderCredential) {
+	if (provider === CHATGPT_PROVIDER) return undefined;
 	if (credential?.customConfig) registerCustomProvider(credential);
 	const existing = getRegistry().getModel(provider, id);
 	if (existing) return existing;
@@ -585,7 +710,7 @@ export function resolveModel(provider: string, id: string, credential?: Provider
 			maxTokens: 8_192
 		} as RuntimeModel;
 	}
-	if (!isProviderId(provider) || !id.trim()) return undefined;
+	if (!isProviderId(provider) || provider === CHATGPT_PROVIDER || !id.trim()) return undefined;
 	return runtimeModel(provider, { id: id.trim() });
 }
 export function modelRegistry() {

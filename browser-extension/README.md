@@ -178,8 +178,30 @@ Chrome, Edge, Brave, and other Chromium browsers:
 
 Firefox:
 
+**Permanent (signed).** Firefox release only installs signed add-ons, and an unsigned package is
+exactly what forces the `about:debugging` route — where the add-on is gone again on the next
+restart. Sign the package once with your own Mozilla Add-ons credentials:
+
+```bash
+npm run extension:build   # bakes the origins, defaults to localhost:5173 and 127.0.0.1:5173
+npm run extension:sign    # WEB_EXT_API_KEY / WEB_EXT_API_SECRET, or ~/.config/mimin/amo.json
+```
+
+That signs through the AMO `unlisted` channel: Mozilla validates and signs the package immediately,
+nothing is listed publicly, and no store review is queued. It writes
+`static/extensions/mimin-search-firefox.xpi`; install it by opening the file in Firefox, or
+**about:addons -> Install Add-on From File**. From then on it is an ordinary installed add-on:
+no `about:debugging`, nothing to reload after a restart.
+
+A signed package cannot be rebuilt per download, so it bridges exactly the origins baked in at build
+time. Put every origin the install must answer in `MIMIN_EXTENSION_ORIGINS` **before** signing, and
+sign again after adding one.
+
+**Temporary (development).** Unchanged, and still the right route while iterating on the extension
+itself — a rebuild is picked up without re-signing:
+
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Choose **Load Temporary Add-on**.
 3. Select `static/extensions/firefox/manifest.json`.
 
-Firefox removes temporary add-ons when the browser restarts. Publish and sign the package through Mozilla Add-ons for permanent installation and automatic updates. Likewise, publish the Chrome package through the Chrome Web Store for normal end-user installation.
+Firefox removes temporary add-ons when the browser restarts. The Chrome package is signed by the Chrome Web Store for normal end-user installation.
