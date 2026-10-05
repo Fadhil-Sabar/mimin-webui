@@ -360,31 +360,10 @@
 				{/key}</Button
 			>
 		</div>
-		{#if conversation?.model?.startsWith('chatgpt/')}
-			<div class="chatgpt-plan-note">
-				<span>Using ChatGPT plan</span>
-				<a href="https://chatgpt.com/settings/usage" target="_blank" rel="noopener noreferrer"
-					>Manage usage</a
-				>
-			</div>
-		{/if}
 	</div>
 </div>
 
 <style>
-	.chatgpt-plan-note {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-2);
-		padding: 0 var(--space-3) var(--space-2);
-		font-size: 11px;
-		color: var(--text-muted);
-	}
-	.chatgpt-plan-note a {
-		color: inherit;
-		text-decoration: underline;
-		text-underline-offset: 3px;
-	}
 	.skill-status {
 		display: flex;
 		align-items: center;
