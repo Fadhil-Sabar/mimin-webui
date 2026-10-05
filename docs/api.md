@@ -92,6 +92,7 @@ same-origin browser request):
 GET    /api/providers/chatgpt   # connected, account, pending/status/error
 POST   /api/providers/chatgpt   # starts OAuth; returns authorizationUrl/callbackPort
 DELETE /api/providers/chatgpt   # disconnects and cancels an in-flight attempt
+POST   /api/providers/chatgpt/complete # completes a pending attempt from { callbackUrl }
 GET    /api/providers/chatgpt/models # returns { modelIds: string[] } manual additions
 PUT    /api/providers/chatgpt/models # saves { modelIds: string[] } manual additions
 ```
@@ -111,8 +112,12 @@ the browser must be on the same host/network namespace as the app server.
 Run `npm run db:migrate` before using the new connection. Set
 `PROVIDER_KEY_ENCRYPTION_SECRET` to a durable secret as for API-key storage.
 Docker-published ports do not make a container's loopback listener accessible
-from the host browser. Remote-browser and remote-VM setups are unsupported; do
-not weaken the loopback bind or expose the listener publicly. The API status is
+from the host browser. When the browser cannot reach the callback page, paste
+the full `http://127.0.0.1:…/auth/callback?code=…` address into
+`POST /api/providers/chatgpt/complete`, which validates `state`, `client_id`, and
+the attempt TTL exactly like the listener and does not relax the loopback bind.
+Codes are single use and short lived, so paste the newest URL while the attempt
+is still pending. The API status is
 process-local and there is one active listener per process; concurrent attempts
 receive `409 CHATGPT_OAUTH_BUSY`. Run this local connection on a single Mimin
 process; OAuth attempt state and refresh serialization are process-local.

@@ -118,6 +118,119 @@ function html(success: boolean) {
 		: 'The connection could not be completed. Return to Mimin and try again.';
 	return `<!doctype html><html lang="en"><meta charset="utf-8"><title>${heading}</title><body><main><h1>${heading}</h1><p>${message}</p></main></body></html>`;
 }
+
+type CallbackFailure = 'expired' | 'state' | 'declined' | 'invalid' | 'exchange';
+
+type CallbackOutcome = { ok: true } | { ok: false; status: 200 | 400; reason: CallbackFailure };
+
+/**
+ * Validates and consumes an authorization callback. The loopback listener and
+ * the paste-a-URL flow both go through here so they apply identical checks and
+ * a single attempt can only ever be consumed once.
+ */
+async function applyCallback(attempt: Attempt, url: URL): Promise<CallbackOutcome> {
+	const userId = attempt.userId;
+	if (
+		pending !== attempt ||
+		attempt.status !== 'pending' ||
+		Date.now() - attempt.createdAt > ATTEMPT_TTL_MS
+	)
+		return { ok: false, status: 400, reason: 'expired' };
+	if (url.searchParams.get('state') !== attempt.state)
+		return { ok: false, status: 400, reason: 'state' };
+	if (url.searchParams.has('error')) {
+		attempt.status = 'failed';
+		attemptResults.set(userId, {
+			status: 'failed',
+			error: 'authorization',
+			expiresAt: Date.now() + ATTEMPT_TTL_MS
+		});
+		attempt.fail(new Error('ChatGPT authorization was declined'));
+		return { ok: false, status: 200, reason: 'declined' };
+	}
+	const code = url.searchParams.get('code');
+	const callbackClientId = url.searchParams.get('client_id');
+	if (
+		!code ||
+		(attempt.clientId === 'dynamic_agent_client' &&
+			(!callbackClientId || callbackClientId === 'dynamic_agent_client')) ||
+		(callbackClientId &&
+			callbackClientId !== attempt.clientId &&
+			attempt.clientId !== 'dynamic_agent_client')
+	) {
+		attempt.status = 'failed';
+		attemptResults.set(userId, {
+			status: 'failed',
+			error: 'authorization',
+			expiresAt: Date.now() + ATTEMPT_TTL_MS
+		});
+		attempt.fail(new Error('Invalid ChatGPT callback'));
+		return { ok: false, status: 400, reason: 'invalid' };
+	}
+	const clientId =
+		attempt.clientId === 'dynamic_agent_client' ? callbackClientId! : attempt.clientId;
+	attempt.status = 'exchanging';
+	try {
+		const token = await tokenRequest(
+			new URLSearchParams({
+				grant_type: 'authorization_code',
+				client_id: clientId,
+				code,
+				code_verifier: attempt.verifier,
+				redirect_uri: attempt.redirectUri,
+				resource: RESOURCE
+			})
+		);
+		if (pending !== attempt || attempt.status !== 'exchanging')
+			return { ok: false, status: 400, reason: 'expired' };
+		if (
+			!token.access_token ||
+			!token.refresh_token ||
+			!token.id_token ||
+			token.token_type?.toLowerCase() !== 'bearer'
+		)
+			throw new Error('Incomplete token response');
+		const scopes = scopesFrom(token.scope);
+		requireScopes(scopes);
+		const identity = await verifiedIdentity(token.id_token, clientId, attempt.nonce);
+		if (pending !== attempt || attempt.status !== 'exchanging')
+			return { ok: false, status: 400, reason: 'expired' };
+		if (attempt.expectedSubject && identity.subject !== attempt.expectedSubject)
+			throw new Error('ChatGPT account changed');
+		const tokens: Tokens = {
+			...identity,
+			clientId,
+			accessToken: token.access_token,
+			refreshToken: token.refresh_token,
+			idToken: token.id_token,
+			scopes,
+			expiresAt: tokenExpiry(token),
+			hostId: await hostId()
+		};
+		if (pending !== attempt || attempt.status !== 'exchanging')
+			return { ok: false, status: 400, reason: 'expired' };
+		await save(userId, tokens);
+		if (pending !== attempt || attempt.status !== 'exchanging') {
+			await deleteIfRefreshMatches(userId, tokens.refreshToken);
+			return { ok: false, status: 400, reason: 'expired' };
+		}
+		attempt.status = 'completed';
+		attemptResults.delete(userId);
+		attempt.finish(tokens);
+		return { ok: true };
+	} catch {
+		if (pending === attempt && attempt.status === 'exchanging') {
+			attempt.status = 'failed';
+			attemptResults.set(userId, {
+				status: 'failed',
+				error: 'authorization',
+				expiresAt: Date.now() + ATTEMPT_TTL_MS
+			});
+			attempt.fail(new Error('ChatGPT connection could not be validated'));
+		}
+		return { ok: false, status: 200, reason: 'exchange' };
+	}
+}
 async function tokenRequest(body: URLSearchParams): Promise<TokenResponse> {
 	const response = await fetch(TOKEN_ENDPOINT, {
 		method: 'POST',
@@ -330,116 +443,9 @@ export async function startChatGptPlanConnection(userId: string) {
 				response.writeHead(404).end('Not found');
 				return;
 			}
-			if (
-				pending !== attempt ||
-				attempt.status !== 'pending' ||
-				Date.now() - attempt.createdAt > ATTEMPT_TTL_MS ||
-				url.searchParams.get('state') !== attempt.state
-			) {
-				response.writeHead(400, headers).end(html(false));
-				return;
-			}
-			if (url.searchParams.has('error')) {
-				response.writeHead(200, headers).end(html(false));
-				attempt.status = 'failed';
-				attemptResults.set(userId, {
-					status: 'failed',
-					error: 'authorization',
-					expiresAt: Date.now() + ATTEMPT_TTL_MS
-				});
-				attempt.fail(new Error('ChatGPT authorization was declined'));
-				return;
-			}
-			const code = url.searchParams.get('code');
-			const callbackClientId = url.searchParams.get('client_id');
-			if (
-				!code ||
-				(attempt.clientId === 'dynamic_agent_client' &&
-					(!callbackClientId || callbackClientId === 'dynamic_agent_client')) ||
-				(callbackClientId &&
-					callbackClientId !== attempt.clientId &&
-					attempt.clientId !== 'dynamic_agent_client')
-			) {
-				response.writeHead(400, headers).end(html(false));
-				attempt.status = 'failed';
-				attemptResults.set(userId, {
-					status: 'failed',
-					error: 'authorization',
-					expiresAt: Date.now() + ATTEMPT_TTL_MS
-				});
-				attempt.fail(new Error('Invalid ChatGPT callback'));
-				return;
-			}
-			const clientId =
-				attempt.clientId === 'dynamic_agent_client' ? callbackClientId! : attempt.clientId;
-			attempt.status = 'exchanging';
-			try {
-				const token = await tokenRequest(
-					new URLSearchParams({
-						grant_type: 'authorization_code',
-						client_id: clientId,
-						code,
-						code_verifier: attempt.verifier,
-						redirect_uri: attempt.redirectUri,
-						resource: RESOURCE
-					})
-				);
-				if (pending !== attempt || attempt.status !== 'exchanging') {
-					response.writeHead(400, headers).end(html(false));
-					return;
-				}
-				if (
-					!token.access_token ||
-					!token.refresh_token ||
-					!token.id_token ||
-					token.token_type?.toLowerCase() !== 'bearer'
-				)
-					throw new Error('Incomplete token response');
-				const scopes = scopesFrom(token.scope);
-				requireScopes(scopes);
-				const identity = await verifiedIdentity(token.id_token, clientId, attempt.nonce);
-				if (pending !== attempt || attempt.status !== 'exchanging') {
-					response.writeHead(400, headers).end(html(false));
-					return;
-				}
-				if (attempt.expectedSubject && identity.subject !== attempt.expectedSubject)
-					throw new Error('ChatGPT account changed');
-				const tokens: Tokens = {
-					...identity,
-					clientId,
-					accessToken: token.access_token,
-					refreshToken: token.refresh_token,
-					idToken: token.id_token,
-					scopes,
-					expiresAt: tokenExpiry(token),
-					hostId: await hostId()
-				};
-				if (pending !== attempt || attempt.status !== 'exchanging') {
-					response.writeHead(400, headers).end(html(false));
-					return;
-				}
-				await save(userId, tokens);
-				if (pending !== attempt || attempt.status !== 'exchanging') {
-					await deleteIfRefreshMatches(userId, tokens.refreshToken);
-					response.writeHead(400, headers).end(html(false));
-					return;
-				}
-				attempt.status = 'completed';
-				attemptResults.delete(userId);
-				response.writeHead(200, headers).end(html(true));
-				attempt.finish(tokens);
-			} catch {
-				if (!response.writableEnded) response.writeHead(200, headers).end(html(false));
-				if (pending === attempt && attempt.status === 'exchanging') {
-					attempt.status = 'failed';
-					attemptResults.set(userId, {
-						status: 'failed',
-						error: 'authorization',
-						expiresAt: Date.now() + ATTEMPT_TTL_MS
-					});
-					attempt.fail(new Error('ChatGPT connection could not be validated'));
-				}
-			}
+			const outcome = await applyCallback(attempt, url);
+			if (outcome.ok) response.writeHead(200, headers).end(html(true));
+			else response.writeHead(outcome.status, headers).end(html(false));
 		});
 		const [saved] = await getDb()
 			.select()
@@ -492,6 +498,104 @@ export async function startChatGptPlanConnection(userId: string) {
 		cleanup();
 		throw error;
 	}
+}
+
+export type ChatGptPlanCompletionReason =
+	'no-attempt' | 'expired' | 'state' | 'declined' | 'invalid' | 'exchange';
+
+export class ChatGptPlanCompletionError extends Error {
+	readonly reason: ChatGptPlanCompletionReason;
+	readonly code: string;
+	constructor(reason: ChatGptPlanCompletionReason, code: string, message: string) {
+		super(message);
+		this.name = 'ChatGptPlanCompletionError';
+		this.reason = reason;
+		this.code = code;
+	}
+}
+
+const COMPLETION_FAILURES: Record<ChatGptPlanCompletionReason, { code: string; message: string }> =
+	{
+		'no-attempt': {
+			code: 'NO_ACTIVE_ATTEMPT',
+			message:
+				'No ChatGPT sign-in is waiting for this account. Start sign-in again, then paste the new callback URL.'
+		},
+		expired: {
+			code: 'ATTEMPT_EXPIRED',
+			message: 'This sign-in attempt already finished or expired. Start sign-in again.'
+		},
+		state: {
+			code: 'STATE_MISMATCH',
+			message:
+				'This callback URL belongs to a different sign-in attempt. Start sign-in again and paste the new URL.'
+		},
+		declined: {
+			code: 'AUTHORIZATION_DECLINED',
+			message: 'ChatGPT declined this authorization. Start sign-in again to retry.'
+		},
+		invalid: {
+			code: 'INVALID_CALLBACK_URL',
+			message:
+				'That is not a valid ChatGPT callback URL. Paste the full address starting with http://127.0.0.1: including the code parameter.'
+		},
+		exchange: {
+			code: 'CODE_REJECTED',
+			message:
+				'OpenAI rejected this authorization code. Codes are single use and expire quickly; start sign-in again and paste the new URL.'
+		}
+	};
+
+function callbackUrlFromInput(input: string) {
+	const trimmed = input.trim();
+	if (!trimmed || trimmed.length > 4096)
+		throw new ChatGptPlanCompletionError(
+			'invalid',
+			COMPLETION_FAILURES.invalid.code,
+			COMPLETION_FAILURES.invalid.message
+		);
+	let url: URL;
+	try {
+		url = new URL(trimmed);
+	} catch {
+		throw new ChatGptPlanCompletionError(
+			'invalid',
+			COMPLETION_FAILURES.invalid.code,
+			COMPLETION_FAILURES.invalid.message
+		);
+	}
+	if (url.protocol !== 'http:' || url.pathname !== CALLBACK_PATH)
+		throw new ChatGptPlanCompletionError(
+			'invalid',
+			COMPLETION_FAILURES.invalid.code,
+			COMPLETION_FAILURES.invalid.message
+		);
+	return url;
+}
+
+/**
+ * Completes a pending sign-in from a pasted callback URL. This exists because
+ * the callback listener only binds 127.0.0.1: when the browser runs on a
+ * different machine (remote browser, or an app in a container), the redirect
+ * cannot reach the server, and the user pastes the URL they landed on instead.
+ */
+export async function completeChatGptPlanConnection(userId: string, input: string) {
+	cleanAttempts();
+	const url = callbackUrlFromInput(input);
+	const attempt = pending && pending.userId === userId ? pending : undefined;
+	if (!attempt || attempt.status !== 'pending' || Date.now() - attempt.createdAt > ATTEMPT_TTL_MS)
+		throw new ChatGptPlanCompletionError(
+			'no-attempt',
+			COMPLETION_FAILURES['no-attempt'].code,
+			COMPLETION_FAILURES['no-attempt'].message
+		);
+	const outcome = await applyCallback(attempt, url);
+	if (!outcome.ok) {
+		const failure = COMPLETION_FAILURES[outcome.reason];
+		throw new ChatGptPlanCompletionError(outcome.reason, failure.code, failure.message);
+	}
+	const connection = await getChatGptPlanConnection(userId);
+	return { ok: true as const, email: connection?.email ?? null };
 }
 
 export async function disconnectChatGptPlanConnection(userId: string) {

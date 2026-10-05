@@ -81,6 +81,8 @@
 	let chatGptDisposed = false;
 	let chatGptModelIds = $state<string[]>([]);
 	let chatGptModelIdDraft = $state('');
+	let chatGptCallbackUrl = $state('');
+	let chatGptCallbackBusy = $state(false);
 	let chatGptModelsLoading = $state(true);
 	let chatGptModelsBusy = $state(false);
 	let chatGptModelsError = $state<string | null>(null);
@@ -400,6 +402,45 @@
 			chatGptBusy = false;
 			chatGpt.pending = false;
 			chatGptError = error instanceof Error ? error.message : 'Could not start ChatGPT sign-in';
+		}
+	}
+
+	async function submitChatGptCallbackUrl() {
+		if (chatGptCallbackBusy) return;
+		const callbackUrl = chatGptCallbackUrl.trim();
+		if (!callbackUrl) {
+			chatGptError = 'Paste the callback URL from the browser address bar.';
+			return;
+		}
+		chatGptCallbackBusy = true;
+		chatGptError = null;
+		try {
+			const response = await fetch('/api/providers/chatgpt/complete', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ callbackUrl })
+			});
+			const data = await response.json().catch(() => ({}));
+			if (!response.ok) throw new Error(errorMessage(data, 'Could not complete ChatGPT sign-in'));
+			chatGptCallbackUrl = '';
+			chatGptFlowActive = false;
+			stopChatGptPolling();
+			chatGptBusy = false;
+			chatGptError = null;
+			chatGpt = {
+				connected: true,
+				email: typeof data?.email === 'string' ? data.email : null,
+				pending: false
+			};
+			if (authWindow && !authWindow.closed) authWindow.close();
+			authWindow = null;
+			chatGptStatus = 'ChatGPT connected.';
+			await fetchProviders();
+			notifyModelsChanged();
+		} catch (error) {
+			chatGptError = error instanceof Error ? error.message : 'Could not complete ChatGPT sign-in';
+		} finally {
+			chatGptCallbackBusy = false;
 		}
 	}
 
@@ -864,6 +905,43 @@
 									{chatGptModelsError}
 								</p>{/if}
 						</div>
+						{#if !chatGpt.connected}
+							<div class="chatgpt-model-config" aria-labelledby="chatgpt-callback-title">
+								<h3 id="chatgpt-callback-title">Callback page did not load?</h3>
+								<p class="chatgpt-disclaimer" id="chatgpt-callback-help">
+									Sign-in finishes at <code>http://127.0.0.1:…</code> on the computer running your browser.
+									If that page cannot load (remote browser, server install, or another device), copy the
+									full address from the address bar and paste it here.
+								</p>
+								<form
+									class="chatgpt-model-form"
+									onsubmit={(event) => {
+										event.preventDefault();
+										void submitChatGptCallbackUrl();
+									}}
+								>
+									<label class="sr-only" for="chatgpt-callback-url">Callback URL</label>
+									<input
+										id="chatgpt-callback-url"
+										type="text"
+										inputmode="url"
+										bind:value={chatGptCallbackUrl}
+										placeholder="http://127.0.0.1:1234/auth/callback?code=…"
+										autocomplete="off"
+										spellcheck="false"
+										maxlength="4096"
+										aria-describedby="chatgpt-callback-help"
+										disabled={chatGptCallbackBusy}
+									/>
+									<button
+										type="submit"
+										class="chatgpt-button secondary"
+										disabled={chatGptCallbackBusy || !chatGptCallbackUrl.trim()}
+										>{chatGptCallbackBusy ? 'Completing…' : 'Complete sign-in'}</button
+									>
+								</form>
+							</div>
+						{/if}
 						{#if chatGptStatus}<p class="chatgpt-status" role="status">{chatGptStatus}</p>{/if}
 						{#if chatGptError}<p class="chatgpt-error" role="alert">{chatGptError}</p>{/if}
 					</div>
