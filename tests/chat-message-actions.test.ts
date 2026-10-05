@@ -1,5 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+// @vitest-environment happy-dom
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render } from 'svelte/server';
+import { copyToClipboard } from '../src/lib/client/copy-to-clipboard';
 import ChatMessage from '../src/routes/(app)/chat/ChatMessage.svelte';
 import type { ConversationMessage } from '../src/routes/(app)/chat/chat-types';
 
@@ -23,6 +25,14 @@ function renderMessage(message: ConversationMessage, options: Record<string, unk
 		}
 	}).body;
 }
+
+let copiedText = '';
+
+afterEach(() => {
+	copiedText = '';
+	document.body.innerHTML = '';
+	vi.restoreAllMocks();
+});
 
 describe('ChatMessage assistant actions', () => {
 	it('shows accessible copy and regenerate actions for the latest completed response', () => {
@@ -48,6 +58,47 @@ describe('ChatMessage assistant actions', () => {
 
 		expect(body).toContain('aria-label="Regenerate response"');
 		expect(body).toContain('disabled=""');
+	});
+});
+
+describe('copyToClipboard', () => {
+	it('copies the complete response through the Clipboard API', async () => {
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+
+		await expect(copyToClipboard('First partSecond part')).resolves.toBe(true);
+		expect(writeText).toHaveBeenCalledWith('First partSecond part');
+	});
+
+	it('uses the legacy command when Clipboard API is missing and restores focus/cleans up', async () => {
+		Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+		const execCommand = vi.fn(() => {
+			copiedText = document.querySelector('textarea')?.value ?? '';
+			return true;
+		});
+		Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+		const trigger = document.createElement('button');
+		document.body.appendChild(trigger);
+		trigger.focus();
+
+		await expect(copyToClipboard('Exact response body')).resolves.toBe(true);
+
+		expect(copiedText).toBe('Exact response body');
+		expect(document.activeElement).toBe(trigger);
+		expect(document.querySelector('textarea')).toBeNull();
+	});
+
+	it('falls back when Clipboard API rejects and reports failure if the legacy command fails', async () => {
+		Object.defineProperty(navigator, 'clipboard', {
+			configurable: true,
+			value: { writeText: vi.fn().mockRejectedValue(new Error('denied')) }
+		});
+		const execCommand = vi.fn(() => false);
+		Object.defineProperty(document, 'execCommand', { configurable: true, value: execCommand });
+
+		await expect(copyToClipboard('Response')).resolves.toBe(false);
+		expect(execCommand).toHaveBeenCalledWith('copy');
+		expect(document.querySelector('textarea')).toBeNull();
 	});
 });
 

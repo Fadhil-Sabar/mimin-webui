@@ -851,7 +851,7 @@
 	.workspace-split {
 		display: grid;
 		flex: 1;
-		height: calc(100dvh - var(--topbar-h) - var(--mobile-nav-h));
+		height: 100%;
 		overflow: hidden;
 		position: relative;
 		min-width: 0;

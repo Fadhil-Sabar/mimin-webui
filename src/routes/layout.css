@@ -272,8 +272,6 @@
 	--topbar-h: 66px;
 	--content-max: 1100px;
 	--content-max-wide: 1100px;
-	/* Reserved for the mobile bottom nav; zero until the nav is shown. */
-	--mobile-nav-h: 0px;
 }
 
 /* ---------- MD3 motion: duration scale ----------
@@ -932,7 +930,6 @@ svg {
 	min-width: 0;
 	overflow-y: auto;
 	height: 100dvh;
-	padding-bottom: var(--mobile-nav-h);
 	scrollbar-width: thin;
 	scrollbar-color: var(--scrollbar-thumb) transparent;
 }
@@ -1458,7 +1455,6 @@ svg {
 @media (max-width: 760px) {
 	:root {
 		--topbar-h: 56px;
-		--mobile-nav-h: 56px;
 	}
 	.app-shell {
 		grid-template-columns: 1fr;
@@ -1587,26 +1583,6 @@ svg {
 		background-image: none;
 	}
 }
-/* Keep the source offer visible for AGPL network deployments. */
-.source-link {
-	position: fixed;
-	right: 0.75rem;
-	bottom: calc(0.5rem + var(--mobile-nav-h));
-	z-index: 20;
-	font-size: var(--text-label-sm);
-	line-height: var(--text-label-sm--line-height);
-	letter-spacing: var(--text-label-sm--letter-spacing);
-	color: var(--text-muted);
-	text-decoration: none;
-	opacity: 0.75;
-}
-
-.source-link:hover,
-.source-link:focus-visible {
-	opacity: 1;
-	text-decoration: underline;
-}
-
 /* Mimin design pack shell */
 @media (min-width: 761px) {
 	.app-shell {

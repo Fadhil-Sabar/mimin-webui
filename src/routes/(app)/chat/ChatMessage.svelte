@@ -12,6 +12,7 @@
 	} from '@lucide/svelte';
 	import { onMount, untrack } from 'svelte';
 	import { createTextPacer } from '$lib/client/text-pacer';
+	import { copyToClipboard } from '$lib/client/copy-to-clipboard';
 	import Markdown from '$lib/components/Markdown.svelte';
 	import SmoothDisclosure from '$lib/components/SmoothDisclosure.svelte';
 	import * as Bubble from '$lib/components/ui/bubble';
@@ -201,13 +202,7 @@
 	let copyStatus = $state<'idle' | 'copied' | 'failed'>('idle');
 
 	async function copyResponse() {
-		try {
-			if (!navigator.clipboard) throw new Error('Clipboard unavailable');
-			await navigator.clipboard.writeText(bodyText);
-			copyStatus = 'copied';
-		} catch {
-			copyStatus = 'failed';
-		}
+		copyStatus = (await copyToClipboard(bodyText)) ? 'copied' : 'failed';
 	}
 </script>
 
@@ -407,7 +402,11 @@
 								class="message-action-btn state-layer"
 								onclick={copyResponse}
 								aria-label="Copy response"
-								data-tooltip={copyStatus === 'copied' ? 'Copied' : 'Copy response'}
+								data-tooltip={copyStatus === 'copied'
+									? 'Copied'
+									: copyStatus === 'failed'
+										? 'Copy failed'
+										: 'Copy response'}
 							>
 								{#if copyStatus === 'copied'}<Check size={14} aria-hidden="true" />{:else}<Clipboard
 										size={14}

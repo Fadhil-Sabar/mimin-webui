@@ -72,7 +72,7 @@
 	let isMobile = $state(
 		typeof window !== 'undefined' ? window.matchMedia('(max-width: 760px)').matches : false
 	);
-	let mobileView = $state<'list' | 'detail'>('detail');
+	let mobileView = $state<'list' | 'detail'>('list');
 	let query = $state('');
 
 	let modelsDirty = $state(false);
@@ -129,16 +129,18 @@
 	onMount(() => {
 		const media = window.matchMedia('(max-width: 760px)');
 		isMobile = media.matches;
-		const update = (event: MediaQueryListEvent) => (isMobile = event.matches);
+		const update = (event: MediaQueryListEvent) => {
+			isMobile = event.matches;
+			if (!event.matches && settingsModal.open) mobileView = 'detail';
+		};
 		media.addEventListener('change', update);
 		return () => media.removeEventListener('change', update);
 	});
 
 	$effect(() => {
 		if (settingsModal.open) {
-			// Whenever modal opens or active tab is reopened, reset mobileView
-			void settingsModal.activeTab;
-			mobileView = 'detail';
+			// Mobile starts at the category menu; desktop always shows the active detail.
+			mobileView = isMobile ? 'list' : 'detail';
 		}
 	});
 
@@ -166,7 +168,7 @@
 			mobileView = 'detail';
 		} else {
 			settingsModal.open = true;
-			mobileView = 'detail';
+			mobileView = isMobile ? 'list' : 'detail';
 		}
 	}
 

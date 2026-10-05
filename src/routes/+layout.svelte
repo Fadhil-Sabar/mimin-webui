@@ -50,9 +50,3 @@
 {@render children()}
 <ConversationSearchModal />
 <Toaster />
-<a
-	class="source-link"
-	href="https://github.com/Fadhil-Sabar/mimin-webui"
-	target="_blank"
-	rel="noreferrer">Source · AGPL-3.0</a
->

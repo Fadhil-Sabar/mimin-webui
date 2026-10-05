@@ -269,6 +269,36 @@ test('opens the selected settings tab only when clicked', async ({ page }) => {
 	);
 });
 
+test('opens settings category list on mobile and returns from details', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await expect(page.locator('.mobile-nav')).toHaveCount(0);
+	await expect(page.getByRole('link', { name: 'Source · AGPL-3.0' })).toHaveCount(0);
+	await dock(page).getByRole('button', { name: 'Settings', exact: true }).dispatchEvent('click');
+	const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
+	await expect(settings.locator('.settings-nav-header h2')).toBeVisible();
+	await expect(settings.getByRole('textbox', { name: 'Search settings' })).toBeVisible();
+	await expect(settings.getByRole('button', { name: 'Models & Providers' })).toBeVisible();
+	await expect(settings.getByRole('button', { name: 'Instructions' })).toBeVisible();
+	await expect(settings.getByRole('button', { name: 'Web Search' })).toBeVisible();
+	await expect(settings.getByRole('button', { name: 'Browser Extension' })).toBeVisible();
+	await expect(settings.getByRole('button', { name: 'Preferences' })).toBeVisible();
+	await expect(settings.getByRole('button', { name: 'Users' })).toBeVisible();
+	await expect(settings.getByText('Add a provider', { exact: true })).toHaveCount(0);
+
+	await settings.getByRole('button', { name: 'Instructions' }).click();
+	await expect(settings.getByRole('button', { name: 'Back to settings tabs' })).toBeVisible();
+	await expect(settings.getByRole('heading', { name: 'Custom instructions', exact: true })).toBeVisible();
+	await settings.getByRole('button', { name: 'Back to settings tabs' }).click();
+	await expect(settings.locator('.settings-nav-header h2')).toBeVisible();
+	await settings.getByRole('button', { name: 'Instructions' }).click();
+	await settings.getByRole('button', { name: 'Close settings', exact: true }).click();
+	await expect(settings).toHaveCount(0);
+	await dock(page).getByRole('button', { name: 'Settings', exact: true }).dispatchEvent('click');
+	await expect(settings.locator('.settings-nav-header h2')).toBeVisible();
+});
+
 test('keeps touch navigation click-driven and restores mobile content after closing', async ({
 	page
 }) => {
