@@ -1,20 +1,31 @@
-import Prism from 'prismjs';
-// Keep the initial bundle focused on the languages most common in chat.
-// Unknown/less common languages safely fall back to escaped plaintext.
-import 'prismjs/components/prism-markup.js';
-import 'prismjs/components/prism-css.js';
-import 'prismjs/components/prism-clike.js';
-import 'prismjs/components/prism-javascript.js';
-import 'prismjs/components/prism-typescript.js';
-import 'prismjs/components/prism-jsx.js';
-import 'prismjs/components/prism-tsx.js';
-import 'prismjs/components/prism-bash.js';
-import 'prismjs/components/prism-json.js';
-import 'prismjs/components/prism-json5.js';
-import 'prismjs/components/prism-python.js';
-import 'prismjs/components/prism-sql.js';
-import 'prismjs/components/prism-yaml.js';
-import 'prismjs/components/prism-markdown.js';
+type PrismInstance = (typeof import('./prism-languages'))['default'];
+
+let prism: PrismInstance | null = null;
+let prismLoad: Promise<void> | null = null;
+
+/** True once the Prism grammar bundle has finished loading. */
+export function isHighlighterReady(): boolean {
+	return prism !== null;
+}
+
+/**
+ * Loads Prism and its grammars on demand. Callers that render code should await
+ * this and then re-render; `highlightCode` stays synchronous and escapes plain
+ * text until it resolves.
+ */
+export function ensureHighlighter(): Promise<void> {
+	if (prism) return Promise.resolve();
+	prismLoad ??= import('./prism-languages')
+		.then((module) => {
+			prism = module.default;
+		})
+		.catch((error) => {
+			// Allow a later attempt to retry after a transient chunk-load failure.
+			prismLoad = null;
+			throw error;
+		});
+	return prismLoad;
+}
 
 const LANGUAGE_ALIASES: Record<string, string> = {
 	js: 'javascript',
@@ -136,11 +147,11 @@ export function escapeHtml(str: string): string {
 export function highlightCode(code: string, rawLang?: string): { html: string; language: string } {
 	const raw = (rawLang || '').trim().toLowerCase().split(/\s+/)[0];
 	const language = LANGUAGE_ALIASES[raw] || raw || 'text';
-	const grammar = Prism.languages[language];
+	const grammar = prism?.languages[language];
 
-	if (grammar) {
+	if (prism && grammar) {
 		try {
-			return { html: Prism.highlight(code, grammar, language), language };
+			return { html: prism.highlight(code, grammar, language), language };
 		} catch {
 			/* fallback to escaped plain text */
 		}

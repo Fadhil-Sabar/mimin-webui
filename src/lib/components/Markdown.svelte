@@ -5,7 +5,12 @@
 	import 'katex/dist/katex.min.css';
 	import { expand } from '$lib/client/motion';
 	import { ChevronDown, ExternalLink, Globe } from '@lucide/svelte';
-	import { escapeHtml, highlightCode } from '$lib/client/highlighter';
+	import {
+		ensureHighlighter,
+		escapeHtml,
+		highlightCode,
+		isHighlighterReady
+	} from '$lib/client/highlighter';
 	import {
 		parseCitationsAndSources,
 		renderCitationPillHtml,
@@ -82,6 +87,7 @@
 		content: string;
 		sourcesKey: string;
 		mathReady: boolean;
+		highlighterReady: boolean;
 		result: { segments: MarkdownSegment[]; sources: SourceItem[] };
 	} | null = null;
 
@@ -216,9 +222,39 @@
 		if (MATH_HINT.test(content)) void enableMathSupport();
 	});
 
+	/**
+	 * Prism is loaded on demand too: the first rendered content that contains a code
+	 * fence triggers the dynamic import, then the derived below re-parses with the
+	 * grammar bundle present. Until then code blocks render as escaped plaintext.
+	 */
+	const CODE_HINT = /```|~~~/;
+	let highlighterRequested = false;
+	let highlighterReady = $state(isHighlighterReady());
+
+	async function enableHighlighting() {
+		if (highlighterRequested) return;
+		highlighterRequested = true;
+		try {
+			await ensureHighlighter();
+		} catch {
+			// Code stays as escaped plaintext; a later mount can try again.
+			highlighterRequested = false;
+			return;
+		}
+		// Rendered HTML cached before this point is unhighlighted.
+		invalidateSegmentCache(marked);
+		highlighterReady = true;
+	}
+
+	$effect(() => {
+		if (highlighterReady || typeof content !== 'string' || !content) return;
+		if (CODE_HINT.test(content)) void enableHighlighting();
+	});
+
 	let processed = $derived.by(() => {
-		// Read so the parse re-runs once the lazy KaTeX extension has landed.
+		// Read so the parse re-runs once the lazy KaTeX extension or Prism lands.
 		void mathReady;
+		void highlighterReady;
 		if (!renderedContent || typeof renderedContent !== 'string') {
 			return { segments: [] as MarkdownSegment[], sources: [] as SourceItem[] };
 		}
@@ -233,7 +269,8 @@
 			lastProcessed &&
 			lastProcessed.content === renderedContent &&
 			lastProcessed.sourcesKey === sourcesKey &&
-			lastProcessed.mathReady === mathReady
+			lastProcessed.mathReady === mathReady &&
+			lastProcessed.highlighterReady === highlighterReady
 		) {
 			return lastProcessed.result;
 		}
@@ -263,7 +300,7 @@
 				sources
 			};
 		}
-		lastProcessed = { content: renderedContent, sourcesKey, mathReady, result };
+		lastProcessed = { content: renderedContent, sourcesKey, mathReady, highlighterReady, result };
 		return result;
 	});
 

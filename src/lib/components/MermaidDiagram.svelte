@@ -16,7 +16,7 @@
 	} from '@lucide/svelte';
 	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import * as Tabs from '$lib/components/ui/tabs/index.js';
-	import { highlightCode } from '$lib/client/highlighter';
+	import { ensureHighlighter, highlightCode, isHighlighterReady } from '$lib/client/highlighter';
 	import { themeState } from '$lib/client/theme.svelte';
 	import { renderMermaid, getCachedMermaidSvg, downloadSvg } from '$lib/client/mermaid';
 
@@ -46,8 +46,16 @@
 	let startPanX = 0;
 	let startPanY = 0;
 
-	// Highlighted code for Code tab
+	// Highlighted code for Code tab. Prism may still be loading; re-render once it lands.
+	let highlighterReady = $state(isHighlighterReady());
+	$effect(() => {
+		if (highlighterReady) return;
+		void ensureHighlighter()
+			.then(() => (highlighterReady = true))
+			.catch(() => {});
+	});
 	let highlightedCode = $derived.by(() => {
+		void highlighterReady;
 		return highlightCode(code, 'mermaid').html;
 	});
 

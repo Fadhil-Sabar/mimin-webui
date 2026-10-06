@@ -103,23 +103,23 @@ vi.mock('$lib/server/db/client', () => {
 			return chain;
 		}),
 		insert: vi.fn((table: unknown) => ({
-			values: vi.fn((values: Record<string, unknown> | Array<Record<string, unknown>>) => ({
-				returning: vi.fn(async () => {
-					if (table === schema.conversations) {
-						state.createdConversation = { id: 'branch-1', ...values };
-						return [state.createdConversation];
-					}
-					if (table === schema.messages) {
-						const row = {
-							id: `copy-${state.createdMessages.length + 1}`,
-							...(values as Record<string, unknown>)
-						};
-						state.createdMessages.push(row);
-						return [row];
-					}
-					return [];
-				})
-			}))
+			values: vi.fn((values: Record<string, unknown> | Array<Record<string, unknown>>) => {
+				const rows = Array.isArray(values) ? values : [values];
+				// The branch route copies messages with a single bulk insert (no returning),
+				// so record them when `values` is called and stay thenable for `await`.
+				if (table === schema.messages) state.createdMessages.push(...rows);
+				return {
+					returning: vi.fn(async () => {
+						if (table === schema.conversations) {
+							state.createdConversation = { id: 'branch-1', ...rows[0] };
+							return [state.createdConversation];
+						}
+						return rows;
+					}),
+					then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+						Promise.resolve(rows).then(resolve, reject)
+				};
+			})
 		}))
 	};
 	return { getDb: () => db, schema };

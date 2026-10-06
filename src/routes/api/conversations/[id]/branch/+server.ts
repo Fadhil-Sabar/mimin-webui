@@ -1,4 +1,5 @@
 import type { RequestHandler } from '@sveltejs/kit';
+import { randomUUID } from 'node:crypto';
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
 import { getDb, schema } from '$lib/server/db/client';
 import { apiError, getOwnedConversation, handleApiError, requireUser } from '$lib/server/api';
@@ -118,26 +119,27 @@ export const POST: RequestHandler = async (event) => {
 				.returning();
 			if (!created) throw new Error('BRANCH_NOT_CREATED');
 
+			// Generate the copies' ids up front so the whole prefix lands in one
+			// INSERT instead of a round trip per message.
 			const messageMap = new Map<string, string>();
-			for (const message of selectedMessages) {
-				const [copy] = await tx
-					.insert(schema.messages)
-					.values({
-						conversationId: created.id,
-						role: message.role,
-						content: message.content,
-						skillSnapshot: message.skillSnapshot,
-						stopReason: message.stopReason,
-						usage: message.usage,
-						timing: message.timing,
-						turnState: message.turnState,
-						completedAt: message.completedAt,
-						createdAt: message.createdAt
-					})
-					.returning({ id: schema.messages.id });
-				if (!copy) throw new Error('BRANCH_MESSAGE_NOT_CREATED');
-				messageMap.set(message.id, copy.id);
-			}
+			const messageCopies = selectedMessages.map((message) => {
+				const id = randomUUID();
+				messageMap.set(message.id, id);
+				return {
+					id,
+					conversationId: created.id,
+					role: message.role,
+					content: message.content,
+					skillSnapshot: message.skillSnapshot,
+					stopReason: message.stopReason,
+					usage: message.usage,
+					timing: message.timing,
+					turnState: message.turnState,
+					completedAt: message.completedAt,
+					createdAt: message.createdAt
+				};
+			});
+			if (messageCopies.length) await tx.insert(schema.messages).values(messageCopies);
 			if (attachments.length)
 				await tx.insert(schema.messageAttachments).values(
 					attachments.map((attachment) => ({

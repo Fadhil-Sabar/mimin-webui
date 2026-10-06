@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { SvelteFlowProvider } from '@xyflow/svelte';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { ArrowDown } from '@lucide/svelte';
 	import { reveal } from '$lib/client/motion';
@@ -106,13 +105,14 @@
 		notify
 	});
 
-	// The workspace (and the flow/canvas editor it pulls in) loads only when the
-	// pane is actually opened, keeping it out of the chat page's initial bundle.
-	type WorkspaceComponent = typeof import('$lib/components/CanvasWorkspace.svelte').default;
+	// The workspace (and the flow/canvas editor it pulls in, including
+	// `@xyflow/svelte`) loads only when the pane is actually opened, keeping it out
+	// of the chat page's initial bundle.
+	type WorkspaceComponent = typeof import('$lib/components/CanvasWorkspaceHost.svelte').default;
 	let Workspace = $state<WorkspaceComponent | null>(null);
 	$effect(() => {
 		if (!canvas.canvasOpen || Workspace) return;
-		void import('$lib/components/CanvasWorkspace.svelte').then((module) => {
+		void import('$lib/components/CanvasWorkspaceHost.svelte').then((module) => {
 			Workspace = module.default;
 		});
 	});
@@ -809,20 +809,19 @@
 					!!canvas.activeCanvas &&
 					canvas.mobileTab === 'chat'}
 			>
-				<SvelteFlowProvider
-					>{#if Workspace}
-						<Workspace
-							canvas={canvas.activeCanvas}
-							userId={data.user?.id}
-							onupdatescene={canvas.handleUpdateScene}
-							oncreatescene={canvas.handleCreateScene}
-							ondeletescene={canvas.handleDeleteScene}
-							oncreateconnection={canvas.handleCreateConnection}
-							ondeleteconnection={canvas.handleDeleteConnection}
-							onupdateguideline={canvas.handleUpdateGuideline}
-							onrefresh={() => canvas.loadCanvasForConversation(canvas.activeCanvas?.id)}
-						/>{/if}
-				</SvelteFlowProvider>
+				{#if Workspace}
+					<Workspace
+						canvas={canvas.activeCanvas}
+						userId={data.user?.id}
+						onupdatescene={canvas.handleUpdateScene}
+						oncreatescene={canvas.handleCreateScene}
+						ondeletescene={canvas.handleDeleteScene}
+						oncreateconnection={canvas.handleCreateConnection}
+						ondeleteconnection={canvas.handleDeleteConnection}
+						onupdateguideline={canvas.handleUpdateGuideline}
+						onrefresh={() => canvas.loadCanvasForConversation(canvas.activeCanvas?.id)}
+					/>
+				{/if}
 			</div>
 		{/if}
 	</div>

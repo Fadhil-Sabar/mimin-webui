@@ -23,8 +23,9 @@ export const GET: RequestHandler = async (event) => {
 		const id = event.params.id;
 		if (!id) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		const db = getDb();
-		const conversation = await getOwnedConversation(id, user.id);
-		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
+		// Ownership and the message page are independent reads; run them together so a
+		// conversation open costs two database round trips instead of a serial chain.
+		const conversationPromise = getOwnedConversation(id, user.id);
 		const limit = Number(event.url.searchParams.get('limit') ?? '50');
 		if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
 			return apiError('INVALID_INPUT', 'limit must be an integer between 1 and 100.');
@@ -54,32 +55,81 @@ export const GET: RequestHandler = async (event) => {
 				)
 			)
 			.orderBy(desc(schema.messages.createdAt), desc(schema.messages.id));
-		const rawRows = await (typeof (messageQuery as { limit?: unknown }).limit === 'function'
-			? messageQuery.limit(limit + 1)
-			: messageQuery);
+		const [conversation, rawRows] = await Promise.all([
+			conversationPromise,
+			typeof (messageQuery as { limit?: unknown }).limit === 'function'
+				? messageQuery.limit(limit + 1)
+				: messageQuery
+		]);
+		if (!conversation) return apiError('CONVERSATION_NOT_FOUND', 'Conversation not found.', 404);
 		const hasMore = rawRows.length > limit;
 		// The page boundary comes from a newest-first query, but the client renders
 		// chronologically, so the kept slice is reversed back.
 		const rows = rawRows.slice(0, limit).reverse();
 		const pageMessageIds = rows.map((row) => row.id);
-		const calls = pageMessageIds.length
-			? await db
-					.select({
-						id: schema.toolCalls.id,
-						messageId: schema.toolCalls.messageId,
-						toolCallId: schema.toolCalls.toolCallId,
-						toolName: schema.toolCalls.toolName,
-						input: schema.toolCalls.input,
-						output: schema.toolCalls.output,
-						status: schema.toolCalls.status,
-						startedAt: schema.toolCalls.startedAt,
-						completedAt: schema.toolCalls.completedAt
-					})
-					.from(schema.toolCalls)
-					.innerJoin(schema.messages, eq(schema.toolCalls.messageId, schema.messages.id))
-					.where(inArray(schema.messages.id, pageMessageIds))
-					.orderBy(asc(schema.toolCalls.startedAt))
-			: [];
+		// Everything below depends only on the message page (or the conversation id),
+		// so fetch tool calls, attachments, citations, the linked canvas, and the live
+		// turn state concurrently instead of one after another.
+		const [calls, attachmentRows, citationRows, linkedCanvasRows, turnActive] = await Promise.all([
+			pageMessageIds.length
+				? db
+						.select({
+							id: schema.toolCalls.id,
+							messageId: schema.toolCalls.messageId,
+							toolCallId: schema.toolCalls.toolCallId,
+							toolName: schema.toolCalls.toolName,
+							input: schema.toolCalls.input,
+							output: schema.toolCalls.output,
+							status: schema.toolCalls.status,
+							startedAt: schema.toolCalls.startedAt,
+							completedAt: schema.toolCalls.completedAt
+						})
+						.from(schema.toolCalls)
+						.innerJoin(schema.messages, eq(schema.toolCalls.messageId, schema.messages.id))
+						.where(inArray(schema.messages.id, pageMessageIds))
+						.orderBy(asc(schema.toolCalls.startedAt))
+				: Promise.resolve([]),
+			rows.length
+				? db
+						.select({
+							id: schema.messageAttachments.id,
+							messageId: schema.messageAttachments.messageId,
+							filename: schema.messageAttachments.filename,
+							mimeType: schema.messageAttachments.mimeType,
+							sizeBytes: schema.messageAttachments.sizeBytes,
+							extractionStatus: schema.messageAttachments.extractionStatus,
+							pageCount: schema.messageAttachments.pageCount,
+							extractionError: schema.messageAttachments.extractionError
+						})
+						.from(schema.messageAttachments)
+						.where(inArray(schema.messageAttachments.messageId, pageMessageIds))
+				: Promise.resolve([]),
+			rows.length
+				? db
+						.select({
+							messageId: schema.messageCitations.messageId,
+							sourceId: schema.messageCitations.sourceId,
+							label: schema.messageCitations.label,
+							type: schema.sources.type,
+							title: schema.sources.title,
+							url: schema.sources.url,
+							fileId: schema.sources.fileId,
+							metadata: schema.sources.metadata
+						})
+						.from(schema.messageCitations)
+						.innerJoin(schema.sources, eq(schema.messageCitations.sourceId, schema.sources.id))
+						.where(inArray(schema.messageCitations.messageId, pageMessageIds))
+				: Promise.resolve([]),
+			db
+				.select({ id: schema.canvases.id })
+				.from(schema.canvases)
+				.where(and(eq(schema.canvases.conversationId, id), eq(schema.canvases.userId, user.id)))
+				.limit(1),
+			// A row still marked `streaming` with no live turn behind it can only be a
+			// turn that died without finalizing (dropped connection, provider error, restart).
+			hasActiveConversationTurn(id)
+		]);
+		const linkedCanvas = linkedCanvasRows[0];
 		const toolCallsByMessage = new Map<string, typeof calls>();
 		for (const call of calls) {
 			if (!call.messageId) continue;
@@ -87,26 +137,6 @@ export const GET: RequestHandler = async (event) => {
 			current.push(call);
 			toolCallsByMessage.set(call.messageId, current);
 		}
-		const attachmentRows = rows.length
-			? await db
-					.select({
-						id: schema.messageAttachments.id,
-						messageId: schema.messageAttachments.messageId,
-						filename: schema.messageAttachments.filename,
-						mimeType: schema.messageAttachments.mimeType,
-						sizeBytes: schema.messageAttachments.sizeBytes,
-						extractionStatus: schema.messageAttachments.extractionStatus,
-						pageCount: schema.messageAttachments.pageCount,
-						extractionError: schema.messageAttachments.extractionError
-					})
-					.from(schema.messageAttachments)
-					.where(
-						inArray(
-							schema.messageAttachments.messageId,
-							rows.map((row) => row.id)
-						)
-					)
-			: [];
 		const attachmentsByMessage = new Map<
 			string,
 			Array<(typeof attachmentRows)[number] & { url: string }>
@@ -121,27 +151,6 @@ export const GET: RequestHandler = async (event) => {
 			});
 			attachmentsByMessage.set(attachment.messageId, current);
 		}
-		const citationRows = rows.length
-			? await db
-					.select({
-						messageId: schema.messageCitations.messageId,
-						sourceId: schema.messageCitations.sourceId,
-						label: schema.messageCitations.label,
-						type: schema.sources.type,
-						title: schema.sources.title,
-						url: schema.sources.url,
-						fileId: schema.sources.fileId,
-						metadata: schema.sources.metadata
-					})
-					.from(schema.messageCitations)
-					.innerJoin(schema.sources, eq(schema.messageCitations.sourceId, schema.sources.id))
-					.where(
-						inArray(
-							schema.messageCitations.messageId,
-							rows.map((row) => row.id)
-						)
-					)
-			: [];
 		const citationsByMessage = new Map<string, typeof citationRows>();
 		for (const citation of citationRows) {
 			const current = citationsByMessage.get(citation.messageId) ?? [];
@@ -154,14 +163,6 @@ export const GET: RequestHandler = async (event) => {
 		};
 		for (const citations of citationsByMessage.values())
 			citations.sort((a, b) => citationOrder(a.metadata) - citationOrder(b.metadata));
-		const [linkedCanvas] = await db
-			.select({ id: schema.canvases.id })
-			.from(schema.canvases)
-			.where(and(eq(schema.canvases.conversationId, id), eq(schema.canvases.userId, user.id)))
-			.limit(1);
-		// A row still marked `streaming` with no live turn behind it can only be a turn
-		// that died without finalizing (dropped connection, provider error, restart).
-		const turnActive = await hasActiveConversationTurn(id);
 		return json({
 			conversation: {
 				...toPublicConversation(conversation),

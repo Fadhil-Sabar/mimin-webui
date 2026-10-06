@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 import { Marked } from 'marked';
-import { highlightCode, escapeHtml } from '$lib/client/highlighter';
+import { ensureHighlighter, highlightCode, escapeHtml } from '$lib/client/highlighter';
 import {
 	parseCitationsAndSources,
 	extractDomain,
@@ -28,6 +28,11 @@ function createMarkdownParser() {
 
 describe('markdown parser and syntax highlighter', () => {
 	const parser = createMarkdownParser();
+
+	// Prism now loads on demand; the highlighter falls back to escaped plaintext until then.
+	beforeAll(async () => {
+		await ensureHighlighter();
+	});
 
 	it('renders headings and bold text', () => {
 		const html = parser.parse('# Title\n\n**bold** and *italic*') as string;
