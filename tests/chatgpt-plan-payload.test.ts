@@ -104,6 +104,29 @@ describe('ChatGPT plan Responses contract', () => {
 		await loadChatGptPlanModels(credential);
 		expect(fetcher).toHaveBeenCalledTimes(2);
 	});
+	it('resolves vision for dated and plan aliases, cached results, and manual model selections', async () => {
+		const fetcher = vi.fn(async () =>
+			Response.json({ models: [{ slug: 'gpt-4o-2024-11-20', visibility: 'list' }] })
+		);
+		vi.stubGlobal('fetch', fetcher);
+		const discovered = await loadChatGptPlanModels(credential);
+		expect(discovered[0].input).toEqual(['text', 'image']);
+		const cached = await loadChatGptPlanModels(credential);
+		expect(cached[0].input).toEqual(['text', 'image']);
+		expect(fetcher).toHaveBeenCalledTimes(1);
+
+		vi.stubGlobal('fetch', vi.fn(async () => Response.json({ models: [] })));
+		const manual = await loadChatGptPlanModels({
+			...credential,
+			apiKey: 'manual-token',
+			chatGptModelIds: ['gpt-5.4-mini', 'o3-mini', 'custom-plan-model']
+		});
+		expect(manual.map((model) => model.input)).toEqual([
+			['text', 'image'],
+			['text'],
+			['text']
+		]);
+	});
 	it('keeps manual model selections available when discovery fails and requires a connection', async () => {
 		vi.stubGlobal(
 			'fetch',

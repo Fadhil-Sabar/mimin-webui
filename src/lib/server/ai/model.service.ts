@@ -651,9 +651,19 @@ export async function loadChatGptPlanModels(
 	for (const id of manualIds)
 		if (!entries.has(id)) entries.set(id, { id, name: modelDisplayName(id) });
 	const models = [...entries.values()].map((item): RuntimeModel => {
-		const template = getRegistry()
-			.getModels('openai')
-			.find((model) => model.id === item.id);
+		const catalog = builtinModels();
+		const normalize = (id: string) => id.toLowerCase().replace(/-latest$/, '');
+		const normalizedId = normalize(item.id);
+		const template =
+			getRegistry().getModels('openai').find((model) => model.id === item.id) ??
+			([...catalog.getModels('openai'), ...catalog.getModels('openai-codex')].find(
+				(model) => normalize(model.id) === normalizedId
+			) as RuntimeModel | undefined);
+		const input =
+			template?.input ??
+			(/^(?:gpt-(?:4o|4\.1|[5-9])|o[3-9](?!-mini))/i.test(item.id)
+				? ['text', 'image']
+				: ['text']);
 		return {
 			...(template ?? {}),
 			id: item.id,
@@ -662,7 +672,7 @@ export async function loadChatGptPlanModels(
 			api: 'openai-responses',
 			baseUrl: 'https://api.openai.com/v1',
 			reasoning: item.reasoning ?? template?.reasoning ?? /^(o[1-9]|gpt-[5-9])/i.test(item.id),
-			input: template?.input ?? ['text'],
+			input,
 			contextWindow: item.contextWindow ?? template?.contextWindow ?? 128_000,
 			maxTokens: template?.maxTokens ?? 16_384,
 			// Plan usage has no API per-token price. Never show invented API costs.
